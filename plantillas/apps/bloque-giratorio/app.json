@@ -1,0 +1,91 @@
+{
+  "schema": "numinia-engine/app@1",
+  "id": "bloque-giratorio",
+  "nombre": "Bloque giratorio",
+  "version": "1.0.0",
+  "descripcion": "Un bloque de piedra que gira despacio y avisa cuando alguien lo pulsa. Ejemplo mínimo del formato de app.",
+  "autor": "Numen Games",
+  "fuente": "https://github.com/numengames/numinia-engine",
+  "licencia": "AGPL-3.0-only",
+  "modelo": "32fce59977a24c3c15eb40084c700c1537e59853747f92ce1d01c6fd65958588.glb",
+  "main": "main.ts",
+  "activos": [
+    {
+      "archivo": "32fce59977a24c3c15eb40084c700c1537e59853747f92ce1d01c6fd65958588.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Numen Games (obra propia)",
+      "fuente": "https://github.com/numengames/numinia-engine/blob/main/activos/casa/bloque.glb"
+    }
+  ],
+  "propiedades": [
+    {
+      "id": "girar",
+      "tipo": "interruptor",
+      "etiqueta": "Girar",
+      "hablado": "girar el bloque",
+      "porDefecto": true,
+      "ayuda": "Apágalo para que el bloque se quede quieto."
+    },
+    {
+      "id": "velocidad",
+      "tipo": "rango",
+      "etiqueta": "Velocidad",
+      "hablado": "velocidad de giro",
+      "min": 0,
+      "max": 90,
+      "paso": 5,
+      "porDefecto": 20,
+      "ayuda": "Grados por segundo."
+    },
+    {
+      "id": "color",
+      "tipo": "color",
+      "etiqueta": "Color",
+      "hablado": "color del bloque",
+      "porDefecto": "#c9a27e"
+    },
+    {
+      "id": "rotulo",
+      "tipo": "texto",
+      "etiqueta": "Rótulo",
+      "hablado": "rótulo del bloque",
+      "porDefecto": "Bloque"
+    },
+    {
+      "id": "sentido",
+      "tipo": "lista",
+      "etiqueta": "Sentido",
+      "hablado": "sentido del giro",
+      "opciones": [
+        "derecha",
+        "izquierda"
+      ],
+      "porDefecto": "derecha"
+    }
+  ],
+  "eventos": [
+    {
+      "id": "pulsado",
+      "describe": "Alguien pulsa el bloque.",
+      "campos": {
+        "quien": "texto"
+      },
+      "anuncio": {
+        "texto": "{quien} pulsa el bloque",
+        "sonido": "suave"
+      }
+    },
+    {
+      "id": "cambioDeSentido",
+      "describe": "El bloque cambia de sentido de giro.",
+      "campos": {
+        "sentido": "texto"
+      },
+      "anuncio": "silent"
+    }
+  ],
+  "ficha": {
+    "hablado": "un bloque de piedra que gira",
+    "describe": "Un bloque de piedra de un metro apoyado en el suelo. Gira despacio; si lo pulsas, cambia de sentido y avisa."
+  }
+}

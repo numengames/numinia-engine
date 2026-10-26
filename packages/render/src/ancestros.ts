@@ -6,7 +6,13 @@
 //   geometry in translucent cyan with a wireframe over it), with its notice on the pedestal. It sleeps dim and still;
 //   LIT (someone near, the server says) it turns to you and flickers: the only thing here that costs a frame, and only
 //   while a lit hologram is within VIVO_M. What it says appears on a plate over its head for a few seconds.
-// Procedural, no .glb. Per hall: 5 walls + 1 floor + 2 panels; per hologram 5 meshes (+1 plate while it speaks).
+// · The CEILING and the hall's OWN LIGHT (MIS-228): one slab over the walls (one mesh: the hall reads as closed; it lifts out of
+//   the way only while you are inside and the camera rides above it) and one dim
+//   cyan point light inside, so the bust is told apart by day against a roof-shaded room instead of washing out under the sky.
+//   The slab is NOT drawn on the top-down map (`userData.mapa` unset: the map would show a lid, not the room). The light is one
+//   light, no shadows, made with the hall and removed with it; the device tier decides (`luz()`, tier D keeps the roof but no
+//   extra light — phones must not heat) and its brightness is spent only while you are within LUZ_M of the hall.
+// Procedural, no .glb. Per hall: 5 walls + 1 floor + 1 ceiling + 2 panels (+1 light); per hologram 5 meshes (+1 plate while it speaks).
 import * as THREE from "three/webgpu";
 
 export type Muro3D = { id: string; x0: number; y0: number; z0: number; x1: number; y1: number; z1: number };
@@ -20,6 +26,11 @@ export const DICHO_MS = 9000;
 const GIRO = 4;
 
 const COLOR = 0x7fd8ff;
+/** The roof slab: thickness (m) over the top of the walls. */
+export const TECHO_GROSOR = 0.3;
+/** The hall's light: cyan, dim (candela, like the fire lights' 6), reach (m) and the distance (m) beyond which it is switched to 0. */
+export const LUZ_SALA = { color: COLOR, intensidad: 5, alcance: 16, altura: 0.7 } as const;
+export const LUZ_M = 70;
 function lienzoTexto(titulo: string, lineas: string[], pie: string | undefined, ancho: number, alto: number): HTMLCanvasElement {
   const c = document.createElement("canvas"); c.width = ancho; c.height = alto;
   const g = c.getContext("2d")!;
@@ -49,13 +60,20 @@ function placa(c: HTMLCanvasElement, anchoM: number): THREE.Mesh {
   return m;
 }
 
-export function crearSalon(h: { world: THREE.Object3D; camara: () => THREE.Camera }) {
+export function crearSalon(h: { world: THREE.Object3D; camara: () => THREE.Camera; /** May the hall carry its own light on this device? (default yes) */ luz?: () => boolean }) {
   type Pared = { m: THREE.Mesh; d: Muro3D };
   type Holo = { g: THREE.Group; materiales: THREE.MeshBasicMaterial[]; d: Holograma3D; yaw: number; placa: { m: THREE.Mesh; hasta: number } | null };
   const paredes = new Map<string, Pared>(), holos = new Map<string, Holo>(), paneles = new Map<string, THREE.Mesh>();
-  let suelo: THREE.Mesh | null = null;
+  let suelo: THREE.Mesh | null = null, techo: THREE.Mesh | null = null, luz: THREE.PointLight | null = null, centro: { x: number; z: number } | null = null, huella: { x0: number; x1: number; z0: number; z1: number } | null = null;
+  const vTmp = new THREE.Vector3();
   const piedra = new THREE.MeshStandardMaterial({ color: 0x4a4f58, roughness: 0.95 });
   const sueloMat = new THREE.MeshStandardMaterial({ color: 0x2b3038, roughness: 0.9 });
+  const techoMat = new THREE.MeshStandardMaterial({ color: 0x3a3f48, roughness: 0.95 });
+  const quitarTechoYLuz = () => {
+    if (techo) { h.world.remove(techo); techo.geometry.dispose(); techo = null; }
+    if (luz) { h.world.remove(luz); luz.dispose(); luz = null; }
+    centro = null; huella = null;
+  };
   const pedestalMat = new THREE.MeshStandardMaterial({ color: 0x23272e, roughness: 0.7, metalness: 0.3 });
   const geoCabeza = new THREE.SphereGeometry(0.24, 18, 14);
   const geoCuello = new THREE.CylinderGeometry(0.09, 0.11, 0.14, 10);
@@ -98,11 +116,23 @@ export function crearSalon(h: { world: THREE.Object3D; camara: () => THREE.Camer
         h.world.add(m); paredes.set(d.id, { m, d });
       }
       if (suelo) { h.world.remove(suelo); suelo.geometry.dispose(); suelo = null; }
+      quitarTechoYLuz();
       if (!lista.length) return;
       const x0 = Math.min(...lista.map((m) => m.x0)), x1 = Math.max(...lista.map((m) => m.x1)), z0 = Math.min(...lista.map((m) => m.z0)), z1 = Math.max(...lista.map((m) => m.z1));
       suelo = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 0.04, z1 - z0), sueloMat);
       suelo.position.set((x0 + x1) / 2, 0.02, (z0 + z1) / 2); suelo.userData.mapa = "suelo";
       h.world.add(suelo);
+      // the roof over the walls (one slab, the walls' footprint) and the hall's own light under it
+      const alto = Math.max(...lista.map((m) => m.y1)), cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+      techo = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, TECHO_GROSOR, z1 - z0), techoMat);
+      techo.name = "ancestros:techo"; techo.position.set(cx, alto + TECHO_GROSOR / 2, cz); techo.castShadow = true;
+      h.world.add(techo);
+      centro = { x: cx, z: cz }; huella = { x0, x1, z0, z1 };
+      if (h.luz?.() ?? true) {
+        luz = new THREE.PointLight(LUZ_SALA.color, LUZ_SALA.intensidad, LUZ_SALA.alcance, 2);
+        luz.name = "ancestros:luz"; luz.castShadow = false; luz.position.set(cx, alto - LUZ_SALA.altura, cz);
+        h.world.add(luz);
+      }
     },
     /** The holograms: lit or not; a lit one turns to you (actualizar). */
     hologramas(lista: Holograma3D[]): void {
@@ -141,6 +171,14 @@ export function crearSalon(h: { world: THREE.Object3D; camara: () => THREE.Camer
     /** Each frame: a lit hologram within VIVO_M turns to you and flickers; its plate expires. Cheap when none is lit. */
     actualizar(dt: number, self: { x: number; z: number } | null): void {
       const now = performance.now();
+      if (centro) { // the light follows the device tier (no recompile storm: one light made/removed) and costs nothing far from the hall
+        const quiere = h.luz?.() ?? true;
+        if (quiere && !luz && techo) { luz = new THREE.PointLight(LUZ_SALA.color, LUZ_SALA.intensidad, LUZ_SALA.alcance, 2); luz.name = "ancestros:luz"; luz.castShadow = false; luz.position.set(centro.x, techo.position.y - TECHO_GROSOR / 2 - LUZ_SALA.altura, centro.z); h.world.add(luz); }
+        else if (!quiere && luz) { h.world.remove(luz); luz.dispose(); luz = null; }
+        // the roof lifts out of the way when YOU are inside and the camera rides above it (else the orbit camera would show a lid, not you)
+        if (techo && huella) techo.visible = !(self && self.x > huella.x0 && self.x < huella.x1 && self.z > huella.z0 && self.z < huella.z1 && h.camara().getWorldPosition(vTmp).y > techo.position.y - TECHO_GROSOR);
+        if (luz && self) luz.intensity = (self.x - centro.x) ** 2 + (self.z - centro.z) ** 2 <= LUZ_M * LUZ_M ? LUZ_SALA.intensidad : 0;
+      }
       for (const o of holos.values()) {
         if (o.placa && now > o.placa.hasta) quitarPlaca(o);
         if (!o.d.encendido || !self) continue;
@@ -164,8 +202,8 @@ export function crearSalon(h: { world: THREE.Object3D; camara: () => THREE.Camer
       return false;
     },
     /** For checks: what is drawn now, and the yaw (degrees) of a hologram. */
-    contar(): { muros: number; hologramas: number; paneles: number; encendidos: number; placas: number } {
-      return { muros: paredes.size, hologramas: holos.size, paneles: paneles.size, encendidos: [...holos.values()].filter((o) => o.d.encendido).length, placas: [...holos.values()].filter((o) => !!o.placa).length };
+    contar(): { muros: number; techo: boolean; luz: boolean; hologramas: number; paneles: number; encendidos: number; placas: number } {
+      return { muros: paredes.size, techo: !!techo, luz: !!luz, hologramas: holos.size, paneles: paneles.size, encendidos: [...holos.values()].filter((o) => o.d.encendido).length, placas: [...holos.values()].filter((o) => !!o.placa).length };
     },
     rumboDe(id: string): number | null { const o = holos.get(id); return o ? (o.yaw * 180) / Math.PI : null; },
   };

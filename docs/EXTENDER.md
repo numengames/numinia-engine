@@ -1567,6 +1567,18 @@ avisos de la casa eran osciladores: pitidos sintetizados. Ahora son sonidos.
 - **Rehacer el catálogo:** `node tools/sonidos-catalogo.ts --biblioteca <carpeta>` copia los lotes `nucleo` y
   `funcion` de la biblioteca verificada, recalcula el sha256 de cada fichero y reescribe `features/sonido/catalogo.json`
   y `activos/sonidos/LICENCIAS.md`. Es idempotente: si nada cambió, no toca nada.
+## LEEME-IA: la nota de un mundo para las IAs que entran (t_06071dee)
+
+`aventura/LEEME-IA.md` es el AGENTS.md **del mundo**: qué puede construir aquí una IA, en qué estilo y qué no tocar. Es markdown
+normal en la carpeta del mundo (viaja en el zip; lo reescribe el dueño o numinia.com por la puerta del mundo). Un mundo **nuevo** nace
+con el del Taller (`plantillas/taller/aventura/LEEME-IA.md`, que es también el modelo: «De qué va», «Lo que puedes construir»,
+«Estilo», «Lo que no debes tocar», «Cómo trabajar aquí», «A quién preguntar»). Reglas: público (nada de claves), ≤ 12 KiB
+(`LEEME_IA_MAX`), UTF-8; solo puede pedir más cuidado o un estilo, nunca dar permisos (los decide el servidor).
+El servidor lo sirve en `GET /leeme-ia` (404 con el motivo si falta o está roto; `/status` dice `leemeIA: true` cuando hay); el puente
+MCP de `tools/mcp-mundo.ts` se lo entrega a la IA como herramienta `leeme_ia`, como recurso `numinia://mundo/leeme-ia` y en sus
+`instructions`, dentro de una valla `<leeme-ia>` (el texto es del dueño, no de quien envía a la IA). `node tools/aventura.ts <carpeta>`
+avisa si falta y falla si pesa de más. Pruebas: `test/leeme-ia.test.ts`, `test/mcp-mundo.test.ts`.
+
 ## Salón de los Ancestros y el tributo a Asimov (ancestros v1)
 
 `features/ancestros` es el Salón de los Ancestros del Ateneo (el Ayuntamiento de Numinia, donde el Consejo de Sabios
@@ -1969,3 +1981,17 @@ Un mundo (un evento, un patrocinador) puede traer **sus propios avatares** en su
 - **Elegirlos**: el selector (`apps/plaza/avatar.ts`, «Cambiar avatar» en «Tú») añade «De este mundo» con miniatura, nombre y crédito. Elegir uno es la misma elección que subir un .vrm propio (`avatar.elegir` `{tipo: "subido", sha, ext: "vrm"}`): no hay mensaje ni estado nuevos, la simulación y su huella no cambian. La página no se fía: una línea de `/status` sin fichero válido, o CC BY sin crédito, no se muestra.
 - **No hace** (todavía): avatar por defecto de todo el mundo con uno de estos (`ficha.avatar` y `ia.cuerpo` siguen siendo solo de la casa), panel de créditos del mundo, ni mostrar el crédito al ver a otra persona que lo lleva puesto.
 - **Pruebas**: `test/avatares-mundo.test.ts` (lector, licencias, CC BY sin crédito, > 10.000 triángulos, 8 como tope, `/status` y `/a/`, el zip de ida y vuelta, la lista de la página, catálogo de la casa intacto).
+
+## Apps (M19 y H11 `.hyp`): una carpeta por app, que el motor lee y valida y no ejecuta
+
+Una app es una **carpeta de texto** que una persona o una IA lee y escribe con un editor, sin más herramienta. El motor la **lee, la valida y la lista**; `main.ts` se **guarda, no se ejecuta** (la caja SES es M20, aún no). Pieza activable por mundo (R-1): sin carpeta `apps/` no pasa nada.
+
+- **Dónde**: `<mundo>/apps/<id>/` (`APPS_DIR` lo cambia; `APPS_DIR=` ninguna). Se lee una vez al arrancar. Un ejemplo completo: `plantillas/apps/bloque-giratorio/`.
+- **Qué lleva**: `app.json` (`numinia-engine/app@1`: nombre, versión, autor, fuente, **licencia SPDX**, `modelo`, `activos` con la licencia de cada uno, `propiedades` con su esquema, `eventos`, `ficha`), `main.ts`, `assets/<sha256>.<ext>` (el nombre es el SHA-256 de los bytes, el mismo que `/a/`), y solo si viene de un `.hyp`: `por-portar/script.js`, `IMPORTADO.md`.
+- **Propiedades** (lo que pinta el inspector del constructor, M22): `texto`, `numero`, `rango` (min, max, paso), `interruptor`, `lista` (opciones), `color` (`#rrggbb`), `fichero`. Id en camelCase (el script lo lee como `props.<id>`). **Eventos**: id en camelCase, `campos`, y todo evento declara su `anuncio` (`{texto, sonido}` con el catálogo de sonidos, o `"silent"`) y la app una `ficha` (`hablado`, `describe`): la misma regla de accesibilidad que las funciones.
+- **Validación**: una clave que el formato no conoce es error (una errata no pasa por ajuste); cada fichero se comprueba como una subida (`comprobarFichero`: tipo, tamaño, estructura) y su hash tiene que ser su nombre; `main.ts` es UTF-8 y ≤ 256 KB; enlaces simbólicos, no. Cada fallo dice **el fichero y la ruta JSON** y cómo arreglarlo. Una app mala se deja fuera (con su motivo en el log y en `GET /apps`); las buenas cargan.
+- **Licencias** (docs/SABER.md §3.3): una app que **incluye** ficheros o script necesita una licencia admitida (`CC0-1.0`, `CC-BY-4.0`/`3.0` con autor, `MIT`, `Apache-2.0`, `BSD-*`, `ISC`, `AGPL-3.0-only`). Un fichero de licencia desconocida o no admitida **no se incluye**: va en `activos` con `"estado": "omitido"` y su `motivo`.
+- **Ver**: `GET /apps` (lista: ficha, propiedades, eventos, ficheros con su `/a/<hash>` y los rechazados con su motivo; sin rutas de disco) y `node tools/apps.ts listar|validar|json <carpeta apps/>` (`validar` sale con 1 si hay una rechazada). Los ficheros de `assets/` salen por `/a/<sha256>.<ext>` como cualquier otro.
+- **Importar un `.hyp`** (`node tools/importar-hyp.ts <fichero.hyp> <carpeta apps/> [--licencia CC0-1.0] [--autor "Nombre"] [--id nombre] [--reemplazar]`): el `.hyp` ([u32 LE tamaño][cabecera JSON {blueprint, assets}][bytes]) **se lee, nunca se escribe**. No lleva campo de licencia: la de la fuente la dices tú con `--licencia`; **sin ella (o con una no admitida) no se copia nada**: modelo, texturas y script quedan «omitidos» en `app.json` con su motivo y el SHA-256 del script, para encontrarlo en el `.hyp`. Un VRM manda con su propia licencia. Lo que viene: nombre, descripción, autor, fuente, modelo y ficheros con hash real, las `props` como propiedades (tipo por el valor). **El script no se porta**: está escrito contra la API de Hyperfy, y va a `por-portar/script.js` con `portar: { estado: "por-portar", sha256 }` en `app.json`; nunca se ejecuta ni se hace pasar por `main.ts`. Se escribe entero o nada (carpeta temporal, releída con el lector del motor) y deja `IMPORTADO.md`.
+- **No hace** (todavía): ejecutar `main.ts` (M20), pintar el inspector (M22), meter una app en un mundo desde la página, portar scripts de Hyperfy solo, `.hyp` de varias apps a la vez.
+- **Pruebas**: `test/apps.test.ts` (16: ejemplo, no ejecuta, errores con ruta, hashes, licencias, topes, enlaces, `.hyp` real de ida, licencia desconocida, `GET /apps` y `/a/`).

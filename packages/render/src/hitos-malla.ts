@@ -1,4 +1,4 @@
-// hitos-malla (MIS-200): the plaza's landmark pillars (index.ts: 24 boxes 1×3×1) drawn as ONE InstancedMesh with a colour per
+// hitos-malla (MIS-200): the plaza's landmark pillars (index.ts: boxes 1×3×1, 24 before MIS-224, now hitos-plaza.ts) drawn as ONE InstancedMesh with a colour per
 // instance, instead of 24 draw calls per eye (Pico 4: 145 calls per frame, no multiview). Same idea as lotes.ts: the 24
 // original meshes stay in the world as invisible-while-drawing proxies, so the top-down map (cenital.ts, `userData.mapa`), the
 // AR miniature (ar.ts), picking, the environment's `hitos: false` and the nature's hide (naturaleza/hitos.ts) keep reading

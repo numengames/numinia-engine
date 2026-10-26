@@ -125,7 +125,7 @@ test("H8 new world: it is born in the espacio base — state on, logo and moñon
   sembrar(c);
   const w = mundo(c.entorno, 1);
   assert.equal(w.pages[0].base.activa(), true);
-  assert.deepEqual(w.cosas().map((o) => o.nombre).sort(), ["Logo Khepri", "Moñoni 1", "Moñoni 1 boca"]);
+  assert.deepEqual(w.cosas().map((o) => o.nombre).sort(), ["Logo Khepri", "Moñoni 1", "Moñoni 1 boca", "Moñoni mayor", "Moñoni mayor boca"]);
   const plaza = mundo(tmp("h08-plaza-"), 1);
   assert.equal(plaza.pages[0].base.activa(), false); assert.equal(plaza.cosas().length, 0, "a world with no file: nothing planted (as before)");
 });
@@ -139,7 +139,7 @@ test("H8 restore: the file goes back to the espacio base, what was built goes, t
   assert.ok(construido >= 2 && hogueras === 1, `built something (${construido} objects, ${hogueras} elements)`);
   a.base.restaurar(); a.obj.reiniciar(); a.elem.vaciar(); w.pump();
   assert.deepEqual(JSON.parse(leer(dir)), { schema: ESQUEMA, activa: true, semilla: 42 }, "default seed, on, nothing of the old file");
-  assert.deepEqual(w.cosas().map((o) => o.nombre).sort(), ["Logo Khepri", "Moñoni 1", "Moñoni 1 boca"]);
+  assert.deepEqual(w.cosas().map((o) => o.nombre).sort(), ["Logo Khepri", "Moñoni 1", "Moñoni 1 boca", "Moñoni mayor", "Moñoni mayor boca"]);
   assert.equal(w.elementos().length, 0);
   assert.equal(a.base.activa(), true); assert.equal(a.vistas.at(-1)?.semilla, 42);
   assert.deepEqual(eventos(a.s, "rechazado"), []);

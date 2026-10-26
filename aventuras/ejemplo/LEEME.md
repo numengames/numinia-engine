@@ -13,7 +13,25 @@ lo que hablar. Las aventuras de verdad viven en su propio repositorio y el servi
 - `escenas/taberna.json`, `escenas/tormenta.json` (`escena@1`, N6): dos escenas para quien dirige (permiso «Gestionar
   rituales»): el panel «Dirigir» (K) o `/escena taberna` en el chat. Una escena pone cielo, luz y niebla sobre el
   entorno del mundo y puede traer una línea del narrador. `/escenas` las lista, junto a los entornos de la casa.
+- `LEEME-IA.md`: la nota de este mundo para las IAs que entran (qué construir, estilo, qué no tocar); ejemplo de LEEME-IA, el modelo está en `plantillas/taller/aventura/`.
 - `ficha.json` (`ficha@1`): cómo se llama el mundo y de qué va (la página y `/status` lo dicen); `portada` opcional.
 
 Cómo se escribe una aventura (formatos, reglas, errores): `docs/EXTENDER.md`, «Misiones y personas (PNJ)».
 Comprobar una carpeta sin arrancar nada: `node tools/aventura.ts aventuras/ejemplo`.
+
+## Qué hay en la plaza de casa y para qué (MIS-224)
+
+Cada objeto con un sentido; lo que no lo tenía se quitó. Las cosas de aquí llevan su propósito en `notas`; los pilares, en
+`packages/render/src/hitos-plaza.ts` (`proposito`), y un test (`test/plaza-con-sentido.test.ts`) lo exige.
+
+| Qué | Dónde | Para qué |
+|---|---|---|
+| Pilar dorado | (18, 0) | meta del primer paso de «Primeros pasos» |
+| Pilar rojo | (0, 18) | la seña de Bruno: su caja está junto a él |
+| Caja de herramientas | (4, 14) | lo que Bruno perdió (cierra «Primeros pasos») |
+| Regadera azul, Saco de semillas | (−14, 4), (−9, −3) | lo que Teo pide en «Manos a la obra»; a la altura de la mano |
+| Estanque, Diana, Holograma de Asimov | funciones `pesca`, `dardos`, `ancestros` | pescar, lanzar dardos, hablar con el holograma |
+
+Quitados: 22 de los 24 pilares de colores del motor (cajas de 1×3×1 m en tres anillos «para que se note el movimiento»):
+el suelo de hierba ya da la referencia y ninguna misión los nombraba. Un mundo que quiera pilares propios los pone como
+objetos suyos; `hitos: false` en el entorno quita también estos dos.

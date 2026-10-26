@@ -300,6 +300,19 @@ html[data-aparato^="movil"] #avisos-pila { left: calc(var(--sl, 0px) + var(--m, 
 #avisos-centro .avisos-lista .aviso-gente .ic, #avisos-centro .avisos-lista .aviso-sistema .ic { color: var(--n-verdemar); }
 #avisos-centro .avisos-lista .tx { flex: 1; font-size: 13px; }
 #avisos-centro .avisos-lista time { font: 11px var(--n-mono, ui-monospace, monospace); color: var(--n-texto2, var(--n-texto)); white-space: nowrap; }
+/* ---- MIS-239: a touch of glass on the windows (settings, map and sheet panels, the Menú drop-down). The numbers live in
+   packages/client/src/cristal.ts and are proven AA there (test/cristal.test.ts compares this block with them). Off at «Baja»
+   quality / battery mode (data-sin-cristal, marcos.ts), in high contrast, on the phone profile (a blur per frame heats a phone)
+   and when the system asks for less transparency: those keep the plain surface above. ---- */
+html:not([data-sin-cristal]):not(.alto-contraste):not([data-aparato^="movil"]) :is(#ajustes[open], .panel-j5[open]) {
+  background: rgba(20, 17, 15, 0.78) !important; -webkit-backdrop-filter: blur(14px) saturate(1.2) brightness(0.85); backdrop-filter: blur(14px) saturate(1.2) brightness(0.85); border-color: rgba(249,235,220,.2) !important;
+}
+html:not([data-sin-cristal]):not(.alto-contraste):not([data-aparato^="movil"]) #barra-arriba > .menu-barra:not([hidden]) {
+  background: rgba(20, 17, 15, 0.78) !important; -webkit-backdrop-filter: blur(10px) saturate(1.2) brightness(0.85); backdrop-filter: blur(10px) saturate(1.2) brightness(0.85); border-color: rgba(249,235,220,.2) !important;
+}
+@media (prefers-reduced-transparency: reduce) {
+  html :is(#ajustes[open], .panel-j5[open], #barra-arriba > .menu-barra:not([hidden])) { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background: var(--n-sup) !important; }
+}
 /* ---- ajustes as a window: categories left, settings right (MMO interface, M2) ---- */
 #ajustes { inset: 50% auto auto 50% !important; transform: translate(-50%, -50%); width: min(940px, calc(100vw - 20px)) !important; height: min(640px, calc(100vh - 20px)); display: none; flex-direction: column; padding: 0 !important; }
 #ajustes[open] { display: flex; }

@@ -128,7 +128,7 @@ const cableLi = (p, nombre) => p.locator("#cable-lista li", { hasText: nombre })
 try {
   paso("el servidor dijo que el mundo nació con el onboarding", /mundo nuevo: nace con el onboarding del Taller/.test(srv.log), { log: srv.log.split("\n").find((l) => l.includes("mundo nuevo")) });
   const ficheros = todos(MUNDO).filter((f) => !/^(datos|sesiones)\//.test(f) && f !== "claves.env" && f !== "mundo.json");
-  paso("la carpeta nueva trae el onboarding y nada más", ficheros.length === 11 + 1 + 1 + 7 && !ficheros.some((f) => /ejemplo|alma|bruno|teo|lia/i.test(f)), { ficheros });
+  paso("la carpeta nueva trae el onboarding (y el LEEME-IA para las IAs) y nada más", ficheros.length === 11 + 1 + 1 + 1 + 7 && ficheros.includes("aventura/LEEME-IA.md") && !ficheros.some((f) => /ejemplo|alma|bruno|teo|lia/i.test(f)), { ficheros });
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   await ctx.addInitScript((v) => { try { localStorage.setItem("numinia.novedades.version", v); } catch {} }, version);
   const p = await entrar(ctx);

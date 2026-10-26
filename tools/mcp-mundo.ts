@@ -48,7 +48,7 @@ try {
 
 let puente: PuenteMundo;
 try { puente = new PuenteMundo({ url, id, ...(privada ? { firmar: (b) => firmarBillete({ ...b, privada: privada! }) } : {}), biblioteca, log, ...(numiniaUrl ? { pedirPase: token ? pedirPaseToken({ numiniaUrl, org, agente: id, token }) : pedirPaseHttp({ numiniaUrl, org, agente: id, privada: privada! }), ...(mundoId ? { mundo: mundoId } : {}) } : {}) }); } catch (e) { log(`[puente] ${(e as Error).message}`); process.exit(2); }
-const mcp = new ServidorMcp({ nombre: "numinia-mundo", version: infoMotor().build, herramientas: () => puente.herramientas(), instrucciones: INSTRUCCIONES, log });
+const mcp = new ServidorMcp({ nombre: "numinia-mundo", version: infoMotor().build, herramientas: () => puente.herramientas(), recursos: () => puente.recursos(), instrucciones: INSTRUCCIONES, log });
 mcp.escuchar(process.stdin, process.stdout);
 puente.arrancar();
 log(`[puente] «${id}» → ${url} · ${biblioteca.length} modelos para colocar · MCP por stdio${numiniaUrl ? ` · IA de la organización «${org}» (pases de ${numiniaUrl}, con ${token ? "token" : "clave"})` : ""}`);
