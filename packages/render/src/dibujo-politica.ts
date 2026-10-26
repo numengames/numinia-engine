@@ -49,6 +49,10 @@ export function tapadoPorNiebla(dx: number, dy: number, dz: number, radio: numbe
   return dx * dx + dy * dy + dz * dz > d * d;
 }
 
+/** The world's own feature groups that sit directly in the world (fishing spot, dartboard, effect element, an Ancestors'
+ * piece): the fog cut treats them like things (t_43143556). Their names are fixed by pesca.ts, dardos.ts, elementos.ts, ancestros.ts. */
+export const esGrupoDeFuncion = (nombre: string): boolean => /^(pesca|dardos|elemento):|^ancestros:(?!luz)/.test(nombre);
+
 /** Which groups of copies are drawn instanced: those with at least `desde` members (fewer: each copy draws itself,
  * as before — a world with two benches looks and costs the same as yesterday). */
 export function lotesQueSeInstancian(cuentas: ReadonlyMap<string, number>, desde = INSTANCIAR_DESDE): Set<string> {

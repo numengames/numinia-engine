@@ -3,7 +3,7 @@
 // (draw calls before/after: the N12 note in the PR).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { INSTANCIAR_DESDE, INSTANCIAR_DESDE_VR, instanciarDesde, MARGEN_NIEBLA_M, NIEBLA_TOTAL, lejosDeNiebla, llamadasDe, lotesQueSeInstancian, tapadoPorNiebla } from "../packages/render/src/dibujo-politica.ts";
+import { INSTANCIAR_DESDE, INSTANCIAR_DESDE_VR, instanciarDesde, MARGEN_NIEBLA_M, NIEBLA_TOTAL, esGrupoDeFuncion, lejosDeNiebla, llamadasDe, lotesQueSeInstancian, tapadoPorNiebla } from "../packages/render/src/dibujo-politica.ts";
 
 test("the fog's far end: a linear fog covers everything from `far` on; no fog cuts nothing", () => {
   assert.equal(lejosDeNiebla({ isFog: true, near: 35, far: 110 }), 110); // the Ayuntamiento's desert fog
@@ -53,4 +53,12 @@ test("MIS-200: in a headset two identical copies already go together; off it the
   assert.equal(llamadasDe(3, 2, instanciarDesde(true)), 3);   // a 3-material prop twice: 3 calls per eye instead of 6
   assert.equal(llamadasDe(3, 2, instanciarDesde(false)), 6);
   assert.equal(llamadasDe(3, 1, instanciarDesde(true)), 3);   // one copy costs the same either way
+});
+
+test("t_43143556: the world's feature groups (fishing, dartboard, element, Ancestors' pieces) are cut by the fog; the room light and things are not", () => {
+  for (const n of ["pesca:remanso", "dardos:ouroboros", "elemento:e2", "ancestros:asimov", "ancestros:techo"]) assert.equal(esGrupoDeFuncion(n), true, n);
+  for (const n of ["ancestros:luz", "lotes", "", "cielo-degradado", "objeto:o2", "pesca"]) assert.equal(esGrupoDeFuncion(n), false, n);
+  // a pond 110 m away under the fog that ends at 60: cut; the same pond 40 m away: drawn
+  assert.equal(tapadoPorNiebla(110, 0, 0, 6, 60), true);
+  assert.equal(tapadoPorNiebla(40, 0, 0, 6, 60), false);
 });

@@ -316,3 +316,23 @@ Plaza de 200 copias del modelo de 3.668 triángulos a 100–420 m (`COPIAS=200`)
 dio 100 llamadas y 539.983 triángulos. **No hay cifra «antes» fiable de llamadas y triángulos de esa plaza**: el cuadro leído por el
 GPU por software salió a 0 en el motor sin tarjeta (la lectura varía con el cuadro y con la posición, de 100 a 333 llamadas en
 el mismo mundo). Lo medido de verdad es el peso de cada nivel (arriba); las llamadas no bajan con el nivel, bajan los triángulos.
+
+## Lo que la niebla tapa, también en las piezas de función: la Torre de los Alquimistas entera (t_43143556)
+
+El corte por niebla de N12 solo miraba las cosas, las personas y los rótulos. Los grupos que dibujan las funciones
+del mundo (`pesca:`, `dardos:`, `elemento:`, `ancestros:`) se seguían dibujando a 110 m con una niebla que acaba en 60.
+Ahora entran en el mismo corte con su esfera englobante (re-medida cada 60 cuadros: la línea de la caña o un dardo en
+vuelo la agrandan). La luz de la sala de los Ancestros no se oculta nunca (ocultar una luz recompila todos los materiales).
+Medida en la muestra de la Torre (mundo `muestra-torre`, niebla 60 m, GL por software, planta B = sin sombras, el
+punto más caro: de pie en el porche de la Torre mirando al este, con todo el mundo delante):
+
+| vista | antes | después |
+|---|---|---|
+| Quest simulada (nivel B), llamadas | 88 | 55 |
+| PC (nivel A, con sombras), llamadas | 112 | 77 |
+| llegada, Quest | 40 | 20 |
+| junto al Ayuntamiento, Quest | 65 | 49 |
+
+Con casco emulado (IWER Meta Quest 3 sobre la misma página, `?medidor`): los 12 rumbos del porche dan como peor caso
+125 llamadas en total = 62 por ojo (`ojos: 2` en el censo); tope de la plantilla B: 150 por ojo (`limits.json`), objetivo de la
+tarjeta: 80. `muestra-torre/medir.mjs` y `medir-vr.mjs` lo repiten.
