@@ -70,7 +70,7 @@ import { crearDianas3D, crearDianaAR } from "./dardos.ts";
 import { crearPantallasWeb } from "./web.ts";
 import { crearSalon } from "./ancestros.ts";
 import type { DianaAR } from "./dardos.ts";
-import { detalleAgua } from "./calidad.ts";
+import { detalleAgua, LUCES_FUEGO } from "./calidad.ts";
 import { crearLotes } from "./lotes.ts";
 import { debeMejorar, ficheroDeNivel, nivelParaCargar } from "./lod-modelo.ts";
 import { crearHitosMalla } from "./hitos-malla.ts";
@@ -367,7 +367,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     grabando(si: boolean): void { grabosoQuiere.grabando = si; graboso3d?.grabando(si); },
     visible(): boolean { return graboso3d?.visible() ?? false; },
   };
-  const ancestros = crearSalon({ world, camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera) }); // ancestros v1: the hall and the hologram of the tribute to Asimov (ancestros.ts)
+  const ancestros = crearSalon({ world, camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera), luz: () => LUCES_FUEGO[entorno.nivel] > 0 }); // ancestros v1: the hall and the hologram of the tribute to Asimov (ancestros.ts)
   function dropLabel(t: Target): void {
     const d = labels.get(t);
     if (!d) return;

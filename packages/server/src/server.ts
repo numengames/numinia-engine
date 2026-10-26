@@ -36,6 +36,7 @@ import { infoMotor, semverMotor } from "./version.ts";
 import type { Motor } from "./version.ts";
 import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
 import { leerFicha, leerTema, lectorAventura } from "./aventura.ts";
+import { leerLeemeIA } from "./leeme-ia.ts";
 import { crearFichaViva } from "./ficha-viva.ts"; // H7: the ficha while running (the owner edits it from the settings panel)
 import { leerCondiciones, PUERTA_POR_DEFECTO } from "./condiciones.ts";
 import { crearPuertaCondiciones } from "./condiciones-puerta.ts"; // condiciones/c2: the gate
@@ -343,11 +344,20 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
         ...(cfgPase.pase ? { mundoPase: cfgPase.pase.mundo, pases: roles.pases() } : {}), ...fichaPublica(),
         // H4: the loading screen draws the line mesh only for a world whose espacio base is on (its state is public anyway)
         ...(espacioBaseActivo() ? { espacioBase: true } : {}),
+        // t_06071dee: this world has a LEEME-IA.md for AIs (GET /leeme-ia); absent = it has none
+        ...(leerLeemeIA(o.aventura ?? null).texto !== null ? { leemeIA: true } : {}),
         // dardos enlazados (E1): where a page of this world sends its AR darts (the Alchemist Tower's board unless dardos.json says otherwise); null = nowhere
         ...(o.enlaceDardos !== undefined ? { dardosEnlace: o.enlaceDardos } : {}), ...(visitas ? { visitas } : {}),
         // E3: the world's own avatars (name, licence, credit): the picker of THIS world offers them; absent when it has none
         ...(avataresMundo.length ? { avatares: avataresMundo } : {}),
       }));
+    }
+    // t_06071dee: the world's own note for any AI that comes in (aventura/LEEME-IA.md; the MCP bridge hands it to the AI). Public, like /status.
+    if (method === "GET" && path === "/leeme-ia") {
+      const l = leerLeemeIA(o.aventura ?? null);
+      if (l.texto === null) return json(res, 404, { error: l.problema ?? "este mundo no tiene aventura/LEEME-IA.md", pista: "el dueño la escribe en la carpeta del mundo (plantillas/taller/aventura/LEEME-IA.md es el modelo)" });
+      res.writeHead(200, { "content-type": "text/markdown; charset=utf-8", "cache-control": "no-store", "access-control-allow-origin": "*" });
+      return void res.end(l.texto);
     }
     if (method === "GET" && path === "/metrics") return json(res, 200, metrics());
     if (method === "GET" && path === "/sesiones") return json(res, 200, { schema: "numinia-engine/sesiones@1", carpeta: sesiones.dir, resumen: sesiones.resumen(), ahora: sesiones.ahora() });
@@ -377,7 +387,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     const answer = (body: string) => {
       const r = inst.features.http(method, path, Object.fromEntries(new URLSearchParams(qs)), body);
       if (r) return reply(res, r);
-      json(res, 404, { error: `no existe ${method} ${path}`, hay: ["/health", "/status", "/metrics", "/metrics.prom", "/sesiones", "/agentes", "/habitantes", "/funciones", "/apps", "/manifiesto.json", ...inst.features.routes(), "WebSocket en cualquier ruta (/ws)"] });
+      json(res, 404, { error: `no existe ${method} ${path}`, hay: ["/health", "/status", "/metrics", "/metrics.prom", "/sesiones", "/agentes", "/habitantes", "/funciones", "/apps", "/manifiesto.json", "/leeme-ia", ...inst.features.routes(), "WebSocket en cualquier ruta (/ws)"] });
     };
     if (method === "GET") return answer("");
     let body = "", size = 0;

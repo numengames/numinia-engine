@@ -1,5 +1,6 @@
 // mcp (ADR-080): the small part of the Model Context Protocol an agent's tools need, by hand (no dependency): JSON-RPC
-// 2.0 over newline-delimited JSON (stdin → requests, stdout → answers; logs only to stderr). Methods: initialize (echoes
+// 2.0 over newline-delimited JSON (stdin → requests, stdout → answers; logs only to stderr). Methods: resources/list + resources/read
+// (only when the server was given resources), initialize (echoes
 // a protocol version we speak, capabilities {tools: {}}, serverInfo, instructions), notifications/initialized, ping,
 // tools/list, tools/call. A tool that fails answers a result with isError: true and a short text — it never crashes
 // the server; an unknown tool or bad arguments are JSON-RPC errors (-32602), an unknown method -32601.
@@ -9,6 +10,8 @@ export const VERSIONES_MCP = ["2025-06-18", "2025-03-26", "2024-11-05"] as const
 export const LINEA_MAX = 1 << 20; // bytes of one request line
 
 type Esquema = { type: "object"; properties: Record<string, Record<string, unknown>>; required?: string[]; additionalProperties?: boolean };
+/** A readable thing the server offers besides tools (MCP `resources`): a text with a stable uri. */
+export type RecursoMcp = { uri: string; name: string; description: string; mimeType: string; leer: () => Promise<string> | string };
 export type HerramientaMcp = {
   name: string; description: string; inputSchema: Esquema;
   ejecutar: (args: Record<string, unknown>) => Promise<string> | string; // throw = an isError result with the message
@@ -42,9 +45,10 @@ const error = (id: unknown, code: number, message: string) => ({ jsonrpc: "2.0",
 export class ServidorMcp {
   readonly nombre: string; readonly version: string; readonly instrucciones: string;
   private readonly herramientas: () => readonly HerramientaMcp[];
+  private readonly recursos: (() => readonly RecursoMcp[]) | null;
   private readonly log: (l: string) => void;
-  constructor(o: { nombre: string; version: string; herramientas: () => readonly HerramientaMcp[]; instrucciones?: string; log?: (l: string) => void }) {
-    this.nombre = o.nombre; this.version = o.version; this.herramientas = o.herramientas; this.instrucciones = o.instrucciones ?? "";
+  constructor(o: { nombre: string; version: string; herramientas: () => readonly HerramientaMcp[]; recursos?: () => readonly RecursoMcp[]; instrucciones?: string; log?: (l: string) => void }) {
+    this.nombre = o.nombre; this.version = o.version; this.herramientas = o.herramientas; this.recursos = o.recursos ?? null; this.instrucciones = o.instrucciones ?? "";
     this.log = o.log ?? (() => {});
   }
 
@@ -61,10 +65,16 @@ export class ServidorMcp {
       case "initialize": {
         const pedida = String(params.protocolVersion ?? "");
         const version = (VERSIONES_MCP as readonly string[]).includes(pedida) ? pedida : VERSIONES_MCP[0];
-        return ok({ protocolVersion: version, capabilities: { tools: {} }, serverInfo: { name: this.nombre, version: this.version }, ...(this.instrucciones ? { instructions: this.instrucciones } : {}) });
+        return ok({ protocolVersion: version, capabilities: { tools: {}, ...(this.recursos ? { resources: {} } : {}) }, serverInfo: { name: this.nombre, version: this.version }, ...(this.instrucciones ? { instructions: this.instrucciones } : {}) });
       }
       case "ping": return ok({});
       case "tools/list": return ok({ tools: this.herramientas().map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) });
+      case "resources/list": return this.recursos ? ok({ resources: this.recursos().map(({ uri, name, description, mimeType }) => ({ uri, name, description, mimeType })) }) : error(p.id, -32601, "este servidor no ofrece recursos");
+      case "resources/read": {
+        const r = this.recursos?.().find((x) => x.uri === params.uri);
+        if (!r) return error(p.id, -32602, `no hay ningún recurso «${String(params.uri).slice(0, 80)}»; resources/list los dice`);
+        try { return ok({ contents: [{ uri: r.uri, mimeType: r.mimeType, text: await r.leer() }] }); } catch (e) { return error(p.id, -32603, String((e as Error)?.message ?? e).slice(0, 300)); }
+      }
       case "tools/call": {
         const h = this.herramientas().find((x) => x.name === params.name);
         if (!h) return error(p.id, -32602, `no hay ninguna herramienta «${String(params.name).slice(0, 40)}»; tools/list las dice`);
