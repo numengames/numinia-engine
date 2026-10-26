@@ -14,8 +14,8 @@ motor con una receta de `packages/render/src/audio/sintesis.ts`, que es código 
 repo. No hay nada de nadie que licenciar en ellos, así que no tienen fila en esta tabla. Cuando uno de esos ids
 consiga un fichero CC0, entra por la biblioteca y **el fichero gana**: la receta se queda de respaldo.
 
-**32 ids · 97 variantes · 194 ficheros** (97 `.opus` = 1.051.093 B y
-97 `.m4a` de respaldo para Safari = 1.274.267 B; **2.325.360 B** en total).
+**34 ids · 107 variantes · 214 ficheros** (107 `.opus` = 1.062.749 B y
+107 `.m4a` de respaldo para Safari = 1.297.791 B; **2.360.540 B** en total).
 Los sirve `GET /a/<sha256>.opus` (`packages/server/src/activos.ts`); la lista con el sha256 de cada fichero
 está en `features/sonido/catalogo.json` y `test/sonidos.test.ts` comprueba que cada sha256 es el de su fichero
 y que ninguna licencia deja de ser CC0.
@@ -39,9 +39,11 @@ Autores: Fantozzi (subido por qubodup), Kenney Vleugels (kenney.nl), Peludo, Sad
 | `sonidos/golpe-material/` | impacto en piedra, madera o metal | 12 | nucleo | efectos | CC0-1.0 | Kenney Vleugels (kenney.nl) | <https://kenney.nl/assets/impact-sounds> |
 | `sonidos/maquina/` | arranque y parada de mecanismo (D-043) | 2 | funcion | efectos | CC0-1.0 | rubberduck | <https://opengameart.org/content/100-cc0-sfx> |
 | `sonidos/pasos-agua/` | borde del estanque | 6 | funcion | pasos-propios | CC0-1.0 | Peludo; rubberduck | <https://opengameart.org/content/100-cc0-sfx> <https://opengameart.org/content/water-splash-and-sand-footsteps> |
-| `sonidos/pasos-hierba/` | pasos sobre hierba | 6 | nucleo | pasos-propios | CC0-1.0 | Fantozzi (subido por qubodup) | <https://opengameart.org/content/fantozzis-footsteps-grasssand-stone> |
+| `sonidos/pasos-arena/` | pasos sobre arena o tierra | 6 | nucleo | pasos-propios | CC0-1.0 | Fantozzi (subido por qubodup) | <https://opengameart.org/content/fantozzis-footsteps-grasssand-stone> |
+| `sonidos/pasos-hierba/` | pasos sobre hierba | 5 | nucleo | pasos-propios | CC0-1.0 | Kenney Vleugels (kenney.nl) | <https://kenney.nl/assets/impact-sounds> |
 | `sonidos/pasos-madera/` | pasos sobre madera | 6 | nucleo | pasos-propios | CC0-1.0 | TinyWorlds; rubberduck | <https://opengameart.org/content/100-cc0-sfx-2> <https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud> |
 | `sonidos/pasos-metal/` | rejilla o metal | 6 | funcion | pasos-propios | CC0-1.0 | Thimras | <https://opengameart.org/content/metal-footsteps-on-concrete> |
+| `sonidos/pasos-nieve/` | pasos sobre nieve | 5 | nucleo | pasos-propios | CC0-1.0 | Kenney Vleugels (kenney.nl) | <https://kenney.nl/assets/impact-sounds> |
 | `sonidos/pasos-piedra/` | pasos sobre piedra | 6 | nucleo | pasos-propios | CC0-1.0 | Fantozzi (subido por qubodup) | <https://opengameart.org/content/fantozzis-footsteps-grasssand-stone> |
 | `sonidos/pesca-chapuzon/` | el cebo entra en el agua | 3 | funcion | efectos | CC0-1.0 | Peludo; rubberduck | <https://opengameart.org/content/100-cc0-sfx> <https://opengameart.org/content/water-splash-and-sand-footsteps> |
 | `sonidos/pesca-cobrar/` | pez cobrado | 2 | funcion | efectos | CC0-1.0 | rubberduck | <https://opengameart.org/content/50-cc0-retro-synth-sfx> |
