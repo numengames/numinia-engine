@@ -15,7 +15,8 @@ está en `../../../mmo-browser-study/MAQUINACIONES-APRENDIZAJE.md`. Léelo antes
 | `simular.ts` | `simular(diagrama, { ticks, semilla, hasta? })` → `{ ticks, series, disparos }`; `correr()` para muchas semillas, `primerTick`, `finales`, `resumen` (mín, p50, p95, máx, media). Usa `rngInt` de `packages/core` (mulberry32). |
 | `modelos/prestigio.ts` | La Tabla de Prestigio del manual (Semillas verde 1 … roja 5; costes 50/100/200/500/1000), con personas `gastador`/`ahorrador` y un interruptor `escalada` (freno, no canon). |
 | `modelos/reliquias.ts` | Cuándo cae una Reliquia: probabilidad base por encuentro + «piedad» (cada fallo sube la probabilidad; al caer, se olvida). |
-| `../economia.ts` | Línea de órdenes: `node tools/economia.ts prestigio|reliquias [opciones] [--json]`. |
+| `modelos/dano.ts` | Daño en combate con D6 por Éxitos (plantilla «Souls-like Balancing»): reserva de dados → Éxito (umbral+) / pifia (1) → daño por Éxito → daño acumulado → criatura sana/herida/caída. No es canon: es el candidato a medir. |
+| `../economia.ts` | Línea de órdenes: `node tools/economia.ts prestigio|reliquias|dano [opciones] [--json]`. |
 
 Tests: `test/economia.test.ts` (los nodos y el determinismo) y `test/economia-numinia.test.ts` (los dos
 modelos con sus números fijados).

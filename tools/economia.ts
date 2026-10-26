@@ -1,11 +1,13 @@
 // Herramienta de diseño: simula una economía de Numinia y saca números para decidir ANTES de programarla.
 // Uso:  node tools/economia.ts prestigio [--sesiones 52] [--persona gastador|ahorrador] [--semillas 1-3] [--escalada] [--corridas 200]
 //       node tools/economia.ts reliquias [--encuentros 300] [--base 50] [--piedad 10] [--corridas 500]
+//       node tools/economia.ts dano [--dados 4] [--umbral 5] [--por-exito 3] [--vida 30] [--rondas 40] [--corridas 500]
 //       añade --json para la salida en datos. No toca el motor: solo lee tools/economia/.
 import { validar } from "./economia/diagrama.ts";
 import { correr, finales, primerTick, resumen } from "./economia/simular.ts";
 import { COSTES, diagramaPrestigio, type Persona } from "./economia/modelos/prestigio.ts";
 import { diagramaReliquias } from "./economia/modelos/reliquias.ts";
+import { diagramaDano } from "./economia/modelos/dano.ts";
 
 const args = process.argv.slice(2);
 const que = args[0];
@@ -66,7 +68,27 @@ if (que === "prestigio") {
   console.log(fila("Encuentros hasta la 3.ª (las tres portadas)", salida.tercera));
   console.log(fila("Reliquias al final", salida.reliquiasFinal));
   console.log(fila("Racha más larga sin Reliquia", salida.rachaMaxima));
+} else if (que === "dano") {
+  const dados = Number(opt("dados", "4")), umbral = Number(opt("umbral", "5")), porExito = Number(opt("por-exito", "3"));
+  const vida = Number(opt("vida", "30")), rondas = Number(opt("rondas", "40")), corridas = Number(opt("corridas", "500"));
+  const d = diagramaDano({ dados, umbral, danoPorExito: porExito, vida });
+  const v = validar(d);
+  if (!v.ok) { console.error(v.issues); process.exit(1); }
+  const rs = correr(d, { ticks: rondas, semillas: corridas });
+  const salida = {
+    diagrama: d.nombre, rondas, corridas,
+    hastaHerida: resumen(rs.map((r) => primerTick(r, "dano", Math.ceil(vida / 2)))),
+    hastaCaida: resumen(rs.map((r) => primerTick(r, "dano", vida))),
+    exitosPorRonda: resumen(rs.map((r) => Math.round(r.series.exitos[rondas] / rondas * 100))),
+    danoPorRondaX100: resumen(rs.map((r) => Math.round(r.series.dano[rondas] / rondas * 100))),
+  };
+  if (json) { console.log(JSON.stringify(salida, null, 2)); process.exit(0); }
+  console.log(`${d.nombre} — ${rondas} rondas, ${corridas} corridas`);
+  console.log(fila("Rondas hasta herir a la criatura (mitad)", salida.hastaHerida));
+  console.log(fila("Rondas hasta derribarla (vida entera)", salida.hastaCaida));
+  console.log(fila("Éxitos por ronda (x100)", salida.exitosPorRonda));
+  console.log(fila("Daño por ronda (x100)", salida.danoPorRondaX100));
 } else {
-  console.log("Uso: node tools/economia.ts prestigio|reliquias [opciones] [--json]  (ver cabecera del archivo)");
+  console.log("Uso: node tools/economia.ts prestigio|reliquias|dano [opciones] [--json]  (ver cabecera del archivo)");
   process.exit(que ? 1 : 0);
 }
