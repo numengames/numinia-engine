@@ -15,6 +15,7 @@ import { crearTienda, type CachesLike } from "./manifiesto.ts";
 import { carga, estadoCarga, piezasPendientes, sueloPendiente, TOPE_CARGA_MS } from "./carga.ts"; // MVL3 step 1: fades out the 2D "Cargando" screen once the first frame is drawn
 import { ClientSession, serverUrl, tomarPaseDeLaDireccion } from "../../packages/client/src/index.ts";
 import { createView, leerAparato, leerBateria, medidorDeCuadros, haciaMundo } from "../../packages/render/src/index.ts";
+import { montarMedidor } from "./medidor-ui.ts"; // MIS-200 t_ee19c84b: the live frame meter (`?medidor`, `__numinia.medidorVivo`)
 import { mensajeFalloAR } from "../../packages/render/src/ar.ts"; // J8: a clear sentence when AR fails to start
 import funciones from "../../features/cliente.ts";
 import { constructor } from "../../features/objetos/client.ts";
@@ -534,7 +535,9 @@ addEventListener("visibilitychange", () => { if (document.hidden) soltarEntradaP
 // ---- J7b: the movement wheel (hold G, «Movimientos» on touch, Y on a gamepad); while open nobody walks ----
 const avisar = (t: string) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); };
 const rueda = montarRueda({ gestos: gestosDePagina, favoritosIniciales: FAVORITOS_INICIALES, aviso: avisar,
-  haciendo: () => view.avatares().lista.find((a) => a.id === "yo")?.movimiento ?? null });
+  haciendo: () => view.avatares().lista.find((a) => a.id === "yo")?.movimiento ?? null,
+  // t_3f0e5846: the files of the move being pointed at are fetched while the person decides, so the first time it plays it does not wait
+  alVer: (id) => view.precargarMovimientos(gestosDePagina.lista.find((m) => m.id === id)?.clips ?? []) });
 
 /** MIS-257: is a hand on the controls (a key, the touch stick, the pad, the headset's stick, a jump)? Then the walk-by-itself gives way. */
 function manoEnMandos(): boolean {
@@ -697,6 +700,7 @@ if (document.fullscreenEnabled) {
 // ---- T1: tell the server how this player entered and how it is going (device, browser, XR, frames, ping,
 // battery; no personal data). The server keeps it per session: GET /sesiones, npm run sesiones. ?pulso=ms ----
 const PULSO_MS = Math.max(1000, Number(params.get("pulso")) || 10_000);
+const medidorUI = montarMedidor({ activo: params.has("medidor"), view });
 const medidor = medidorDeCuadros();
 medidor.vigilar(); // B5: a hidden or frozen page is a pause, not a freeze; Long Animation Frames where the browser has them
 const informe: { entrada: boolean; bienvenidaMs: number; primerCuadroMs: number; errores: number; oculta: boolean; pulsos: number; carga?: { ocultaMs: number; msDesdeWelcome: number; piezas: number; pendientes: number; tope: boolean } } = { entrada: false, bienvenidaMs: 0, primerCuadroMs: 0, errores: 0, oculta: false, pulsos: 0 }; // C: `carga` = how the loading screen left (when, with how many pieces not ready, by the cap or not)
@@ -795,7 +799,10 @@ view.loop((now) => {
     // T1: interval between draws against the target of the moment. A gap of 1 s or more is a freeze, counted apart
     // (B5), unless the page was hidden or frozen meanwhile; draw calls, triangles, programs and pixel ratio ride along
     const xr = view.vr.active || view.ar.state !== "off";
-    if (lastDrawAt) medidor.cuadro(now - lastDrawAt, cost.cpuMs, xr ? view.xrHz() || 72 : view.power.targetFps(active), { dc: cost.calls, tri: cost.triangles, programas: (cost as { programs?: number }).programs, ratio: view.power.pixelRatio(), xr });
+    const programas = view.programas(); // the pulse never carried the programs: `cost.programs` was never set (the live meter reads them from three)
+    if (lastDrawAt) medidorUI.cuadro({ dtMs: now - lastDrawAt, cpuMs: cost.cpuMs, llamadas: cost.calls, triangulos: cost.triangles, programas });
+    medidorUI.pintar(now);
+    if (lastDrawAt) medidor.cuadro(now - lastDrawAt, cost.cpuMs, xr ? view.xrHz() || 72 : view.power.targetFps(active), { dc: cost.calls, tri: cost.triangles, programas, ratio: view.power.pixelRatio(), xr });
     if (lastDrawAt) view.posproceso.vigilar(now - lastDrawAt, active); // H12b: the effects' cost gate (level A only; a no-op when they are off)
     lastDrawAt = now;
     if (session.welcome && !informe.primerCuadroMs) informe.primerCuadroMs = Math.round(performance.now());
@@ -833,11 +840,11 @@ function drawHud() {
     `<div class="linea">Tú: ${session.who?.nombre ?? "…"} (avatar ${session.entity}) · conectados a la vista: ${s.visible + 1}</div>` +
     `<div class="linea">Ping: ${s.rttMs < 0 ? "—" : s.rttMs + " ms"} · correcciones de tu predicción: ${s.corrections}</div>` +
     `<div class="linea detalle">Huella navegador = servidor: ${det}</div>`;
-  if (view.vr.active) view.vr.setPanel([...xr.lineasPanel(), `${fps} fps · ${s.visible + 1} conectados · ping ${s.rttMs < 0 ? "—" : s.rttMs + " ms"}`]); // J10: the quest first
+  if (view.vr.active) view.vr.setPanel([...xr.lineasPanel(), `${fps} fps · ${s.visible + 1} conectados · ping ${s.rttMs < 0 ? "—" : s.rttMs + " ms"}`, ...medidorUI.lineaVR()]); // J10: the quest first
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { gemelos, ajustesMundo, session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { gemelos, ajustesMundo, session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones, medidorVivo: medidorUI };
 
 // ---- t_5cff4f06: back to the city — hidden unless this world's mundo.ajustes.json sets ciudadUrl; ux2-barra: an entry
 // of the bar's «Menú» (O), no longer a corner button ----

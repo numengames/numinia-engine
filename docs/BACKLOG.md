@@ -139,7 +139,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | F1 | Amigos, bloqueo y moderación (los roles son H3; toca red y guardado; de `docs/JUGADOR.md`). Primer corte (F1a, 18-10): `/silenciar` calla chat Y voz, se guarda con el mundo y sobrevive reinicios; `/hablar <persona>` lo levanta; bloqueo personal `/bloquear` `/desbloquear <persona>` (solo para quien bloquea: ni chat ni voz; guardado por identidad) y botón «Silenciar/Oír» en Gente; aviso accesible al silenciado. Sin tocar el tope de voces (D-024). Queda: amigos, denunciar | hecho (F1a) | sí |
 | F2 | Portales entre instancias y grupo (toca red e instancias; de `docs/JUGADOR.md`) | para Opus | no |
 | A1 | Página de multitud (50/200/1.000/2.000 robots, completos vs horneados) | pendiente | sí |
-| D1 | Puerta de tipos: TypeScript 7 estricto, 0 errores | pendiente | sí |
+| D1 | Puerta de tipos: TypeScript 7 estricto, 0 errores | primer corte hecho (lote 12): `npm run tipos` (tsc estricto) corre en `npm run gates` como trinquete — 316 errores en 132 archivos apuntados en `tools/tipos-permitidos.json`, 0 nuevos; lo demás ya está en 0. Queda: bajar esos 316 a 0 | parcial | sí |
 | S3 | Dilatación de tiempo cuando el tick no cabe (4.000 bots) | para Opus | no |
 | P4a | Habitante IA sin cerebro (E0): entra como jugador con billete de agente, «· IA» puesto por el servidor, servicio aparte `numinia-habitantes` (Lía en la plaza) | hecho | sí |
 | P4b | Sentidos y verbos completos del habitante: su ficha (V1), verbos del catálogo por escalón, permiso por rol (H3), guía determinista con el árbol de Alma | pendiente | sí |
@@ -326,6 +326,12 @@ por el mismo origen; el cliente usa `wss://` en https. e2e por https ignorando e
 ### D1 — Puerta de tipos
 TypeScript 7 (`tsc --noEmit`, estricto) con las dependencias de tipos que hagan falta (licencias
 libres, versión exacta). 0 errores. Entra en `npm run gates` con su coste medido.
+**Primer corte, hecho (lote 12).** `typescript` 7.0.2, `@types/node` y `@types/three` (versión exacta), `tsconfig.json`
+(estricto, `noEmit`, todo `.ts` de `packages`, `features`, `apps`, `tools` y `test`; los `.mjs` no se miran) y
+`npm run tipos` (`tools/tipos.ts`, ~1,5 s). Hoy hay **316 errores en 132 archivos**: `test` 141, `packages/render` 93,
+`apps/plaza` 40, `features` 17, `packages/server` 14, `apps/banco` 5, `tools` 4, `packages/client` 1, `packages/net` 1; el
+resto de paquetes está en 0. La puerta de `npm run gates` es un trinquete: cada archivo con errores figura en
+`tools/tipos-permitidos.json` con su tope, un archivo que no figura debe tener 0 y ninguno puede subir; `npm run tipos -- --fijar` baja el tope cuando se arregla algo (nunca lo sube). Cuando el fichero quede vacío, D1 está hecho.
 
 ### S3 — Dilatación de tiempo
 Si el tick no cabe en su presupuesto, la simulación va más despacio (como EVE) en vez de acumular
@@ -433,6 +439,8 @@ pide el agente: saludar, asentir, negar, pensar, señalar — los gestos de `fea
 cuando existan.
 
 **Hecho, trozo 1 (15-10, rama `wt/avatares`).** Tú y los más cercanos como humanoides VRM (60 en escritorio, 25 en XR, 12 en móvil; el resto, cápsulas), mirando hacia donde andan, con animaciones por velocidad: quieto, andar o trotar (según la zancada natural de cada avatar), correr y en el aire; cambio fundido en 0,2 s sin pose en T; congelados a más de 40 m. Tres avatares de la casa de 100Avatars (Polygonal Mind, CC0 dentro del fichero y en la fuente; 2.130–2.880 triángulos; `activos/avatares/LICENCIAS.md`), cada jugador uno según su id hasta H10. Animaciones `.vrma` convertidas de UAL1 de Quaternius (CC0) con `tools/vrma/` (pies en el suelo ±3 cm en 8 avatares). `@pixiv/three-vrm` y `three-vrm-animation` 3.5.5 (MIT, exactas) llegan después del primer cuadro (64 kB gz aparte). Sin MToon (Lambert con su textura): MToon metía ~30 kB gz en el arranque. `packages/server/src/vrm.ts` lee un VRM sin three (licencia, triángulos): listo para H10. **Medido:** 9 pruebas; pierna `tools/e2e-piernas/avatares.mjs` (2 VRM por pestaña, 0 fallos, B ve a A pasar de quieto a andar y trotar); 974–1.142 kB por avatar, 491 kB las cinco animaciones; arranque +5 kB gz. **Falta:** elegir el tuyo (H10), etiquetas a la altura de cada cabeza (J1b), gestos con clips, ficheros más ligeros, probar 60 a la vez y en aparatos reales.
+
+**Lote 12 (26-10).** Los cinco gestos de la IA (saludar, asentir, negar, pensar, señalar) tienen clip propio (`activos/animaciones/`, escritos sobre el cuerpo quieto de UAL1 en `tools/vrma/convertir.js`; `--clips a,b` convierte solo esos) y salen del puente (`gesto`, `packages/agent/src/gesto-ia.ts`) sin «parar»: cada uno acaba solo. También están en la rueda (Reacciones, ya con ocho). Sentarse y agacharse plantan los pies en cualquier avatar: mientras dura la postura la página mide el hueso de pie más bajo y sube o baja el cuerpo hasta donde está en reposo (`apoya` en el movimiento, `metaApoyo`, tope 12 cm); `tools/vrma/convertir.mjs --solo-comprobar` imprime `apoyo`: sentado deja los pies a ±3 mm en los tres avatares; agachado, a ±1 mm en dos y 6 cm por debajo en Polybot (pies enormes: la punta del pie se dobla). El salto de la primera vez: la rueda pide los ficheros del movimiento que se señala mientras la persona decide (nada al entrar). Falta: medir el salto en un móvil real y la recolocación de Polybot agachado.
 
 ### J2 — Salto y altura
 La simulación gana altura, velocidad vertical, gravedad y suelo, y la entrada un bit de salto; la

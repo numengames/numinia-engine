@@ -12,8 +12,12 @@
 //   The slab is NOT drawn on the top-down map (`userData.mapa` unset: the map would show a lid, not the room). The light is one
 //   light, no shadows, made with the hall and removed with it; the device tier decides (`luz()`, tier D keeps the roof but no
 //   extra light — phones must not heat) and its brightness is spent only while you are within LUZ_M of the hall.
-// Procedural, no .glb. Per hall: 5 walls + 1 floor + 1 ceiling + 2 panels (+1 light); per hologram 5 meshes (+1 plate while it speaks).
+// Procedural, no .glb. MIS-200 t_7ed19d06 (fewer pieces: every piece is a draw call per eye in a headset): the walls are ONE mesh (they share
+// the stone) and the hologram is THREE (pedestal, the translucent body — cone, shoulders, neck and head as one additive mesh with the cone's
+// weaker glow in the vertices — and the wireframe head). Per hall: 1 wall mesh + 1 floor + 1 ceiling + 2 panels (+1 light); per hologram
+// 3 meshes (+1 plate while it speaks). Before: 5 + 1 + 1 + 2 and 6.
 import * as THREE from "three/webgpu";
+import { juntarPiezas, en } from "./junta.ts";
 
 export type Muro3D = { id: string; x0: number; y0: number; z0: number; x1: number; y1: number; z1: number };
 export type Holograma3D = { id: string; nombre: string; x: number; y: number; z: number; rumbo: number; encendido: boolean };
@@ -26,6 +30,10 @@ export const DICHO_MS = 9000;
 const GIRO = 4;
 
 const COLOR = 0x7fd8ff;
+/** Opacity of the hologram's two materials [translucent body, wireframe head], lit and asleep. The cone's weaker glow is its vertex colour. */
+const OPACIDAD_ENCENDIDO = [0.32, 0.22] as const, OPACIDAD_APAGADO = [0.12, 0.08] as const;
+/** The cone glows this fraction of the bust (it was 0.07 against 0.32 lit, 0.03 against 0.12 asleep). */
+const BRILLO_CONO = 0.22;
 /** The roof slab: thickness (m) over the top of the walls. */
 export const TECHO_GROSOR = 0.3;
 /** The hall's light: cyan, dim (candela, like the fire lights' 6), reach (m) and the distance (m) beyond which it is switched to 0. */
@@ -61,9 +69,10 @@ function placa(c: HTMLCanvasElement, anchoM: number): THREE.Mesh {
 }
 
 export function crearSalon(h: { world: THREE.Object3D; camara: () => THREE.Camera; /** May the hall carry its own light on this device? (default yes) */ luz?: () => boolean }) {
-  type Pared = { m: THREE.Mesh; d: Muro3D };
+  type Pared = { d: Muro3D };
   type Holo = { g: THREE.Group; materiales: THREE.MeshBasicMaterial[]; d: Holograma3D; yaw: number; placa: { m: THREE.Mesh; hasta: number } | null };
   const paredes = new Map<string, Pared>(), holos = new Map<string, Holo>(), paneles = new Map<string, THREE.Mesh>();
+  let murosMalla: THREE.Mesh | null = null, murosFirma = "";
   let suelo: THREE.Mesh | null = null, techo: THREE.Mesh | null = null, luz: THREE.PointLight | null = null, centro: { x: number; z: number } | null = null, huella: { x0: number; x1: number; z0: number; z1: number } | null = null;
   const vTmp = new THREE.Vector3();
   const piedra = new THREE.MeshStandardMaterial({ color: 0x4a4f58, roughness: 0.95 });
@@ -80,23 +89,27 @@ export function crearSalon(h: { world: THREE.Object3D; camara: () => THREE.Camer
   const geoHombros = new THREE.SphereGeometry(0.42, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.7, 0.7);
   const geoCono = new THREE.ConeGeometry(0.55, 1.55, 24, 1, true);
   const geoPedestal = new THREE.CylinderGeometry(0.5, 0.6, 0.5, 20);
-  const holoMat = (opacity: number, wire = false) => new THREE.MeshBasicMaterial({ color: COLOR, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending, wireframe: wire, side: THREE.DoubleSide });
+  const holoMat = (opacity: number, wire = false, colores = false) => new THREE.MeshBasicMaterial({ color: COLOR, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending, wireframe: wire, side: THREE.DoubleSide, vertexColors: colores });
+  /** The translucent body as ONE geometry (cone + shoulders + neck + head, shared by every hologram): the cone glows weaker than the
+   * bust (0.07 vs 0.32 of opacity) and that ratio lives in its vertex colour (additive blending multiplies colour by opacity). */
+  let geoCuerpo: THREE.BufferGeometry | null = null;
+  const cuerpo = (): THREE.BufferGeometry => geoCuerpo ??= juntarPiezas([
+    { geo: geoCono, matriz: en(0, 0.5 + 0.775, 0, Math.PI), factor: BRILLO_CONO },
+    { geo: geoHombros, matriz: en(0, 1.0, 0), factor: 1 },
+    { geo: geoCuello, matriz: en(0, 1.0 + 0.33, 0), factor: 1 },
+    { geo: geoCabeza, matriz: en(0, 1.0 + 0.62, 0), factor: 1 },
+  ]);
 
   const crearHolo = (d: Holograma3D): Holo => {
     const g = new THREE.Group(); g.name = `ancestros:${d.id}`; g.userData.mapa = true;
     const pedestal = new THREE.Mesh(geoPedestal, pedestalMat); pedestal.position.y = 0.25; g.add(pedestal);
-    const cono = new THREE.Mesh(geoCono, holoMat(0.07)); cono.position.y = 0.5 + 0.775; cono.rotation.x = Math.PI; g.add(cono);
-    const busto = new THREE.Group(); busto.position.y = 1.0; // the bust floats above the pedestal
-    const hombros = new THREE.Mesh(geoHombros, holoMat(0.32)); busto.add(hombros);
-    const cuello = new THREE.Mesh(geoCuello, holoMat(0.32)); cuello.position.y = 0.33; busto.add(cuello);
-    const cabeza = new THREE.Mesh(geoCabeza, holoMat(0.32)); cabeza.position.y = 0.62; busto.add(cabeza);
-    const malla = new THREE.Mesh(geoCabeza, holoMat(0.22, true)); malla.position.y = 0.62; malla.scale.setScalar(1.03); busto.add(malla);
-    g.add(busto);
+    const cuerpoM = new THREE.Mesh(cuerpo(), holoMat(0.32, false, true)); cuerpoM.name = "holograma-cuerpo"; g.add(cuerpoM);
+    const malla = new THREE.Mesh(geoCabeza, holoMat(0.22, true)); malla.position.y = 1.0 + 0.62; malla.scale.setScalar(1.03); g.add(malla);
     h.world.add(g);
-    const materiales = [cono, hombros, cuello, cabeza, malla].map((m) => m.material as THREE.MeshBasicMaterial);
+    const materiales = [cuerpoM, malla].map((m) => m.material as THREE.MeshBasicMaterial);
     return { g, materiales, d, yaw: (d.rumbo * Math.PI) / 180, placa: null };
   };
-  const apagar = (o: Holo) => { o.materiales.forEach((m, i) => { m.opacity = i === 0 ? 0.03 : i === 4 ? 0.08 : 0.12; }); };
+  const apagar = (o: Holo) => { o.materiales.forEach((m, i) => { m.opacity = i === 0 ? OPACIDAD_APAGADO[0] : OPACIDAD_APAGADO[1]; }); };
   const quitarPlaca = (o: Holo) => { if (!o.placa) return; o.g.remove(o.placa.m); ((o.placa.m.material as THREE.MeshBasicMaterial).map as THREE.Texture)?.dispose(); (o.placa.m.material as THREE.MeshBasicMaterial).dispose(); o.placa.m.geometry.dispose(); o.placa = null; };
   const quitarHolo = (o: Holo) => { quitarPlaca(o); h.world.remove(o.g); o.materiales.forEach((m) => m.dispose()); };
   const quitarPanel = (m: THREE.Mesh) => { h.world.remove(m); ((m.material as THREE.MeshBasicMaterial).map as THREE.Texture)?.dispose(); (m.material as THREE.MeshBasicMaterial).dispose(); m.geometry.dispose(); };
@@ -105,15 +118,18 @@ export function crearSalon(h: { world: THREE.Object3D; camara: () => THREE.Camer
   return {
     /** The walls (boxes in metres) and the floor under them; a wall gone from the list is removed. */
     muros(lista: Muro3D[]): void {
-      const vivos = new Set(lista.map((m) => m.id));
-      for (const [id, p] of paredes) if (!vivos.has(id)) { h.world.remove(p.m); p.m.geometry.dispose(); paredes.delete(id); }
-      for (const d of lista) {
-        const p = paredes.get(d.id);
-        if (p && JSON.stringify(p.d) === JSON.stringify(d)) continue;
-        if (p) { h.world.remove(p.m); p.m.geometry.dispose(); }
-        const m = new THREE.Mesh(new THREE.BoxGeometry(d.x1 - d.x0, d.y1 - d.y0, d.z1 - d.z0), piedra);
-        m.position.set((d.x0 + d.x1) / 2, (d.y0 + d.y1) / 2, (d.z0 + d.z1) / 2); m.userData.mapa = true;
-        h.world.add(m); paredes.set(d.id, { m, d });
+      // the walls are drawn as ONE mesh (same stone): rebuilt only when the list changes
+      const firma = JSON.stringify(lista);
+      if (firma !== murosFirma || (lista.length > 0) !== !!murosMalla) {
+        murosFirma = firma;
+        if (murosMalla) { h.world.remove(murosMalla); murosMalla.geometry.dispose(); murosMalla = null; }
+        paredes.clear();
+        for (const d of lista) paredes.set(d.id, { d });
+        if (lista.length) {
+          murosMalla = new THREE.Mesh(juntarPiezas(lista.map((d) => ({ geo: new THREE.BoxGeometry(d.x1 - d.x0, d.y1 - d.y0, d.z1 - d.z0), matriz: en((d.x0 + d.x1) / 2, (d.y0 + d.y1) / 2, (d.z0 + d.z1) / 2) }))), piedra);
+          murosMalla.name = "ancestros:muros"; murosMalla.userData.mapa = true;
+          h.world.add(murosMalla);
+        }
       }
       if (suelo) { h.world.remove(suelo); suelo.geometry.dispose(); suelo = null; }
       quitarTechoYLuz();
@@ -143,7 +159,7 @@ export function crearSalon(h: { world: THREE.Object3D; camara: () => THREE.Camer
         const encendia = o.d.encendido; o.d = d;
         o.g.position.set(d.x, d.y, d.z);
         if (!d.encendido) { apagar(o); o.yaw = (d.rumbo * Math.PI) / 180; o.g.rotation.y = o.yaw; }
-        else if (!encendia) o.materiales.forEach((m, i) => { m.opacity = i === 0 ? 0.07 : i === 4 ? 0.22 : 0.32; });
+        else if (!encendia) o.materiales.forEach((m, i) => { m.opacity = OPACIDAD_ENCENDIDO[i]; });
       }
     },
     /** The panels with the texts (painted once per id + text; a panel gone from the list is removed). */
@@ -189,7 +205,7 @@ export function crearSalon(h: { world: THREE.Object3D; camara: () => THREE.Camer
         o.yaw += delta * Math.min(1, GIRO * dt);
         o.g.rotation.y = o.yaw;
         const t = now / 1000, parpadeo = 0.86 + 0.1 * Math.sin(t * 23) + 0.04 * Math.sin(t * 61) - (Math.sin(t * 7.3) > 0.97 ? 0.3 : 0); // a soft shimmer and a rare dip
-        o.materiales.forEach((m, i) => { m.opacity = (i === 0 ? 0.07 : i === 4 ? 0.22 : 0.32) * parpadeo; });
+        o.materiales.forEach((m, i) => { m.opacity = OPACIDAD_ENCENDIDO[i] * parpadeo; });
         if (o.placa) { o.placa.m.quaternion.copy(h.camara().quaternion).premultiply(qTmp.copy(o.g.quaternion).invert()); }
       }
     },

@@ -464,8 +464,8 @@ export class PuenteMundo {
         },
       },
       {
-        name: "gesto", description: "Haz un gesto con tu cuerpo para que lo vea quien esté cerca (a menos de 30 m): «saludar» (saludas con la mano), «asentir» (dices que sí), «pensar» (te tomas un momento) o «señalar» (indicas lo que tienes delante). Sirve para contestar sin palabras o para avisar de que has visto a alguien. Como mucho uno por segundo; andar lo termina.",
-        inputSchema: obj({ tipo: { type: "string", enum: [...TIPOS_GESTO], description: "saludar, asentir, pensar o señalar" } }, ["tipo"]),
+        name: "gesto", description: "Haz un gesto con tu cuerpo para que lo vea quien esté cerca (a menos de 30 m): «saludar» (saludas con la mano), «asentir» (dices que sí con la cabeza), «negar» (dices que no), «pensar» (te tomas un momento, la mano en la barbilla) o «señalar» (indicas lo que tienes delante). Sirve para contestar sin palabras o para avisar de que has visto a alguien. Como mucho uno por segundo; andar lo termina.",
+        inputSchema: obj({ tipo: { type: "string", enum: [...TIPOS_GESTO], description: "saludar, asentir, negar, pensar o señalar" } }, ["tipo"]),
         ejecutar: async (a) => {
           const c = await this.dentro();
           if (!this.tiene("gestos")) throw new ErrorHerramienta("Este mundo no tiene gestos (no tiene la función «gestos»): usa «decir».");
