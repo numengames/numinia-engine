@@ -5,6 +5,7 @@
 // engine's settings are packages/client (pure, tested in Node). main.ts mounts this before the first frame (the display
 // loop only starts drawing on the next animation frame), so stored choices and the system's preferences are on screen
 // from the start (V7). Not named «ajustes.ts»: dev:lan proxies every path that starts with /a to the server.
+import { acciones } from "./acciones-informe.ts"; // session log: VR body and speed changes
 import { crearAjustes, crearCapacidades, leerNavegador, AJUSTES_MOTOR, CONSULTAS, NIVELES, hayMando } from "../../packages/client/src/ajustes.ts";
 import type { Ajustes, Grupo, Lectura, Nivel, Valor, Vista } from "../../packages/client/src/ajustes.ts";
 import type { ClientSession } from "../../packages/client/src/index.ts";
@@ -150,6 +151,16 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   // T1: the session report goes only while «Enviar el informe de la sesión» is on (Pablo's default: on)
   const informar = session.report.bind(session);
   session.report = (r) => (a.get("privacidad.informe") === false ? false : informar(r));
+  // the VR body on/off and the VR walking speed leave a line when the PERSON changes them (set), not when a world's defaults apply
+  const poner = a.set.bind(a);
+  a.set = (id, v) => {
+    const antes = a.get(id), r = poner(id, v);
+    if (r.ok && r.value !== antes) {
+      if (id === "controles.cuerpoVR") acciones.registrar("cuerpo-vr", { activo: r.value !== false });
+      else if (id === "controles.velocidadVR") acciones.ajuste("velocidad-vr", { valor: Number(r.value) });
+    }
+    return r;
+  };
   // B (main.ts) toggles battery mode on the power policy directly: afterwards, keep that choice like any other
   addEventListener("keydown", (e) => {
     if (e.code !== "KeyB" || escribiendo(e)) return;

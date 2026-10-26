@@ -200,3 +200,23 @@ test("un navegador sin Web Audio no rompe nada: el motor sigue, mudo", () => {
   assert.equal(n.estado().contexto, "sin-audio");
   assert.equal(n.estado().volumen.musica, 0.5, "lo que pidió la persona se recuerda igual");
 });
+
+test("salir de VR: si el navegador rechaza `suspend()`/`resume()` no queda una promesa rechazada sin atender", async () => {
+  const b = banco(true);
+  const sinAtender: unknown[] = [];
+  const oir = (r: unknown) => { sinAtender.push(r); };
+  process.on("unhandledRejection", oir);
+  try {
+    b.n.ctx();
+    // un contexto cerrado o interrumpido: ambas promesas se rechazan (a veces sin motivo)
+    b.ctx.suspend = () => Promise.reject(undefined) as never;
+    b.ctx.resume = () => Promise.reject(undefined) as never;
+    b.ctx.state = "running" as AudioContextState;
+    b.n.siesta();
+    b.ctx.state = "suspended" as AudioContextState;
+    b.n.pausar(true); b.n.pausar(false);
+    b.n.despertar("voz", true); b.n.siesta(); b.n.despertar("voz", false);
+    await new Promise((ok) => setTimeout(ok, 20));
+  } finally { process.off("unhandledRejection", oir); }
+  assert.deepEqual(sinAtender, [], "ninguna promesa de audio queda sin atender");
+});

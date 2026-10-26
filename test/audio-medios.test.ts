@@ -296,6 +296,35 @@ test("S4: sin Web Audio el mundo no se rompe: se usa el camino viejo con volumen
   } finally { (globalThis as { Audio?: unknown }).Audio = viejo; }
 });
 
+test("salir de VR: un oyente sin posición finita (NaN) no le pone a `volume` un valor no finito (TypeError del navegador)", async () => {
+  // el navegador lanza «The provided double value is non-finite» si se le da NaN a `HTMLMediaElement.volume`
+  assert.equal(volumenEn(NaN, 8, { volume: 1, reach: "burbuja" }), 0, "sin saber dónde estás, dentro de la burbuja no suena");
+  assert.equal(volumenEn(2, 8, { volume: NaN, reach: "burbuja" }), 0, "un volumen del mundo roto tampoco");
+  assert.equal(volumenEn(NaN, 8, { volume: 0.5, reach: "todos" }), 0.5, "para todos no depende de la distancia");
+  ponerGrafo(null);
+  const sonando: { paused: boolean; _v: number }[] = [];
+  const viejo = globalThis.Audio;
+  (globalThis as { Audio?: unknown }).Audio = class {
+    src = ""; crossOrigin = ""; loop = false; preload = ""; paused = true; currentTime = 0; duration = 4; error = null; _v = 1;
+    get volume() { return this._v; }
+    set volume(x: number) { if (!Number.isFinite(x)) throw new TypeError("Failed to set the 'volume' property on 'HTMLMediaElement': The provided double value is non-finite."); this._v = x; }
+    constructor() { sonando.push(this as never); }
+    addEventListener() {} removeAttribute() {} load() {}
+    play() { this.paused = false; return Promise.resolve(); }
+    pause() { this.paused = true; }
+  };
+  try {
+    const m = cargarSonido("s.mp3", () => false, { ahora: () => 1_000_000_000, monotono: () => 0 });
+    await esperar(); await esperar();
+    const g = cosa(0, 0, 0, 10);
+    m.actualizar(g, { x: 0, y: 0, z: 0 }, OPC({ volume: 1 }));
+    assert.doesNotThrow(() => m.actualizar(g, { x: NaN, y: NaN, z: NaN }, OPC({ volume: 1 })), "el oyente sin posición no rompe el cuadro");
+    assert.doesNotThrow(() => m.actualizar(g, { x: 0, y: 0, z: 0 }, OPC({ volume: NaN })));
+    assert.ok(Number.isFinite(sonando[0]._v));
+    m.soltar();
+  } finally { (globalThis as { Audio?: unknown }).Audio = viejo; }
+});
+
 // ——— el vídeo en el mezclador ——————————————————————————————————————————————————————————————
 
 /** El `<video>` necesita un `document`: se le da uno de mentira solo mientras dure la prueba. El elemento avisa de

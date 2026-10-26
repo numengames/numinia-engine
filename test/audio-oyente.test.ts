@@ -243,3 +243,24 @@ test("`interfaz` y `pasos-propios` NO se espacializan: su panner se ignora a pro
   assert.ok(conexiones.some(([de, a]) => de === fuente && a === panner), "efectos: la fuente pasa por el panner");
   assert.ok(conexiones.some(([de, a]) => de === panner && a === n.bus("efectos")), "efectos: y el panner entra al bus");
 });
+
+test("salir de VR: una cámara con la posición rota (NaN) no deja una pose no finita ni se la escribe al oyente", () => {
+  const cam = camaraDe(matriz(3, 1.7, -4));
+  const e = escuchaNueva();
+  let xr = true;
+  const marco = frameXR(matriz(1, 1.6, 2));
+  const o = crearOyente({ camara: () => cam, escucha: () => e.L, reloj: () => 0, xr: { presentando: () => xr, fotograma: () => marco, espacio: () => ({}) } });
+  o.actualizar(true);
+  assert.equal(o.pose().fuente, "visor");
+  // la sesión acaba y la cámara plana tarda un cuadro en recolocarse: su traslación es NaN, su diagonal no
+  xr = false;
+  const rota = matriz(NaN, NaN, NaN); cam.matrixWorld.elements = rota;
+  o.alSalirXR();
+  for (const k of ["x", "y", "z", "fx", "fy", "fz", "ux", "uy", "uz"] as const) assert.ok(Number.isFinite(o.pose()[k]), `pose.${k} sigue finita`);
+  for (const [k, v] of Object.entries(e.puesto)) assert.ok(Number.isFinite(v), `el oyente no recibió ${k}=${v}`);
+  // y al recolocarse la cámara, vuelve a seguirla
+  cam.matrixWorld.elements = matriz(5, 1.7, 6);
+  o.actualizar(true);
+  assert.equal(o.pose().fuente, "camara");
+  cerca(o.pose().x, 5, "x");
+});
