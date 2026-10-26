@@ -9,6 +9,7 @@ import { execFileSync } from "node:child_process";
 import { signer } from "./secret.ts";
 import { crearRecibos } from "./recibos.ts"; // N10: digital goods' ownership receipts
 import { randomBytes, randomInt } from "node:crypto";
+import { join } from "node:path";
 import { WebSocketServer } from "ws";
 import type { WebSocket } from "ws";
 import { hex } from "../../core/src/index.ts";
@@ -48,6 +49,7 @@ import type { Who } from "../../instance/src/index.ts";
 import { crearHabitantesGestion } from "./habitantes.ts";
 import { crearHabitantesHttp } from "./habitantes-http.ts";
 import { crearFuncionesHttp } from "./funciones-http.ts";
+import { leerApps, listaDeApps } from "./apps.ts"; // M19: the world's apps/ folder, read and validated (nothing runs)
 import { MODELO_POR_DEFECTO } from "../../agent/src/cerebro.ts";
 import { crearPuerta } from "./puerta.ts";
 import { ColaOptimizar } from "./optimizar-cola.ts";
@@ -74,6 +76,7 @@ export type ServerOptions = {
   subidas?: string | null;       // H1/H9: folder of uploaded files named <sha256>.<ext>; default null (= no uploads)
   subir?: { topesMB?: Partial<Record<string, number>>; totalMB?: number }; // H9: smaller caps (tests); default ficheros.ts
   optimizar?: boolean;           // N22: lighter copies of uploaded .glb in the background (optimizar-cola.ts); default MOTOR_OPTIMIZAR !== "no"
+  apps?: string | null;          // M19: the world's apps/ folder (one folder per app: app.json, main.ts, assets/); default null = none. Read once at start; GET /apps lists them; their files join /a/
   aventura?: string | null;      // J5: the adventure's folder (quests, people, things as text files); default null = none
   agentes?: string;              // P4: the secret that signs AI inhabitants' tickets (env MOTOR_AGENTES_SECRET); none or short = no inhabitants
   dominios?: readonly string[];  // ADR-080: the world's public names an outside agent signs (env MOTOR_DOMINIO, commas); none = the host each connection asks for
@@ -220,6 +223,11 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const funciones = o.features?.length ? [...o.features, roles.part, ...(puertaActiva || normasConInterruptor ? [puertaCondiciones.part] : [])] : o.features; // the gate keeps what people accepted in a feature of its own, only when it is on; no features (bare tests) = the pre-J7 wire
   const puede = (who: Who | null, accion: string) => roles.puede(who, accion);
   const activos = new Activos(o.biblioteca === undefined ? BIBLIOTECA : o.biblioteca, o.subidas ?? null, log);
+  // M19: the apps (read once; a bad app is left out and the log says where and why; main.ts is stored, never run: M20 runs scripts)
+  const apps = leerApps(o.apps ?? null);
+  for (const r of apps.rechazadas) for (const i of r.issues) log(`[apps] no se carga «${r.id}»: ${i.path}: ${i.message}`);
+  for (const a of apps.apps) activos.agregar(join(a.carpeta, "assets"));
+  if (o.apps && (apps.apps.length || apps.rechazadas.length)) log(`[apps] ${apps.apps.length} cargada${apps.apps.length === 1 ? "" : "s"}${apps.rechazadas.length ? `, ${apps.rechazadas.length} rechazada${apps.rechazadas.length === 1 ? "" : "s"}` : ""} (${o.apps}); sus scripts se guardan, no se ejecutan`);
   const optimizar = new ColaOptimizar(activos, log, o.optimizar ?? process.env.MOTOR_OPTIMIZAR !== "no"); // N22
   const hashes = new CacheHashes(archivoHashes(o.subidas ?? null)); // M16: the sha256 of every file the manifest lists, kept while the file does not change
   // E3: the world's own avatars (entorno/avatares.json → files in datos/activos/, checked now with the same VRM reader the uploads use); none = nothing told, the world as always
@@ -360,6 +368,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     if ((method === "PUT" || method === "OPTIONS") && path.startsWith("/a/")) return subidas.atender(method, path, req, res); // H9: uploads
     if (agentesHttp.atender(method, path, req, res)) return; // ADR-080: numinia.com's panel manages the outside agents (pass-authenticated)
     if (habitantesHttp.atender(method, path, req, res)) return; // the panel manages this world's own AI inhabitants (pass-authenticated)
+    if (method === "GET" && /^\/apps\/?$/.test(path)) return json(res, 200, listaDeApps(apps)); // M19: what the world's apps are (properties, events, card, files); read-only, no disk paths
     if (funcionesHttp.atender(method, path, req, res)) return; // e1: the panel switches the world's functions (normas, dardos, pesca) (pass-authenticated)
     if (copia.atender(method, path, req, res)) return; // the world as a zip
     if (pagina?.servir(method, path, req, res)) return; // C1: the page (index.html, assets/) when the engine serves it
@@ -368,7 +377,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     const answer = (body: string) => {
       const r = inst.features.http(method, path, Object.fromEntries(new URLSearchParams(qs)), body);
       if (r) return reply(res, r);
-      json(res, 404, { error: `no existe ${method} ${path}`, hay: ["/health", "/status", "/metrics", "/metrics.prom", "/sesiones", "/agentes", "/habitantes", "/funciones", "/manifiesto.json", ...inst.features.routes(), "WebSocket en cualquier ruta (/ws)"] });
+      json(res, 404, { error: `no existe ${method} ${path}`, hay: ["/health", "/status", "/metrics", "/metrics.prom", "/sesiones", "/agentes", "/habitantes", "/funciones", "/apps", "/manifiesto.json", ...inst.features.routes(), "WebSocket en cualquier ruta (/ws)"] });
     };
     if (method === "GET") return answer("");
     let body = "", size = 0;

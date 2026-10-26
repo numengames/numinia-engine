@@ -5,12 +5,14 @@
 //
 // C2 — the world folder: MOTOR_MUNDO=<folder> (the image: /mundo; the installer: /var/lib/numinia-motor; tools/plaza.sh:
 // .run) holds the whole world — datos/, aventura/ (seeded once from aventuras/ejemplo), entorno/, sesiones/, mundo.json.
+// M19: apps/ holds the world's apps (one folder each: app.json, main.ts, assets/; APPS_DIR overrides, APPS_DIR= for none).
 // The old variables still win when set (DATOS_DIR, ACTIVOS_DIR, SESIONES_DIR, AVENTURA_DIR, MUNDO_DIR = the folder of
 // entorno.json/elementos.json). Without MOTOR_MUNDO: .run/datos, informes/sesiones, aventuras/ejemplo, as before.
 // C3 — keys: MOTOR_SECRET or JWT_SECRET; MOTOR_ADMIN or ADMIN_CODE (the fleet's key file); else, with a world folder,
 // made once into <mundo>/claves.env (600). Never printed.
 // ADR-080 — outside agents (aventura/agentes/, agente@1) sign the world's name: MOTOR_DOMINIO=<public host>[,<other>]
 // (e.g. motor.ejemplo.com); unset = the host each connection asks for (fine on a PC).
+import { join } from "node:path";
 import { startServer } from "./server.ts";
 import funciones from "../../../features/servidor.ts";
 import { aparicionDelMundo, conMundo, enlaceDardosDelMundo, sueloDelMundo, vueloDelMundo } from "../../../features/mundo.ts";
@@ -56,6 +58,7 @@ const srv = await startServer({
   voz: env.MOTOR_VOZ !== "no",                                        // U10: microphones on in a NEW world (then its stored setting: /voz)
   subidas: env.ACTIVOS_DIR || `${datos}/activos`,                     // H9: uploaded files by sha256, next to the saved world; activos/ is always served
   aventura: env.AVENTURA_DIR === "" ? null : (env.AVENTURA_DIR ?? c?.aventura ?? "aventuras/ejemplo"), // J5: quests, people, things (AVENTURA_DIR= for none)
+  apps: env.APPS_DIR === "" ? null : (env.APPS_DIR ?? (c ? join(c.raiz, "apps") : null)), // M19: the world's apps (one folder each); APPS_DIR= for none
   entorno, mundo: c?.raiz ?? null,
   secret: k.secreto, admin: k.admin, dondeCodigo: k.dondeCodigo,
   pase: cfgPase.pase,                                                 // H3b: MOTOR_PASE_CLAVE / MOTOR_PASE_MUNDO / MOTOR_PASE_ORG (none = passes ignored)
