@@ -10,6 +10,7 @@ import * as THREE from "three/webgpu";
 import { guiaEncaje } from "./encaje.ts";
 import type { Caja3, GuiaEncaje } from "./encaje.ts";
 import { yParaApoyar } from "./apoyo.ts";
+import { intersectarBarato } from "./rayo-barato.ts";
 import type { Caja3 as CajaPropia } from "./apoyo.ts";
 
 export type Eje = "X" | "Y" | "Z";
@@ -248,13 +249,13 @@ export function crearEditor(ctx: EditorCtx) {
     /** M22b-3 (VR): the key of the placed thing along a world ray (a controller's point), or null. */
     pickRayo(origen: { x: number; y: number; z: number }, dir: { x: number; y: number; z: number }): string | null {
       ray.set(new THREE.Vector3(origen.x, origen.y, origen.z), new THREE.Vector3(dir.x, dir.y, dir.z).normalize());
-      const hit = ray.intersectObjects(candidatos(), true)[0];
+      const hit = intersectarBarato(ray, candidatos())[0];
       return hit ? claveDe(hit.object) : null;
     },
     /** M22b-3 (VR): the point along a world ray — on another thing (not `ignorar`) or the ground (y = 0); null if the ray never meets either. */
     puntoBajoRayo(origen: { x: number; y: number; z: number }, dir: { x: number; y: number; z: number }, ignorar?: string): { x: number; y: number; z: number } | null {
       ray.set(new THREE.Vector3(origen.x, origen.y, origen.z), new THREE.Vector3(dir.x, dir.y, dir.z).normalize());
-      const hit = ray.intersectObjects(candidatos(ignorar), true)[0];
+      const hit = intersectarBarato(ray, candidatos(ignorar))[0];
       const s = ray.ray.intersectPlane(suelo, enSuelo);
       if (hit && (!s || hit.distance <= ray.ray.origin.distanceTo(s))) return { x: hit.point.x, y: Math.max(0, hit.point.y), z: hit.point.z };
       return s ? { x: s.x, y: 0, z: s.z } : null;
