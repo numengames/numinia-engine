@@ -257,6 +257,52 @@ Cifras anteriores, con su versión: 434,9 kB en 10 ficheros (18-10, `5362797`), 
 ficheros): 342 kB (15-10, solo los .js del arranque de entonces), 423,3 kB (18-10, diseño M6: sin html ni css, gzip por defecto de
 Vite). Desde hoy manda esta sección.
 
+### Medida del 26-10-2026 por trozo (MIS-253, `resto/motor-b` sobre `origin/main` `2ea4b64f`)
+
+`npm run tamano` dio **666,0 kB gz** antes de tocar nada (665.966 bytes, 28 ficheros: la página ha crecido de 451,5 a 666 kB desde el 18-10, sobre todo
+`index` 103→222 kB: cada pieza nueva de la plaza entra en la entrada) y **661,7 kB** después (661.726 bytes, el mismo método). Sigue bajo el tope de 1 MB y sobre la meta de 300 kB. `npm run tamano:trozos` (`tools/tamano-trozos.mjs`) construye en una carpeta
+aparte e imprime **todos** los trozos (arranque o perezoso, gz -9) y, con `--modulos=N`, los N módulos de fuente más grandes dentro de cada trozo de
+arranque (bytes ya minificados: dicen de dónde viene el peso, no cuánto comprime).
+
+Qué se cortó: el **trozo de VR** (`xr-menu` + `constructor-xr` + `condiciones-xr`, 9,3 kB gz) ya no baja en un ordenador o un móvil sin
+gafas: `main.ts` lo pide solo cuando `view.vrSupported()` dice que sí; `__numinia.menuVR` y `.constructorVR` aparecen cuando llega.
+
+Arranque tras el corte (suma de ficheros JS: 638,1 kB gz; los 12 mayores):
+
+| Trozo | gz -9 |
+|---|---|
+| `index.js` | 196,6 kB |
+| `three.tsl.js` | 190,7 kB |
+| `src.js` | 76,9 kB |
+| `three.core.js` | 69,1 kB |
+| `gente-ia.js` | 16,1 kB |
+| `paneles.js` | 13,2 kB |
+| `src.js` | 10,7 kB |
+| `escribiendo.js` | 9,8 kB |
+| `inventario.js` | 5,0 kB |
+| `voces.js` | 4,2 kB |
+| `client.js` | 4,0 kB |
+| `dardos.js` | 3,9 kB |
+
+Perezosos más grandes (no entran en la cifra): 
+
+| Trozo | gz -9 |
+|---|---|
+| `avatares-vrm.js` | 65,8 kB |
+| `meshoptimizer.js` | 51,8 kB |
+| `KTX2Loader.js` | 23,9 kB |
+| `terreno.js` | 15,3 kB |
+| `fauna.js` | 14,8 kB |
+| `arboles.js` | 13,2 kB |
+| `GLTFLoader.js` | 12,9 kB |
+| `pesca.js` | 8,7 kB |
+
+Lo que queda por cortar, de mayor a menor, leído con `--modulos` en `index` (222 kB gz; 58 kB de fuente solo `constructor.ts`): el **grupo del
+constructor** (`constructor.ts` 58 k, `entorno.ts` 27 k, `cable.ts` 20 k, `foto.ts` 19 k: unos 30 kB gz, solo lo usa quien construye; hoy cuelgan de
+`constructorUI.cajon(…)` y se leen desde `main.ts` al construirse, así que cortarlo es una refactorización, no un `import()`), `condiciones.ts` (32 k de
+fuente; solo con la puerta de normas encendida, pero `ar-elegir.ts` y 19 pruebas de extremo a extremo lo leen en `__numinia.condiciones`), `voz.ts` y
+`rueda.ts`. `three.tsl` (190,7 kB) y `three.core` (69,1 kB) no se pueden partir: es `three.webgpu.js` entero.
+
 ## Pruebas unitarias: cuántas y cuánto tardan
 
 La cuenta no se copia aquí: la imprime `npm run gates` en cada pasada (fila «pruebas unitarias», sacada de la línea `ℹ pass N`

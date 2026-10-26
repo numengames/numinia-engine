@@ -8,7 +8,6 @@ import { CIERRE_LLENO, CIERRE_SILENCIO, LATIDO_MS, webSocketClient } from "../..
 import { BARRIDO_MS, VigiaServidor } from "../../packages/client/src/vigia-servidor.ts"; // t_9cb3f636: the page notices the server went silent
 import { montarAjustes, leerAjuste } from "./menu-ajustes.ts"; // N2: settings menu + capabilities
 import { montarCiudad } from "./ciudad.ts"; // t_5cff4f06: the corner button back to the city (a world's own ciudadUrl)
-import { montarMenuVR } from "./xr-menu.ts"; // rediseño v2: the VR wrist watch and menu (story E)
 import mundoPlaza from "./mundo.ajustes.json";
 import { montarPulsaciones } from "./pulsaciones.ts"; // U26: a press you can see (and feel) on every button
 import { crearTienda, type CachesLike } from "./manifiesto.ts";
@@ -20,7 +19,6 @@ import funciones from "../../features/cliente.ts";
 import { constructor } from "../../features/objetos/client.ts";
 import { chatDePagina } from "../../features/chat/client.ts";
 import { montarConstructor } from "./constructor.ts";
-import { montarConstructorVR } from "./constructor-xr.ts";
 import { montarReaccionClic } from "./reaccion-clic.ts"; // lote 5: a click on a moñoni makes it hop
 import { sonar as sonarLocalPlaza } from "./sonar.ts";
 import { montarSoltar } from "./soltar.ts";
@@ -95,7 +93,6 @@ import { ancestros } from "../../features/ancestros/client.ts"; // ancestros v1:
 import { montarAncestros } from "./ancestros.ts";
 import { montarVoz } from "./voz.ts";
 import { montarPantalla } from "./pantalla.ts";
-import { montarCondicionesXR } from "./condiciones-xr.ts"; // condiciones/c4: the same bubble as a panel inside the headset
 import { montarCondiciones } from "./condiciones.ts"; // condiciones/c3: the bubble of entry (only when the world's gate is on; the server decides)
 import { montarGraboso } from "./graboso.ts"; // M18b: the relic that records what you see (K)
 import { icono } from "./iconos.ts";
@@ -313,8 +310,6 @@ const constructorUI = montarConstructor(constructor, view, document.getElementBy
     // MIS-241: «Objetos del mundo» goes next to the object with the map's own jump (so the map's «Volver» takes you back), and says where you stand
     ir: (d) => { if (!mapa.puedeIr()) return false; mapa.ir({ ...d, id: `c:objetos:${d.id}` }); return true; },
     yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) });
-// ---- M22b-3: the same builder, picked and moved with a VR controller's ray instead of a mouse ----
-const constructorVR = montarConstructorVR(constructor, view);
 // ---- lote 5: a plain click on a moñoni of the plaza makes it hop (local; the builder's click is its own) ----
 const panelConstruir = document.getElementById("panel-construir")!;
 const reaccionClic = montarReaccionClic({ view, objetos: () => constructor.lista(), construyendo: () => !panelConstruir.hidden, sonar: (id) => { sonarLocalPlaza(id, { gain: 0.3 }, 150); } });
@@ -441,7 +436,7 @@ const interaccion = montarInteraccion({ session, view, boton: document.getElemen
   persona: (x, y) => { const q = view.pickPerson(x, y); return q !== null && gente.tarjeta(q); } }); // ux2-gente: a click on someone = their card
 misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
 const xr = montarXR({ session, view, misiones, interaccion, enlaces, huecos }); // J4: + the ray points at things with a link and the trigger asks before opening // J10: hands in VR take, point and answer; what you took is in your hand
-const condicionesXR = montarCondicionesXR({ condiciones, vr: view.vr as never, mundo: () => nombreDelMundo, soportado: () => vrDisponible }); // condiciones/c4
+let condicionesXR: { tick(): void } | null = null; // condiciones/c4: the bubble inside the headset — loaded with the VR chunk below, only where the browser can present VR
 montarDialogo(misiones, document.getElementById("dialogo")!, view);
 montarFlecha({ misiones }); // T3: idle costs nothing; with a step that points at a button it follows the button
 const nombres = montarVerNombres(view); // U22: Alt / «Nombres» button / gamepad Back: every name; otherwise only who you look at and who speaks
@@ -778,7 +773,7 @@ view.loop((now) => {
   if (informe.bienvenidaMs && !mallaLista && !cargaOculta && carga.conMalla() && !pendiente && (view.espacioBase.activa || view.naturaleza.activa)) { mallaLista = true; carga.etapa("mundo"); } // H4 + B5: the ground (base or nature) is built
   if (probe.done && informe.primerCuadroMs && !informe.entrada) void enviarEntrada();
   // power policy (P2): skip the draw when hidden or when nothing changes; the 20 Hz ticks above never skip
-  condicionesXR.tick(); // condiciones/c4: the bubble inside the headset (nothing to do unless the bubble is up and VR is presenting)
+  condicionesXR?.tick(); // condiciones/c4: the bubble inside the headset (nothing to do unless the bubble is up and VR is presenting)
   const enSecuencia = misiones.cuadro(); // U14 (5): a sequence only this player sees moves its people (no work when none plays)
   const sig = lastSig; lastSig = signature();
   if (sig !== lastSig || keys.size > 0 || touch || view.vr.active || view.ar.state !== "off" || view.busy() || enSecuencia) lastActive = now;
@@ -837,15 +832,20 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { gemelos, ajustesMundo, session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, constructorVR, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { gemelos, ajustesMundo, session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones };
 
 // ---- t_5cff4f06: back to the city — hidden unless this world's mundo.ajustes.json sets ciudadUrl; ux2-barra: an entry
 // of the bar's «Menú» (O), no longer a corner button ----
 const ciudad = montarCiudad({ mundo: mundoPlaza, boton: document.getElementById("volver-ciudad") as HTMLButtonElement, icono });
 
-// ---- rediseño v2 (story E): in VR, the wrist watch and the menu panel show what the computer's panels show ----
-{
+// ---- rediseño v2 (story E): in VR, the wrist watch and the menu panel show what the computer's panels show. MIS-253: the three VR
+// modules (menu, builder with the controller's ray, conditions panel) are one lazy chunk, fetched only where the browser can present
+// VR: a computer or a phone without a headset never downloads them. `__numinia.menuVR` / `.constructorVR` appear when it lands ----
+void view.vrSupported().then(async (ok) => {
+  if (!ok) return;
+  const [{ montarMenuVR }, { montarConstructorVR }, { montarCondicionesXR }] = await Promise.all([import("./xr-menu.ts"), import("./constructor-xr.ts"), import("./condiciones-xr.ts")]);
   const n = (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia;
+  const constructorVR = montarConstructorVR(constructor, view); // M22b-3: the same builder, picked and moved with a VR controller's ray
   const menuVR = montarMenuVR({ vr: view.vr, n: () => n, ciudadUrl: ciudad.url, puedeConstruir: () => constructor.estado.puede, construirVR: constructorVR,
     nombre: () => session.who?.nombre ?? "Invitado",
     obra: { hueco: (id) => constructor.huecos().find((h) => h.id === id) ?? null, imagenes: () => constructor.imagenes(), poner: soltar.rellenarYa },
@@ -853,8 +853,9 @@ const ciudad = montarCiudad({ mundo: mundoPlaza, boton: document.getElementById(
     linea: () => lineaDeTu({ avatar: miAvatar()?.nombre, mundo: nombreDelMundo, ms: informe.bienvenidaMs > 0 ? performance.now() - informe.bienvenidaMs : 0 }),
     retrato: () => { const id = miAvatar()?.id ?? idAvatarDe(avatarUI?.eleccion("yo"), estado?.avatar); return id ? `/retratos/${id}-cuerpo.webp` : null; } });
   elegirObraVR = menuVR.elegirObra;
-  Object.assign(n, { menuVR });
-}
+  condicionesXR = montarCondicionesXR({ condiciones, vr: view.vr as never, mundo: () => nombreDelMundo, soportado: () => vrDisponible }); // condiciones/c4
+  Object.assign(n, { menuVR, constructorVR });
+});
 
 // ---- U11 + ux2-barra: the bar, top right — one thing, one place, one key. Left to right: Micrófono (Q) · Gente (L) ·
 // Bolsa (R) · Cámara (P: foto, grabar, compartir pantalla) · Construir (C, builders only) | Avisos (N) · Menú (O: ajustes,

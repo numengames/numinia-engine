@@ -23,6 +23,7 @@
     "e2e": "node tools/e2e.mjs",
     "gates": "node tools/gates.mjs",
     "tamano": "node tools/tamano.mjs",
+    "tamano:trozos": "node tools/tamano-trozos.mjs",
     "puente": "node tools/empaquetar-puente.mjs",
     "deploy": "node tools/build-deploy.mjs",
     "enlaces": "node tools/enlaces.ts",
