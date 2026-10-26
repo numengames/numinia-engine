@@ -41,11 +41,11 @@ test("H10: A picks a house avatar, B sees it, and A keeps it after reconnecting 
   const b = W.join(); b.pump();
   assert.equal(a.s.features.send("avatar", "elegir", { tipo: "casa", modelo: 2, sha: "", ext: "" }).ok, true);
   a.pump(); b.pump();
-  assert.deepEqual(b.s.features.stateOf("avatar").get(String(a.s.entity)), { tipo: "casa", modelo: 2, sha: "", ext: "" });
+  assert.deepEqual(b.s.features.stateOf("avatar").get(String(a.s.entity)), { tipo: "casa", modelo: 2, sha: "", ext: "", escala: 1 });
   // A reloads the tab (same guest token): a new entity, which gets the same pick back from the store (I1)
   const again = W.join(mine); again.pump();
   assert.notEqual(again.s.entity, a.s.entity);
-  assert.deepEqual(again.s.features.stateOf("avatar").get(String(again.s.entity)), { tipo: "casa", modelo: 2, sha: "", ext: "" });
+  assert.deepEqual(again.s.features.stateOf("avatar").get(String(again.s.entity)), { tipo: "casa", modelo: 2, sha: "", ext: "", escala: 1 });
 });
 
 test("H10: picking an upload that is not on the server is refused (announced); one that is, is accepted", () => {
@@ -60,7 +60,7 @@ test("H10: picking an upload that is not on the server is refused (announced); o
   const r2 = a.s.features.send("avatar", "elegir", { tipo: "subido", modelo: 0, sha, ext: "vrm" });
   assert.equal(r2.ok, true);
   a.pump();
-  assert.deepEqual(a.s.features.stateOf("avatar").get(String(a.s.entity)), { tipo: "subido", modelo: 0, sha, ext: "vrm" });
+  assert.deepEqual(a.s.features.stateOf("avatar").get(String(a.s.entity)), { tipo: "subido", modelo: 0, sha, ext: "vrm", escala: 1 });
 });
 
 test("H10: survives a restart (S4 store, by identity, not by entity)", async () => {
@@ -74,5 +74,5 @@ test("H10: survives a restart (S4 store, by identity, not by entity)", async () 
   const storage2 = new FileStorage(dir);
   const W2 = world({ storage: storage2 });
   const again = W2.join(mine); again.pump();
-  assert.deepEqual(again.s.features.stateOf("avatar").get(String(again.s.entity)), { tipo: "casa", modelo: 5, sha: "", ext: "" });
+  assert.deepEqual(again.s.features.stateOf("avatar").get(String(again.s.entity)), { tipo: "casa", modelo: 5, sha: "", ext: "", escala: 1 });
 });

@@ -30,7 +30,7 @@ const T0 = Date.parse("2026-10-16T10:00:00Z");
 const SUB_A = `a_${"ab".repeat(16)}`;
 const keeper = (): GuestKeeper => { let t: string | null = null; return { load: () => t, save: (x) => { t = x; } }; };
 const RESPONDE = { comunidad: "La Torre", nombre: "Ana" };
-const ROBOT = { tipo: "casa", modelo: ROBOT_CASA, sha: "", ext: "" };
+const ROBOT = { tipo: "casa", modelo: ROBOT_CASA, sha: "", ext: "", escala: 1 };
 
 function paseIA(t: number, o: Record<string, unknown> = {}): string {
   const s = Math.floor(t / 1000);
@@ -39,10 +39,10 @@ function paseIA(t: number, o: Record<string, unknown> = {}): string {
   return `${firmado}.${b64(sign(null, Buffer.from(firmado), par.privateKey))}`;
 }
 
-function mundo() {
+function mundo(habitante?: NonNullable<Parameters<typeof crearRoles>[0]["habitante"]>) {
   let ahora = T0;
   const firma = signer("una-clave-de-prueba-larga");
-  const roles = crearRoles({ construir: false, admin: "codigo-de-administracion-largo", firmar: firma, pase: { clave: CLAVE, mundo: MUNDO, org: "org-1" }, cerrar: (e) => inst.disconnect(e), ahora: () => ahora, log: () => {} });
+  const roles = crearRoles({ construir: false, admin: "codigo-de-administracion-largo", firmar: firma, pase: { clave: CLAVE, mundo: MUNDO, org: "org-1" }, cerrar: (e) => inst.disconnect(e), ahora: () => ahora, log: () => {}, ...(habitante ? { habitante } : {}) });
   const inst: Instance = new Instance({ seed: 1, capacity: 32, k: 50, snapshotEvery: 2, features: [chatServer, objetosServer, avatarServer, iaServer, roles.part], identitySign: firma, puede: (w, a) => roles.puede(w, a), credencial: roles.credencial, renovarPase: roles.renovar });
   const sesiones: { t: ReturnType<Instance["join"]>; s: ClientSession }[] = [];
   const pump = (n = 2) => { for (let k = 0; k < n; k++) { for (const x of sesiones) x.t.flush(); inst.tick(); for (const x of sesiones) { x.t.flush(); x.s.tick(0, 0); } } };
@@ -71,10 +71,10 @@ test("an organization AI wears the house robot, with or without an «ia» block"
 test("an organization AI whose pass picks another house avatar wears that one; a fresh pass changes it live, and dropping the block returns to the robot", () => {
   const W = mundo();
   const A = W.unir(paseIA(T0, { ia: { responde: RESPONDE, cuerpo: { tipo: "casa", modelo: 1 } } }));
-  assert.deepEqual(W.cuerpoDe(A.e), { tipo: "casa", modelo: 1, sha: "", ext: "" });
+  assert.deepEqual(W.cuerpoDe(A.e), { tipo: "casa", modelo: 1, sha: "", ext: "", escala: 1 });
   W.reloj(T0 + 60_000);
   W.renovar(A, paseIA(T0 + 60_000, { ia: { responde: RESPONDE, cuerpo: { tipo: "casa", modelo: 0 } } }));
-  assert.deepEqual(W.cuerpoDe(A.e), { tipo: "casa", modelo: 0, sha: "", ext: "" }, "index 0 is a real choice, not «none»");
+  assert.deepEqual(W.cuerpoDe(A.e), { tipo: "casa", modelo: 0, sha: "", ext: "", escala: 1 }, "index 0 is a real choice, not «none»");
   W.reloj(T0 + 120_000);
   W.renovar(A, paseIA(T0 + 120_000, { ia: { responde: RESPONDE } }));
   assert.deepEqual(W.cuerpoDe(A.e), ROBOT);
@@ -109,6 +109,25 @@ test("people are untouched: no entry until they choose, their choice works and a
   const A = W.unir(paseIA(T0, { ia: { responde: RESPONDE } }));
   W.reloj(T0 + 60_000);
   W.renovar(A, paseIA(T0 + 60_000, { ia: { responde: RESPONDE } }));
-  assert.deepEqual(W.cuerpoDe(P.e), { tipo: "casa", modelo: 1, sha: "", ext: "" });
+  assert.deepEqual(W.cuerpoDe(P.e), { tipo: "casa", modelo: 1, sha: "", ext: "", escala: 1 });
   assert.deepEqual(W.cuerpoDe(A.e), ROBOT);
+});
+
+const GLB = "cc858fbfd241d007c35ff546798da34b09d8a794cffa36480e6ccfa93c9f81d1";
+test("an inhabitant whose file has an `apariencia` wears that .glb of the world (tipo modelo), not the robot; one without it keeps the robot", () => {
+  const W = mundo((id) => (id === SUB_A ? { escalon: 0, apariencia: { modelo: GLB, escala: 1.25 } } : undefined));
+  const A = W.unir(paseIA(T0));
+  assert.deepEqual(W.cuerpoDe(A.e), { tipo: "modelo", modelo: 0, sha: GLB, ext: "glb", escala: 1.25 });
+  const B = W.unir(paseIA(T0, { sub: `a_${"cd".repeat(16)}`, name: "Bea" }));
+  assert.deepEqual(W.cuerpoDe(B.e), ROBOT);
+});
+
+test("a person cannot choose a «modelo» body (only the server gives it, to an inhabitant)", () => {
+  const W = mundo();
+  const P = W.unir();
+  W.pump(2);
+  P.s.features.send("avatar", "elegir", { tipo: "modelo", modelo: 0, sha: GLB, ext: "glb", escala: 1 });
+  W.pump(3);
+  assert.match(P.s.features.announcements.at(-1)?.text ?? "", /tipo debe ser/);
+  assert.equal(W.cuerpoDe(P.e), undefined);
 });

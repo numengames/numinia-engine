@@ -1771,3 +1771,8 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 ## 2026-10-26 · sombra y bolitas: two finished fixes from resto/galeria and resto/ayuntamiento · hecho
 - Qué: `ce941e23` (merged pinned models keep `sinSombra`: `fijados.ts`, `lotes.ts`, `hornear.ts`, `fundir-quietos.ts` group by it and put it on the cell) and `c3bdd4a9` (card `t_1b1c6c77`: `objetos.moverCon` moves a thing and its companion in one message, so an Ayuntamiento bolita costs one engine slot per creature). Cherry-picked onto main 0.70.0.
 - Números: `test/fijados.test.ts`, `test/hornear.test.ts`, `test/objetos.test.ts` (ver el cuerpo del PR). Versión 0.71.0 (menor).
+
+## 2026-10-26 · pnj-modelo-propio: un habitante lleva su propio modelo (habitante@1 `apariencia`) · hecho
+- Qué: la «foto con el robot en vez de la persona» de la galería no era del motor: la cámara de `#foto` va unos 6 m detrás de TU avatar y este tapaba a la figura (el pnj con su `modelo` se dibujaba bien: 78 colocados, 0 fallos). Lo que sí faltaba: un habitante no podía llevar otro cuerpo. `habitante@1` gana `apariencia {modelo, escala?}` (como `pnj@1`); el servidor lo publica en el estado `avatar` como `tipo: "modelo"` y `packages/render` lo dibuja como a una persona del mundo, girado hacia donde anda (+z). Sin el `.glb` en el servidor, el robot.
+- Números: `test/agente.test.ts`, `test/ia-cuerpo.test.ts` (nuevos); el estado `avatar` gana `escala` (1 por defecto) y los tests que comparaban el objeto entero lo llevan. Foto del mundo (galería): el crítico anda y mira hacia donde va.
+- Versión 0.77.0 (menor: el estado `avatar` y el evento `ia` ganan campos).
