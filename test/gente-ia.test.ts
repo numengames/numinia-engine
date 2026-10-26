@@ -73,6 +73,9 @@ test("gente-ia: «Gente» in the VR menu puts people first, then the AIs with th
   assert.deepEqual(r.filas.map((f) => [f.nombre, f.ia]), [["Ana", false], ["Luz", false], ["Hermes", true]]);
   assert.equal(r.filas[2]!.detalle, "IA · Activa · a 5 m");
   assert.equal(listaGenteVR([{ quien: 3, nombre: "H · IA" }], 1, () => ({ ...ACTIVA, estado: "dormida" }), () => "").filas[0]!.detalle, "IA · Dormida");
+  const sinTam = { ...ACTIVA } as Partial<IAPublica>; delete sinTam.tamano; // a pass or stub that carries no size
+  assert.equal(listaGenteVR(gente, 3, (q) => (q === 3 ? (sinTam as IAPublica) : null), (q) => (q === 3 ? "a 5 m" : "")).filas[2]!.detalle, "IA · Activa · a 5 m", "an unknown or missing size says nothing in the VR row");
+  assert.equal(listaGenteVR(gente, 3, (q) => (q === 3 ? { ...ACTIVA, tamano: "medio" } : null), () => "").filas[2]!.detalle, "IA · Modelo medio · Activa", "a known size is said, shortly");
   assert.equal(listaGenteVR(gente, 3, () => null, () => "").cuenta, "3 personas", "no AIs: no AI part");
   assert.equal(listaGenteVR(gente, 9, () => null, () => "").cuenta, "9 personas", "the server's count wins when larger");
 });

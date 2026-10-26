@@ -162,10 +162,10 @@ async function pierna() {
     // 3a. an AI in «Gente» reads as on the computer: after the people, robot icon, «IA · Activa · distance», «Ir hacia ella», and the title counts it
     //     (the page's AI card is stubbed for B: a real AI needs a signed world pass, see the e2e-agente-ia reference)
     const entB0 = await b.evaluate(() => globalThis.__numinia.session.entity);
-    await ctl((q) => { const n = globalThis.__numinia; globalThis.__iaDe = n.ia.de; n.ia.de = (x) => (x === q ? { estado: "activa", responde: { comunidad: "La Torre", nombre: "Ana" }, puede: { construir: false }, atenta: false } : null); n.view.vr.menu.pintar(); }, entB0);
+    await ctl((q) => { const n = globalThis.__numinia; globalThis.__iaDe = n.ia.de; n.ia.de = (x) => (x === q ? { estado: "activa", responde: { comunidad: "La Torre", nombre: "Ana" }, puede: { construir: false }, atenta: false, tamano: "desconocido" } : null); n.view.vr.menu.pintar(); }, entB0);
     await a.waitForTimeout(300);
     const gia = await ctl(() => globalThis.__numinia.menuVR.contenido("gente"));
-    paso("«Gente» pone a una IA con «IA · Activa», su icono y «Ir hacia ella», y la cuenta en el título", /IA$/.test(gia.titulo) && gia.filas.length >= 1 && gia.filas[0].icono === "robot" && /^IA · Activa/.test(gia.filas[0].detalle) && gia.filas[0].botones[0].texto === "Ir hacia ella" && !/ · IA$/.test(gia.filas[0].texto), { titulo: gia.titulo, fila: gia.filas[0] && { texto: gia.filas[0].texto, detalle: gia.filas[0].detalle, icono: gia.filas[0].icono, boton: gia.filas[0].botones[0].texto } });
+    paso("«Gente» pone a una IA con «IA · Activa», su icono y «Ir hacia ella», y la cuenta en el título", /IA$/.test(gia.titulo) && gia.filas.length >= 1 && gia.filas[0].icono === "robot" && /^IA · Activa/.test(gia.filas[0].detalle) && !/Tamaño/.test(gia.filas[0].detalle) && gia.filas[0].botones[0].texto === "Ir hacia ella" && !/ · IA$/.test(gia.filas[0].texto), { titulo: gia.titulo, fila: gia.filas[0] && { texto: gia.filas[0].texto, detalle: gia.filas[0].detalle, icono: gia.filas[0].icono, boton: gia.filas[0].botones[0].texto } });
     await lienzo("menu", "vr-menu-gente-ia");
     await ctl(() => { const n = globalThis.__numinia; n.ia.de = globalThis.__iaDe; n.view.vr.menu.pintar(); }); await a.waitForTimeout(200);
     if (CANVAS) for (const [i, s] of [[2, "bolsa"], [3, "misiones"], [4, "mapa"], [6, "ajustes"]]) {
