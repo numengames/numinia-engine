@@ -25,19 +25,23 @@ const CAMPOS = {
   construye: { kind: "bool", default: false },
   atenta: { kind: "bool", default: false },
   tamano: { kind: "enum", values: TAMANOS, default: "desconocido" }, // t_5096d6f4: the SIZE of the model behind it (never its name): the eyes and the card read it
+  pensando: { kind: "bool", default: false }, // t_466efdb8: someone called it and it has not answered yet: the page draws a «thinking» orb over it and in the chat
 } as const;
 
 /** «Attentive» lasts this long after the last `atenta` report: the brain used `llamadas` or `esperar_llamada` less than 90 s ago (design §4). */
 export const ATENTA_S = 90;
 export const TICK_HZ = 20; // the sim's rate (features import only core, schema, feature)
 export const ATENTA_TICKS = ATENTA_S * TICK_HZ;
+/** «Thinking» (t_466efdb8) lasts from a call that reaches the AI until it says something, and never longer than this: a brain that never answers (a model down, an outside agent that left it) must not wear the orb for ever. */
+export const PENSANDO_S = 45;
+export const PENSANDO_TICKS = PENSANDO_S * TICK_HZ;
 
 export const ia = defineFeature({
   id: "ia",
-  version: 3, // t_5096d6f4: + `tamano` (the size class of the model, an enum: new wire layout); S12: the intent `atenta`
+  version: 4, // t_466efdb8: + `pensando` (the server marks an AI that was called and has not answered; new wire layout); t_5096d6f4: + `tamano`; S12: the intent `atenta`
   describe: "La ficha pública de cada IA conectada ahora: su estado (activa o dormida), quién responde por ella (la comunidad y el nombre de la persona o su cartera abreviada), qué puede hacer aquí y si su cerebro está atento. La decide el servidor; las páginas solo la leen para dibujar su marca de IA. Las personas no tienen ficha.",
   state: {
-    describe: "Por entidad de IA conectada (clave = su entidad; desaparece al desconectar). estado = activa|dormida; comunidad y nombre = quién responde por ella (vacíos si el pase no lo dice); cartera = su forma corta 0x12…ab; construye = si sus roles la dejan construir ahora; atenta = si su cerebro escucha (falso hasta que el puente lo diga); tamano = el tamaño del modelo que hay detrás (sin-modelo|pequeno|medio|grande|desconocido), nunca su nombre.",
+    describe: "Por entidad de IA conectada (clave = su entidad; desaparece al desconectar). estado = activa|dormida; comunidad y nombre = quién responde por ella (vacíos si el pase no lo dice); cartera = su forma corta 0x12…ab; construye = si sus roles la dejan construir ahora; atenta = si su cerebro escucha (falso hasta que el puente lo diga); tamano = el tamaño del modelo que hay detrás (sin-modelo|pequeno|medio|grande|desconocido), nunca su nombre; pensando = la han llamado y aún no ha contestado (lo decide el servidor, como mucho 45 s): las páginas dibujan un orbe de «pensando».",
     fields: CAMPOS,
   },
   intents: {
@@ -58,6 +62,8 @@ export type IAPublica = {
   atenta: boolean;
   /** The size class of the model behind it (never its name): the eyes on the avatar and the card read it. «desconocido» when the world cannot tell. */
   tamano: Tamano;
+  /** The server saw a call reach this AI and no answer yet (≤ 45 s). The page draws a «thinking» orb over its avatar and a line in the chat. Absent = false. */
+  pensando?: boolean;
 };
 
 /** Pure: the state entry as the page reads it. Anything odd falls back to the safest reading (asleep never claims to build). */
@@ -69,6 +75,7 @@ export function publica(v: Readonly<Record<string, unknown>>): IAPublica {
     ...(comunidad ? { responde: { comunidad, ...(nombre ? { nombre } : {}), ...(cartera ? { cartera } : {}) } } : {}),
     puede: { construir: v.construye === true && estado === "activa" },
     atenta: v.atenta === true,
+    ...(v.pensando === true && estado === "activa" ? { pensando: true } : {}), // only when true: a quiet AI's card is byte for byte what it was
     tamano: typeof v.tamano === "string" && (TAMANOS as readonly string[]).includes(v.tamano) ? (v.tamano as Tamano) : "desconocido",
   };
 }
