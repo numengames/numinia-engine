@@ -1032,7 +1032,9 @@ export type PlacedObject = { model: string; x: number; y: number; z: number; rx:
   /** U11 (optional): who hears it (burbuja: inside the bubble; zona, todos: everyone, at the same volume) and a video's bubble radius (m). */
   reach?: "burbuja" | "zona" | "todos"; radius?: number; bus?: "musica" | "efectos" | "ambiente";
   /** N22 (optional): part of the room (pinned or backdrop: the hall you stand in), downloaded before anything else. */
-  sala?: boolean };
+  sala?: boolean;
+  /** t_e41c0a12: pinned (fijado) — the renderer may merge it with the other pinned things by material. */
+  fijo?: boolean };
 export const NO_VIEW: ViewHooks = { label() {}, bounce() {} };
 /** An event as a person hears and reads it (V1). `at` in metres; `who` = the entity it is about. */
 export type Announcement = { feature: string; event: string; text: string; sound: Sound; importance: Importance; at?: { x: number; z: number }; who?: number };

@@ -72,6 +72,7 @@ import { crearSalon } from "./ancestros.ts";
 import type { DianaAR } from "./dardos.ts";
 import { detalleAgua, LUCES_FUEGO } from "./calidad.ts";
 import { crearLotes } from "./lotes.ts";
+import { crearFijados, type Fijado } from "./fijados.ts";
 import { censoDeEscena, type Censo } from "./medidor-vivo.ts";
 import { debeMejorar, ficheroDeNivel, nivelParaCargar } from "./lod-modelo.ts";
 import { crearHitosMalla } from "./hitos-malla.ts";
@@ -114,7 +115,9 @@ export type Thing = { model: string; x: number; y: number; z: number; rx: number
   /** H5 (optional): the mixer group a sound or video plays in (the thing says; without it the engine picks: ambient for a bed, effects for a short sound, music for a video). */
   bus?: "musica" | "efectos" | "ambiente";
   /** N22 (optional): part of the room (pinned or backdrop), downloaded first (carga-orden.ts). */
-  sala?: boolean };
+  sala?: boolean;
+  /** MIS-222 t_e41c0a12 (optional): the builder pinned it (fijado): it never moves, so its parts are merged by material with the other pinned things (fijados.ts). */
+  fijo?: boolean };
 /** J10: where a thing you carry goes: a hand in XR («izq»/«der»), or beside you on a flat screen («yo»). */
 export type Llevar = "izq" | "der" | "yo";
 /** J10: the biggest side of a thing held in a hand (m). */
@@ -840,6 +843,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // the capsules of the people who wear no VRM (the far crowd: one call for all). Before and after the frame every
   // object is as it was, so picking, the map, footprints, hands and the gizmo never see any of this.
   const lotes = crearLotes(world);
+  const fijados = crearFijados(world); // MIS-200 t_e41c0a12: pinned things merged by material and cell (fijados.ts); shown only while the frame is drawn
+  const fijosCuadro: Fijado[] = [], fijosSlots: Slot[] = [], instanciados = new Set<Slot>();
   const hitosMalla = crearHitosMalla(hitos, pillarGeo, lotes.raiz); // MIS-200: the pillars are ONE instanced call (hitos-malla.ts); lotes.raiz shows only while the frame is drawn
   const capsulasParte: Parte[] = [{ geo: bodyGeo, mat: otherMat, sombra: false }];
   const ojo = new THREE.Vector3(), ocultosCuadro: THREE.Object3D[] = [], enLuz = new Set<number | "self">();
@@ -880,7 +885,20 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       lotes.dibujar(clave, v.partes, v.color, matricesDe(v.slots.map((s) => s.group)));
       for (const s of v.slots) ocultar(s.group);
       instanciadas += v.slots.length; nLotes++;
+      for (const s of v.slots) instanciados.add(s);
     }
+    // pinned, still, unpainted copies that no lote draws: one mesh per material and cell instead of one per model part
+    fijosCuadro.length = 0; fijosSlots.length = 0;
+    for (const [k, s] of things) {
+      const g = s.group;
+      if (!s.want.fijo || !s.loaded || !s.partes || s.mixer || s.want.animate || s.want.color || k.startsWith("~") || !g.visible || g.parent !== world || instanciados.has(s)) continue;
+      g.updateWorldMatrix(true, false);
+      fijosCuadro.push({ id: k, partes: s.partes, matriz: g.matrixWorld, x: g.position.x, z: g.position.z }); fijosSlots.push(s);
+    }
+    instanciados.clear();
+    fijados.actualizar(fijosCuadro);
+    for (let i = 0; i < fijosSlots.length; i++) if (fijados.cubre(fijosCuadro[i].id)) { const g = fijosSlots[i].group; if (g.visible) ocultar(g); }
+    fijados.antes((x, y, z, r) => tapadoPorNiebla(x - ojo.x, y - ojo.y, z - ojo.z, r, lejos));
     capsulasCuadro.length = 0;
     // N16: whoever the light holds is not there (nor slides across while the server moves them)
     enLuz.clear();
@@ -902,14 +920,14 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     for (const k of enLuz) { const r = avs.raiz(k === "self" ? "yo" : k); if (r?.visible) ocultar(r); }
     for (const r of tags.values()) if (r.s.visible && tapa(r.s, 3)) { ocultar(r.s); niebla++; }
     hitosMalla.antes();
-    lotes.raiz.visible = true;
+    lotes.raiz.visible = true; fijados.raiz.visible = true;
     dibujoUltimo = { lejos, niebla, instanciadas, lotes: nLotes };
   }
   function despuesDelCuadro(): void {
     for (const o of ocultosCuadro) o.visible = true;
     ocultosCuadro.length = 0;
     hitosMalla.despues();
-    lotes.raiz.visible = false;
+    lotes.raiz.visible = false; fijados.raiz.visible = false;
   }
   // MIS-200: the Graboso inside XR films a small mirror of the left eye (espejo-xr.ts); the module is fetched at the first
   // recording in XR and `espejoXR` stays null (one null check per frame) in every other session
