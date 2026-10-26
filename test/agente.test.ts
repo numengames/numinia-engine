@@ -151,3 +151,18 @@ test("habitante@1: the example passes; bad files are refused with their path; na
   assert.ok(r.problemas.some((p) => p.startsWith("habitantes/ia.json.nombre")));
   assert.ok(["ruta", "escalon", "extra"].every((k) => r.problemas.some((p) => p.startsWith(`habitantes/lejos.json.${k}`))), r.problemas.join("\n"));
 });
+
+test("habitante@1 `apariencia`: the sha256 of a .glb of the world and an optional size; anything else is said", () => {
+  const GLB = "cc858fbfd241d007c35ff546798da34b09d8a794cffa36480e6ccfa93c9f81d1";
+  const r = validarHabitante({ ...LIA, apariencia: { modelo: GLB, escala: 1.1 } });
+  assert.ok(r.ok);
+  assert.deepEqual(r.ok && r.value.apariencia, { modelo: GLB, escala: 1.1 });
+  assert.ok(validarHabitante({ ...LIA, apariencia: { modelo: GLB } }).ok, "the size is optional");
+  const caso = (apariencia: unknown, quien: RegExp) => { const x = validarHabitante({ ...LIA, apariencia }); assert.ok(!x.ok); assert.match(JSON.stringify(x.ok ? "" : x.issues), quien); };
+  caso({ modelo: "robot" }, /apariencia\.modelo/);
+  caso({ modelo: GLB, escala: 0 }, /apariencia\.escala/);
+  caso({ modelo: GLB, escala: 99 }, /apariencia\.escala/);
+  caso({ modelo: GLB, vrm: GLB }, /apariencia\.vrm/);
+  caso("teo", /apariencia/);
+  assert.ok(validarHabitante(LIA).ok && !("apariencia" in (validarHabitante(LIA) as { value: object }).value), "without it: the house robot");
+});
