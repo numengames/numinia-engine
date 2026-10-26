@@ -92,3 +92,20 @@ Las 3 pasadas de cada lado quedan a ±30 ms entre sí (CPU ×4: antes 1904–192
 el mundo; con 1,6 Mb/s eso ya son ~3,5 s de los 4,7. Partir el JS (cargar tarde lo que no se ve al entrar) y las texturas
 del mundo son las dos palancas que quedan, y piden una decisión de qué se ve primero.
 **Falta en Quest real:** esto es un navegador de PC con límites; hay que repetirlo en las gafas (`about:inspect` + `chrome://inspect`).
+
+## Imagen de hueco al tamaño del nivel (t_dee4d0eb, 2026-10-26)
+N22 baja los bytes por la red (PNG → WebP sin pérdida) pero no los píxeles: 22 obras de 3000×2000 subidas a 2.048 px eran ~340 MB de
+texturas (w·h·4·4/3, la cuenta de `limits.json`) en el nivel B, con tope 256 MB. Ahora `cargarImagen(url, maxPx)` (`packages/render/src/medios.ts`)
+rehace una imagen más grande que `IMAGEN_PX[nivel]` (`calidad.ts`; `limits.json` `image_px_max`: A 2.048, B 1.024, C 512, D 512) en un lienzo
+de ese tamaño y solo esa copia es textura; la proporción del plano no cambia y nunca amplía. Al entrar en VR el nivel pasa a B y las
+imágenes ya cargadas con más píxeles se sueltan y se piden otra vez a 1.024 px (el navegador tiene el fichero en caché, `immutable`).
+Medido con `plantillas/galeria/carga-obras.mjs` (`SIMULAR=B`, Chromium SwiftShader; vale para comparar, no es una Quest):
+
+| 22 huecos de 3000×2000 (subidos a 2.048 px) | Antes | Después |
+|---|---|---|
+| Texturas de la escena en nivel B (MB) | 340,3 | **105,8** (tope 256) |
+| Bajada de las 22 imágenes por la red | 38,7 MB | 38,7 MB (sin cambio) |
+| Llamadas de dibujo en B (p50) | 53 | 53 |
+
+Lo que falta: que el **servidor** sirva ya la copia reducida (la bajada de 38,7 MB a ~12 MB con 1.024 px). Hace falta decodificar y reescalar
+en el servidor (hoy solo hay PNG y WebP en `@jsquash`, no JPEG, y la página sube JPEG) y una ruta por tamaño (`/a/<sha>.<px>.webp`).
