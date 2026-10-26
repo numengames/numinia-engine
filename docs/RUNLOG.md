@@ -1771,3 +1771,7 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 ## 2026-10-26 · sombra y bolitas: two finished fixes from resto/galeria and resto/ayuntamiento · hecho
 - Qué: `ce941e23` (merged pinned models keep `sinSombra`: `fijados.ts`, `lotes.ts`, `hornear.ts`, `fundir-quietos.ts` group by it and put it on the cell) and `c3bdd4a9` (card `t_1b1c6c77`: `objetos.moverCon` moves a thing and its companion in one message, so an Ayuntamiento bolita costs one engine slot per creature). Cherry-picked onto main 0.70.0.
 - Números: `test/fijados.test.ts`, `test/hornear.test.ts`, `test/objetos.test.ts` (ver el cuerpo del PR). Versión 0.71.0 (menor).
+
+## 2026-10-26 16:45 · imagen de hueco al tamaño del nivel (t_dee4d0eb) · hecho
+- Qué: una imagen del mundo (hueco, cuadro) se rehace a `IMAGEN_PX[nivel]` (A 2.048 · B 1.024 · C 512 · D 512 px de lado largo, `calidad.ts`, publicado en `limits.json` `image_px_max`) antes de ser textura; solo esa copia va a la memoria de vídeo. Al entrar en VR (nivel B) las imágenes cargadas más grandes se sueltan y se vuelven a cargar a 1.024 px. La galería de 22 obras de 3000×2000 en B pasa de ~340 MB de texturas a ~106 MB (tope 256).
+- Números: `test/imagen-nivel.test.ts`; medido con `plantillas/galeria/carga-obras.mjs` (SwiftShader, `SIMULAR=B`): 340,3 → 105,8 MB; la bajada por la red NO cambia (38,7 MB: el servidor aún sirve el fichero entero). Versión 0.73.0 (menor).
