@@ -1812,7 +1812,11 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Probado: `test/trazo-vivo.test.ts` (live tube = `tuboDe` ring by ring; O(1) rewrite per point; caps), `test/pintar-vr.test.ts`; e2e leg `tools/e2e-piernas/pincel-vr.mjs` (IWER controller paints 4 strokes, B loads and sees them; live tube picture; B-cancel; slip).
 - Versión 0.79.0 (menor: pieza nueva; renumerada tras fusionar main en 0.77.0, la rama traía 0.76.0).
 
+## 2026-10-26 · pintar con el mando, historia 5: paleta de colores en el menú VR · hecho
+- Qué: mientras pintas, «Construir» del menú VR es la paleta del pincel: 8 colores, 3 grosores, «Deshacer» y «Dejar de pintar» (`menu-paleta.ts`, `menu-invocado.ts`, `xr-menu.ts`). Pulsar llama a `pintarVR.ajustar`; el siguiente trazo se escribe con ese color y grosor en su `trazo@1` (los demás lo ven), la elección queda en este navegador (`numinia.pincel`) y «Deshacer» pide el deshacer del constructor.
+- Números: `test/menu-paleta.test.ts` (nuevo), `test/pintar-vr.test.ts` ampliado; `tools/e2e-piernas/pincel-vr.mjs` con dos colores vistos por la otra pestaña. Versión 0.81.0 (menor).
+
 ## 2026-10-26 18:55 · la fila de la IA en el menú de VR y la barra de carga con la copia del nivel · hecho
 - Qué: (1) «Gente» en el menú de VR dice «IA · Activa · a 5 m» cuando el tamaño del modelo no se sabe o no viene (antes, un dato ausente salía como «Tamaño sin determinar» y la pierna `menu-vr` fallaba en main desde #263: el que estaba mal era el código, que solo callaba el valor literal `desconocido`; el esbozo de la pierna tampoco llevaba `tamano`, ahora sí y la pierna comprueba que no aparezca «Tamaño»). Con tamaño conocido: «IA · Modelo medio · Activa». (2) `/manifiesto.json` añade `copiasPx` (bytes de cada copia por nivel que el servidor ya tiene) a las imágenes; `bytes` y `sha256` siguen siendo los del original. La página suma, para la barra de carga, la copia de SU nivel (`tienda.totales(IMAGEN_PX[nivel])`) y el original donde esa copia aún no existe.
 - Probado: `test/gente-ia.test.ts`, `test/manifiesto.test.ts` (copias en el manifiesto, suma por nivel). No cambia lo que cuenta «listos» de la barra: las imágenes no pasan por la tienda de la página (siguen sin sumar ahí).
-- Versión 0.81.0 (menor: campo nuevo en el manifiesto, sin romper nada; renumerada tras fusionar main, que iba por 0.80.0).
+- Versión 0.82.0 (menor: campo nuevo en el manifiesto, sin romper nada; renumerada tras fusionar main, que iba por 0.81.0).
