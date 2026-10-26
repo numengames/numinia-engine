@@ -7,8 +7,10 @@
 // While the trigger is down you see a live tube under the hand (packages/render/src/trazo-vivo.ts: one mesh, one draw call, the same generator
 // the world uses to draw the saved stroke). Between strokes you see just the brush tip in the colour about to be used. The brush holds that hand
 // (`manos.ocupar`): no ray, nothing to take, no pinch-walk with it. The numbers are pincel.ts's: a control point every 1.5 cm or 10° of turn, 600 at most
-// (the stroke then closes by itself and the next one starts where it ended). The palette (story 5) comes next: until then colour 2 and 1.5 cm,
-// changeable from code with `ajustar`. Nothing here decides anything: the server places the stroke, or says why not (permission to build).
+// (the stroke then closes by itself and the next one starts where it ended). The palette (story 5, J18b): the VR menu's «Construir» section shows the 8 colours
+// and 3 thicknesses while you paint (menu-paleta.ts, drawn by menu-invocado.ts); a press calls `ajustar`, the next stroke is written with that colour and
+// width in its `trazo@1` file (everyone sees it), the choice is kept in this browser (`numinia.pincel`) for the next time, and «Deshacer» asks the
+// builder's undo (the server takes back your last change). Changing the brush costs nothing in the scene: the tip marker takes the new colour's shared material. Nothing here decides anything: the server places the stroke, or says why not (permission to build).
 import { GROSORES_M, opcionesValidas, type Opciones } from "./pincel.ts";
 import type { Pintar } from "./pintar.ts";
 
@@ -29,17 +31,23 @@ export type VistaPintarVR = {
 export const CIERRA = 0.6, ABRE = 0.3;
 /** A tap that moved less than this (m) is a slip of the finger, not a line: it is dropped without a word. */
 export const RECORRIDO_MIN_M = 0.01;
-export const NOTA_ENTRAR = "Pintar: aprieta el gatillo derecho y mueve la mano. B: tirar el trazo o dejar de pintar.";
+export const NOTA_ENTRAR = "Pintar: aprieta el gatillo derecho y mueve la mano. Menú > Construir: colores y grosor. B: tirar el trazo o dejar de pintar.";
 export const NOTA_DEJADO = "Has dejado de pintar.";
 export const NOTA_TIRADO = "Trazo tirado.";
 
 /** The trigger's value as the line's pressure: 0 at the opening level, 1 fully down (a tracked hand: 0.5, the neutral width). */
 export const presionDe = (gatillo: number, mano: boolean): number => (mano ? 0.5 : Math.min(1, Math.max(0, (gatillo - ABRE) / (1 - ABRE))));
 
-export function montarPintarVR(o: { pintar: Pintar; view: VistaPintarVR; puede(): boolean; lado?: Lado }) {
+/** Where the brush's choice (colour, thickness) is kept between visits: this browser only, two numbers, never sent anywhere. */
+export const CLAVE_PINCEL = "numinia.pincel";
+export const NOTA_SIN_DESHACER = "Aquí no se puede deshacer.";
+
+export function montarPintarVR(o: { pintar: Pintar; view: VistaPintarVR; puede(): boolean; lado?: Lado; deshacer?(): Res; guardado?: { getItem(k: string): string | null; setItem(k: string, v: string): void } | null }) {
   const { pintar, view } = o, lado: Lado = o.lado ?? "der";
   let modo = false, pintando = false, bloqueado = false, vivo: Vivo | null = null, carga: Promise<void> | null = null;
   let op: Opciones = { color: 2, grosor: GROSORES_M[1] };
+  const mem = o.guardado === undefined ? (globalThis as { localStorage?: Storage }).localStorage ?? null : o.guardado;
+  try { const v = opcionesValidas(JSON.parse(mem?.getItem(CLAVE_PINCEL) ?? "null") as Opciones); if (v) op = v; } catch { /* nothing kept, or not readable: the default brush */ }
   let inicio: { x: number; y: number; z: number } | null = null, recorrido = 0;
   const cuenta = { trazos: 0, tirados: 0, ultimaPresion: 0 };
 
@@ -110,12 +118,19 @@ export function montarPintarVR(o: { pintar: Pintar; view: VistaPintarVR; puede()
       return { ok: true };
     },
     salir: apagar,
-    /** Colour 0–7 (the engine palette) and thickness in metres (0.003–0.06); the palette page (story 5) will call this. */
+    /** Colour 0–7 (the engine palette) and thickness in metres (0.003–0.06); the palette in the VR menu (story 5) calls this. */
     ajustar(nuevo: Opciones): Res {
       const v = opcionesValidas(nuevo);
       if (!v) return { ok: false, why: "color de 0 a 7 y grosor en metros" };
       if (pintando) return { ok: false, why: "espera a soltar el trazo" };
-      op = v; return { ok: true };
+      op = v; try { mem?.setItem(CLAVE_PINCEL, JSON.stringify(op)); } catch { /* private mode / full: the choice lives until the page closes */ }
+      return { ok: true };
+    },
+    /** «Deshacer» of the palette: the builder's undo (the server takes back YOUR last change: a stroke or a thing you moved). Never mid-stroke. */
+    deshacer(): Res {
+      if (pintando) return { ok: false, why: "espera a soltar el trazo" };
+      if (!o.deshacer) { view.vr.nota?.(NOTA_SIN_DESHACER); return { ok: false, why: NOTA_SIN_DESHACER }; }
+      return o.deshacer();
     },
     opciones: (): Opciones => ({ ...op }),
     /** For checks. */

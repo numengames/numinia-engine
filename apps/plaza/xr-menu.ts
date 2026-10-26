@@ -51,7 +51,9 @@ export function montarMenuVR(o: {
   /** The builder's hands (constructor-xr.ts): «Construir» turns them on and off. */
   construirVR: { activo(): boolean; entrar(): { ok: boolean; why?: string }; salir(): void };
   /** J18b: painting with the controller (pintar-vr.ts); a second row under «Construir». The two modes exclude each other (both want the right trigger). */
-  pintarVR?: { activo(): boolean; entrar(): { ok: boolean; why?: string }; salir(): void };
+  pintarVR?: { activo(): boolean; entrar(): { ok: boolean; why?: string }; salir(): void;
+    /** Story 5, the palette: what the brush holds now, set it (colour 0–7, thickness in metres) and undo your last change. */
+    opciones?(): { color: number; grosor: number }; ajustar?(o: { color: number; grosor: number }): { ok: boolean; why?: string }; deshacer?(): { ok: boolean; why?: string } };
   /** Your name. */
   nombre: () => string;
   /** MIS-222: the «Obra» view — a hole you pressed in VR and the images already on the server to put in it. */
@@ -226,6 +228,7 @@ export function montarMenuVR(o: {
     const v = vistaConstruirVR({ puede: o.puedeConstruir(), invitado: esInvitado(who), activo: o.construirVR.activo() });
     if (v.tipo === "negado") return { tipo: "lista", titulo: "Construir", vacio: v.texto, filas: [] } as Contenido;
     const empezar = v.tipo === "listo", pv = o.pintarVR ? vistaPintarVR(o.pintarVR.activo()) : null;
+    if (pv?.activo && o.pintarVR?.opciones && o.pintarVR.ajustar) return paleta(pv.activo);
     const filaConstruir = { texto: v.titulo, detalle: v.detalle, icono: iconoDe("construir"),
       botones: [{ texto: v.boton, estilo: empezar ? "accion" : "normal", ancho: 260, accion: () => {
         if (!empezar) { o.construirVR.salir(); nota("Has dejado de construir."); vr.menu.cerrar(); return; }
