@@ -20,7 +20,7 @@ const launchers = {
 };
 const ENGINES = (process.env.BROWSERS ?? "chromium,firefox").split(",");
 
-const listo = (p) => p.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0 && !!globalThis.__numinia.ajustes, null, { timeout: 30000 });
+const listo = (p) => p.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0 && !!globalThis.__numinia.ajustes && document.querySelectorAll("#ajustes-grupos .ajuste").length > 0, null, { timeout: 30000 }); // t_45ef2f70: the window itself arrives after the first frame
 const potencia = (p) => p.evaluate(() => {
   const n = globalThis.__numinia, pw = n.view.power;
   return { res: n.ajustes.get("graficos.resolucion"), pr: pw.pixelRatio(), renderer: n.view.renderer.getPixelRatio(), scale: pw.scale, statsRes: pw.stats.resolucion };
