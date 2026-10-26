@@ -1,5 +1,7 @@
 // The PP1 page: one plaza, your capsule, everyone else's, and the determinism probe.
 import { montarSolReal } from "./sol-real.ts";
+import { alPrimerCuadro, primerCuadroDado } from "./primer-cuadro.ts"; // t_45ef2f70: what the first frame does not need waits for it
+import { ponerFuentes } from "./fuentes.ts";
 import { version as versionPaquete } from "../../package.json"; // only this field reaches the page (docs/VERSIONES.md)
 import { hex } from "../../packages/core/src/index.ts";
 import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX, BTN_JUMP, BTN_RUN } from "../../packages/sim/src/index.ts";
@@ -65,10 +67,7 @@ import { lucha } from "../../features/lucha/client.ts"; // L1: the controller (g
 import { pesca } from "../../features/pesca/client.ts"; // pesca v1: the controller; its HUD (apps/plaza/pesca.ts) and 3D load with the first spot
 import { bienes, comprobar } from "../../features/bienes/client.ts"; // N10: goods that are yours (signed receipt), in the sheet's «Inventario»
 import { montarBienes } from "./bienes.ts";
-import { montarEntorno } from "./entorno.ts";
-import { montarFichaMundo } from "./ficha-mundo.ts"; // H7: the form of the world's settings (inside the «Entorno» drawer)
 import { ajustes as ajustesMundo } from "../../features/ficha-mundo/client.ts"; // H7: the world's settings as the server says (title, picture, default avatar, people limit)
-import { montarDirector } from "./director.ts";
 import { dirigir } from "../../features/director/client.ts";
 import { ambienteDeEscena } from "../../features/director/feature.ts";
 import { montarGente } from "./gente.ts";
@@ -81,10 +80,8 @@ import { ojosDe } from "../../features/ia/ojos.ts"; // t_5096d6f4: the eyes of a
 import { iaPagina } from "../../features/ia/client.ts"; // ia-visible S3: the public card of each AI (state, who answers, what it may do)
 import { asiento, interruptor as interruptorAsiento } from "../../features/asiento/client.ts"; // asiento v1: sitting down for real
 import { burbujas, interruptor as interruptorBurbujas } from "../../features/burbujas/client.ts"; // burbujas v1: voice bubbles
-import { montarBurbuja } from "./burbuja.ts";
 import { baculo, interruptor as interruptorBaculo } from "../../features/baculo/client.ts"; // baculo v1: the Director's staff
 import { dados, interruptor as interruptorDados } from "../../features/dados/client.ts"; // dados v1: dice the server rolls
-import { montarDados } from "./dados.ts";
 import { contadores } from "../../features/contadores/client.ts"; // D-044: timers and counters everyone sees
 import { montarContadores } from "./contadores.ts";
 import { cerraduras } from "../../features/cerradura/client.ts"; // D-042: a lock that opens with a code (keypad) or a key
@@ -132,10 +129,11 @@ const tienda = crearTienda({ origen: activos, caches: typeof caches !== "undefin
 // keeps its oscillator notes, and every notice keeps its text in the live region either way (XAUR, WCAG 2.2).
 const catalogoSonidos = ponerSonidos(crearSonidos({ ruta: `${activos}${RUTA_TABLA}` }));
 ponerCatalogoCasa(catalogoSonidos);
-void catalogoSonidos.cargar().then((hay) => {
+alPrimerCuadro(() => catalogoSonidos.cargar().then((hay) => { // t_45ef2f70: the table (25 kB) and the notices wait for the first frame
   // los ocho avisos, descodificados ya: el primer «Misión completada» no llega tarde (son 18 kB entre todos)
   if (hay) void catalogoSonidos.precargar(Object.values(catalogoSonidos.tabla()?.casa ?? {}));
-});
+}));
+alPrimerCuadro(() => ponerFuentes()); // t_45ef2f70: Geist + Geist Mono (115 kB) after the first frame, not before
 // S6f: el sonido que decide el SERVIDOR. Arranca tocando solo por fichero (lo que había) y lo cambia por la puerta
 // única en cuanto `./sonidos.ts` se carga: así las 47 recetas de `sintesis.ts` no entran en el paquete de arranque.
 type PeticionSonido = { id: string; semilla?: number; donde?: { x: number; y: number; z: number } | null; texto?: string };
@@ -334,18 +332,18 @@ const cable = montarCable({ constructor, disparadores, aqui: () => (session.enti
 const cerradurasPagina = montarCerradura({ cerradura: cerraduras });
 // ---- U14: mandos del vídeo — pausar/reanudar (E, clic o el mando en VR) y mi propio volumen (deslizador, pantalla plana) ----
 const videoMandos = montarVideoMandos({ lista: () => constructor.lista(), controlVideo: (id) => view.controlVideo(id), panel: document.getElementById("video-mandos")! });
-montarEntorno(ambiente, elementos, view, interruptorNaturaleza, constructorUI.cajon("entorno"), interruptorBase, constructor, [
+alPrimerCuadro(() => import("./entorno.ts").then((m) => m.montarEntorno(ambiente, elementos, view, interruptorNaturaleza, constructorUI.cajon("entorno"), interruptorBase, constructor, [
   { id: "baculo", etiqueta: "Báculo del Director", titulo: "Encender o apagar el báculo del Director de juego de este mundo (quien lo lleva dirige) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en baculos.json. / Turn the Game Director's staff on or off for the whole world.", encendida: "Báculo del Director encendido.", apagada: "Báculo del Director apagado.", interruptor: interruptorBaculo },
   { id: "asientos", etiqueta: "Asientos", titulo: "Encender o apagar los asientos de este mundo («E» junto a un asiento y te sientas) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en asientos.json. / Turn the seats on or off for the whole world.", encendida: "Asientos encendidos.", apagada: "Asientos apagados.", interruptor: interruptorAsiento },
   { id: "burbujas", etiqueta: "Burbujas de voz", titulo: "Encender o apagar las burbujas de voz de este mundo (dentro de una, solo se oyen entre sí los que están dentro; es privacidad de oído, no cifrado) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en burbujas.json. / Turn the voice bubbles on or off for the whole world.", encendida: "Burbujas de voz encendidas.", apagada: "Burbujas de voz apagadas.", interruptor: interruptorBurbujas },
   { id: "dados", etiqueta: "Dados", titulo: "Encender o apagar los dados de este mundo (la torre de dados y /tirar) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en dados.json. / Turn the dice on or off for the whole world.", encendida: "Dados encendidos.", apagada: "Dados apagados.", interruptor: interruptorDados },
-], interruptoresFunciones, { subir: (f, campo) => soltar.subirFondo(f, campo), nivel: () => view.entorno.nivel }); // H4b: fondo y HDR subidos; H4/H8: environment and elements, inside the builder's «Entorno» drawer (ux2-dock)
+], interruptoresFunciones, { subir: (f, campo) => soltar.subirFondo(f, campo), nivel: () => view.entorno.nivel }))); // t_45ef2f70: the builder's drawer mounts after the first frame. H4b: fondo y HDR subidos; H4/H8: environment and elements, inside the builder's «Entorno» drawer (ux2-dock)
 // H7: the world's settings (title, picture, default avatar, people limit): the form below the switches (only who may), and the title in the tab follows the server
-montarFichaMundo({ ajustes: ajustesMundo, padre: constructorUI.cajon("entorno"), avatares: catalogoAvatares?.modelos.map((m) => ({ id: m.id, nombre: m.nombre })) ?? [] });
-montarBurbuja({ burbujas, cartel: document.getElementById("burbuja-cartel")! }); // burbujas v1: the small label while you are inside a bubble
-montarDados({ dados, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), vista: view.dados }); // dados v1: the dice card everyone near sees, the dice buttons beside a tower
+alPrimerCuadro(() => import("./ficha-mundo.ts").then((m) => m.montarFichaMundo({ ajustes: ajustesMundo, padre: constructorUI.cajon("entorno"), avatares: catalogoAvatares?.modelos.map((x) => ({ id: x.id, nombre: x.nombre })) ?? [] })));
+alPrimerCuadro(() => import("./burbuja.ts").then((m) => m.montarBurbuja({ burbujas, cartel: document.getElementById("burbuja-cartel")! }))); // burbujas v1: the small label while you are inside a bubble
+alPrimerCuadro(() => import("./dados.ts").then((m) => m.montarDados({ dados, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), vista: view.dados }))); // dados v1: the dice card everyone near sees, the dice buttons beside a tower
 const contadoresPagina = montarContadores({ contadores, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) }); // D-044: the counters' panel (the sign in the world is the feature's own label)
-montarDirector({ dj: dirigir, ambiente, view }); // N6: the Game Director (who may direct: STD-052 manage-rituals): scenes, narrator, summons
+alPrimerCuadro(() => import("./director.ts").then((m) => m.montarDirector({ dj: dirigir, ambiente, view }))); // N6: the Game Director (who may direct: STD-052 manage-rituals): scenes, narrator, summons
 // ---- N16: «Gente» (L): go next to someone connected now; the light of every trip near you (none on tier D) ----
 // ux2-gente: friends kept in this browser, the sheet of whoever you pick, and the small card when you click someone in the
 // world (gente-tarjeta.ts). Silenciar = voz.ts drops their voice here; Bloquear = /bloquear; Denunciar = /denunciar.
@@ -621,7 +619,7 @@ function readButtons(): number {
   // (was 0.9 — reached with barely half the throw, so there was no way to just walk).
   const RUN_EDGE = 0.97;
   if (andarCorrer) b |= BTN_RUN; // MIS-257: a long walk-by-itself runs (ir-andando.ts), the last stretch walks
-  if (view.vr.active) { if (Math.hypot(...view.vr.axes()) >= RUN_EDGE) b |= BTN_RUN; return b; } // in VR only the headset's stick runs
+  if (view.vr.active) { if (view.vr.correr()) b |= BTN_RUN; return b; } // in VR only the headset's stick runs: its edge (RUN_EDGE, packages/render/src/vr-paso.ts) or a speed above 100 %
   const alBorde = touch && Math.hypot(touch.dx, touch.dy) >= RUN_EDGE;
   if (keys.has("ShiftLeft") || keys.has("ShiftRight") || alBorde) b |= BTN_RUN;
   b |= botonesDeVuelo(keys, session.volando() && !rueda.abierta()); // H2: while flying a held Space climbs and a held Ctrl descends (on foot Space jumps once per press, above); the server decides who flies
@@ -823,7 +821,7 @@ view.loop((now) => {
     if (lastDrawAt) medidor.cuadro(now - lastDrawAt, cost.cpuMs, xr ? view.xrHz() || 72 : view.power.targetFps(active), { dc: cost.calls, tri: cost.triangles, programas, ratio: view.power.pixelRatio(), xr });
     if (lastDrawAt) view.posproceso.vigilar(now - lastDrawAt, active); // H12b: the effects' cost gate (level A only; a no-op when they are off)
     lastDrawAt = now;
-    if (session.welcome && !informe.primerCuadroMs) informe.primerCuadroMs = Math.round(performance.now());
+    if (session.welcome && !informe.primerCuadroMs) { informe.primerCuadroMs = Math.round(performance.now()); primerCuadroDado(); }
     // MVL3 step 1 + B5 + C: fade the "Cargando" screen away once a frame was drawn with the ground built AND every piece within view
     // is ready (model, textures, shaders — view.cargaMundo()), or after the cap. The count is also what the screen writes («n de N piezas»).
     if (!cargaOculta) {
