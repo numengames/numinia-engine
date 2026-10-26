@@ -436,6 +436,7 @@ export function montarGente(o: OpcionesGente) {
 
   // silenced voices come back silenced: whenever the list says who is who, the marks find their entity again
   const reaplicar = () => { if (!o.voz || !silenciados.size) return; for (const p of conectados()) if (silenciados.has(claveDe(p)) || silenciados.has(`n:${normal(p.nombre)}`)) o.voz.silenciar(p.quien, true); };
+  reaplicar(); // t_45ef2f70: the panel now mounts after the first frame, so the list may have arrived already: put the silenced voices back at once
   o.ia?.alCambiar(() => { if (panel.abierto) pintar(); tarjeta.repintar(); }); // an AI came, went, fell asleep or woke up
   viajar.alCambiar((q) => {
     if (q === "viaje" && viajar.estado.viaje) { estadoP.textContent = viajar.estado.viaje.texto; if (!panel.abierto && !viajar.estado.viaje.ok) anunciar(viajar.estado.viaje.texto); }

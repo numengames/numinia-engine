@@ -63,6 +63,18 @@ test("main.ts leaves «Gente», the photo mode and the Bolsa panel behind façad
   assert.ok(sonidos.includes('import("./voces.ts")'));
 });
 
+test("main.ts leaves the conditions gate behind a façade that holds the page (Pablo's decision of 26-10: it loads after the first frame, nobody plays before accepting)", () => {
+  const main = readFileSync("apps/plaza/main.ts", "utf8");
+  assert.ok(!/^import .* from "\.\/condiciones\.ts"/m.test(main), "condiciones.ts must not be imported statically by main.ts");
+  assert.ok(main.includes("montarCondicionesPuerta({"), "main.ts mounts the façade");
+  const puerta = readFileSync("apps/plaza/condiciones-puerta.ts", "utf8");
+  assert.ok(puerta.includes('import("./condiciones.ts")'), "the façade loads the bubble with import()");
+  assert.ok(!/^import \{[^}]*\} from "\.\/condiciones-logica\.ts"/m.test(puerta), "the façade keeps condiciones-logica.ts out of the entry");
+  // the closed-page guards stay as they were: walking, jumping and the walk-to order ask `condiciones.cerrada()`, which the façade answers true while the offer is on
+  assert.equal((main.match(/condiciones\.cerrada\(\)/g) ?? []).length >= 4, true);
+  assert.match(puerta, /cerrada: \(\): boolean => \(real \? real\.cerrada\(\) : pendiente\(\)\)/);
+});
+
 test("alPrimerCuadro: waits for the first frame, then runs once; a failing task does not stop the others", async () => {
   const visto: string[] = [];
   const anota = (s: string): void => { visto.push(s); };

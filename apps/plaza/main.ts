@@ -93,7 +93,7 @@ import { ancestros } from "../../features/ancestros/client.ts"; // ancestros v1:
 import { montarAncestros } from "./ancestros.ts";
 import { montarVoz } from "./voz.ts";
 import { montarPantalla } from "./pantalla.ts";
-import { montarCondiciones } from "./condiciones.ts"; // condiciones/c3: the bubble of entry (only when the world's gate is on; the server decides)
+import { montarCondicionesPuerta } from "./condiciones-puerta.ts"; // condiciones/c3: the bubble of entry (only when the world's gate is on; the server decides). t_45ef2f70: its façade now (holds the page while the offer is on and the bubble is not here); the bubble itself loads after the first frame
 import { montarGraboso } from "./graboso.ts"; // M18b: the relic that records what you see (K)
 import { icono } from "./iconos.ts";
 import { rotularBoton } from "./menu-secciones-ui.ts"; // v2 paridad: the bar reads the one list of sections
@@ -261,7 +261,7 @@ burbujaPagina.alEntrar((ia) => view.burbujaDestello(ia === session.entity ? "sel
 
 // condiciones/c3: with the world's gate on, the server sends its conditions after you join and you stand in a bubble until you accept;
 // with it off it sends nothing and this does nothing. The gate itself is the server's; here the walking input is also held still.
-const condiciones = montarCondiciones({ session, mundo: () => nombreDelMundo, decir: (t) => anunciar(t), ciudadUrl: () => ciudad.url, cerrarConexion: () => transport.close(), movil: () => enMovil,
+const condiciones = montarCondicionesPuerta({ session, mundo: () => nombreDelMundo, decir: (t) => anunciar(t), ciudadUrl: () => ciudad.url, cerrarConexion: () => transport.close(), movil: () => enMovil,
   vr: { soportado: () => vrDisponible, activo: () => view.vr.active, entrar: () => { if (view.vr.state === "off") void view.vr.enter().then((ok) => { if (!ok) session.report({ k: "xr", modo: "vr", accion: "falla", detalle: view.vr.lastError }); }); } } });
 let vrDisponible = false; // set once the browser says it can present VR (below); the bubble then offers its own «Entrar en VR»
 
@@ -642,8 +642,8 @@ view.arSupported().then((ok) => {
   // chooser is its own chunk, prefetched here so that opening it needs no wait; the darts' connection and norms are settled INSIDE it, before the
   // click that enters AR (ar-elegir.ts). No link (the Tower itself, `enlace: false`, an own AR board): the button is what it always was.
   let elegirAR: Promise<import("./ar-elegir.ts").ElegirAR> | null = null;
-  const cargarElegir = (): Promise<import("./ar-elegir.ts").ElegirAR> => (elegirAR ??= import("./ar-elegir.ts").then((m) => m.crearElegirAR({
-    enlace: dardosEnlace, view, condiciones: montarCondiciones, alMiniatura: entrarMiniatura, movil: () => enMovil, decir: decirAviso,
+  const cargarElegir = (): Promise<import("./ar-elegir.ts").ElegirAR> => (elegirAR ??= Promise.all([import("./ar-elegir.ts"), import("./condiciones.ts")]).then(([m, c]) => m.crearElegirAR({
+    enlace: dardosEnlace, view, condiciones: c.montarCondiciones, alMiniatura: entrarMiniatura, movil: () => enMovil, decir: decirAviso,
     falloAR: () => mensajeFalloAR(view.ar.lastErrorName), informarFallo: () => session.report({ k: "xr", modo: "ar", accion: "falla", detalle: view.ar.lastError }),
   })).catch((e) => { elegirAR = null; throw e; }));
   const sinElegir = (): void => { console.warn("[ar] no se pudo cargar la elección de AR: se entra con la maqueta"); };
