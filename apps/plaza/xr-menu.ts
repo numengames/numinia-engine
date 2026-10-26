@@ -16,6 +16,8 @@ import { distanciaTexto } from "./amigos.ts";
 import { NOTA_DEJADO as NOTA_DEJADO_PINTAR, NOTA_ENTRAR as NOTA_ENTRAR_PINTAR } from "./pintar-vr.ts";
 import { AYUDA_PINTAR, AYUDA_RAYO, TEXTO_FUERA_DE_VR, esInvitado, vistaConstruirVR, vistaPintarVR } from "./construir-vr-logica.ts";
 import { iconoDe, nombreDe } from "../../packages/render/src/menu-secciones.ts";
+import { GROSORES_VR, NOMBRES_COLOR, indiceGrosor } from "../../packages/render/src/menu-paleta.ts";
+import { PALETA_TRAZO } from "../../packages/render/src/trazo-tubo.ts";
 import type { MenuVR, ContenidoMenuVR as Contenido } from "../../packages/render/src/index.ts";
 import { siguienteValor, textoValor } from "../../packages/render/src/menu-vr.ts";
 import { FRASES, ultimosMensajes, type LineaChat } from "../../packages/render/src/menu-chat.ts";
@@ -48,7 +50,9 @@ export function montarMenuVR(o: {
   /** The builder's hands (constructor-xr.ts): «Construir» turns them on and off. */
   construirVR: { activo(): boolean; entrar(): { ok: boolean; why?: string }; salir(): void };
   /** J18b: painting with the controller (pintar-vr.ts); a second row under «Construir». The two modes exclude each other (both want the right trigger). */
-  pintarVR?: { activo(): boolean; entrar(): { ok: boolean; why?: string }; salir(): void };
+  pintarVR?: { activo(): boolean; entrar(): { ok: boolean; why?: string }; salir(): void;
+    /** Story 5, the palette: what the brush holds now, set it (colour 0–7, thickness in metres) and undo your last change. */
+    opciones?(): { color: number; grosor: number }; ajustar?(o: { color: number; grosor: number }): { ok: boolean; why?: string }; deshacer?(): { ok: boolean; why?: string } };
   /** Your name. */
   nombre: () => string;
   /** MIS-222: the «Obra» view — a hole you pressed in VR and the images already on the server to put in it. */
@@ -191,11 +195,24 @@ export function montarMenuVR(o: {
     return { tipo: "mapa", titulo: "Sitios", yo: tu ? { x: tu.x, z: tu.z, rumbo: tu.yaw !== undefined ? (tu.yaw * 180) / Math.PI : 0 } : null,
       puntos: sitios.slice(0, 80).map((s) => ({ nombre: s.nombre, x: s.x, z: s.z, color: tipo(s.tipo).color })), filas, vacio: "No hay sitios marcados en esta zona." } as Contenido;
   }
+  // J18b story 5: while you paint, «Construir» is the brush's palette — colours and thicknesses set the next stroke (written into its trazo@1), then two verbs
+  function paleta(_: boolean): Contenido {
+    const p = o.pintarVR!, op = p.opciones!(), gi = indiceGrosor(op.grosor);
+    const pon = (cambio: Partial<{ color: number; grosor: number }>) => () => { const r = p.ajustar!({ ...op, ...cambio }); if (!r.ok) nota(r.why ?? "No se pudo cambiar el pincel."); };
+    return { tipo: "paleta", titulo: "Pincel", nota: "Cierra el menú y aprieta el gatillo derecho para pintar con este color.",
+      colores: PALETA_TRAZO.map((hex, i) => ({ nombre: NOMBRES_COLOR[i], hex, activo: op.color === i, accion: pon({ color: i }) })),
+      grosores: GROSORES_VR.map((g, i) => ({ texto: g.texto, detalle: g.detalle, m: g.m, activo: gi === i, accion: pon({ grosor: g.m }) })),
+      acciones: [
+        { texto: "Deshacer", icono: "arrow-counter-clockwise", estilo: p.deshacer ? "normal" : "desactivado", accion: () => { const r = p.deshacer?.(); if (r && !r.ok) nota(r.why ?? "No se pudo deshacer."); else nota("Pedido: deshacer lo último que hiciste."); } },
+        { texto: "Dejar de pintar", icono: "x", estilo: "normal", accion: () => { p.salir(); nota(NOTA_DEJADO_PINTAR); vr.menu.cerrar(); } },
+      ] } as Contenido;
+  }
   function construir(): Contenido {
     const who = o.n().session?.who as { id: string; nombre: string } | null | undefined;
     const v = vistaConstruirVR({ puede: o.puedeConstruir(), invitado: esInvitado(who), activo: o.construirVR.activo() });
     if (v.tipo === "negado") return { tipo: "lista", titulo: "Construir", vacio: v.texto, filas: [] } as Contenido;
     const empezar = v.tipo === "listo", pv = o.pintarVR ? vistaPintarVR(o.pintarVR.activo()) : null;
+    if (pv?.activo && o.pintarVR?.opciones && o.pintarVR.ajustar) return paleta(pv.activo);
     const filaConstruir = { texto: v.titulo, detalle: v.detalle, icono: iconoDe("construir"),
       botones: [{ texto: v.boton, estilo: empezar ? "accion" : "normal", ancho: 260, accion: () => {
         if (!empezar) { o.construirVR.salir(); nota("Has dejado de construir."); vr.menu.cerrar(); return; }
