@@ -236,3 +236,20 @@ La comparación completa, capacidad por capacidad, y lo que falta para igualarlo
 | Agente en Hyperfy (`../procyon-hyp/`) y STD-050 | P4, P5 |
 | `../movimientos/` | J1, W2 dentro de J1 |
 | `docs/HYPERFY2-PARIDAD.md` (el fork de Hyperfy2 leído en su código, 15-10) | H1–H13; amplía J2, J3, J4, N1, N2, M6, M16–M20, M22 y F1 |
+
+## 9. Qué documento manda cuando dos se contradicen
+
+Los documentos vivos del motor se solapan (el estudio en `../mmo-browser-study/` y este repo). Esta tabla dice cuál manda por tema; la misma tabla está en `../mmo-browser-study/CONSTRUIR.md` («Qué documento manda»), y si difieren manda esta (está en git).
+
+| Tema | Manda | Los demás |
+|---|---|---|
+| Un principio o una regla de trabajo | La Suma (numinia.org, repo `numinia-archive`). `AGENTS.md` del motor es su copia de trabajo. | Si discrepan gana la Suma y se dice en el informe, nunca se sigue uno en silencio (`AGENTS.md`, «Rules: where they live»). |
+| Una decisión de Pablo | La más reciente con fecha: su ADR en `numinia-archive/decisions/` y su ficha en `DECISIONES.md` (carpeta de decisiones de la sesión de Pablo, «Resueltas»). | `docs/SABER.md` §1 la repite con fecha; si una decisión nueva cambia otra, se corrige la fila y no se borra la historia. |
+| Un número (límite, presupuesto, coste) | `limits.json` (esquema `limits@1`): `measured` con el test que lo mide, o `estimated` con su fuente. `docs/FICHA-TECNICA.md` es la versión para personas. | `LIMITES.md` sólo da las estimaciones de partida del 13-10. Lo medido gana a lo estimado; quien cambie una cifra de `docs/SABER.md` §2 cambia `limits.json` en el mismo commit (`docs/SABER.md` §7). |
+| Qué hace hoy el motor | El código y su test; luego el `README.md` del paquete y `llms.txt`. | `EL-MOTOR.md` es la arquitectura pensada el 13-10 (se presentó como «propuesta de arquitectura para decidir»): dice por qué, no describe el código. |
+| Qué queremos de él (requisitos R1–R15) | `PLAN-MOTOR-WEB-3D.md`. | `DISENO-MOTOR-NUMINIA.md` está superado y no se usa de base. |
+| Qué se hace y en qué orden | `docs/BACKLOG.md`: el orden de la tabla ES la prioridad y sólo Pablo la reordena. Lo ya hecho, `docs/RUNLOG.md`. | `CONSTRUIR.md` es el catálogo de piezas (M, O, W) y de puntos de parada (PP), no la cola. |
+| Qué funciones tiene cada navegador | `FUNCIONALIDADES.md`; lo que ve el jugador, `docs/JUGADOR.md`. | – |
+| Lo aprendido y su porqué | `docs/SABER.md` (lo que manda, en una página por tema). | Las notas `notes/NN-*.md` del estudio guardan el porqué largo y la fuente leída. |
+
+Si dos documentos se contradicen y ninguna fila lo resuelve: gana el que tenga una fuente leída o una medida más reciente; si aun así hay duda, se pregunta a Pablo y se apunta en `DECISIONES-PENDIENTES.md`. Las filas 1, 3 y parte de la 2 repiten lo que ya dicen `AGENTS.md`, `docs/FICHA-TECNICA.md` y `docs/SABER.md` §7; el resto pone por escrito lo que se hacía en la práctica y Pablo puede cambiarlo.
