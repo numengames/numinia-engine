@@ -13,7 +13,7 @@ import cliente from "../features/cliente.ts";
 import { TEXTO_MAX } from "../features/llamar/feature.ts";
 import type { IAPublica } from "../features/ia/feature.ts";
 
-const ACTIVA: IAPublica = { estado: "activa", responde: { comunidad: "La Torre", nombre: "Ana" }, puede: { construir: true }, atenta: false };
+const ACTIVA: IAPublica = { estado: "activa", responde: { comunidad: "La Torre", nombre: "Ana" }, puede: { construir: true }, atenta: false, tamano: "desconocido" };
 
 test("bubbles you are inside: enter, leave, the AI going away; the name loses the « · IA» mark", () => {
   const d = crearDentro();
@@ -60,9 +60,9 @@ test("words: the notice says who reads it and who sees the answer; every languag
 });
 
 test("the card's light: listening when the brain used its listening tools less than 90 s ago, else not listening", () => {
-  assert.deepEqual(luzEscucha({ ...ACTIVA, atenta: true }), { escucha: true, texto: "Escuchando ahora" });
+  assert.deepEqual(luzEscucha({ ...ACTIVA, atenta: true, tamano: "desconocido" }), { escucha: true, texto: "Escuchando ahora" });
   assert.deepEqual(luzEscucha(ACTIVA), { escucha: false, texto: "No escucha ahora" });
-  assert.deepEqual(luzEscucha({ ...ACTIVA, estado: "dormida", atenta: true }), { escucha: true, texto: "Escuchando ahora" }, "asleep or not, the light says what the brain does");
+  assert.deepEqual(luzEscucha({ ...ACTIVA, estado: "dormida", atenta: true, tamano: "desconocido" }), { escucha: true, texto: "Escuchando ahora" }, "asleep or not, the light says what the brain does");
 });
 
 test("the text of a call: one clean line, at most 190 bytes, refused (never cut) when longer", () => {
