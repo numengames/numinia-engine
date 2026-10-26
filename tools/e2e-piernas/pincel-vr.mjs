@@ -1,6 +1,8 @@
 // e2e leg (MIS-222 t_1b395abe, J18b story 4 second slice): tab A is in VR (IWER, Quest 3) and PAINTS WITH THE CONTROLLER: the emulated right controller's trigger held
 // and its tip moved draws a live tube under the hand (ONE draw call, capped points), letting go of the trigger saves the stroke (pincel.ts → PUT /a/ → colocar) and tab B (a flat tab,
 // same world) downloads it and its picture shows the stroke's colour. Also: B (the cancel button) throws a stroke away and nothing reaches B; a slip of the finger is no line.
+// STORY 5 (the palette): in the same run tab A opens the menu's «Construir» section (it shows the brush's palette while painting), presses RED and the thick line, paints,
+// presses TURQUOISE (colour 5), paints; tab B (flat) must then see both colours in its picture and the saved files must say colour 1 and 5 (the colour travels in the stroke).
 // (First slice, kept below the header: the same save from code.) Starts its own server (8921, as a world
 // that lets guests build) and page (5321) on spare ports, empty data folder. Tab A uploads a `trazo@1` file (the same PUT /a/<sha>.trazo the
 // brush will do) and places it as an `objetos` thing of kind «trazo» in front of tab B's avatar; B must download the file, build the tube
@@ -71,9 +73,14 @@ try {
     return p.evaluate(async (png) => {
       const bmp = await createImageBitmap(await (await fetch(`data:image/png;base64,${png}`)).blob());
       const c = new OffscreenCanvas(bmp.width, bmp.height), g = c.getContext("2d"); g.drawImage(bmp, 0, 0);
-      const d = g.getImageData(0, 0, bmp.width, bmp.height).data; let ambar = 0;
-      for (let i = 0; i < d.length; i += 4) { const r = d[i], gr = d[i + 1], bl = d[i + 2]; if (r > 170 && gr > 100 && gr < 210 && bl < 80 && r - bl > 110) ambar++; }
-      return { w: bmp.width, h: bmp.height, ambar };
+      const d = g.getImageData(0, 0, bmp.width, bmp.height).data; let ambar = 0, rojo = 0, verde = 0; // `verde` = the turquoise of palette colour 5
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i], gr = d[i + 1], bl = d[i + 2];
+        if (r > 170 && gr > 100 && gr < 210 && bl < 80 && r - bl > 110) ambar++;
+        else if (r > 130 && gr < 100 && bl < 110 && r - gr > 70) rojo++;               // palette colour 1 (#D33440), lit
+        else if (r < 70 && gr > 80 && gr < 175 && bl > 95 && bl - r > 70) verde++; // palette colour 5, turquoise (#017C8D), lit — the scene has next to none
+      }
+      return { w: bmp.width, h: bmp.height, ambar, rojo, verde };
     }, png);
   };
   const esperarA = (fn, arg, ms = 15000) => a.waitForFunction(fn, arg, { timeout: ms });
@@ -191,6 +198,49 @@ try {
   out.trazosEnB = colocados.length; checks.bVeLosColocados = colocados.length - placed0 === 4;
   checks.ambarAparece = px.ambar > px0.ambar + 100;
   if (SHOTS) await b.screenshot({ path: `${SHOTS}/pincel-vr-b.png` });
+
+  // 5b. THE PALETTE (story 5): the menu's «Construir» section is the palette while painting; pressing colours and the thickness changes the NEXT stroke,
+  //     and the colour travels in the saved file: B sees red and turquoise where A painted them
+  await a.bringToFront();
+  const menuA = (id) => a.evaluate((id) => { const m = globalThis.__numinia.view.vr.menu; m.pulsar(id); return globalThis.__numinia.pintarVR.opciones(); }, id);
+  const abrirMenu = () => a.evaluate(() => { const v = globalThis.__numinia.view.vr; if (!v.menu.abierto) v.alternarMenu("construir"); v.menu.pintar(); const e = v.menu.estado(); return { abierto: v.menu.abierto, vista: e.vista, contenido: e.contenido, botones: e.botones, filas: e.filas }; });
+  const cerrarMenu = () => a.evaluate(() => { globalThis.__numinia.view.vr.menu.cerrar(); return globalThis.__numinia.view.vr.menu.abierto; });
+  await a.evaluate(() => globalThis.__numinia.pintarVR.entrar()); await a.waitForTimeout(300);
+  out.paletaAbierta = await abrirMenu();
+  checks.paletaEnElMenu = out.paletaAbierta.abierto && out.paletaAbierta.vista === "construir" && out.paletaAbierta.contenido === "paleta" && out.paletaAbierta.botones === 13 && out.paletaAbierta.filas.length === 8;
+  const lienzo = async (nombre) => { if (!SHOTS) return; const b64 = await a.evaluate(() => globalThis.__numinia.view.vr.menu.lienzo.toDataURL("image/png").split(",")[1]); (await import("node:fs")).writeFileSync(`${SHOTS}/${nombre}`, Buffer.from(b64, "base64")); };
+  const rojoOp = await menuA(100 + 1); const gruesoOp = await menuA(100 + 10);
+  out.opcionesRojo = gruesoOp;
+  checks.menuCambiaElPincel = rojoOp.color === 1 && gruesoOp.color === 1 && gruesoOp.grosor === 0.04;
+  await a.evaluate(() => globalThis.__numinia.view.vr.menu.pintar()); await lienzo("pincel-vr-paleta-rojo.png");
+  checks.menuSeCierra = (await cerrarMenu()) === false; await a.waitForTimeout(200);
+  const antesPal = await vivo(); const trazosAntes = antesPal.est.pintar.trazos;
+  await trazar({ x: yo.x, y: 0.7, z: yo.z + 2 }); // RED, thick (nearer B's camera than the amber ones: bigger in its picture)
+  out.paletaAbierta2 = await abrirMenu();
+  const verdeOp = await menuA(100 + 5); out.opcionesVerde = verdeOp;
+  checks.menuCambiaElColor = verdeOp.color === 5 && verdeOp.grosor === 0.04;
+  await a.evaluate(() => globalThis.__numinia.view.vr.menu.pintar()); await lienzo("pincel-vr-paleta-turquesa.png");
+  await cerrarMenu(); await a.waitForTimeout(200);
+  await trazar({ x: yo.x, y: 1.15, z: yo.z + 2 }); // TURQUOISE, thick
+  await esperarA((n) => globalThis.__numinia.pintarVR.estado().pintar.trazos >= n + 2, trazosAntes, 15000).catch(() => {});
+  const traspal = await vivo(); out.trasPaleta = traspal.est;
+  checks.dosGuardados = traspal.est.pintar.trazos === trazosAntes + 2 && traspal.est.pintar.rechazados === 0;
+  await a.waitForTimeout(1500);
+  await b.bringToFront();
+  await b.waitForFunction((n) => { const o = globalThis.__numinia.view.objects(); return o.loaded >= n && o.loaded + o.failed >= o.placed; }, tras.loaded + 2, { timeout: 30000 }).catch(() => {});
+  await b.waitForTimeout(800);
+  const pxPal = await pixeles(b); out.pixelesPaleta = pxPal;
+  checks.bVeRojoYVerde = pxPal.rojo > px0.rojo + 15 && pxPal.verde > px0.verde + 15; // 4 cm lines are ~1 px wide in a 640 px picture of a far camera: a few dozen pixels is the line, the colour itself is proven by the saved files below
+  if (SHOTS) await b.screenshot({ path: `${SHOTS}/pincel-vr-paleta-b.png` });
+  // the colour is IN the stroke: read the two new files the way anyone would (GET /a/<sha>.trazo)
+  const todosB = await b.evaluate(() => [...globalThis.__numinia.session.features.stateOf("objetos")].filter(([, v]) => v.kind === "trazo" || v.tipo === "trazo").map(([id, v]) => ({ id, modelo: v.modelo ?? v.sha ?? v.src ?? "" })));
+  const nuevos = todosB.filter((t) => !colocados.includes(t.id));
+  const ficheros = [];
+  for (const t of nuevos) { const r = await fetch(`http://127.0.0.1:${SP}/a/${t.modelo}.trazo`).catch(() => null); ficheros.push(r?.ok ? await r.json() : null); }
+  out.ficherosPaleta = ficheros.map((f) => f && { color: f.color, grosor: f.grosor, puntos: f.puntos?.length });
+  checks.elFicheroLleva_el_color = nuevos.length === 2 && ficheros.every(Boolean) && ficheros.map((f) => f.color).sort().join() === "1,5" && ficheros.every((f) => f.grosor === 0.04);
+  colocados.push(...nuevos.map((t) => t.id));
+  await a.bringToFront();
 
   // 6. leaving the mode frees the hand and removes the marker
   const salida = await a.evaluate(() => { const n = globalThis.__numinia; n.pintarVR.salir(); return n.view.manos.estado().der; });
