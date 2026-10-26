@@ -2,6 +2,7 @@
 // without the server's « · IA» mark, and the card's model. No DOM: gente.ts and gente-tarjeta.ts only draw what this says.
 // D-084: who answers for an AI is shown as the community and the person's name or, without one, their short wallet.
 import type { IAPublica } from "../../features/ia/feature.ts";
+import { ojosDe, type Tamano } from "../../features/ia/ojos.ts";
 import { es, type TextosIA } from "./gente-ia-es.ts";
 
 /** Every language written so far; the rest (ja, ko, pt-br) are pending and fall back to Spanish. */
@@ -31,11 +32,22 @@ export function respondeValor(ia: IAPublica, idioma?: string): string {
   return [r.comunidad, r.nombre || r.cartera || ""].filter(Boolean).join(" · ");
 }
 
+const NOMBRE_TAMANO: Readonly<Record<Tamano, "tamSinModelo" | "tamPequeno" | "tamMedio" | "tamGrande" | "tamDesconocido">> = { "sin-modelo": "tamSinModelo", pequeno: "tamPequeno", medio: "tamMedio", grande: "tamGrande", desconocido: "tamDesconocido" };
+/** The glyph of each eye shape, for the card (colour alone would leave a colour-blind person guessing): the same four shapes as on the avatar. */
+export const GLIFO_OJOS = { punto: "•", ranura: "▬", redondo: "●", estrella: "✦" } as const;
+
+/** t_5096d6f4: what the card says about the eyes — the label, the size in words, the glyph + CSS colour, and the sentence that explains them. Never the model's name. */
+export function ojosFicha(ia: Pick<IAPublica, "tamano">, idioma?: string): { etiqueta: string; tamano: Tamano; nombre: string; glifo: string; color: string; texto: string } {
+  const t = textos(idioma), o = ojosDe(ia.tamano);
+  return { etiqueta: t.ojos, tamano: o.tamano, nombre: t[NOMBRE_TAMANO[o.tamano]], glifo: GLIFO_OJOS[o.forma], color: `#${o.color.toString(16).padStart(6, "0")}`, texto: o.texto };
+}
+
 export type FichaIA = {
   nombre: string; marca: string;
   estado: IAPublica["estado"]; estadoTexto: string;
   respondeEtiqueta: string; respondeValor: string;
   construye: boolean; construyeTexto: string;
+  ojos: ReturnType<typeof ojosFicha>;
 };
 
 /** The card of an AI as the panel and the world card show it. */
@@ -46,6 +58,7 @@ export function fichaIA(nombre: string, ia: IAPublica, idioma?: string): FichaIA
     estado: ia.estado, estadoTexto: ia.estado === "dormida" ? t.dormida : t.activa,
     respondeEtiqueta: t.responde, respondeValor: respondeValor(ia, idioma),
     construye: ia.puede.construir, construyeTexto: ia.puede.construir ? t.construye : t.noConstruye,
+    ojos: ojosFicha(ia, idioma),
   };
 }
 
@@ -68,7 +81,7 @@ export function listaGenteVR(gente: readonly { quien: number; nombre: string }[]
   const t = textos(idioma), ias: FilaGenteVR[] = [], personas: FilaGenteVR[] = [];
   for (const p of gente) {
     const ia = iaDe(p.quien);
-    if (ia) ias.push({ quien: p.quien, nombre: sinMarca(p.nombre), ia: true, detalle: `${t.marca} · ${subIA(ia, distancia(p.quien), idioma)}` });
+    if (ia) ias.push({ quien: p.quien, nombre: sinMarca(p.nombre), ia: true, detalle: [t.marca, ia.tamano === "desconocido" ? "" : ojosFicha(ia, idioma).nombre, subIA(ia, distancia(p.quien), idioma)].filter(Boolean).join(" · ") }); // t_5096d6f4: the size too, when the world knows it
     else personas.push({ quien: p.quien, nombre: p.nombre, ia: false, detalle: distancia(p.quien) });
   }
   return { cuenta: cuentaGente(Math.max(todos, gente.length) - ias.length, ias.length, idioma), filas: [...personas, ...ias] };

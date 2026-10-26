@@ -7,6 +7,8 @@
 // carries no `ia` block still has an entry (state + abilities, nobody listed as answering): it is an AI, the mark must always show.
 // The roles feature (packages/server) says what it knows through its server-only event «ia»; people never have an entry.
 import { defineFeature } from "../../packages/feature/src/index.ts";
+import { TAMANOS } from "./ojos.ts";
+import type { Tamano } from "./ojos.ts";
 
 export const ESTADOS = ["activa", "dormida"] as const;
 export type Estado = (typeof ESTADOS)[number];
@@ -22,6 +24,7 @@ const CAMPOS = {
   cartera: { kind: "text", maxBytes: CARTERA_BYTES, default: "" },
   construye: { kind: "bool", default: false },
   atenta: { kind: "bool", default: false },
+  tamano: { kind: "enum", values: TAMANOS, default: "desconocido" }, // t_5096d6f4: the SIZE of the model behind it (never its name): the eyes and the card read it
 } as const;
 
 /** «Attentive» lasts this long after the last `atenta` report: the brain used `llamadas` or `esperar_llamada` less than 90 s ago (design §4). */
@@ -31,10 +34,10 @@ export const ATENTA_TICKS = ATENTA_S * TICK_HZ;
 
 export const ia = defineFeature({
   id: "ia",
-  version: 2, // S12: the intent `atenta`
+  version: 3, // t_5096d6f4: + `tamano` (the size class of the model, an enum: new wire layout); S12: the intent `atenta`
   describe: "La ficha pública de cada IA conectada ahora: su estado (activa o dormida), quién responde por ella (la comunidad y el nombre de la persona o su cartera abreviada), qué puede hacer aquí y si su cerebro está atento. La decide el servidor; las páginas solo la leen para dibujar su marca de IA. Las personas no tienen ficha.",
   state: {
-    describe: "Por entidad de IA conectada (clave = su entidad; desaparece al desconectar). estado = activa|dormida; comunidad y nombre = quién responde por ella (vacíos si el pase no lo dice); cartera = su forma corta 0x12…ab; construye = si sus roles la dejan construir ahora; atenta = si su cerebro escucha (falso hasta que el puente lo diga).",
+    describe: "Por entidad de IA conectada (clave = su entidad; desaparece al desconectar). estado = activa|dormida; comunidad y nombre = quién responde por ella (vacíos si el pase no lo dice); cartera = su forma corta 0x12…ab; construye = si sus roles la dejan construir ahora; atenta = si su cerebro escucha (falso hasta que el puente lo diga); tamano = el tamaño del modelo que hay detrás (sin-modelo|pequeno|medio|grande|desconocido), nunca su nombre.",
     fields: CAMPOS,
   },
   intents: {
@@ -53,6 +56,8 @@ export type IAPublica = {
   responde?: { comunidad: string; nombre?: string; cartera?: string };
   puede: { construir: boolean };
   atenta: boolean;
+  /** The size class of the model behind it (never its name): the eyes on the avatar and the card read it. «desconocido» when the world cannot tell. */
+  tamano: Tamano;
 };
 
 /** Pure: the state entry as the page reads it. Anything odd falls back to the safest reading (asleep never claims to build). */
@@ -64,5 +69,6 @@ export function publica(v: Readonly<Record<string, unknown>>): IAPublica {
     ...(comunidad ? { responde: { comunidad, ...(nombre ? { nombre } : {}), ...(cartera ? { cartera } : {}) } } : {}),
     puede: { construir: v.construye === true && estado === "activa" },
     atenta: v.atenta === true,
+    tamano: typeof v.tamano === "string" && (TAMANOS as readonly string[]).includes(v.tamano) ? (v.tamano as Tamano) : "desconocido",
   };
 }

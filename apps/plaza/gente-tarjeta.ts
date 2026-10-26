@@ -8,7 +8,7 @@
 // Dormida, whether it can build, and «Ir hacia ella» as the main button (gente.ts: the trip, or a beacon where trips are off).
 // Names go in with textContent; innerHTML only ever receives the house icons (constants).
 import { icono } from "./iconos.ts";
-import { el, botonCon, luzEl, retrato, type Acciones, type Elegido, type Mirada } from "./gente-comun.ts";
+import { el, botonCon, luzEl, ojosEl, retrato, type Acciones, type Elegido, type Mirada } from "./gente-comun.ts";
 import { fichaIA, luzEscucha, subIA, textos } from "./gente-ia.ts";
 
 export function montarTarjeta(o: {
@@ -73,7 +73,7 @@ export function montarTarjeta(o: {
     if (ia) {
       // who answers for it and what it may do; the trip is the main button (no «Mensaje»: nothing reads a private note yet)
       const dato = (k: string, v: string) => el("p", { className: "ia-dato" }, el("span", { className: "k", textContent: k }), el("b", { textContent: v }));
-      const datos = el("div", { className: "ia-datos" }, dato(ia.respondeEtiqueta, ia.respondeValor), el("p", { className: `ia-dato${ia.construye ? "" : " no"}`, textContent: ia.construyeTexto }), luzEl(luzEscucha(p.ia!, o.idioma?.())));
+      const datos = el("div", { className: "ia-datos" }, dato(ia.respondeEtiqueta, ia.respondeValor), el("p", { className: `ia-dato${ia.construye ? "" : " no"}`, textContent: ia.construyeTexto }), ojosEl(ia.ojos), luzEl(luzEscucha(p.ia!, o.idioma?.())));
       const hablar = a.puedeHablar?.(p) ? botonCon("chat-circle-dots", tx.hablar, "principal") : null; // S11: the main button when the AI takes calls by button
       if (hablar) { hablar.id = "gente-tarjeta-hablar"; hablar.title = tx.hablarTitulo; hablar.setAttribute("aria-label", `${tx.hablarAria} ${ia.nombre}`); hablar.addEventListener("click", () => { a.hablar?.(p); }); }
       const ir = botonCon("navigation-arrow", tx.ir, hablar ? "" : "principal"); ir.id = "gente-tarjeta-ir";
