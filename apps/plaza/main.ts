@@ -23,6 +23,7 @@ import { montarConstructor } from "./constructor.ts";
 import { montarReaccionClic } from "./reaccion-clic.ts"; // lote 5: a click on a moñoni makes it hop
 import { sonar as sonarLocalPlaza } from "./sonar.ts";
 import { montarSoltar } from "./soltar.ts";
+import { montarPintar } from "./pintar.ts"; // J18b story 4 (first slice): paint a stroke from code — `__numinia.pintar.empezar / punto / soltar / cancelar`; the VR brush calls it next
 import { montarAvatar } from "./avatar.ts"; // H10: your avatar — house or uploaded .vrm, for every visitor
 import { montarHuecos } from "./huecos.ts";
 import { montarFlecha } from "./flecha.ts"; // T3: the arrow that points at the button of the current mission step
@@ -316,6 +317,7 @@ const constructorUI = montarConstructor(constructor, view, document.getElementBy
 const panelConstruir = document.getElementById("panel-construir")!;
 const reaccionClic = montarReaccionClic({ view, objetos: () => constructor.lista(), construyendo: () => !panelConstruir.hidden, sonar: (id) => { sonarLocalPlaza(id, { gain: 0.3 }, 150); } });
 // ---- H9: drop your own .glb on the world (or «Añadir › Subir» in the builder's dock): uploaded by sha256, placed for everyone ----
+const pintar = montarPintar({ session, puede: () => constructor.estado.puede, origen: activos, billete: () => localStorage.getItem(GUARDA), decir: (t) => soltar.decir(t) });
 const soltar = montarSoltar({ session, view, puede: () => constructor.estado.puede, origen: activos, billete: () => localStorage.getItem(GUARDA) });
 // ---- H10: your avatar — one of the house's or your own .vrm (everyone, not only builders); saved with your identity ----
 avatarUI = montarAvatar({ session, catalogo: catalogoAvatares, delMundo: avataresDelMundo(activos, estado?.avatares), origen: activos, billete: () => localStorage.getItem(GUARDA) });
@@ -860,7 +862,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { gemelos, ajustesMundo, session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones, medidorVivo: medidorUI };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { pintar, gemelos, ajustesMundo, session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones, medidorVivo: medidorUI };
 
 // ---- t_5cff4f06: back to the city — hidden unless this world's mundo.ajustes.json sets ciudadUrl; ux2-barra: an entry
 // of the bar's «Menú» (O), no longer a corner button ----
