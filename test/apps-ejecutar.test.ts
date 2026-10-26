@@ -232,8 +232,8 @@ test("M20: editing main.ts on disk reloads it (the file-editor path an AI uses);
     assert.equal((await m.script("vivo")).version, 2);
     // POST /recargar re-reads the disk by hand
     writeFileSync(ruta, `declare const app: any; app.on("v", () => "otra");`);
-    await sleep(600);
-    assert.equal(((await m.srv.apps.lanzar("vivo", "v")) as any).valor, "otra");
+    // wait for the reload instead of a fixed pause: a loaded machine delays the file watcher
+    assert.ok(await espera(async () => ((await m.srv.apps.lanzar("vivo", "v")) as any).valor === "otra"), "the file watcher reloaded the third version");
   } finally { await m.cerrar(); }
 });
 
