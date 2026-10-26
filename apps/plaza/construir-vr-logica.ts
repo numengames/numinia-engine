@@ -23,3 +23,12 @@ export function vistaConstruirVR(e: { puede: boolean; invitado: boolean; activo:
     ? { tipo: "activo", titulo: "Estás construyendo", detalle: "Apunta con el rayo a lo que quieras cambiar", boton: "Dejar de construir" }
     : { tipo: "listo", titulo: "Construir con el rayo", detalle: "Cierra el menú y apunta a lo que quieras cambiar", boton: "Empezar" };
 }
+
+export const AYUDA_PINTAR = "Gatillo derecho apretado: pintas desde la punta del mando. Suéltalo: el trazo se guarda y lo ven todos. B: tiras el trazo.";
+export type VistaPintar = { titulo: string; detalle: string; boton: string; activo: boolean };
+/** The second row of «Construir» in VR: paint with the controller. Two states (the section's permission check has already happened). */
+export function vistaPintarVR(activo: boolean): VistaPintar {
+  return activo
+    ? { titulo: "Estás pintando", detalle: "Gatillo derecho: pintas. B: tiras el trazo", boton: "Dejar de pintar", activo }
+    : { titulo: "Pintar con el mando", detalle: "Cierra el menú y aprieta el gatillo derecho", boton: "Empezar", activo };
+}
