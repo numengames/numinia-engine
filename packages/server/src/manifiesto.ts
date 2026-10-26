@@ -4,6 +4,7 @@
 //
 //   GET /manifiesto.json  →  { schema: "numinia-engine/manifiesto@1", zona, generado, origenes, total, clases, ficheros: [
 //       { ruta: "/a/<sha256>.glb", sha256, bytes, clase, tipo, copias, lods?: n } …
+//       { ruta: "/a/<sha256>.jpg", …, copiasPx?: { "1024": bytes, "512": bytes } } … (a picture: the bytes of each tier copy the server already holds)
 //       { ruta: "/a/<sha256>.lod1.glb", sha256, bytes, clase: "perezoso", tipo: "glb", de: "/a/<sha256>.glb", nivel: 1 } … ] }
 //
 // `sha256` is the hash of the bytes the server SENDS for that path (a .glb may have a lighter copy, optimizar.ts, so it is not
@@ -17,6 +18,7 @@ import { createHash } from "node:crypto";
 import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { IMAGEN_PX_COPIAS } from "../../net/src/ficheros.ts";
 import type { Activos } from "./activos.ts";
 
 export const ESQUEMA = "numinia-engine/manifiesto@1";
@@ -24,7 +26,7 @@ export const ESQUEMA = "numinia-engine/manifiesto@1";
 export const ARRANQUE_M = 80;
 export type Clase = "arranque" | "fondo" | "perezoso";
 
-export type FicheroManifiesto = { ruta: string; sha256: string; bytes: number; clase: Clase; tipo: string; copias?: number; lods?: number; de?: string; nivel?: number };
+export type FicheroManifiesto = { ruta: string; sha256: string; bytes: number; clase: Clase; tipo: string; copias?: number; lods?: number; de?: string; nivel?: number; copiasPx?: Record<string, number> };
 export type Manifiesto = {
   schema: typeof ESQUEMA; zona: string; generado: string; origenes: string[];
   total: { ficheros: number; bytes: number };
@@ -102,7 +104,11 @@ export async function construirManifiesto(zona: string, cosas: Iterable<Cosa>, a
       const h = await hashes.de(r);
       lods.push({ ruta: `/a/${v.sha}.lod${nivel}.glb`, sha256: h.sha256, bytes: h.bytes, clase: "perezoso", tipo: "glb", de: ruta, nivel });
     }
-    ficheros.push({ ruta, sha256, bytes, clase: v.clase, tipo: v.ext, copias: v.copias, ...(lods.length ? { lods: lods.length } : {}) }, ...lods);
+    // a picture's tier copies (`?px=N`, activos.ts): `bytes` stays the original's (its sha256), the copies' sizes ride along so the page
+    // adds up what IT downloads — the copy of its tier — and not the original (copies not made yet are left out: the original is what comes)
+    const copiasPx: Record<string, number> = {};
+    for (const px of IMAGEN_PX_COPIAS) { const r = activos.rutaCopiaPx(v.sha, v.ext, px); if (r) copiasPx[String(px)] = statSync(r).size; }
+    ficheros.push({ ruta, sha256, bytes, clase: v.clase, tipo: v.ext, copias: v.copias, ...(lods.length ? { lods: lods.length } : {}), ...(Object.keys(copiasPx).length ? { copiasPx } : {}) }, ...lods);
   }
   void hashes.guardar();
   const clases: Manifiesto["clases"] = { arranque: { ficheros: 0, bytes: 0 }, fondo: { ficheros: 0, bytes: 0 }, perezoso: { ficheros: 0, bytes: 0 } };

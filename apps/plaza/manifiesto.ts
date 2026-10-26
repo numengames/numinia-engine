@@ -7,7 +7,7 @@
 // The store works on bytes and takes `fetch` and `caches` as arguments, so test/manifiesto.test.ts runs it in node.
 
 export type Clase = "arranque" | "fondo" | "perezoso";
-export type FicheroManifiesto = { ruta: string; sha256: string; bytes: number; clase: Clase; tipo: string; copias?: number; lods?: number; de?: string; nivel?: number };
+export type FicheroManifiesto = { ruta: string; sha256: string; bytes: number; clase: Clase; tipo: string; copias?: number; lods?: number; de?: string; nivel?: number; copiasPx?: Record<string, number> };
 export type Manifiesto = { schema: string; zona: string; origenes: string[]; total: { ficheros: number; bytes: number }; clases: Record<Clase, { ficheros: number; bytes: number }>; ficheros: FicheroManifiesto[] };
 
 export const ESQUEMA = "numinia-engine/manifiesto@1";
@@ -57,8 +57,9 @@ export type Tienda = {
   /** The bytes of a file by its url (`/a/<sha256>.glb` as assetUrl makes it), or null when this store does not manage it. Throws HashFalso. */
   leer(url: string): Promise<ArrayBuffer | null>;
   estadisticas(): Estadisticas;
-  /** Bytes of the files needed to play / to finish, from the manifest (0 when there is none). */
-  totales(): { arranque: number; fondo: number; perezoso: number };
+  /** Bytes of the files needed to play / to finish, from the manifest (0 when there is none). `imagenPx`: the longest side the page
+   * asks pictures at (its tier, `?px=N`): a picture whose copy of that size exists counts the copy's bytes, not the original's. */
+  totales(imagenPx?: number): { arranque: number; fondo: number; perezoso: number };
 };
 
 export function crearTienda(o: OpcionesTienda): Tienda {
@@ -78,7 +79,14 @@ export function crearTienda(o: OpcionesTienda): Tienda {
     listo,
     lods: (sha) => porRuta.get(`/a/${sha}.glb`)?.lods ?? 0,
     estadisticas: () => ({ ...est }),
-    totales: () => ({ arranque: manifiesto?.clases.arranque.bytes ?? 0, fondo: manifiesto?.clases.fondo.bytes ?? 0, perezoso: manifiesto?.clases.perezoso.bytes ?? 0 }),
+    totales: (imagenPx) => {
+      const t = { arranque: manifiesto?.clases.arranque.bytes ?? 0, fondo: manifiesto?.clases.fondo.bytes ?? 0, perezoso: manifiesto?.clases.perezoso.bytes ?? 0 };
+      for (const f of manifiesto?.ficheros ?? []) { // the manifest is the same for every tier; the page swaps in the copy it will actually fetch
+        const copia = imagenPx ? f.copiasPx?.[String(imagenPx)] : undefined;
+        if (copia !== undefined && Number.isFinite(copia)) t[f.clase] += copia - f.bytes;
+      }
+      return t;
+    },
     async leer(url) {
       await listo;
       const f = porRuta.get(rutaDe(url));
