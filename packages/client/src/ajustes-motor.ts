@@ -148,6 +148,14 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     defecto: "apuntar", requiere: ["xrVr"],
   },
   {
+    grupo: "controles", id: "cuerpoVR", tipo: "bool", nombre: "Ver tu cuerpo en VR",
+    describe: "Al mirar abajo en el visor ves tu propio cuerpo (el de tu avatar: tronco y piernas). Apágalo si prefieres no verlo.", defecto: true, requiere: ["xrVr"],
+  },
+  {
+    grupo: "controles", id: "pielManosVR", tipo: "bool", nombre: "Manos con la piel de tu avatar",
+    describe: "En VR tus manos llevan el color de las manos de tu avatar con luces de Numinia. Apagado: la piel sencilla de siempre.", defecto: true, requiere: ["xrVr"],
+  },
+  {
     grupo: "controles", id: "vrManoMenu", tipo: "eleccion", nombre: "Mano del menú de muñeca",
     describe: "En qué muñeca sale el reloj del menú dentro de VR. La otra mano es la que lo pulsa.",
     opciones: [{ valor: "izq", nombre: "Izquierda" }, { valor: "der", nombre: "Derecha" }],

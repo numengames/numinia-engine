@@ -8,6 +8,7 @@
 // page asks the server, which decides. No files are downloaded (no controller profiles from a CDN): primitives only.
 import * as THREE from "three/webgpu";
 import { crearSaltoManos } from "./salto-manos.ts"; // t_8d0bc2dd: both wrists flicked up = jump
+import { conLuces } from "./piel-numinica.ts"; // t_8217ffea (N1): the avatar's skin colour with Numinia's circuit lights
 
 export type Lado = "izq" | "der";
 export type Panel = { malla: THREE.Mesh; fila(uv: THREE.Vector2): number; encima(n: number): void;
@@ -53,6 +54,8 @@ export type EventoMano =
 export const ALCANCE_M = 0.22;
 /** The free hand this near the holding hand (or the thing's grip point), with its grip or pinch pressed, takes the thing (m). */
 export const CERCA_CAMBIO_M = 0.15;
+/** How strongly the circuit lights glow on the skin (0 = off: the plain skin). */
+const LUCES = 1.1;
 /** The ray stops here (m). */
 export const RAYO_M = 12;
 const PIEL = 0xe3b896, MANDO = 0x2b2f36;
@@ -85,15 +88,17 @@ type Ranura = {
 /** A pinch held this long in empty air (nothing to take, nothing pointed) walks where that hand points. */
 export const ANDAR_MS = 250;
 
-/** Pieces into one geometry (position + normal), each with its own transform: one draw call for all of them. */
-function juntar(piezas: [THREE.BufferGeometry, THREE.Matrix4][]): THREE.BufferGeometry {
-  const pos: number[] = [], nor: number[] = [];
+/** Pieces into one geometry (position + normal + uv), each with its own transform: one draw call for all of them.
+ * `uvFijo`: every vertex gets that texel (the controller's plastic samples a black texel of the circuit map: no lights on it). */
+function juntar(piezas: [THREE.BufferGeometry, THREE.Matrix4][], uvFijo?: [number, number]): THREE.BufferGeometry {
+  const pos: number[] = [], nor: number[] = [], uv: number[] = [];
   for (const [geo, m] of piezas) {
     const g = (geo.index ? geo.toNonIndexed() : geo.clone()).applyMatrix4(m);
     pos.push(...(g.attributes.position.array as Float32Array)); nor.push(...(g.attributes.normal.array as Float32Array));
+    if (uvFijo) for (let v = 0; v < g.attributes.position.count; v++) uv.push(uvFijo[0], uvFijo[1]); else uv.push(...(g.attributes.uv.array as Float32Array));
   }
   const out = new THREE.BufferGeometry();
-  out.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); out.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+  out.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); out.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3)); out.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
   return out;
 }
 const en = (x: number, y: number, z: number, rx = 0) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, 0, 0)), new THREE.Vector3(1, 1, 1));
@@ -101,7 +106,7 @@ const en = (x: number, y: number, z: number, rx = 0) => new THREE.Matrix4().comp
 /** The hand-with-controller's look: ONE material with the colour in the vertices (the controller's plastic, the skin), so the whole
  * thing is one mesh. A middle roughness between the controller's 0.5 and the skin's 0.75. */
 export function materialManoMando(): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65, side: THREE.DoubleSide });
+  return conLuces(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65, side: THREE.DoubleSide }));
 }
 
 /** A drawn hand holding a small controller, in grip space, in ONE draw call (MIS-200 t_fd715508: the controller, the palm and the
@@ -116,7 +121,7 @@ export function crearManoMando(mat: THREE.Material) {
     [new THREE.CylinderGeometry(0.017, 0.02, 0.11, 10), en(0, -0.01, 0.02, Math.PI / 2 - 0.35)],
     [new THREE.TorusGeometry(0.038, 0.006, 6, 18), en(0, 0.03, -0.045, 0.5)],
     [new THREE.CylinderGeometry(0.024, 0.024, 0.012, 14), en(0, 0.035, -0.02, 0.35)],
-  ]);
+  ], [0.01, 0.01]);
   // the hand: the back of the palm outside (+X for a right hand; the left one is mirrored by the caller)
   const palma = juntar([[new THREE.BoxGeometry(0.03, 0.085, 0.08), new THREE.Matrix4().compose(new THREE.Vector3(0.035, 0, 0.015), new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.35, 0, 0)), new THREE.Vector3(1, 1, 1))]]);
   // finger segment: the same capsule ten times, each moved by its bone
@@ -124,17 +129,25 @@ export function crearManoMando(mat: THREE.Material) {
   const segPos = seg.attributes.position.array as Float32Array, segNor = seg.attributes.normal.array as Float32Array;
   const nSeg = 10, vSeg = segPos.length / 3, vFijos = mando.attributes.position.count + palma.attributes.position.count;
   const total = vFijos + nSeg * vSeg;
-  const pos = new Float32Array(total * 3), nor = new Float32Array(total * 3), col = new Float32Array(total * 3);
+  const pos = new Float32Array(total * 3), nor = new Float32Array(total * 3), col = new Float32Array(total * 3), uvs = new Float32Array(total * 2);
+  const nMando = mando.attributes.position.count;
   pos.set(mando.attributes.position.array as Float32Array, 0); nor.set(mando.attributes.normal.array as Float32Array, 0);
-  pos.set(palma.attributes.position.array as Float32Array, mando.attributes.position.count * 3); nor.set(palma.attributes.normal.array as Float32Array, mando.attributes.position.count * 3);
-  for (let v = 0; v < total; v++) {
-    const c = v < mando.attributes.position.count ? cMando : cPiel;
-    col[v * 3] = c.r; col[v * 3 + 1] = c.g; col[v * 3 + 2] = c.b;
-  }
+  pos.set(palma.attributes.position.array as Float32Array, nMando * 3); nor.set(palma.attributes.normal.array as Float32Array, nMando * 3);
+  uvs.set(mando.attributes.uv.array as Float32Array, 0); uvs.set(palma.attributes.uv.array as Float32Array, nMando * 2);
+  for (let k = 0; k < nSeg; k++) uvs.set(seg.attributes.uv.array as Float32Array, (vFijos + k * vSeg) * 2);
+  /** Paints the skin (the palm and the ten finger segments) in `hex` (the avatar's own hand colour); the controller's plastic stays. */
+  const pintarVertices = (hex: number) => {
+    const piel = new THREE.Color(hex);
+    for (let v = 0; v < total; v++) {
+      const c = v < nMando ? cMando : piel;
+      col[v * 3] = c.r; col[v * 3 + 1] = c.g; col[v * 3 + 2] = c.b;
+    }
+  };
+  pintarVertices(PIEL);
   const geo = new THREE.BufferGeometry();
   const aPos = new THREE.BufferAttribute(pos, 3), aNor = new THREE.BufferAttribute(nor, 3);
   aPos.setUsage(THREE.DynamicDrawUsage); aNor.setUsage(THREE.DynamicDrawUsage);
-  geo.setAttribute("position", aPos); geo.setAttribute("normal", aNor); geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  geo.setAttribute("position", aPos); geo.setAttribute("normal", aNor); const aCol = new THREE.BufferAttribute(col, 3); geo.setAttribute("color", aCol); geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
   geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0.02, 0, -0.02), 0.2); // fixed (a bending finger never leaves it); no culling either
   const malla = new THREE.Mesh(geo, mat);
   malla.name = "mano-mando"; malla.frustumCulled = false;
@@ -177,7 +190,7 @@ export function crearManoMando(mat: THREE.Material) {
     aPos.needsUpdate = true; aNor.needsUpdate = true;
   }
   dedos(0, 0, 0);
-  return { grupo: g, malla, dedos };
+  return { grupo: g, malla, dedos, pintar(hex: number): void { pintarVertices(hex); aCol.needsUpdate = true; } };
 }
 
 /** A tracked hand: one instanced sphere per joint and one instanced bone between joints (two draw calls). */
@@ -222,7 +235,8 @@ function crearEsqueleto(mat: THREE.Material) {
 export function createManos(h: ManosHooks) {
   const raiz = new THREE.Group();
   raiz.name = "manos";
-  const piel = new THREE.MeshStandardMaterial({ color: PIEL, roughness: 0.75, side: THREE.DoubleSide });
+  const piel = conLuces(new THREE.MeshStandardMaterial({ color: PIEL, roughness: 0.75, side: THREE.DoubleSide }));
+  let pielHex = PIEL;
   const materialMano = materialManoMando();
   const rayoMat = new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.75, depthWrite: false });
   const rayoGeo = new THREE.BoxGeometry(0.003, 0.003, 1).translate(0, 0, -0.5);
@@ -427,6 +441,14 @@ export function createManos(h: ManosHooks) {
 
   return {
     raiz,
+    /** t_8217ffea (N1): the hands wear this skin colour (0xRRGGBB: the avatar's own hands) with Numinia's circuit lights over it;
+     * null = the plain default. Only repainted when the colour changes: no cost per frame, no extra draw call. */
+    piel(hex: number | null): void {
+      const luces = hex === null ? 0 : LUCES, nuevo = hex ?? PIEL;
+      if (nuevo === pielHex && piel.emissiveIntensity === luces) return;
+      pielHex = nuevo; piel.color.setHex(nuevo); piel.emissiveIntensity = materialMano.emissiveIntensity = luces; // null: the plain skin of before, no lights
+      for (const r of ranuras) r.manoMando.pintar(nuevo);
+    },
     /** Put the hands under `padre` (VR: the rig; AR: its root) or take them away (null). */
     montar(padre: THREE.Object3D | null): void { if (padre) padre.add(raiz); else raiz.parent?.remove(raiz); },
     /** What a hand may take (quest things that the current step needs) and what the ray may use. */
