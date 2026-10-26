@@ -72,6 +72,7 @@ import { crearSalon } from "./ancestros.ts";
 import type { DianaAR } from "./dardos.ts";
 import { detalleAgua, LUCES_FUEGO } from "./calidad.ts";
 import { crearLotes } from "./lotes.ts";
+import { censoDeEscena, type Censo } from "./medidor-vivo.ts";
 import { debeMejorar, ficheroDeNivel, nivelParaCargar } from "./lod-modelo.ts";
 import { crearHitosMalla } from "./hitos-malla.ts";
 import { HITOS_PLAZA, ALTO_HITO } from "./hitos-plaza.ts";
@@ -84,6 +85,7 @@ import { INSTANCIAR_DESDE, INSTANCIAR_DESDE_VR, instanciarDesde, lejosDeNiebla, 
 import { crearTeletransporte } from "./teletransporte.ts";
 import { crearPrecompilador, calentarOcultos } from "./precompilar.ts";
 export { INSTANCIAR_DESDE, INSTANCIAR_DESDE_VR, instanciarDesde, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
+export { crearMedidorVivo, lineaMedidor, lineaMedidorCorta, lineasCenso, CATEGORIAS } from "./medidor-vivo.ts"; // MIS-200 t_ee19c84b: the live frame meter and the draw-call census
 export type { EntornoDatos } from "./entorno.ts";
 export type { Luz } from "./teletransporte.ts";
 // D-058 spike: «materia de bloques» — a shape of dice-shaped blocks that assembles and crumbles (materia.ts, materia-politica.ts)
@@ -969,9 +971,18 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** Force a build now and resolve when it is drawing (checks). */
     listo: async (): Promise<boolean> => { await sincronizarPP(); return ppVivo; },
   };
+  // MIS-200 t_ee19c84b: the draw-call census (medidor-vivo.ts). Walked once, right after the frame is drawn and while the frame's
+  // hidden things are still hidden (so lotes show, their copies do not: the scene as the GPU got it), and only when asked.
+  let censoPedido = false, censoUltimo: Censo | null = null;
+  function tomarCenso(): void {
+    censoPedido = false;
+    const xr = renderer.xr.isPresenting;
+    const camaras = xr ? ((renderer.xr.getCamera() as THREE.ArrayCamera).cameras ?? []) : [camera];
+    if (camaras.length) censoUltimo = censoDeEscena(scene, camaras);
+  }
   function dibujarCuadro(): void {
     antesDelCuadro();
-    try { if (ppVivo && pp && !renderer.xr.isPresenting) pp.dibujar(); else renderer.render(scene, camera); if (espejoXR?.activo()) espejoXR.cuadro(performance.now()); if (fotoXR?.pendiente()) fotoXR.cuadro(); } finally { despuesDelCuadro(); }
+    try { if (ppVivo && pp && !renderer.xr.isPresenting) pp.dibujar(); else renderer.render(scene, camera); if (censoPedido) tomarCenso(); if (espejoXR?.activo()) espejoXR.cuadro(performance.now()); if (fotoXR?.pendiente()) fotoXR.cuadro(); } finally { despuesDelCuadro(); }
   }
 
   // B4: three's own count of live shader programs (WebGPURenderer info.memory.programs); it only grows when one is made
@@ -1363,6 +1374,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     },
     /** B4 (for checks): live shader programs as three counts them. */
     programas(): number { return programasVivos(); },
+    /** MIS-200 t_ee19c84b: where the draw calls of the last frame come from, by category (the census of medidor-vivo.ts). The first call
+     * returns null and asks for one: the next drawn frame walks the scene (so nothing is walked while nobody asks); read again after it. */
+    censo(): Censo | null { censoPedido = true; return censoUltimo; },
     /** N12 (for checks): the last frame — from which distance the fog covers everything (m; Infinity = no fog), how
      * many things/people/names it hid, how many copies were drawn instanced and in how many lotes; `mallas` = the
      * instanced meshes those cost (≈ draw calls), `escrituras` = matrix uploads since the start (still = no uploads). */
