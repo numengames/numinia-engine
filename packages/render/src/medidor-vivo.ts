@@ -16,7 +16,8 @@ export const FACTOR_HUECO = 1.5;
 /** An interval this long is a pause (hidden tab, headset off), not a gap: it does not enter the ring. */
 export const PAUSA_MS = 1000;
 
-export type MuestraCuadro = { dtMs: number; cpuMs?: number; llamadas?: number; triangulos?: number; programas?: number };
+export type MuestraCuadro = { dtMs: number; cpuMs?: number; llamadas?: number; triangulos?: number; programas?: number;
+  /** Shader pipelines linked inside a drawn frame since the loading screen came down (compilaciones.ts): the late compiles. */ compilesTardios?: number };
 export type ResumenMedidor = {
   cuadros: number; fps: number;
   cuadroMs: { p50: number; p99: number; max: number };
@@ -26,6 +27,8 @@ export type ResumenMedidor = {
   /** Draw calls of the LAST frame and the window's median / worst (`drawCalls`, both eyes in XR). */
   llamadas: { ultima: number; p50: number; max: number };
   kTriangulos: number; programas: number;
+  /** Late shader compiles (linked by a draw after the loading screen): the number that must stay 0 while walking. */
+  compilesTardios: number;
 };
 
 const r1 = (x: number): number => Math.round(x * 10) / 10;
@@ -34,11 +37,12 @@ const pct = (orden: Float64Array, n: number, q: number): number => (n === 0 ? 0 
 export function crearMedidorVivo(capacidad = CAPACIDAD_MEDIDOR) {
   const dt = new Float64Array(capacidad), cpu = new Float64Array(capacidad), llam = new Float64Array(capacidad);
   const copia = new Float64Array(capacidad);
-  let n = 0, i = 0, tri = 0, prog = 0, ultimaLlamada = 0;
+  let n = 0, i = 0, tri = 0, prog = 0, ultimaLlamada = 0, tardios = 0;
   return {
     /** One drawn frame. Intervals of PAUSA_MS or more (and non-numbers) are ignored. */
     cuadro(m: MuestraCuadro): void {
       if (m.programas !== undefined && Number.isFinite(m.programas)) prog = m.programas;
+      if (m.compilesTardios !== undefined && Number.isFinite(m.compilesTardios)) tardios = m.compilesTardios;
       if (m.triangulos !== undefined && Number.isFinite(m.triangulos)) tri = m.triangulos;
       if (!(m.dtMs > 0) || m.dtMs >= PAUSA_MS) return;
       dt[i] = m.dtMs; cpu[i] = m.cpuMs ?? 0; llam[i] = m.llamadas ?? 0;
@@ -61,7 +65,7 @@ export function crearMedidorVivo(capacidad = CAPACIDAD_MEDIDOR) {
         cuadroMs: { p50: r1(p50), p99: r1(p99), max: r1(max) }, cpuMs: { p50: r1(c50), max: r1(cmax) },
         huecos, huecoMaxMs: r1(max),
         llamadas: { ultima: ultimaLlamada, p50: l50, max: lmax },
-        kTriangulos: r1(tri / 1000), programas: prog,
+        kTriangulos: r1(tri / 1000), programas: prog, compilesTardios: tardios,
       };
     },
     /** Forget the window (a test starts a measurement; the overlay's «reset»). */
@@ -73,13 +77,13 @@ export type MedidorVivo = ReturnType<typeof crearMedidorVivo>;
 /** The one line the VR panel and the overlay show. */
 export function lineaMedidor(r: ResumenMedidor): string {
   if (r.cuadros === 0) return "medidor: sin cuadros";
-  return `${r.fps} fps · cuadro ${r.cuadroMs.p50}/${r.cuadroMs.p99} ms · huecos ${r.huecos} (máx ${r.huecoMaxMs} ms) · llamadas ${r.llamadas.ultima} · programas ${r.programas}`;
+  return `${r.fps} fps · cuadro ${r.cuadroMs.p50}/${r.cuadroMs.p99} ms · huecos ${r.huecos} (máx ${r.huecoMaxMs} ms) · llamadas ${r.llamadas.ultima} · programas ${r.programas} · compilaciones tardías ${r.compilesTardios}`;
 }
 
 /** The short line for the VR panel (a headset panel line wraps at ~42 characters, two lines at most). */
 export function lineaMedidorCorta(r: ResumenMedidor): string {
   if (r.cuadros === 0) return "medidor: sin cuadros";
-  return `${r.llamadas.ultima} llamadas · ${r.programas} progr. · hueco máx ${Math.round(r.huecoMaxMs)} ms`;
+  return `${r.llamadas.ultima} llamadas · ${r.programas} progr. · hueco máx ${Math.round(r.huecoMaxMs)} ms${r.compilesTardios > 0 ? ` · ${r.compilesTardios} comp. tardías` : ""}`;
 }
 
 // ---- the census: where the draw calls come from ----

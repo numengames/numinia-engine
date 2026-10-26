@@ -68,7 +68,8 @@ function placa(c: HTMLCanvasElement, anchoM: number): THREE.Mesh {
   return m;
 }
 
-export function crearSalon(h: { world: THREE.Object3D; camara: () => THREE.Camera; /** May the hall carry its own light on this device? (default yes) */ luz?: () => boolean }) {
+export function crearSalon(h: { world: THREE.Object3D; camara: () => THREE.Camera; /** May the hall carry its own light on this device? (default yes) */ luz?: () => boolean;
+  /** t_159e18d2: the light set of the scene changed (the hall's light made or removed): three re-keys EVERY lit material, so the caller links them now, not in the next drawn frame. */ luzCambiada?: () => void }) {
   type Pared = { d: Muro3D };
   type Holo = { g: THREE.Group; materiales: THREE.MeshBasicMaterial[]; d: Holograma3D; yaw: number; placa: { m: THREE.Mesh; hasta: number } | null };
   const paredes = new Map<string, Pared>(), holos = new Map<string, Holo>(), paneles = new Map<string, THREE.Mesh>();
@@ -78,11 +79,24 @@ export function crearSalon(h: { world: THREE.Object3D; camara: () => THREE.Camer
   const piedra = new THREE.MeshStandardMaterial({ color: 0x4a4f58, roughness: 0.95 });
   const sueloMat = new THREE.MeshStandardMaterial({ color: 0x2b3038, roughness: 0.9 });
   const techoMat = new THREE.MeshStandardMaterial({ color: 0x3a3f48, roughness: 0.95 });
-  const quitarTechoYLuz = () => {
+  const quitarTechoYLuz = (conservarLuz = false) => {
     if (techo) { h.world.remove(techo); techo.geometry.dispose(); techo = null; }
-    if (luz) { h.world.remove(luz); luz.dispose(); luz = null; }
+    if (luz && conservarLuz) { luzGuardada.luz = luz; luz = null; } // kept in the scene, intensity 0 until the hall is back
+    else if (luz) { h.world.remove(luz); luz.dispose(); luz = null; h.luzCambiada?.(); }
+    if (!conservarLuz && luzGuardada.luz) { h.world.remove(luzGuardada.luz); luzGuardada.luz.dispose(); luzGuardada.luz = null; h.luzCambiada?.(); }
     centro = null; huella = null;
   };
+  /** A light for the hall: the kept one if there is one (no change in the scene's lights), else a new one (announced). */
+  const luzDelSalon = (cx: number, y: number, cz: number): THREE.PointLight => {
+    let l = luzGuardada.luz; luzGuardada.luz = null;
+    if (!l) { l = new THREE.PointLight(LUZ_SALA.color, LUZ_SALA.intensidad, LUZ_SALA.alcance, 2); l.name = "ancestros:luz"; l.castShadow = false; h.world.add(l); l.position.set(cx, y, cz); h.luzCambiada?.(); }
+    else l.position.set(cx, y, cz);
+    return l;
+  };
+  /** t_159e18d2: the hall's light survives a rebuild of the walls. muros() runs on every change of the world's data and used to remove the
+   * light and make a new one: a new light id is a new lights key, and three then relinked every lit material of the world (the 0.8 s hitch
+   * leaving the Ayuntamiento, 2026-10-26). Now the same light is only moved. */
+  const luzGuardada: { luz: THREE.PointLight | null } = { luz: null };
   const pedestalMat = new THREE.MeshStandardMaterial({ color: 0x23272e, roughness: 0.7, metalness: 0.3 });
   const geoCabeza = new THREE.SphereGeometry(0.24, 18, 14);
   const geoCuello = new THREE.CylinderGeometry(0.09, 0.11, 0.14, 10);
@@ -132,7 +146,7 @@ export function crearSalon(h: { world: THREE.Object3D; camara: () => THREE.Camer
         }
       }
       if (suelo) { h.world.remove(suelo); suelo.geometry.dispose(); suelo = null; }
-      quitarTechoYLuz();
+      quitarTechoYLuz(lista.length > 0 && (h.luz?.() ?? true)); // a rebuild with walls keeps the light (see luzGuardada)
       if (!lista.length) return;
       const x0 = Math.min(...lista.map((m) => m.x0)), x1 = Math.max(...lista.map((m) => m.x1)), z0 = Math.min(...lista.map((m) => m.z0)), z1 = Math.max(...lista.map((m) => m.z1));
       suelo = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 0.04, z1 - z0), sueloMat);
@@ -145,9 +159,7 @@ export function crearSalon(h: { world: THREE.Object3D; camara: () => THREE.Camer
       h.world.add(techo);
       centro = { x: cx, z: cz }; huella = { x0, x1, z0, z1 };
       if (h.luz?.() ?? true) {
-        luz = new THREE.PointLight(LUZ_SALA.color, LUZ_SALA.intensidad, LUZ_SALA.alcance, 2);
-        luz.name = "ancestros:luz"; luz.castShadow = false; luz.position.set(cx, alto - LUZ_SALA.altura, cz);
-        h.world.add(luz);
+        luz = luzDelSalon(cx, alto - LUZ_SALA.altura, cz);
       }
     },
     /** The holograms: lit or not; a lit one turns to you (actualizar). */
@@ -189,8 +201,8 @@ export function crearSalon(h: { world: THREE.Object3D; camara: () => THREE.Camer
       const now = performance.now();
       if (centro) { // the light follows the device tier (no recompile storm: one light made/removed) and costs nothing far from the hall
         const quiere = h.luz?.() ?? true;
-        if (quiere && !luz && techo) { luz = new THREE.PointLight(LUZ_SALA.color, LUZ_SALA.intensidad, LUZ_SALA.alcance, 2); luz.name = "ancestros:luz"; luz.castShadow = false; luz.position.set(centro.x, techo.position.y - TECHO_GROSOR / 2 - LUZ_SALA.altura, centro.z); h.world.add(luz); }
-        else if (!quiere && luz) { h.world.remove(luz); luz.dispose(); luz = null; }
+        if (quiere && !luz && techo) luz = luzDelSalon(centro.x, techo.position.y - TECHO_GROSOR / 2 - LUZ_SALA.altura, centro.z);
+        else if (!quiere && luz) { h.world.remove(luz); luz.dispose(); luz = null; h.luzCambiada?.(); }
         // the roof lifts out of the way when YOU are inside and the camera rides above it (else the orbit camera would show a lid, not you)
         if (techo && huella) techo.visible = !(self && self.x > huella.x0 && self.x < huella.x1 && self.z > huella.z0 && self.z < huella.z1 && h.camara().getWorldPosition(vTmp).y > techo.position.y - TECHO_GROSOR);
         if (luz && self) luz.intensity = (self.x - centro.x) ** 2 + (self.z - centro.z) ** 2 <= LUZ_M * LUZ_M ? LUZ_SALA.intensidad : 0;

@@ -7,7 +7,7 @@ type Datos = Record<string, unknown>;
 export type Cuenta = { agua: number; fuego: number; humo: number; polvo: number; particulas: number; emisores: number; luces: number; animando: number; reflejos: number; aguaDetalle: string; cargado: boolean };
 type Real = { poner(k: string, v: Datos | null): void; actualizar(dt: number): void; ocupado(): boolean; contar(): Cuenta };
 
-export function vistaElementos(h: { renderer: THREE.WebGPURenderer; scene: THREE.Scene; world: THREE.Group; camera: THREE.PerspectiveCamera; entorno: Entorno }) {
+export function vistaElementos(h: { renderer: THREE.WebGPURenderer; scene: THREE.Scene; world: THREE.Group; camera: THREE.PerspectiveCamera; entorno: Entorno; /** t_159e18d2: the scene's light set changed: link the lit materials now, not in a drawn frame. */ luzCambiada?: () => void }) {
   const pendientes = new Map<string, Datos | null>();
   let real: Real | null = null, carga: Promise<void> | null = null, fallo = "";
   return {
