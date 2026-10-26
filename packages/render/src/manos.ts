@@ -52,7 +52,10 @@ export type EventoMano =
   | { tipo: "panel"; fila: number; lado: Lado }
   | { tipo: "gatillo"; lado: Lado }
   /** J4 mantener-pulsado: the trigger let go (cancels a hold started by "gatillo" if it was not done yet). */
-  | { tipo: "gatillo_fin"; lado: Lado };
+  | { tipo: "gatillo_fin"; lado: Lado }
+  /** Told to the page's session log: a hand let go of what it carried (`que` is the piece's own word, «caña», «dardos»…) / both wrists flicked up (a jump gesture). */
+  | { tipo: "soltar"; que: string; lado: Lado }
+  | { tipo: "salto" };
 
 /** How far from a thing's surface a hand still takes it (m). */
 export const ALCANCE_M = 0.22;
@@ -346,6 +349,7 @@ export function createManos(h: ManosHooks) {
       if (r !== true) return { ok: false, why: r };
       const ranura = ranuras.find((x) => x.lado === de && x.fuente);
       if (ranura) vibrar(ranura, 0.4, 50);
+      emitir({ tipo: "soltar", que: reg.que, lado: de });
       return { ok: true, que: reg.que, lado: de };
     }
     return { ok: false, why: "No llevas nada en la mano" };
@@ -403,7 +407,7 @@ export function createManos(h: ManosHooks) {
     return raiz.worldToLocal(Pw).y;
   }
   function vigilarSalto(ahora: number): void {
-    if (salto.muestra(ahora, alturaMuneca("izq"), alturaMuneca("der"))) saltoPedido = true;
+    if (salto.muestra(ahora, alturaMuneca("izq"), alturaMuneca("der"))) { saltoPedido = true; emitir({ tipo: "salto" }); }
   }
 
   function actualizarRanura(r: Ranura, camara: THREE.Camera | null): void {

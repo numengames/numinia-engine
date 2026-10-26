@@ -8,6 +8,7 @@ import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX, BTN_JUMP, BT
 import { botonesDeVuelo } from "./vuelo-teclas.ts";
 import { CIERRE_LLENO, CIERRE_SILENCIO, LATIDO_MS, webSocketClient } from "../../packages/net/src/index.ts";
 import { BARRIDO_MS, VigiaServidor } from "../../packages/client/src/vigia-servidor.ts"; // t_9cb3f636: the page notices the server went silent
+import { acciones, expresionDeDados } from "./acciones-informe.ts"; // T1: dice, photo, drop, hand jump, VR body and speed leave a line in the session log
 import { montarAjustes, leerAjuste } from "./menu-ajustes.ts"; // N2: settings menu + capabilities
 import { montarCiudad } from "./ciudad.ts"; // t_5cff4f06: the corner button back to the city (a world's own ciudadUrl)
 import mundoPlaza from "./mundo.ajustes.json";
@@ -441,6 +442,10 @@ const compartir = montarPantalla({
 const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k) && dardos.ofrece(f, k) && cerradurasPagina.ofrece(f, k) && lucha.ofrece(f, k), ocupado: () => !!misiones.dialogo(), locales: (x, z, y) => [...asiento.cerca(), ...huecos.cerca(x, z, y), ...cerradurasPagina.cerca(x, z), ...videoMandos.cerca(x, z), ...llamarIA.cerca()], pinchar: (key) => huecos.pinchar(key) || enlaces.pinchar(key),
   persona: (x, y) => { const q = view.pickPerson(x, y); return q !== null && gente.tarjeta(q); } }); // ux2-gente: a click on someone = their card
 misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
+acciones.conectar((r) => session.report(r)); // read at call time: the «Enviar el informe de la sesión» switch (menu-ajustes.ts) silences these too
+view.manos.on((e) => { if (e.tipo === "soltar") acciones.registrar("soltar", { detalle: e.que }); else if (e.tipo === "salto") acciones.registrar("salto-manos"); });
+{ const soltar = inventarioCtl.soltar.bind(inventarioCtl); inventarioCtl.soltar = (id, n) => { const r = soltar(id, n); if (r.ok) acciones.registrar("soltar", { detalle: "bolsa" }); return r; }; } // the Bolsa's «Soltar» (the panel and the VR card go through this)
+{ const tirar = dados.tirar.bind(dados); dados.tirar = (expresion, sitio, oculta) => { const r = tirar(expresion, sitio, oculta); if (r.ok) acciones.registrar("dados", { detalle: expresionDeDados(expresion), activo: oculta === true }); return r; }; }
 const xr = montarXR({ session, view, misiones, interaccion, enlaces, huecos }); // J4: + the ray points at things with a link and the trigger asks before opening // J10: hands in VR take, point and answer; what you took is in your hand
 let condicionesXR: { tick(): void } | null = null; // condiciones/c4: the bubble inside the headset — loaded with the VR chunk below, only where the browser can present VR
 montarDialogo(misiones, document.getElementById("dialogo")!, view);
@@ -493,7 +498,7 @@ async function ponerPortada(f: File): Promise<{ ok: true } | { ok: false; why: s
   }
   return { ok: false, why: "el servidor no contestó a tiempo; mira la imagen en Ajustes del mundo" };
 }
-const foto = montarFotoPuerta({ view, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), mapa, boton: document.getElementById("foto-abrir") as HTMLButtonElement, volverA: () => document.getElementById("camara-abrir"), ocupado: () => dardos.tirando(),
+const foto = montarFotoPuerta({ view, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), mapa, boton: document.getElementById("foto-abrir") as HTMLButtonElement, volverA: () => document.getElementById("camara-abrir"), ocupado: () => dardos.tirando(), registrar: (d) => acciones.registrar("foto", d),
   aparecer: { puede: () => (viajar.estado.recibido ? viajar.foto() : null), pedir: (s) => { viajar.aparecerEnFoto(s.x, s.y, s.z); } }, // N16: the world may put you at the photo's place
   portada: { puede: () => ajustesMundo.estado.puede && ajustesMundo.actual() !== null, usar: ponerPortada }, // MIS-265: the photo as the world's cover
   decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); } });
@@ -749,7 +754,7 @@ let modoAntes = "plano";
 setInterval(() => { const m = modo(); if (m !== modoAntes) { session.report({ k: "xr", modo: m === "plano" ? modoAntes : m, accion: m === "plano" ? "sale" : "entra", detalle: m === "plano" ? "" : `${view.xrHz() || "?"} Hz` }); modoAntes = m; } }, 250);
 const informarError = (mensaje: unknown, donde: string) => { informe.errores++; if (informe.errores <= 5) session.report({ k: "error", mensaje: String(mensaje).slice(0, 160), donde: donde.slice(0, 160) }); };
 addEventListener("error", (e) => informarError(e.message, `${(e.filename ?? "").split("/").pop()}:${e.lineno}`));
-addEventListener("unhandledrejection", (e) => informarError((e.reason as Error)?.message ?? e.reason, "promesa"));
+addEventListener("unhandledrejection", (e) => { const r = e.reason as { message?: unknown; name?: unknown } | null | undefined; informarError(r === undefined || r === null ? `rechazo sin motivo (${modo()})` : r.message ?? r.name ?? r, "promesa"); });
 let lastDrawAt = 0;
 
 // ---- loop: fixed 20 Hz client ticks inside the display loop, drawing blends between ticks ----

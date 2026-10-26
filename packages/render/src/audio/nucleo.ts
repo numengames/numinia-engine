@@ -24,6 +24,9 @@ export type Bus = (typeof BUSES)[number];
 
 /** Decibelios a factor lineal de ganancia. */
 export const dB = (d: number): number => 10 ** (d / 20);
+/** `suspend()`/`resume()` devuelven una promesa y un `try` no ve su rechazo (contexto cerrado o interrumpido, a veces sin
+ *  motivo): sin esto, salir de VR dejaba un «unhandledrejection» sin motivo. Un contexto que no se deja dormir no es un error. */
+const sinRechazo = (p: unknown): void => { if (p && typeof (p as Promise<unknown>).catch === "function") (p as Promise<unknown>).catch(() => {}); };
 
 /** Cuánto baja cada bus mientras alguien habla (dB). Los demás buses no se duckean. */
 export const DUCK_DB: Readonly<Partial<Record<Bus, number>>> = { musica: -9, ambiente: -6, efectos: -3 };
@@ -163,7 +166,7 @@ export function crearNucleo(h: Hechuras = {}): Nucleo {
       ponerMono();
     } catch { roto = true; ctx = null; bus.clear(); vca.clear(); limitador = null; aMono = null; return null; }
     // nace suspendido mientras no haya habido un gesto: antes de eso no puede sonar nada (política de autoplay)
-    if (!gestoYa()) { try { void c.suspend?.(); } catch { /* algunos navegadores ya lo dan suspendido */ } }
+    if (!gestoYa()) { try { sinRechazo(c.suspend?.()); } catch { /* algunos navegadores ya lo dan suspendido */ } }
     esperarGesto(() => reanudar());
     cadaGesto(() => reanudar());  // un contexto suspendido (pestaña, XR, `interrupted` de iOS) vuelve al siguiente gesto
     try { c.addEventListener?.("statechange", () => { if (c.state === "interrupted") reanudar(); }); } catch { /* sin eventos aquí */ }
@@ -186,7 +189,7 @@ export function crearNucleo(h: Hechuras = {}): Nucleo {
   function reanudar(): void {
     if (!ctx || pausas.size > 0 || !gestoYa()) return;
     if (ctx.state === "running") return;
-    try { void ctx.resume?.(); } catch { /* no se pudo: el siguiente gesto lo reintenta */ }
+    try { sinRechazo(ctx.resume?.()); } catch { /* no se pudo: el siguiente gesto lo reintenta */ }
   }
 
   const duckDe = (b: Bus): number => (duckActivo ? dB(DUCK_DB[b] ?? 0) : 1);
@@ -221,19 +224,19 @@ export function crearNucleo(h: Hechuras = {}): Nucleo {
     pausar(activo: boolean, razon = "pagina"): void {
       if (activo) {
         pausas.add(razon);
-        if (ctx) { try { void ctx.suspend?.(); } catch { /* ya suspendido */ } }
+        if (ctx) { try { sinRechazo(ctx.suspend?.()); } catch { /* ya suspendido */ } }
       } else { pausas.delete(razon); reanudar(); }
     },
     siesta(): void {
       if (despiertos.size > 0) { siestaPendiente = true; return; } // v10: la voz abierta no se duerme al salir de VR
       siestaPendiente = false;
-      if (ctx) { try { void ctx.suspend?.(); } catch { /* ya suspendido */ } }
+      if (ctx) { try { sinRechazo(ctx.suspend?.()); } catch { /* ya suspendido */ } }
     },
     despertar(razon: string, activo: boolean): void {
       if (activo) { despiertos.add(razon); return; }
       if (!despiertos.delete(razon) || despiertos.size > 0 || !siestaPendiente) return;
       siestaPendiente = false;
-      if (ctx) { try { void ctx.suspend?.(); } catch { /* ya suspendido */ } }
+      if (ctx) { try { sinRechazo(ctx.suspend?.()); } catch { /* ya suspendido */ } }
     },
     estado(): Estado {
       return {

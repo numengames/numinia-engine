@@ -41,6 +41,7 @@ export type FotoOpts = {
   boton: HTMLButtonElement;                                 // «Foto», an entry of the bar's «Cámara» menu (ux2-barra)
   volverA?: () => HTMLElement | null;                       // where the focus goes back on leaving (the «Cámara» button)
   ocupado?: () => boolean;                                  // something else holds the keys (a dartboard in hand)
+  registrar?: (d: { detalle?: string }) => void;            // the session log: a picture was taken (`detalle`: «vr» when inside the headset)
   /** N16: whether this world puts you at a photo's place (null = not known yet) and the asking (the server decides). */
   aparecer?: { puede(): boolean | null; pedir(s: Sitio): void };
   /** MIS-265: make the picture the world's cover — offered only when `puede()` (the server lets you change the settings). */
@@ -252,7 +253,7 @@ export function montarFoto(o: FotoOpts) {
       await componer(c, filtro("natural"), true);
       const yo = o.yo(), e = view.cam.estado(); // where you stand and the way you look: the link leads there
       await guardarHecha(c, enlaceSitio(location, { x: yo?.x ?? e.pivote.x, y: yo?.y ?? e.pivote.y, z: yo?.z ?? e.pivote.z, yaw: view.cam.yaw(), pitch: 0, dist: 0 }));
-      deVR = true;
+      deVR = true; o.registrar?.({ detalle: "vr" });
       try { const a = document.createElement("a"); a.href = hecha!.url; a.download = hecha!.nombre; document.body.appendChild(a); a.click(); a.remove(); } catch { /* the picture waits on the page */ }
       o.decir("Foto hecha en VR: al salir la tienes en la página para compartirla.");
       return resultado(c, { deVR: true });
@@ -274,7 +275,7 @@ export function montarFoto(o: FotoOpts) {
       if (o.portada?.puede() && view.sinRotulos) { cSin = view.sinRotulos(capturar); await componer(cSin, filtro(filtroId)); }
       await guardarHecha(c, enlace());
       if (cSin) sinNombres = await new Promise<Blob | null>((ok) => cSin!.toBlob(ok, "image/png"));
-      mostrarHecha();
+      mostrarHecha(); o.registrar?.({});
       return resultado(c);
     } catch (e) {
       const t = `No pude hacer la foto: ${(e as Error)?.message ?? e}.`;

@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { encodeReport, decodeReport, MSG, REPORT_MAX } from "../packages/net/src/index.ts";
-import { Sesiones, limpiar, SHAPES, KEEP_DAYS, TEXT_MAX, CONTEO_MAX } from "../packages/server/src/sesiones.ts";
+import { Sesiones, limpiar, SHAPES, KEEP_DAYS, TEXT_MAX, CONTEO_MAX, ACCIONES, MAX_ACCIONES_PER_SESSION } from "../packages/server/src/sesiones.ts";
 import { agrupar, describir, resumir, tirones } from "../packages/server/src/sesiones-ver.ts";
 import { startServer } from "../packages/server/src/server.ts";
 import { nombreNavegador, claseAparato, nombreSistema, medidorDeCuadros, CONGELACION_MS, LARGO_MS } from "../packages/render/src/sesion.ts";
@@ -248,4 +248,36 @@ test("E4: the reader shows the B5 pulse fields (freezes, long frames, LoAF, draw
   const viejo = agrupar([lineas[0], JSON.stringify(base)]);
   assert.equal(tirones(viejo[0].pulsos), null);
   assert.doesNotMatch(describir(viejo[0]) + resumir(viejo), /tirones|dibujo:|congelación/);
+});
+
+test("acciones: dice, photo, drop, hand jump, VR body and speed are written; unknown ids, free keys and a flood are not", async () => {
+  const dir = tmp();
+  const s = new Sesiones({ dir, now: () => Date.parse("2026-10-26T20:00:00Z") });
+  s.abrir(1);
+  s.informe(1, { k: "entrada", clase: "visor" });
+  const ok = [
+    { k: "accion", que: "dados", detalle: "2d6", activo: false },
+    { k: "accion", que: "foto", detalle: "vr" },
+    { k: "accion", que: "soltar", detalle: "caña" },
+    { k: "accion", que: "salto-manos" },
+    { k: "accion", que: "cuerpo-vr", activo: false },
+    { k: "accion", que: "velocidad-vr", valor: 150 },
+  ];
+  for (const r of ok) assert.equal(s.informe(1, r), true, String(r.que));
+  assert.deepEqual([...ACCIONES].sort(), ok.map((r) => r.que).sort(), "every action of the list has a test line");
+  assert.equal(s.informe(1, { k: "accion", que: "inventada" }), false, "an id that is not on the list is dropped");
+  assert.equal(s.informe(1, { k: "accion" }), false, "no id, no line");
+  assert.equal(s.informe(1, { k: "accion", que: "dados", nombre: "Ana", ip: "1.2.3.4", detalle: "d20" }), true);
+  // a flood has its own budget and leaves the pulses alone
+  for (let i = 0; i < MAX_ACCIONES_PER_SESSION + 20; i++) s.informe(1, { k: "accion", que: "dados" });
+  assert.equal(s.informe(1, { k: "pulso", rttMs: 5 }), true, "pulses still go in after an action flood");
+  s.cerrar(1);
+  await s.vaciar();
+  const lines = readFileSync(join(dir, "sesiones-2026-10-26.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  const acc = lines.filter((l) => l.k === "accion");
+  assert.equal(acc.length, MAX_ACCIONES_PER_SESSION);
+  assert.deepEqual(acc[0], { t: "2026-10-26T20:00:00.000Z", sesion: lines[0].sesion, k: "accion", que: "dados", detalle: "2d6", activo: false });
+  assert.deepEqual(Object.keys(acc[6]).sort(), ["detalle", "k", "que", "sesion", "t"], "nombre and ip never reach the file");
+  assert.equal(lines.at(-1).k, "sale");
+  assert.equal(lines.at(-1).acciones, MAX_ACCIONES_PER_SESSION);
 });

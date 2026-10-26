@@ -135,8 +135,10 @@ function sacudir(f: ReturnType<typeof montarConMunecas>, yi: (t: number) => numb
 test("manos: dos manos con seguimiento sacudidas arriba piden 1 salto; takeSalto lo entrega una sola vez", () => {
   const f = montarConMunecas();
   const g = (t: number) => 1.0 + sube(t, 400, 200, 0.4);
+  const eventos: string[] = []; f.m.on((e) => { eventos.push(e.tipo); });
   assert.equal(sacudir(f, g, g), 1);
   assert.equal(f.m.takeSalto(), false);
+  assert.deepEqual(eventos, ["salto"], "the page hears the gesture once (session log)");
 });
 
 test("manos: una mano sola, o una mano ocupada (reloj, caña, dardo) → 0", () => {
