@@ -186,7 +186,7 @@ function piezasDe(c: CosteTick | undefined, errores: ReadonlyMap<string, number>
 }
 
 /** The histograms and counters /metrics.prom adds to the JSON numbers (B2). */
-export type Histogramas = { coste?: CosteTick; gc?: Record<string, Histograma>; erroresDe?: ReadonlyMap<string, number> };
+export type Histogramas = { coste?: CosteTick; gc?: Record<string, Histograma>; erroresDe?: ReadonlyMap<string, number>; guiones?: readonly [string, string, number][] };
 
 /** Content type of each exposition format. Default: Prometheus text 0.0.4; a scraper that sends
  * `Accept: application/openmetrics-text` gets OpenMetrics 1.0.0 (same samples, counter families without `_total`, `# EOF`). */
@@ -250,6 +250,7 @@ export function toPrometheus(m: Metrics, h: Histogramas = {}, openMetrics = fals
     ['{result="accepted"}', m.piezasTotales.intents], ['{result="dropped"}', m.piezasTotales.descartados], ['{result="bad"}', m.piezasTotales.malos]]);
   const errs = [...(h.erroresDe ?? [])].sort((a, b) => a[0].localeCompare(b[0]));
   add("numinia_feature_errors_total", "counter", "Errors thrown by a feature's code since start (all hooks).", errs.map(([f, n]) => [`{feature="${esc(f)}"}`, n] as [string, number]));
+  if (h.guiones?.length) add("numinia_guion_cortes_total", "counter", "World scripts (apps' main.ts) cut or failed since start, by app and reason: cpu (over its time budget), memoria (over its heap), error (it threw).", h.guiones.map(([app, motivo, n]) => [`{app="${esc(app)}",motivo="${motivo}"}`, n] as [string, number]));
   if (h.coste) {
     hist("numinia_tick_seconds", "Tick duration (all of Instance.tick), since start.", [[{}, h.coste.tick]]);
     hist("numinia_tick_phase_seconds", "Duration of each phase of the tick, since start.", h.coste.fases.map((f) => [{ phase: f.nombre }, f.hist]));

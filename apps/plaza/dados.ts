@@ -36,7 +36,7 @@ export function aTirada3D(t: Pick<Tirada, "n" | "sitio" | "dados" | "valores">, 
 }
 
 /** `vista`: the 3D dice (packages/render dados-vista): a roll heard at a tower falls into its tray. Absent = only the card, the label and the line. */
-export type VistaDados = { tirar(t: { n: number; sitio: string; caras: number; valores: readonly number[]; bandeja: { x: number; y: number; z: number; ancho: number; fondo: number } }): boolean };
+export type VistaDados = { tirar(t: { n: number; sitio: string; caras: number; valores: readonly number[]; bandeja: { x: number; y: number; z: number; ancho: number; fondo: number } }): boolean; /** Take away the dice lying on a tower's tray (a hidden roll replaces them: the others must not keep looking at the old roll as if it were the latest). */ quitar?(sitio: string): void };
 export function montarDados(o: { dados: Dados; yo: () => { x: number; z: number } | null; vista?: VistaDados }): { cerca(): Torre | null } {
   const { dados, yo } = o;
   const carta = el("div", { id: "dados-carta" });
@@ -52,9 +52,10 @@ export function montarDados(o: { dados: Dados; yo: () => { x: number; z: number 
     const lectura = / — (.+)$/.exec(t.texto)?.[1]; // a pool of d6: the house reading (éxito normal, fracaso…)
     const pie = t.oculta && !t.valores.length ? "en secreto" : lectura ? lectura[0].toUpperCase() + lectura.slice(1) : `${t.mod ? `${t.mod > 0 ? "+" : ""}${t.mod} · ` : ""}total ${t.total}`;
     carta.replaceChildren(el("p", { className: "quien", textContent: t.texto.split(" tira ")[0] + ` · ${t.dados} · tirada ${t.n}` }), fila, el("p", { className: "total", textContent: pie }));
-    // the same roll, falling into the tower's tray (story 1: d6 and d20, on a PC; a hidden roll has no values and draws nothing)
+    // the same roll, falling into the tower's tray (on a PC: d4–d100; a hidden roll reaches the others without values and draws nothing — only the roller sees the dice)
     const en3D = o.vista ? aTirada3D(t, dados.torres()) : null;
     if (o.vista && en3D) o.vista.tirar(en3D);
+    else if (o.vista && t.oculta && t.sitio) o.vista.quitar?.(t.sitio); // someone rolled in secret: the old dice go, the new ones are theirs alone to see
     carta.classList.remove("visible"); void carta.offsetWidth; carta.classList.add("visible", "cae");
     clearTimeout(quitar);
     quitar = window.setTimeout(() => carta.classList.remove("visible", "cae"), CARTA_MS);

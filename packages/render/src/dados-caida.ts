@@ -4,7 +4,9 @@
 // face count and value, and the tray: the same inputs give the same flight, bounces and spin on every screen, and the die
 // STOPS with the server's value face up, exactly (the spin is `qFinal · rot(axis, angle·(1-s(t)))`: at s = 1 the extra turn
 // is the identity, so the end pose is qFinal and not an approximation).
-// Dice that are not d6 or d20 are not drawn yet (story 3: d100 and the rest): `tiene3D(caras)` says which are.
+// Story 2 adds d4, d8, d10 and d12 (their tables are in dados-formas.ts) and d100 (two d10: tens «00»–«90» and units «0»–«9»,
+// read together as on the table: «00» + «0» = 100). `tiene3D(caras)` says which are drawn.
+import { FORMAS, esForma } from "./dados-formas.ts";
 
 export type Vec = readonly [number, number, number];
 export type Quat = readonly [number, number, number, number]; // x y z w
@@ -14,10 +16,27 @@ export type Bandeja = { x: number; y: number; z: number; ancho: number; fondo: n
 /** What a tower without its own tray gets: a small floor patch on the ground at its place. */
 export const BANDEJA_DEF = { dx: 0, dz: 0, alto: 0, ancho: 0.8, fondo: 0.6 } as const;
 /** Edge of a d6 / d20 in metres at full size (a tray smaller than the dice needs shrinks them: `escala`). */
-export const ARISTA = { 6: 0.12, 20: 0.1 } as const;
-export const tiene3D = (caras: number): boolean => caras === 6 || caras === 20;
+export const ARISTA = { 4: 0.2, 6: 0.12, 8: 0.17, 10: 0.19, 12: 0.17, 20: 0.1 } as const; // d6/d20: edge; the others: diameter of the circumscribed sphere
+export type Modelo = keyof typeof ARISTA;
+export const tiene3D = (caras: number): boolean => caras === 100 || caras === 6 || caras === 20 || esForma(caras);
+/** The kind of die a d100 is thrown as, and which of its two dice a plan is. */
+export type Rol = "decenas" | "unidades";
+/** What a d100 shows: the tens die (faces «00»…«90», value 1..10 where 10 reads «00») and the units die (faces «0»…«9», 10 reads «0»): 100 = «00» + «0». */
+export function partesD100(valor: number): { decenas: number; unidades: number } {
+  const t = Math.floor((valor % 100) / 10), u = valor % 10;
+  return { decenas: t === 0 ? 10 : t, unidades: u === 0 ? 10 : u };
+}
+/** The number two d100 faces read together (the inverse of `partesD100`). */
+export const valorD100 = (decenas: number, unidades: number): number => ((decenas % 10) * 10 + (unidades % 10)) || 100;
+/** The text written on a face: «7» on a plain die, «40» on the tens die, «3» on the units die. */
+export function rotuloDe(rol: Rol | undefined, valor: number): string {
+  if (rol === "decenas") return String((valor % 10) * 10).padStart(2, "0");
+  if (rol === "unidades") return String(valor % 10);
+  return String(valor);
+}
 
 const PHI = (1 + Math.sqrt(5)) / 2;
+const unitV = (v: Vec): Vec => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
 const norm = (v: Vec): Vec => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
 const dist = (a: Vec, b: Vec) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
@@ -49,14 +68,19 @@ export const D20_VALOR: readonly number[] = (() => {
 })();
 /** The unit normal of the face that reads `valor` on a die of `caras` faces (d6 or d20), or null. */
 export function normalDe(caras: number, valor: number): Vec | null {
+  if (esForma(caras)) {
+    const f = FORMAS[caras], i = f.valores.indexOf(valor);
+    if (i < 0) return null;
+    return f.porVertice ? unitV(f.vertices[i]) : f.normales[i];   // d4: the vertex that must point up; the others: the face
+  }
   if (caras === 6 && valor >= 1 && valor <= 6) return D6_NORMALES[valor - 1];
   if (caras === 20 && valor >= 1 && valor <= 20) return D20_NORMALES[D20_VALOR.indexOf(valor)];
   return null;
 }
 /** Distance from a die's centre to each face when it rests on one (the inscribed sphere): edge/2 for a cube, 0.7558·edge for an icosahedron. */
-export const APOTEMA = { 6: 0.5, 20: 0.755761314 } as const; // × edge
+export const APOTEMA = { 4: FORMAS[4].apotema, 6: 0.5, 8: FORMAS[8].apotema, 10: FORMAS[10].apotema, 12: FORMAS[12].apotema, 20: 0.755761314 } as const; // × edge (d6, d20) or × diameter
 /** The farthest a die lying on a face reaches from its centre ALONG THE FLOOR (× edge): half the diagonal of a cube's face; an icosahedron's circumradius. */
-export const HUELLA = { 6: 0.70711, 20: 0.95106 } as const;
+export const HUELLA = { 4: 0.5, 6: 0.70711, 8: 0.5, 10: 0.5, 12: 0.5, 20: 0.95106 } as const; // the new ones: the circumradius, always enough
 
 // ---- quaternions (x y z w) ----
 const qmul = (a: Quat, b: Quat): Quat => [a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1], a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0], a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3], a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]];
@@ -86,7 +110,8 @@ export function azarDe(s: number): () => number { let a = s >>> 0; return () => 
 const G = 7.5, REBOTE = 0.2, REBOTES = 3, REPOSO_S = 0.3;
 /** One die's flight, all decided: pose(t) needs nothing else. */
 export type Plan = {
-  caras: 6 | 20; valor: number; indice: number;
+  caras: Modelo; valor: number; indice: number;
+  rol?: Rol;                  // only on the two dice of a d100: `valor` is then the face value of THAT die (1..10) and `indice` the roll's value they belong to
   escala: number;             // edge in metres
   inicio: Vec; fin: Vec;      // centre at t = 0 (above, off to one side) and at rest
   altura: number;             // height of the first drop (m, over the resting centre)
@@ -96,11 +121,20 @@ export type Plan = {
 };
 export type Pose = { x: number; y: number; z: number; q: Quat; quieto: boolean };
 
-/** The plan of every die of a roll that has a 3D model (`valores` in the server's order; dice with no model are skipped but keep their index). */
+/** The plan of every die of a roll that has a 3D model (`valores` in the server's order; dice with no model are skipped but keep their index; a d100 is two dice per value). */
 export function planTirada(o: { n: number; sitio: string; caras: number; valores: readonly number[]; bandeja: Bandeja }): Plan[] {
   if (!tiene3D(o.caras)) return [];
-  const caras = o.caras as 6 | 20, c = o.valores.length, B = o.bandeja;
-  const base = semilla(`${o.sitio}|${o.n}|d${caras}`);
+  const centena = o.caras === 100, caras = (centena ? 10 : o.caras) as Modelo;
+  // what is thrown: one die per value, or — for a d100 — the tens die and the units die of each value (an impossible value throws nothing)
+  const lanzados: { valor: number; indice: number; rol?: Rol }[] = [];
+  o.valores.forEach((v, indice) => {
+    if (!centena) { lanzados.push({ valor: v, indice }); return; }
+    if (!Number.isInteger(v) || v < 1 || v > 100) return;
+    const p = partesD100(v);
+    lanzados.push({ valor: p.decenas, indice, rol: "decenas" }, { valor: p.unidades, indice, rol: "unidades" });
+  });
+  const c = lanzados.length, B = o.bandeja;
+  const base = semilla(`${o.sitio}|${o.n}|d${o.caras}`);
   const mezcla = azarDe(base ^ 0x9e3779b9);
   // a grid of cells over the tray, as many as dice, shuffled by the roll (the same shuffle everywhere)
   const cols = Math.max(1, Math.min(c, Math.round(Math.sqrt((c * B.ancho) / B.fondo)))), filas = Math.ceil(c / cols);
@@ -109,11 +143,11 @@ export function planTirada(o: { n: number; sitio: string; caras: number; valores
   for (let i = celdas.length - 1; i > 0; i--) { const j = Math.floor(mezcla() * (i + 1)); [celdas[i], celdas[j]] = [celdas[j], celdas[i]]; }
   const escala = Math.min(ARISTA[caras], (0.85 * Math.min(cw, cf)) / (2 * HUELLA[caras])); // it must fit its cell whatever way it is turned
   const out: Plan[] = [];
-  o.valores.forEach((valor, indice) => {
+  lanzados.forEach(({ valor, indice, rol }, k) => {
     const normal = normalDe(caras, valor);
     if (!normal) return;
-    const r = azarDe(base + Math.imul(indice + 1, 0x85ebca6b));
-    const cel = celdas[indice], cx = cel % cols, cz = Math.floor(cel / cols);
+    const r = azarDe(base + Math.imul(k + 1, 0x85ebca6b));
+    const cel = celdas[k], cx = cel % cols, cz = Math.floor(cel / cols);
     const holgura = Math.max(0, Math.min(cw, cf) / 2 - HUELLA[caras] * escala) * 0.9;
     const px = B.x - B.ancho / 2 + (cx + 0.5) * cw + (r() * 2 - 1) * holgura, pz = B.z - B.fondo / 2 + (cz + 0.5) * cf + (r() * 2 - 1) * holgura;
     const reposo = B.y + APOTEMA[caras] * escala;
@@ -128,7 +162,7 @@ export function planTirada(o: { n: number; sitio: string; caras: number; valores
     let t = 0, h = altura;
     const caida = Math.sqrt((2 * h) / G); tramos.push({ t0: 0, t1: caida, h }); t = caida;
     for (let k = 0; k < REBOTES; k++) { h *= REBOTE; const d = 2 * Math.sqrt((2 * h) / G); tramos.push({ t0: t, t1: t + d, h }); t += d; }
-    out.push({ caras, valor, indice, escala, inicio, fin: [px, reposo, pz], altura, qFinal, eje, giros, tramos, duracion: t + REPOSO_S });
+    out.push({ caras, valor, indice, ...(rol ? { rol } : {}), escala, inicio, fin: [px, reposo, pz], altura, qFinal, eje, giros, tramos, duracion: t + REPOSO_S });
   });
   return out;
 }
@@ -158,6 +192,11 @@ export function poseEn(p: Plan, t: number): Pose {
 /** The face that reads `valor` ends up pointing along +Y (up), within `eps`: what the tests and the page check. */
 export function caraArriba(caras: number, q: Quat): number | null {
   let mejor = -2, valor: number | null = null;
+  if (esForma(caras)) {
+    const f = FORMAS[caras];
+    (f.porVertice ? f.vertices : f.normales).forEach((n, i) => { const y = girar(q, f.porVertice ? unitV(n) : n)[1]; if (y > mejor) { mejor = y; valor = f.valores[i]; } });
+    return valor;
+  }
   const normales = caras === 6 ? D6_NORMALES : caras === 20 ? D20_NORMALES : [];
   normales.forEach((n, i) => { const y = girar(q, n)[1]; if (y > mejor) { mejor = y; valor = caras === 6 ? i + 1 : D20_VALOR[i]; } });
   return valor;
