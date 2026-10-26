@@ -139,7 +139,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | F1 | Amigos, bloqueo y moderación (los roles son H3; toca red y guardado; de `docs/JUGADOR.md`). Primer corte (F1a, 18-10): `/silenciar` calla chat Y voz, se guarda con el mundo y sobrevive reinicios; `/hablar <persona>` lo levanta; bloqueo personal `/bloquear` `/desbloquear <persona>` (solo para quien bloquea: ni chat ni voz; guardado por identidad) y botón «Silenciar/Oír» en Gente; aviso accesible al silenciado. Sin tocar el tope de voces (D-024). Queda: amigos, denunciar | hecho (F1a) | sí |
 | F2 | Portales entre instancias y grupo (toca red e instancias; de `docs/JUGADOR.md`) | para Opus | no |
 | A1 | Página de multitud (50/200/1.000/2.000 robots, completos vs horneados) | pendiente | sí |
-| D1 | Puerta de tipos: TypeScript 7 estricto, 0 errores | pendiente | sí |
+| D1 | Puerta de tipos: TypeScript 7 estricto, 0 errores | primer corte hecho (lote 12): `npm run tipos` (tsc estricto) corre en `npm run gates` como trinquete — 316 errores en 132 archivos apuntados en `tools/tipos-permitidos.json`, 0 nuevos; lo demás ya está en 0. Queda: bajar esos 316 a 0 | parcial | sí |
 | S3 | Dilatación de tiempo cuando el tick no cabe (4.000 bots) | para Opus | no |
 | P4a | Habitante IA sin cerebro (E0): entra como jugador con billete de agente, «· IA» puesto por el servidor, servicio aparte `numinia-habitantes` (Lía en la plaza) | hecho | sí |
 | P4b | Sentidos y verbos completos del habitante: su ficha (V1), verbos del catálogo por escalón, permiso por rol (H3), guía determinista con el árbol de Alma | pendiente | sí |
@@ -326,6 +326,12 @@ por el mismo origen; el cliente usa `wss://` en https. e2e por https ignorando e
 ### D1 — Puerta de tipos
 TypeScript 7 (`tsc --noEmit`, estricto) con las dependencias de tipos que hagan falta (licencias
 libres, versión exacta). 0 errores. Entra en `npm run gates` con su coste medido.
+**Primer corte, hecho (lote 12).** `typescript` 7.0.2, `@types/node` y `@types/three` (versión exacta), `tsconfig.json`
+(estricto, `noEmit`, todo `.ts` de `packages`, `features`, `apps`, `tools` y `test`; los `.mjs` no se miran) y
+`npm run tipos` (`tools/tipos.ts`, ~1,5 s). Hoy hay **316 errores en 132 archivos**: `test` 141, `packages/render` 93,
+`apps/plaza` 40, `features` 17, `packages/server` 14, `apps/banco` 5, `tools` 4, `packages/client` 1, `packages/net` 1; el
+resto de paquetes está en 0. La puerta de `npm run gates` es un trinquete: cada archivo con errores figura en
+`tools/tipos-permitidos.json` con su tope, un archivo que no figura debe tener 0 y ninguno puede subir; `npm run tipos -- --fijar` baja el tope cuando se arregla algo (nunca lo sube). Cuando el fichero quede vacío, D1 está hecho.
 
 ### S3 — Dilatación de tiempo
 Si el tick no cabe en su presupuesto, la simulación va más despacio (como EVE) en vez de acumular
