@@ -55,6 +55,8 @@ async function pierna(engine) {
     p.on("pageerror", (e) => errors.push(String(e)));
     await p.goto(BASE);
     await p.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0 && globalThis.__numinia.constructor.estado.puede, null, { timeout: 30000 });
+    // t_45ef2f70: the builder (its card, its dock) and the environment's panel arrive after the first frame, not with the page
+    await p.waitForFunction(() => !!document.getElementById("ficha-objeto") && !!document.querySelector("#cajon-entorno #panel-entorno"), null, { timeout: 30000 });
     return p;
   };
   const r = { engine, ok: false, pasos: [] };

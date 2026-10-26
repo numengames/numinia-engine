@@ -22,7 +22,7 @@ import { mensajeFalloAR } from "../../packages/render/src/ar.ts"; // J8: a clear
 import funciones from "../../features/cliente.ts";
 import { constructor } from "../../features/objetos/client.ts";
 import { chatDePagina } from "../../features/chat/client.ts";
-import { montarConstructor } from "./constructor.ts";
+import { montarConstructorPuerta } from "./constructor-puerta.ts"; // t_45ef2f70: the real builder (constructor.ts) lands after the first frame
 import { montarReaccionClic } from "./reaccion-clic.ts"; // lote 5: a click on a moñoni makes it hop
 import { sonar as sonarLocalPlaza } from "./sonar.ts";
 import { montarSoltar } from "./soltar.ts";
@@ -33,7 +33,7 @@ import { montarFlecha } from "./flecha.ts"; // T3: the arrow that points at the 
 import { montarGemelos } from "./gemelos.ts"; // H6: the HTML twin of the pictures placed in the world (screen readers, agents)
 import { enlaceAbrible, montarEnlaces } from "./enlaces.ts"; // J4: click on a thing with a link opens it (new tab, after confirming)
 import { disparadores } from "../../features/disparadores/client.ts"; // D-041: the cable — controller
-import { montarCable } from "./cable.ts"; // D-041, historias 5-6 + C: builder's live view + the cable as a sentence with blanks
+import { montarCablePuerta } from "./cable-puerta.ts"; // t_45ef2f70: cable.ts lands after the first frame; was montarCable from "./cable.ts" // D-041, historias 5-6 + C: builder's live view + the cable as a sentence with blanks
 import { contextoDelCable } from "../../features/disparadores/cable-contexto.ts"; // what those blanks may choose (pure)
 import { movedores } from "../../features/movedores/client.ts"; // the movers a «mueve» receiver may name
 import { montarVideoMandos } from "./video-mandos.ts";
@@ -49,7 +49,7 @@ import { anunciar, crearDialogo } from "./paneles.ts"; // S6: el texto accesible
 import { montarMenuBarra } from "./menu-barra.ts"; // ux2-barra: the bar's «Cámara» (P) and «Menú» (O) drop-downs
 import { estadoCamara, filasDeAyuda } from "./menu-logica.ts";
 import { crearSonidos, ponerSonidos, RUTA_TABLA, sonidos } from "../../packages/render/src/audio/sonidos.ts"; // S6: the house catalogue (its table comes from /sonidos.json; the files are served by their sha256)
-import { montarMapa } from "./mapa.ts";
+import { montarMapaPuerta } from "./mapa-puerta.ts"; // t_45ef2f70: the real map (mapa.ts) lands after the first frame
 import { crearIrAndando, frase } from "../../packages/client/src/ir-andando.ts";
 import { montarFicha } from "./ficha.ts";
 import { avatarQueLlevas, lineaDeTu } from "./tu-logica.ts"; // «Tú»: which house avatar you wear, for its portrait
@@ -304,7 +304,7 @@ if (esTactil()) {
 }
 
 // ---- H1 + M22: the builder, for whoever may build (the server says so on entering): panel, gizmo, grab ----
-const constructorUI = montarConstructor(constructor, view, document.getElementById("construir") as HTMLButtonElement, document.getElementById("panel-construir")!,
+const constructorUI = montarConstructorPuerta(constructor, view, document.getElementById("construir") as HTMLButtonElement, document.getElementById("panel-construir")!,
   { volver: () => mapa.volver(), puedeVolver: () => mapa.puedeVolver(),
     mundo: () => ({ disparadores: disparadores.lista(), cerraduras: cerraduras.cerraduras(), contadores: contadores.lista() }), abrirCable: () => cable.mostrar(),
     alAbrir: (q) => { misiones.hace(q === "construir" ? "abre_construir" : q === "anadir" ? "abre_biblioteca" : "abre_cable"); }, // T1: only sent while a step asks for it
@@ -326,7 +326,7 @@ const huecos = montarHuecos({ constructor, view, rellenar: soltar.rellenar, deci
 // ---- J4: a thing may carry a link (set in the inspector); a click on it opens it in a new tab, after confirming ----
 const enlaces = montarEnlaces({ constructor, view, construyendo: () => construyendo(view) });
 const gemelos = montarGemelos({ constructor, session, view, enlaces, abrible: enlaceAbrible }); // H6: «Imágenes del mundo», read by the screen reader; `__numinia.gemelos.lista()` for agents
-const cable = montarCable({ constructor, disparadores, aqui: () => (session.entity >= 0 ? session.selfPosition(1) : null), decir: (t) => soltar.decir(t), panel: constructorUI.cajon("cable"),
+const cable = montarCablePuerta({ constructor, disparadores, aqui: () => (session.entity >= 0 ? session.selfPosition(1) : null), decir: (t) => soltar.decir(t), panel: constructorUI.cajon("cable"),
   // what the blanks of the sentence may choose: the world's own things (the server still checks every choice on save)
   contexto: () => contextoDelCable({ objetos: constructor.lista(), movedores: movedores.lista(), misiones: misiones.libro(), sonidos: catalogoSonidos.tabla() }) });
 // ---- D-042: a code lock opens its own keypad (HTML); a key lock keeps the plain J4 flow ----
@@ -466,7 +466,7 @@ const andar = crearIrAndando({
 let andarCorrer = false;
 /** The id of a world object from a map marker's id (`c:objetos:<id>`); "" for anything else (a person, a mission, a spot). */
 const idDeObjeto = (marca: string): string => (marca.startsWith("c:objetos:") ? marca.slice("c:objetos:".length) : "");
-const mapa = montarMapa({ session, view, otros,
+const mapa = montarMapaPuerta({ session, view, otros,
   andar: { ir: (d) => { const yo = session.entity >= 0 ? session.selfPosition(1) : null; return yo ? andar.empezar(d, yo) : { ok: false, motivo: "invalido" as const }; }, parar: () => andar.cancelar(), activo: () => andar.activo() },  alAgente: (q) => { mapa.cerrar(); if (view.personaEnPantalla(q) && gente.tarjeta(q)) return; gente.elegir(q); }, /* the big map is a modal dialog: close it so the card shows; an AI behind the camera gets her sheet in «Gente» instead */ alIr: (donde) => { constructorUI.alIr({ id: donde.id.replace(/^c:objetos:/, "") }); },
   /* MIS-240: a thing of the world picked on the map: «Editar» opens Construir on it (only when you may build and it is an object, not a person or a mission) */
   puedeEditar: (donde) => { const id = idDeObjeto(donde.id); return id !== "" && constructorUI.puedeEditar(id); }, alEditar: (donde) => constructorUI.editar(idDeObjeto(donde.id)), teletransporte: { activo: () => viajar.activo(), ir: (x, z, nombre) => viajar.irAPunto(x, z, nombre) } });
