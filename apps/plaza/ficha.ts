@@ -7,7 +7,7 @@
 // Sections come from a registry: a feature or an adventure adds its own with `__numinia.ficha.seccion(id, {...})`.
 // innerHTML below only ever receives icono()'s output (a fixed table of house SVGs); every text goes in with textContent.
 import { crearDialogo } from "./paneles.ts";
-import { resumenTexto } from "./inventario.ts";
+import { resumenTexto } from "./inventario-resumen.ts";
 import { icono } from "./iconos.ts";
 import { retratoDe, insigniasDelLibro, lineaDeTu, equipoDeLaLista, aventurasEnCurso } from "./tu-logica.ts";
 import { ICONO_TIPO, SILUETA, colorDe, nombreConCuenta } from "./bolsa-rejilla.ts";

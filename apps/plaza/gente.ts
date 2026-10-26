@@ -15,13 +15,12 @@
 import type { Cambio, Persona } from "../../features/teletransporte/client.ts";
 import { crearDialogo, anunciar } from "./paneles.ts";
 import { icono } from "./iconos.ts";
-import { rotularBoton } from "./menu-secciones-ui.ts"; // v2 paridad: icon, name and tooltip from the one list of sections
 import {
   CLAVE_AMIGOS, CLAVE_SILENCIADOS, CLAVE_BLOQUEADOS, leerAmigos, escribirAmigos, leerMarcas, escribirMarcas, anadir, quitar,
   buscar, claveDe, normal, fusionar, filtrar, haceTexto, fechaTexto, distanciaTexto, type Amigo, type Conectado,
 } from "./amigos.ts";
 import { montarTarjeta } from "./gente-tarjeta.ts";
-import { el, botonCon, luzEl, ojosEl, retrato, insigniaBaculo, insigniaBurbuja, type Res, type Mirada, type Elegido, type Acciones } from "./gente-comun.ts";
+import { el, botonCon, crearBotonGente, luzEl, ojosEl, retrato, insigniaBaculo, insigniaBurbuja, type Res, type Mirada, type Elegido, type Acciones } from "./gente-comun.ts";
 import type { IAPublica } from "../../features/ia/feature.ts";
 import { cuentaGente, fichaIA, luzEscucha, sinMarca, subIA, textos } from "./gente-ia.ts";
 export type { Res, Mirada, Elegido, Acciones };
@@ -38,6 +37,8 @@ type Viajar = {
 };
 export type OpcionesGente = {
   viajar: Viajar; barra: HTMLElement | null; orden?: Orden;
+  /** The bar's button when the façade already made it (gente-puerta.ts); else this makes it. */
+  boton?: HTMLButtonElement;
   /** The world's name, for «En <mundo>». */
   mundo?: () => string;
   mirada?: Mirada;
@@ -79,10 +80,7 @@ export function montarGente(o: OpcionesGente) {
   const guardarAmigos = () => escribir(CLAVE_AMIGOS, escribirAmigos(amigos));
   const guardarMarcas = () => { escribir(CLAVE_SILENCIADOS, escribirMarcas(silenciados)); escribir(CLAVE_BLOQUEADOS, escribirMarcas(bloqueados)); };
 
-  const boton = el("button", { type: "button", id: "gente-abrir", className: "solo-icono" });
-  rotularBoton(boton, "gente"); // v2 paridad: icon, name and tooltip from the one list of sections
-  const foto = document.getElementById("foto-abrir");
-  if (o.barra && foto?.parentElement === o.barra) foto.before(boton); else (o.barra ?? document.body).appendChild(boton);
+  const boton = o.boton ?? crearBotonGente(o.barra); // t_45ef2f70: the façade (gente-puerta.ts) makes the button at once and hands it over
 
   let reloj = 0;
   const panel = crearDialogo({ id: "gente", titulo: "Gente", tecla: "KeyL", boton,
@@ -438,6 +436,7 @@ export function montarGente(o: OpcionesGente) {
 
   // silenced voices come back silenced: whenever the list says who is who, the marks find their entity again
   const reaplicar = () => { if (!o.voz || !silenciados.size) return; for (const p of conectados()) if (silenciados.has(claveDe(p)) || silenciados.has(`n:${normal(p.nombre)}`)) o.voz.silenciar(p.quien, true); };
+  reaplicar(); // t_45ef2f70: the panel now mounts after the first frame, so the list may have arrived already: put the silenced voices back at once
   o.ia?.alCambiar(() => { if (panel.abierto) pintar(); tarjeta.repintar(); }); // an AI came, went, fell asleep or woke up
   viajar.alCambiar((q) => {
     if (q === "viaje" && viajar.estado.viaje) { estadoP.textContent = viajar.estado.viaje.texto; if (!panel.abierto && !viajar.estado.viaje.ok) anunciar(viajar.estado.viaje.texto); }

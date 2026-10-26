@@ -10,7 +10,7 @@ import { escribiendo } from "./escribiendo.ts";
 import { montarPescaManos } from "./pesca-vr.ts"; // N4: the rod in your hand in VR, and a gamepad
 import { consejo } from "../../features/pesca/client.ts";
 import { esTactil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
-import { avisarRecibido } from "./inventario.ts"; // v3: the Bolsa button pulses when my fish has gone into the Inventario
+import { avisarRecibido } from "./inventario-resumen.ts"; // v3: the Bolsa button pulses when my fish has gone into the Inventario
 import { sonarFase } from "./pesca-sonido.ts"; // the nibble and the bite sound through the page's single door (sonar.ts bridge), once
 
 type Res = { ok: true } | { ok: false; why: string };
