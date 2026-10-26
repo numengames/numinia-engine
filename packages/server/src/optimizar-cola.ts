@@ -4,6 +4,8 @@
 //   <uploads>/optimizados/<sha256>.glb      the copy (optimizar.ts says how it is made and checked)
 //   <uploads>/optimizados/<sha256>.glb.gz   the same, gzipped once (activos.ts sends it to pages that take gzip)
 //   <uploads>/optimizados/<sha256>.png.webp a PNG's lossless WebP (sent to browsers that say they take WebP)
+//   <uploads>/optimizados/<sha256>.<ext>.p<N>.webp  a picture's smaller copy for a device tier (N = 2048 / 1024 / 512 px on the
+//                                           longest side; lossy WebP; sent for /a/<sha256>.<ext>?px=N — optimizar.ts «Tier copies»)
 //   <uploads>/optimizados/informe.jsonl     one line per file tried: bytes before/after or why it stays as it is
 // The command line does the same by hand: `npm run optimizar -- <world folder>` (optimizar-cli.ts).
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -17,11 +19,19 @@ import type { Resultado } from "./optimizar.ts";
 
 /** H13: a level of detail in the report: its triangles and its bytes (raw and gzipped). */
 export type LodInforme = { nivel: number; triangulos: number; bytes: number; gz?: number };
+/** A picture's tier copy in the report: its size in px and its bytes. */
+export type CopiaInforme = { px: number; ancho: number; alto: number; bytes: number };
 export type LineaInforme = { cuando: string; sha256: string; tipo: string; antes: number; despues: number; gz?: number; ms: number; motivo?: string; ext?: string; webp?: number;
+  /** A picture (png/jpg/webp): the tier copies made (`[]` = none needed, then `copiasMotivo` says why). A line without `pxs` predates the tier copies: yaProbados does not count it, so the picture is revisited. */
+  pxs?: CopiaInforme[]; copiasMotivo?: string;
   /** H13 (a .glb only): the model's triangles and the levels made — `[]` when it gets none (then `lodMotivo` says why). A line without `lods` predates H13: yaProbados does not count it, so the model is revisited. */
   triangulos?: number; lods?: LodInforme[]; lodMotivo?: string };
 /** H13: the name of a level of detail beside the copy (served at /a/<sha256>.lod<n>.glb). */
 export const nombreLod = (sha: string, nivel: number): string => `${sha}.lod${nivel}.glb`;
+/** A picture's tier copy in optimizados/ (served for `?px=<px>`). */
+export const nombreCopiaPx = (sha: string, tipo: string, px: number): string => `${sha}.${tipo}.p${px}.webp`;
+/** The kinds whose report line must carry `pxs` to count as tried. */
+const IMAGENES = new Set(["png", "jpg", "webp"]);
 /** The copy's file name in optimizados/ (a PNG's is <sha>.png.webp). */
 export const nombreCopia = (sha: string, tipo: string, ext?: string): string => `${sha}.${tipo}${ext && ext !== tipo ? `.${ext}` : ""}`;
 const SUBIDO = /^([0-9a-f]{64})\.([a-z0-9]{2,4})$/;
@@ -40,6 +50,15 @@ export async function guardarCopia(dir: string, sha: string, tipo: string, r: Re
       linea.lods.push({ nivel: x.nivel, triangulos: x.triangulos, bytes: x.bytes.length, gz: z.length });
     }
   }
+  if (r.copias) { // a picture's tier copies: before the report line, like the levels of detail
+    linea.pxs = [];
+    if (r.copiasMotivo) linea.copiasMotivo = r.copiasMotivo;
+    for (const c of r.copias) {
+      const nombre = nombreCopiaPx(sha, tipo, c.px);
+      await writeFile(join(dir, `.${nombre}.tmp`), c.bytes); await rename(join(dir, `.${nombre}.tmp`), join(dir, nombre));
+      linea.pxs.push({ px: c.px, ancho: c.ancho, alto: c.alto, bytes: c.bytes.length });
+    }
+  }
   if (r.bytes) {
     const nombre = nombreCopia(sha, tipo, r.ext);
     if (COMPRIMIBLES.has(tipo) && !r.ext) {
@@ -56,7 +75,7 @@ export async function guardarCopia(dir: string, sha: string, tipo: string, r: Re
 /** The files already tried (made or left as they are), from the report. */
 export function yaProbados(dir: string): Set<string> {
   const s = new Set<string>();
-  try { for (const l of readFileSync(join(dir, "informe.jsonl"), "utf8").split("\n")) { if (!l) continue; try { const x = JSON.parse(l) as LineaInforme; if (x.tipo !== "glb" || x.lods) s.add(`${x.sha256}.${x.tipo}`); } catch { /* a torn line */ } } } catch { /* none yet */ }
+  try { for (const l of readFileSync(join(dir, "informe.jsonl"), "utf8").split("\n")) { if (!l) continue; try { const x = JSON.parse(l) as LineaInforme; if (x.tipo === "glb" ? x.lods : IMAGENES.has(x.tipo) ? x.pxs : true) s.add(`${x.sha256}.${x.tipo}`); } catch { /* a torn line */ } } } catch { /* none yet */ }
   return s;
 }
 
@@ -122,6 +141,7 @@ export class ColaOptimizar {
         if (this.parado) return;
         const l = await guardarCopia(this.dir!, sha, tipo, r, r.gz, r.lodsGz);
         if (l.lods?.length) this.log(`[optimizar] ${sha.slice(0, 12)}….${tipo}: ${l.lods.length} niveles de detalle (${l.triangulos} → ${l.lods.map((x) => x.triangulos).join(" → ")} triángulos)`);
+        if (l.pxs?.length) this.log(`[optimizar] ${sha.slice(0, 12)}….${tipo}: copias por nivel ${l.pxs.map((x) => `${x.px} px ${mb(x.bytes)} MB`).join(" · ")} (original ${mb(r.antes)} MB)`);
         if (r.bytes) { this.stats.hechos++; this.stats.ahorrados += r.antes - r.despues; this.log(`[optimizar] ${sha.slice(0, 12)}….${tipo}: ${mb(r.antes)} → ${mb(r.despues)} MB${l.gz ? ` (${mb(l.gz)} MB con gzip)` : r.ext ? ` (${r.ext} sin pérdida)` : ""} en ${r.ms} ms`); }
         else { this.stats.dejados++; this.log(`[optimizar] ${sha.slice(0, 12)}….${tipo} se queda como está: ${r.motivo}`); }
       } catch (e) { this.stats.dejados++; this.log(`[optimizar] no pude con ${k}: ${String((e as Error)?.message ?? e).slice(0, 160)}`); }

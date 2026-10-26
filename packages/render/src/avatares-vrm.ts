@@ -10,12 +10,15 @@ import type { MToonMaterialLoaderPlugin, VRM, VRMHumanBones } from "@pixiv/three
 import { VRMAnimationLoaderPlugin, createVRMAnimationHumanoidTracks } from "@pixiv/three-vrm-animation";
 import type { VRMAnimation } from "@pixiv/three-vrm-animation";
 import { TRIANGULOS_MAX } from "./avatares-politica.ts";
+import { promedioColor } from "./cuerpo-vr.ts";
 
 /** U13: one mesh's "aa" (mouth open) morph target, kept aside before `sinFormas` drops every shape — the other 15
  * (visemes for e/i/o/u and the blink) stay dropped; only this one may come back, and only while needed. */
 type Boca = Map<THREE.Mesh, THREE.BufferAttribute>;
 /** A VRM file parsed once: never drawn itself, only cloned. */
-export type Plantilla = { vrm: VRM; cadera: number; /** the lowest ankle over the model's root at rest (m): where a planted foot sits (apoyoDePies) */ pie: number; triangulos: number; clips: Map<string, THREE.AnimationClip>; boca: Boca | null };
+export type Plantilla = { vrm: VRM; cadera: number; /** the lowest ankle over the model's root at rest (m): where a planted foot sits (apoyoDePies) */ pie: number; triangulos: number; clips: Map<string, THREE.AnimationClip>; boca: Boca | null;
+  /** t_8217ffea (N2): the head bone's height over the model's root at rest (m); the VR body is scaled so this meets your eyes. */ cabeza: number;
+  /** t_8217ffea (N1): the colour of this avatar's hands (0xRRGGBB), read from its texture on first ask; null = could not tell. */ piel?: number | null };
 /** One player's copy: its own bones and normalized rig, shared geometry, materials and clips.
  * `boca`: this copy's meshes that carry the kept "aa" shape, each remembering its normal (shape-less) geometry
  * so U13 can put it back unchanged the moment nobody near is heard any more. */
@@ -95,7 +98,9 @@ export function crearCargador() {
       sinFormas(vrm.scene);
       aLambert(vrm.scene);
       const cadera = vrm.humanoid.normalizedRestPose.hips?.position?.[1] ?? 1;
-      return { vrm, cadera, pie: pieMasBajo(vrm.humanoid, vrm.scene) ?? 0, triangulos, clips: new Map(), boca };
+      vrm.scene.updateMatrixWorld(true);
+      const cabeza = vrm.humanoid.getRawBoneNode("head")?.getWorldPosition(new THREE.Vector3()).y ?? 1.5;
+      return { vrm, cadera, pie: pieMasBajo(vrm.humanoid, vrm.scene) ?? 0, triangulos, clips: new Map(), boca, cabeza };
     },
     async animacion(url: string): Promise<VRMAnimation> {
       const gltf = await (await listo).loadAsync(url);
@@ -213,4 +218,59 @@ export function pieMasBajo(humanoid: VRM["humanoid"], raiz: THREE.Object3D): num
   let min = Infinity;
   for (const nombre of HUESOS_PIE) { const h = humanoid.getRawBoneNode(nombre); if (h) min = Math.min(min, h.getWorldPosition(_a).y - _b.y); }
   return min === Infinity ? null : min;
+}
+
+/** t_8217ffea (N2): your own body in VR hides what would be wrong from inside it: the head (the camera is there) and both arms (they
+ * would play the walk clip next to your real hands, which manos.ts draws). A raw bone's scale is not touched by the animation or by
+ * `humanoid.update()` (they write rotation and position only), so it stays until it is put back. 0.001, never 0: a zero scale makes
+ * a skinned vertex's normal NaN. Cheap: three bone scales. */
+export function recortarCuerpo(c: Copia, recortar: boolean): void {
+  for (const nombre of ["head", "leftUpperArm", "rightUpperArm"] as const) c.humanoid.getRawBoneNode(nombre)?.scale.setScalar(recortar ? 0.001 : 1);
+}
+
+/** t_8217ffea (N1): the colour of this avatar's hands, from its own texture: the mean of the texels at the UVs of the vertices that
+ * hang (> half the weight) on a hand or a forearm bone. It is the avatar's real skin, flesh or bone or steel, not a guess. Read once
+ * (a 128 px downscale of the texture, a few thousand samples), cached on the template; null where it cannot be read (no texture,
+ * no canvas, a texture that is not an image), and then the hands keep the default skin. */
+export function colorMano(p: Plantilla): number | null {
+  if (p.piel !== undefined) return p.piel;
+  p.piel = null;
+  try {
+    if (typeof document === "undefined") return null;
+    const h = p.vrm.humanoid;
+    const huesos = new Set<THREE.Object3D>();
+    for (const n of ["leftHand", "rightHand", "leftLowerArm", "rightLowerArm"] as const) { const b = h.getRawBoneNode(n); if (b) huesos.add(b); }
+    if (!huesos.size) return null;
+    const muestras: number[] = [];
+    const lienzos = new Map<unknown, { d: Uint8ClampedArray; w: number; h: number } | null>();
+    p.vrm.scene.traverse((o) => {
+      const m = o as THREE.SkinnedMesh;
+      if (!m.isSkinnedMesh || muestras.length > 3 * 6000) return;
+      const mat = (Array.isArray(m.material) ? m.material[0] : m.material) as THREE.MeshLambertMaterial;
+      const img = mat?.map?.image as CanvasImageSource & { width: number; height: number } | undefined;
+      const uv = m.geometry.attributes.uv, si = m.geometry.attributes.skinIndex, sw = m.geometry.attributes.skinWeight;
+      if (!img || !uv || !si || !sw) return;
+      let px = lienzos.get(img);
+      if (px === undefined) {
+        const c = document.createElement("canvas"); c.width = c.height = 128;
+        const g = c.getContext("2d", { willReadFrequently: true });
+        px = null;
+        if (g) { g.drawImage(img, 0, 0, 128, 128); px = { d: g.getImageData(0, 0, 128, 128).data, w: 128, h: 128 }; }
+        lienzos.set(img, px);
+      }
+      if (!px) return;
+      const huesosMalla = m.skeleton.bones, tinte = mat.color ?? new THREE.Color(1, 1, 1);
+      for (let v = 0; v < uv.count; v++) {
+        let peso = 0;
+        for (let k = 0; k < 4; k++) if (huesos.has(huesosMalla[si.getComponent(v, k)])) peso += sw.getComponent(v, k);
+        if (peso <= 0.5) continue;
+        const x = Math.min(px.w - 1, Math.max(0, Math.floor((uv.getX(v) % 1 + 1) % 1 * px.w))), y = Math.min(px.h - 1, Math.max(0, Math.floor((uv.getY(v) % 1 + 1) % 1 * px.h)));
+        const i = (y * px.w + x) * 4;
+        if (px.d[i + 3] < 128) continue;
+        muestras.push(px.d[i] * tinte.r, px.d[i + 1] * tinte.g, px.d[i + 2] * tinte.b);
+      }
+    });
+    p.piel = promedioColor(muestras);
+  } catch { p.piel = null; }
+  return p.piel ?? null;
 }
