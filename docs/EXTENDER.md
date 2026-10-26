@@ -371,6 +371,13 @@ mi-aventura/
   *.md                 notas para quien escribe (no se leen)
 ```
 
+**`habitante@1` y su cuerpo propio (`apariencia`)** — sin ella, un habitante lleva el robot de la casa. Con
+`"apariencia": { "modelo": "<sha256 de un .glb que lleva el mundo>", "escala": 1 }` (la misma forma que en `pnj@1`;
+la escala es opcional) se dibuja ese modelo, **mirando hacia donde anda** (los modelos propios miran a +z). El servidor
+lo cuenta en el estado `avatar` (`tipo: "modelo"`, `sha`, `ext: "glb"`, `escala`) y la página lo coloca como a una
+persona del mundo; una persona nunca puede elegir ese tipo. Si el `.glb` no está en el servidor, vale el robot (nunca un
+cuerpo invisible). Hoy es un modelo quieto (sin animar al andar); lo animado queda para después.
+
 **`habitante@1` y lo que sabe (`cerebro.saber`, E2)** — una IA con cerebro (escalón 2 o 4) conoce quién es por su
 `cerebro.persona`, que no pasa de **1500 bytes**. Para lo que no cabe ahí (un programa de horarios, dónde está cada
 cosa, una lista de patrocinadores) el fichero del habitante puede llevar `"cerebro": { …, "saber": "saber/procyon.md" }`:

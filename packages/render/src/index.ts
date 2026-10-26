@@ -38,7 +38,8 @@ export type { ControlVideo } from "./medios.ts";
 export type { Donde, Eje, Herramienta, Fase, Paso, Editor } from "./gizmo.ts";
 export { transformarGrupo, centroGrupo } from "./grupo.ts";
 import { createAvatares } from "./avatares.ts";
-import { asentadoEn, sueloDeVista } from "./avatares-politica.ts";
+import { asentadoEn, nuevaMarcha, seguir, sueloDeVista } from "./avatares-politica.ts";
+import type { Marcha } from "./avatares-politica.ts";
 import type { SueloTerreno } from "./avatares-politica.ts";
 import { prepararGltf, usarRenderer } from "./gltf.ts";
 import { contarPiezas, ordenCarga, puedeEmpezar } from "./carga-orden.ts";
@@ -146,7 +147,9 @@ async function leerGpu(renderer: THREE.WebGPURenderer, backend: Backend): Promis
   } catch { return ""; }
 }
 
-export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; movil?: boolean; assetUrl?: (model: string) => string; lods?: (sha: string) => number; leer?: (url: string) => Promise<ArrayBuffer | null>; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number; eleccion?: (clave: number | "yo") => number | undefined } } = {}) {
+export async function createView(parent: HTMLElement, opts: { forceWebGL?: boolean; arMaxMs?: number; battery?: boolean; maxFps?: number; movil?: boolean; assetUrl?: (model: string) => string; lods?: (sha: string) => number; leer?: (url: string) => Promise<ArrayBuffer | null>; avatares?: { catalogo?: CatalogoAvatares; yo?: () => number; eleccion?: (clave: number | "yo") => number | undefined;
+    /** habitante@1 `apariencia`: the .glb of the world (sha256, size) this other player wears INSTEAD of an avatar, or undefined. Asked every sync(). */
+    cuerpoPropio?: (id: number) => { sha: string; escala: number } | undefined } } = {}) {
   // U25: `movil` = the device class a forced profile declares (?aparato, development only); undefined = read the device
   const power = createPower(conClase(readCaps(), opts.movil), { battery: opts.battery, maxFps: opts.maxFps });
   // XR on a WebGPU backend needs the session's "webgpu" feature (XRGPUBinding); Quest Browser 152 has neither (measured
@@ -209,6 +212,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   selfMesh.visible = false;
   world.add(selfMesh);
   const others = new Map<number, THREE.Mesh>();
+  const cuerposPropios = new Map<number, { marcha: Marcha }>(), sinCuerpo = new Map<number, THREE.Mesh>(); let antesPropios = -1; // habitante@1 `apariencia`: who wears a .glb of the world, and the others for the VRM pass
   // N1: the camera (mouse, keys, touch, gamepad; play and build modes) — packages/render/src/camara.ts
   const cam = createCamara(camera, renderer.domElement, { enXR: () => renderer.xr.isPresenting });
   const feet = { x: 0, y: 0, z: 0 };
@@ -284,6 +288,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     punta: (l: "izq" | "der", pos: THREE.Vector3) => manosReal?.punta(l, pos) ?? false,
     vibrar: (l: "izq" | "der", v?: number, ms?: number) => manosReal?.vibrar(l, v, ms),
     entrada: (l: "izq" | "der") => manosReal?.entrada(l) ?? null,
+    pincel: (l: "izq" | "der") => manosReal?.pincel(l) ?? null, // J18b: where a brush in this hand paints, and the trigger
     rayoDe: (l: "izq" | "der") => manosReal?.rayoDe(l) ?? null,
     estado: () => manosReal?.estado() ?? { izq: null, der: null },
   };
@@ -401,6 +406,18 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     actualizar: (dt: number) => dardosVRReal?.actualizar(dt),
     real: () => dardosVRReal,
     contar: () => dardosVRReal?.contar() ?? null,
+  };
+
+  // painting in VR (J18b story 4): the stroke being painted, live under the hand (packages/render/src/trazo-vivo.ts; lazy, fetched by the page's pintar-vr.ts
+  // only on a VR-capable device). `cadaCuadro` is the page's per-frame reader (after the hands moved); then the live tube uploads what changed.
+  let trazoVivoReal: import("./trazo-vivo.ts").TrazoVivo | null = null, trazoVivoCarga: Promise<import("./trazo-vivo.ts").TrazoVivo> | null = null;
+  const cuadrosPincel = new Set<(dt: number) => void>();
+  const pincelVR = {
+    cargar: () => (trazoVivoCarga ??= import("./trazo-vivo.ts").then((m) => (trazoVivoReal = m.crearTrazoVivo({ world })))),
+    cadaCuadro(fn: (dt: number) => void): () => void { cuadrosPincel.add(fn); return () => cuadrosPincel.delete(fn); },
+    actualizar(dt: number): void { for (const f of cuadrosPincel) { try { f(dt); } catch (e) { console.warn("[pincel]", e); } } trazoVivoReal?.actualizar(); },
+    real: () => trazoVivoReal,
+    contar: () => trazoVivoReal?.contar() ?? null,
   };
 
   // beacons (R1): a column of light with a text at a world point; expires on its own
@@ -1069,7 +1086,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
     editor.frame();
     entorno.actualizar(); naturaleza.actualizar(dtSeconds); espacioBase.actualizar(dtSeconds); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds); ancestros.actualizar(dtSeconds, selfXZ);
-    if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); cuerpoEnVR(); pesca.actualizar(dtSeconds); dardosVR.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); oyente?.actualizar(); dibujarCuadro(); return; } // S5: tras vr.update, el oyente lee la pose de la cabeza de este cuadro // N4: after the hands moved, so a held rod does not trail a frame
+    if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); cuerpoEnVR(); pesca.actualizar(dtSeconds); dardosVR.actualizar(dtSeconds); pincelVR.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); oyente?.actualizar(); dibujarCuadro(); return; } // S5: tras vr.update, el oyente lee la pose de la cabeza de este cuadro // N4: after the hands moved, so a held rod does not trail a frame
     pesca.actualizar(dtSeconds); dardos.actualizar(dtSeconds); dados3d.actualizar(dtSeconds);
     if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
     cam.update(dtSeconds, selfXZ ? feet : null);
@@ -1119,6 +1136,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     dardos,
     /** dardos in VR: load the 3D side (`cargar()`), then enMano / volar / soltar / posicion / local / aMundo / cadaCuadro; `contar()` for checks. */
     dardosVR,
+    /** painting in VR (J18b): load the live tube (`cargar()`), then marcar / empezar / anadir / seguir / terminar / cancelar / apagar; `cadaCuadro(fn)` is the page's per-frame reader; `contar()` for checks. */
+    pincelVR,
     /** N17: web screens — a panel everywhere, the live page in CSS3D near you on PC/phone, «Abrir fuera de VR» in VR (web.ts). */
     web,
     /** ancestros v1: the Salón de los Ancestros (muros, hologramas, paneles, dice, contar) — packages/render/src/ancestros.ts. */
@@ -1153,8 +1172,30 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
         if (!m || now > until) bounces.delete(t);
         else m.position.y += Math.abs(Math.sin(now / 90)) * 0.35;
       }
+      // habitante@1 `apariencia`: an AI that has a body of its own is drawn as a model of the world (the same path as a person of the
+      // world, `place`), turned where it walks (our models face +z: yaw = atan2(vx, vz), the avatars' rule); its capsule hides, no VRM is dressed on it.
+      const propios = opts.avatares?.cuerpoPropio;
+      if (propios || cuerposPropios.size) {
+        const dtC = antesPropios < 0 ? 0 : Math.min(0.25, (now - antesPropios) / 1000); antesPropios = now;
+        for (const [id, m] of others) {
+          const c = propios?.(id);
+          if (!c) continue;
+          let k = cuerposPropios.get(id);
+          if (!k) { k = { marcha: nuevaMarcha() }; cuerposPropios.set(id, k); }
+          seguir(k.marcha, m.position.x, m.position.z, dtC);
+          m.layers.mask = 0; // the capsule's way of saying «something else draws this one» (avatares.ts does the same)
+          this.place(`cuerpo:${id}`, { model: c.sha, x: m.position.x, y: m.position.y - 0.85, z: m.position.z, rx: 0, ry: k.marcha.rumbo / RAD, rz: 0, sx: c.escala, sy: c.escala, sz: c.escala, animate: false });
+        }
+        for (const [id, k] of cuerposPropios) {
+          const m = others.get(id);
+          if (m && propios?.(id)) continue;
+          this.place(`cuerpo:${id}`, null); cuerposPropios.delete(id); if (m) m.layers.mask = 1; // it left, or changed body: the capsule comes back (a VRM, if it gets one, hides it again)
+        }
+        sinCuerpo.clear();
+        for (const [id, m] of others) if (!cuerposPropios.has(id)) sinCuerpo.set(id, m);
+      }
       // J1: VRMs follow the capsules (hops and jumps included); yours hides in first person (camera branch: view.cam)
-      avs.sync(self ? selfMesh : null, others, !!(this as unknown as { cam?: { primeraPersona?: () => boolean } }).cam?.primeraPersona?.(), now);
+      avs.sync(self ? selfMesh : null, cuerposPropios.size ? sinCuerpo : others, !!(this as unknown as { cam?: { primeraPersona?: () => boolean } }).cam?.primeraPersona?.(), now);
     },
     /** U13: who you hear right now, 0..1 (apps/plaza/voz.ts; never your own id, voz.ts never hears you). Drives
      * that avatar's "aa" mouth shape, kept aside at load (J1's avatares-vrm.ts `bocaDe`) just for this. */

@@ -6,9 +6,11 @@
 // Full stroke (600 points): `punto` closes it and starts another one by itself. The live tube under the hand and the trigger/pinch input
 // (vr.ts, manos.ts) come next; they call this.
 import { sha256Hex } from "../../packages/net/src/ficheros.ts";
-import { crearPincel, opcionesValidas, type Opciones, type Pincel, type Punta } from "./pincel.ts";
+import { crearPincel, opcionesValidas, type Opciones, type Pincel, type Punta, type Resultado } from "./pincel.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
+/** What `punto` says about a tip: whether the brush kept it as a control point (the live tube draws the same ones). */
+export type ResPunto = { ok: true; r: Resultado } | { ok: false; why: string };
 type Msg = Record<string, unknown>;
 export type OpcionesPintar = {
   session: { features: { send(feature: string, intent: string, msg: Msg): Res; readonly log: readonly { feature: string; event: string; msg: Msg }[]; readonly stats: { events: number } } };
@@ -79,12 +81,13 @@ export function montarPintar(o: OpcionesPintar) {
       pincel = crearPincel(v);
       return { ok: true };
     },
-    /** A tip of the brush (world metres, pressure 0–1). When the stroke is full it is sent and a new one starts where it ended. */
-    punto(p: Punta): Res {
+    /** A tip of the brush (world metres, pressure 0–1). `r` says what the brush did with it: «primero» / «añadido» = kept as a control point, «igual» = not
+     *  (too close), «lleno» = it was the last point the stroke holds: the stroke was sent and a new one started at this same place. */
+    punto(p: Punta): ResPunto {
       if (!pincel) return { ok: false, why: "no estás pintando: llama a empezar primero" };
       const r = pincel.mover(p);
       if (r === "lleno") { const op = pincel.opciones; cerrar(); pincel = crearPincel(op); pincel.mover(p); }
-      return { ok: true };
+      return { ok: true, r };
     },
     /** Let go: the stroke goes to the world. Resolves when the server has placed it (or said why not). */
     async soltar(): Promise<Res> {
