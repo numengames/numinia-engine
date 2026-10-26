@@ -360,7 +360,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       if (graboso3d) { graboso3d.mostrar(si); return; }
       if (!si) return;
       grabosoCarga ??= import("./graboso.ts").then((m) => {
-        graboso3d = m.crearGraboso({ world, posicion: () => (selfXZ ? grabosoPos.set(selfXZ.x, selfXZ.y ?? 0, selfXZ.z) : null), yaw: () => cam.yaw() });
+        graboso3d = m.crearGraboso({ world, posicion: () => (selfXZ ? grabosoPos.set(selfXZ.x, selfXZ.y ?? 0, selfXZ.z) : null), yaw: () => cam.yaw(),
+          modelo: async (sha) => (await (await getTools()).load(assetUrl(sha))).scene as THREE.Object3D }); // MIS-247: the fine head, by its content
         graboso3d.mostrar(grabosoQuiere.fuera); graboso3d.grabando(grabosoQuiere.grabando);
       }).catch((e) => console.warn(`[graboso] no se pudo cargar: ${(e as Error)?.message ?? e}`));
     },
