@@ -120,6 +120,8 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   // writes straight to view.vr instead of going through Contratos.
   a.alAplicar("controles.modoMovimientoVR", (v) => { view.vr.modoMovimiento = v as "mirada" | "mando" | "cuerpo"; });
   a.alAplicar("controles.gestoAndarVR", (v) => { view.vr.gestoAndar = v === "remar" ? "remar" : "apuntar"; }); // MIS-229: rowing with the hands
+  a.alAplicar("controles.cuerpoVR", (v) => { view.cuerpoVR = v !== false; }); // t_8217ffea (N2): your own body in VR
+  a.alAplicar("controles.pielManosVR", (v) => { view.pielManosVR = v !== false; }); // t_8217ffea (N1): the avatar's skin on your hands
   a.alAplicar("controles.vrManoMenu", (v) => { view.vr.manoMenu = v === "der" ? "der" : "izq"; }); // t_d5f5523a: the watch's hand
   // rediseño v2: the VR menu's «Ajustes» rows (also here on the computer)
   a.alAplicar("controles.giroVR", (v) => { view.vr.giroGrados = Number(v); });

@@ -148,6 +148,14 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     defecto: "apuntar", requiere: ["xrVr"],
   },
   {
+    grupo: "controles", id: "cuerpoVR", tipo: "bool", nombre: "Ver tu cuerpo en VR",
+    describe: "Al mirar abajo en el visor ves tu propio cuerpo (el de tu avatar: tronco y piernas). Apágalo si prefieres no verlo.", defecto: true, requiere: ["xrVr"],
+  },
+  {
+    grupo: "controles", id: "pielManosVR", tipo: "bool", nombre: "Manos con la piel de tu avatar",
+    describe: "En VR tus manos llevan el color de las manos de tu avatar con luces de Numinia. Apagado: la piel sencilla de siempre.", defecto: true, requiere: ["xrVr"],
+  },
+  {
     grupo: "controles", id: "vrManoMenu", tipo: "eleccion", nombre: "Mano del menú de muñeca",
     describe: "En qué muñeca sale el reloj del menú dentro de VR. La otra mano es la que lo pulsa.",
     opciones: [{ valor: "izq", nombre: "Izquierda" }, { valor: "der", nombre: "Derecha" }],
@@ -161,8 +169,8 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     defecto: "30", requiere: ["xrVr"],
   },
   {
-    grupo: "controles", id: "velocidadVR", tipo: "numero", min: 40, max: 100, paso: 10, unidad: "%", nombre: "Velocidad al andar en VR",
-    describe: "Lo deprisa que te lleva la palanca izquierda del visor. Menos: más cómodo si te mareas.", defecto: 100, requiere: ["xrVr"],
+    grupo: "controles", id: "velocidadVR", tipo: "numero", min: 40, max: 200, paso: 10, unidad: "%", nombre: "Velocidad al andar en VR",
+    describe: "Lo deprisa que te lleva la palanca izquierda. 100 %: el paso de siempre; hasta 200 % (3 m/s, tope de limits.json) sin correr. Menos: más cómodo.", defecto: 100, requiere: ["xrVr"],
   },
   {
     grupo: "controles", id: "confortVR", tipo: "numero", min: 0, max: 100, paso: 10, unidad: "%", nombre: "Viñeta de confort en VR",

@@ -138,6 +138,9 @@ export const motivo = (issues: Issue[]): string => issues.map((i) => i.message).
 
 // U12: the size in pixels of a picture, read from its first bytes (the server fits a picture into a hole with it, and the
 // page shrinks a big one before uploading). Never throws; null when the bytes do not say (cut short, not that kind).
+/** The longest sides (px) the server keeps a smaller copy of a picture at, and a page asks for with `/a/<sha256>.<ext>?px=N`: the values of
+ * limits.json `image_px_max` per device tier (render/calidad.ts IMAGEN_PX; test/imagen-copias.test.ts checks they agree). */
+export const IMAGEN_PX_COPIAS: readonly number[] = [2048, 1024, 512];
 export type Medidas = { ancho: number; alto: number };
 const u16be = (b: Uint8Array, i: number) => (b[i] << 8) | b[i + 1];
 const u32be = (b: Uint8Array, i: number) => ((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0;

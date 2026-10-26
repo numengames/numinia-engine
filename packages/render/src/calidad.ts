@@ -38,6 +38,10 @@ export const TOPE_PARTICULAS: Record<Nivel, { emisor: number; total: number }> =
 export const LUCES_FUEGO: Record<Nivel, number> = { A: 4, B: 2, C: 1, D: 0 };
 export const FACTOR_PARTICULAS: Record<Particulas, number> = { pocas: 0.3, normal: 1, muchas: 2 };
 export const SOMBRA_PX: Record<Sombras, number> = { no: 0, baja: 512, media: 1024, alta: 2048 };
+/** Longest side, in px, an image of the world (a hole's picture, an image thing) is kept at on this tier. The page redraws a bigger one
+ * smaller BEFORE it becomes a texture (medios.ts `cargarImagen`): a 3000×2000 picture costs ~32 MB of video memory with its mipmaps, 22 of
+ * them 700 MB. At 1024 px (B) a full gallery of 22 is ~104 MB, under the 256 MB cap of limits.json `texture_memory`. Never enlarges. */
+export const IMAGEN_PX: Record<Nivel, number> = { A: 2048, B: 1024, C: 512, D: 512 };
 /** HDR environment size (PMREM cube face): 256 everywhere (H4: «256 px en móvil»). */
 export const HDR_PX = 256;
 /** H12b: the extra effects a person may switch on — bloom (glow on bright things), ambient occlusion (soft contact shadows in corners)

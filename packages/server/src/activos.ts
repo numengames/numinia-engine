@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { gzip } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import type { ServerResponse } from "node:http";
-import { medidasImagen, TIPOS } from "../../net/src/ficheros.ts";
+import { IMAGEN_PX_COPIAS, medidasImagen, TIPOS } from "../../net/src/ficheros.ts";
 import type { Medidas } from "../../net/src/ficheros.ts";
 export { TIPOS } from "../../net/src/ficheros.ts"; // the kinds of file (H9 shares them with the page)
 /** What /a/ serves: every uploadable kind plus .vrma (J1: the house animations) and .opus/.m4a (S6: the house
@@ -31,7 +31,11 @@ const RUTA_LOD = /^\/a\/([0-9a-f]{64})\.lod([12])\.glb$/;
 /** N22: kinds that shrink in gzip (pictures, sound and video are already compressed). */
 export const COMPRIMIBLES = new Set(["glb", "vrm", "vrma", "hdr"]);
 /** N22: kinds with a lighter copy (optimizar.ts): models, and PNG pictures (their lossless WebP). */
-export const OPTIMIZABLES = new Set(["glb", "png"]);
+export const OPTIMIZABLES = new Set(["glb", "png", "jpg", "webp"]);
+/** Tier copies (t_dee4d0eb): the picture kinds /a/<sha256>.<ext>?px=N answers with a smaller copy. */
+export const CON_COPIA_PX = new Set(["png", "jpg", "webp"]);
+/** How long a page may keep a picture it asked a tier copy of and got the original (the copy may still be coming, or may never be). */
+export const ESPERA_COPIA_S = 300;
 /** N22: the gzipped files kept in memory, at most (a file bigger than this is sent as it is). */
 export const GZ_MEMORIA_MB = 96;
 /** U12: how much of a picture is read to measure it. */
@@ -85,11 +89,18 @@ export class Activos {
 
   /** N22: the file /a/<hash>.<ext> sends: the lighter copy when there is one, else the file itself (buscar). */
   /** N22: a PNG's lossless WebP goes only to a browser that says it takes WebP (`accept`); a crawler gets the PNG. */
-  aServir(hash: string, ext: string, accept = ""): { ruta: string; optimizado: boolean; tipo?: string } | null {
+  aServir(hash: string, ext: string, accept = ""): { ruta: string; optimizado: boolean; tipo?: string; copia?: number } | null {
     if (this.optimizados && ext === "glb") { const r = join(this.optimizados, `${hash}.glb`); if (existsSync(r)) return { ruta: r, optimizado: true }; }
     if (this.optimizados && ext === "png" && /image\/webp/.test(accept)) { const r = join(this.optimizados, `${hash}.png.webp`); if (existsSync(r)) return { ruta: r, optimizado: true, tipo: "image/webp" }; }
     const ruta = this.buscar(hash, ext);
     return ruta ? { ruta, optimizado: false } : null;
+  }
+
+  /** Tier copies: where the smaller copy of a picture for `px` lives (optimizar-cola.ts nombreCopiaPx), or null. */
+  rutaCopiaPx(hash: string, ext: string, px: number): string | null {
+    if (!this.optimizados || !CON_COPIA_PX.has(ext) || !IMAGEN_PX_COPIAS.includes(px)) return null;
+    const r = join(this.optimizados, `${hash}.${ext}.p${px}.webp`);
+    return existsSync(r) ? r : null;
   }
 
   /** H13: where the level of detail `nivel` (1 or 2) of a model lives, or null. */
@@ -135,20 +146,25 @@ export class Activos {
 
   /** Answer GET /a/<sha256>.<ext> (HEAD: the same headers, no body — H9: a page asks before uploading). Returns
    * false when the path is not an asset path at all. */
-  servir(path: string, res: ServerResponse, head = false, range?: string, acepta?: string, accept?: string): boolean {
+  servir(path: string, res: ServerResponse, head = false, range?: string, acepta?: string, accept?: string, qs = ""): boolean {
     const lod = RUTA_LOD.exec(path);
     const m = lod ? [path, lod[1], "glb"] : RUTA.exec(path);
     if (!m || !SERVIR[m[2]]) return false;
     const rl = lod ? this.rutaLod(m[1], Number(lod[2])) : null;
-    const elegido = lod ? (rl ? { ruta: rl, optimizado: true } : null) : this.aServir(m[1], m[2], accept), ruta = elegido?.ruta;
+    // Tier copies: `?px=1024` on a picture asks for the copy made for that size; without it (not made yet, the picture is smaller, it keeps its colour profile) the usual file goes
+    const px = !lod && CON_COPIA_PX.has(m[2]) && qs ? Number(new URLSearchParams(qs).get("px")) : 0, pidePx = IMAGEN_PX_COPIAS.includes(px);
+    const rp = pidePx && /image\/webp/.test(accept ?? "") ? this.rutaCopiaPx(m[1], m[2], px) : null;
+    const elegido = lod ? (rl ? { ruta: rl, optimizado: true } : null) : rp ? { ruta: rp, optimizado: true, tipo: "image/webp", copia: px } : this.aServir(m[1], m[2], accept), ruta = elegido?.ruta;
     if (!ruta) {
       res.writeHead(404, { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "no-store" });
       res.end(head ? undefined : JSON.stringify({ error: `no hay ningún fichero ${m[1]}.${m[2]}` }));
       return true;
     }
     const total = statSync(ruta).size, comprimible = COMPRIMIBLES.has(m[2]);
-    const vary = comprimible ? "accept-encoding" : m[2] === "png" && this.optimizados ? "accept" : null;
-    const comun: Record<string, string> = { "content-type": elegido!.tipo ?? SERVIR[m[2]], "cache-control": "public, max-age=31536000, immutable", "access-control-allow-origin": "*", "accept-ranges": "bytes", ...(vary ? { vary } : {}), ...(elegido!.optimizado ? { "x-optimizado": elegido!.tipo ? "webp-sin-perdida" : lod ? `lod${lod[2]}` : "meshopt" } : {}) };
+    const vary = comprimible ? "accept-encoding" : (m[2] === "png" && this.optimizados) || pidePx ? "accept" : null;
+    // the original answering a `?px` (no copy, yet): kept a few minutes only — unless it is no bigger than the tier, which gets no copy ever
+    const med = pidePx && !rp ? this.medidas(m[1], m[2]) : null, sinCopiaYa = pidePx && !rp && !(med && Math.max(med.ancho, med.alto) <= px);
+    const comun: Record<string, string> = { "content-type": elegido!.tipo ?? SERVIR[m[2]], "cache-control": sinCopiaYa ? `public, max-age=${ESPERA_COPIA_S}` : "public, max-age=31536000, immutable", "access-control-allow-origin": "*", "accept-ranges": "bytes", ...(vary ? { vary } : {}), ...(elegido!.optimizado ? { "x-optimizado": elegido!.copia ? `px${elegido!.copia}` : elegido!.tipo ? "webp-sin-perdida" : lod ? `lod${lod[2]}` : "meshopt" } : {}) };
     // U10: videos and sounds ask for byte ranges (a browser seeks a video, or will not loop it, without them)
     const r = range ? /^bytes=(\d*)-(\d*)$/.exec(range.trim()) : null;
     if (r && (r[1] || r[2])) {

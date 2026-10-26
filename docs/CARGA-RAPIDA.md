@@ -18,9 +18,10 @@ Pruebas: `test/carga-rapida.test.ts`.
 | Orden de carga | 1) la sala (objetos fijados o de decorado), 2) lo cercano (≤ 80 m), por distancia, 3) lo lejano, solo cuando no queda nada cercano por bajar. | `carga-orden.ts`, `index.ts` |
 
 Licencias de lo que entra en el servidor: gltf-transform, meshoptimizer, property-graph, ktx-parse, ndarray* (MIT);
-@jsquash/png y @jsquash/webp, wasm-feature-detect (Apache-2.0; códecs de squoosh, libwebp BSD). `ndarray-pixels`
+@jsquash/jpeg, @jsquash/png y @jsquash/webp, wasm-feature-detect (Apache-2.0; códecs de squoosh, libwebp BSD). `ndarray-pixels`
 (que arrastraría sharp/libvips, LGPL) se sustituye por un paquete vacío (`tools/vacio/ndarray-pixels`): el motor no
-reescala píxeles. El instalador copia solo esas dependencias (`OPTIMIZAR_DEPS` en `tools/build-deploy.mjs`).
+reescala píxeles con una librería; las copias por nivel de una imagen (abajo) las reduce una promediadora de unas
+40 líneas (`reducirRgba`, `optimizar.ts`). El instalador copia solo esas dependencias (`OPTIMIZAR_DEPS` en `tools/build-deploy.mjs`).
 
 ## Medidas (18-10-2026)
 
@@ -92,3 +93,42 @@ Las 3 pasadas de cada lado quedan a ±30 ms entre sí (CPU ×4: antes 1904–192
 el mundo; con 1,6 Mb/s eso ya son ~3,5 s de los 4,7. Partir el JS (cargar tarde lo que no se ve al entrar) y las texturas
 del mundo son las dos palancas que quedan, y piden una decisión de qué se ve primero.
 **Falta en Quest real:** esto es un navegador de PC con límites; hay que repetirlo en las gafas (`about:inspect` + `chrome://inspect`).
+
+## Imagen de hueco al tamaño del nivel (t_dee4d0eb, 2026-10-26)
+N22 baja los bytes por la red (PNG → WebP sin pérdida) pero no los píxeles: 22 obras de 3000×2000 subidas a 2.048 px eran ~340 MB de
+texturas (w·h·4·4/3, la cuenta de `limits.json`) en el nivel B, con tope 256 MB. Ahora `cargarImagen(url, maxPx)` (`packages/render/src/medios.ts`)
+rehace una imagen más grande que `IMAGEN_PX[nivel]` (`calidad.ts`; `limits.json` `image_px_max`: A 2.048, B 1.024, C 512, D 512) en un lienzo
+de ese tamaño y solo esa copia es textura; la proporción del plano no cambia y nunca amplía. Al entrar en VR el nivel pasa a B y las
+imágenes ya cargadas con más píxeles se sueltan y se piden otra vez a 1.024 px (el navegador tiene el fichero en caché, `immutable`).
+Medido con `plantillas/galeria/carga-obras.mjs` (`SIMULAR=B`, Chromium SwiftShader; vale para comparar, no es una Quest):
+
+| 22 huecos de 3000×2000 (subidos a 2.048 px) | Antes | Después |
+|---|---|---|
+| Texturas de la escena en nivel B (MB) | 340,3 | **105,8** (tope 256) |
+| Bajada de las 22 imágenes por la red | 38,7 MB | 38,7 MB (sin cambio) |
+| Llamadas de dibujo en B (p50) | 53 | 53 |
+
+## El servidor guarda una copia por nivel (t_dee4d0eb, 2026-10-26)
+Lo que faltaba arriba: que la **descarga** bajara también. Ahora el servidor, al recibir (o al arrancar, si no la tiene) una imagen
+`png`, `jpg` o `webp` más grande que un tamaño de nivel, guarda en `optimizados/` una copia por cada tamaño que supera
+(`<sha256>.<ext>.p2048.webp`, `.p1024.webp`, `.p512.webp`: WebP con pérdida calidad 82, lado largo al tamaño, misma proporción;
+`IMAGEN_PX_COPIAS` en `packages/net/src/ficheros.ts`, igual que `image_px_max` de `limits.json`; una prueba lo comprueba). La página
+pide `/a/<sha256>.<ext>?px=<IMAGEN_PX[nivel]>` y el servidor contesta con esa copia si el navegador acepta WebP; si no la hay
+(aún no se ha hecho, la imagen ya cabe, lleva perfil de color o es animada) contesta con el fichero de siempre, y la página lo
+reduce con el lienzo como antes. Ese caso se guarda 5 minutos (`max-age=300`) si la imagen es mayor que el tamaño pedido (puede que
+la copia llegue luego) y un año si no (nunca habrá copia). El original no se toca; `informe.jsonl` anota `pxs` por imagen y una línea
+sin `pxs` (de antes) se vuelve a mirar, así que los mundos que ya tenían imágenes las reciben al arrancar.
+Descodifica con `@jsquash/jpeg` 1.6.0 (mozjpeg en wasm, 166 kB, Apache-2.0, sin compilar nada; el PNG y el WebP ya estaban) y reduce
+en JS; no se añadió `@jsquash/resize` (otro paquete wasm de 250 kB) porque promediar el área que cubre cada píxel nuevo sirve para
+reducir. Va en el hilo del optimizador, no en el bucle del servidor; no se descodifica nada de más de 4096×4096 px.
+
+Medido con `plantillas/galeria/carga-obras.mjs` (`SIMULAR=B`, imágenes sintéticas: degradado, discos y grano):
+
+| 22 huecos de 3000×2000 (subidos a 2.048 px) | Nivel A (2.048 px) | Nivel B (1.024 px) |
+|---|---|---|
+| Bajada de las 22 imágenes por la red | 38,7 MB | **0,8 MB** |
+| Texturas de la escena (MB de vídeo) | 340,3 | 105,8 |
+
+Una foto de verdad pesa más que ese grano a la misma calidad: la proporción esperada es de 8-12 veces, no de 48. **Falta:**
+medirlo en una Quest con fotos reales, y que el manifiesto (`/manifiesto.json`) cuente los bytes de la copia y no los del original
+(hoy solo afecta al total que enseña la barra de carga).
