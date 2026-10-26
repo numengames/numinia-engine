@@ -15,7 +15,7 @@ let dibujados = 0;
 export const trianguloTrazosDibujados = (): number => dibujados;
 
 const materiales = new Map<number, THREE.MeshStandardMaterial>();
-const materialDe = (c: number): THREE.MeshStandardMaterial => {
+export const materialDe = (c: number): THREE.MeshStandardMaterial => {
   let m = materiales.get(c);
   if (!m) { m = new THREE.MeshStandardMaterial({ color: PALETA_TRAZO[c] ?? PALETA_TRAZO[0], roughness: 0.85, metalness: 0 }); materiales.set(c, m); }
   return m;
