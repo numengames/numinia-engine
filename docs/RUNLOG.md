@@ -1714,3 +1714,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `lote/7` sobre main `a60cc1ca`, fusiones normales de `lote/5`, `lote7/interfaz`, `lote7/activos` y main.
 - Siguiente: O2 y M21 esperan al manifiesto y los niveles; `dardos-vr.mjs` y `constructor.mjs` se arreglan en lote/8.
+
+## 2026-10-26 · lote 12: trinquete de tipos, medidor vivo, menos llamadas de dibujo en VR y gente lejana como cápsula · hecho
+- Qué: `lote/11` (calidad y rend-vr) y `lote13/personas` sobre main 0.67.0. `t_671483db`: TypeScript estricto como trinquete (`npm run tipos`, `tools/tipos-permitidos.json`, dentro de `npm run gates`). `t_3f0e5846`: pies plantados al sentarse o agacharse y la rueda pide solo el gesto señalado. `t_a46be21a`: cinco gestos de IA. `t_ee19c84b`: medidor vivo (`?medidor`). `t_fd715508`: mando, palma y dedos en una sola malla. `t_7ed19d06`: sala de ancestros y holograma con menos mallas, efectos pequeños cortados a 25 m en VR. `t_e41c0a12`: cosas fijadas fusionadas por material y celda (`fijados.ts`). `t_89ef3813`: los avatares VRM a más de 30 m (móvil y visor) o 45 m (PC) son cápsula, animación a medio ritmo desde 15 m. `t_e91a73ea` y `t_f3f9e61a`: medidas con CPU limitada y del recorrido de la escena (`tools/medir-*.mjs`), matrices congeladas en modelos quietos (`congelar.ts`). No incluye el flujo de CI `tren/*` (la App no tiene el permiso `workflows`).
+- Números: ver el cuerpo del PR. Versión 0.68.0 (menor: algo nuevo que no rompe nada).
+- Consumo: sin medir · Sonnet 5.5 (subagente).
+- Commit: rama `lote/12` sobre main `2ea4b64f`, fusiones `--no-ff` de `lote/11` y `lote13/personas`.
+- Siguiente: bajar la lista de tipos permitidos archivo a archivo; medir llamadas y fps en un visor real.
