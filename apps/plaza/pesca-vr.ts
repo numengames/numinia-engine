@@ -26,7 +26,7 @@ type Vista = {
   vr: { active: boolean; nota?(t: string): void };
   manos?: { reglas(o: { ocupada?: (l: Lado) => boolean }): void; vibrar(l: Lado, v?: number, ms?: number): void; entrada(l: Lado): { gatillo: number; agarre: number; mano: boolean } | null;
     /** Hand to hand (packages/render/src/manos.ts): the rod registers as a thing that can change hands. */
-    llevable?(nombre: string, l: { que: string; lado(): Lado | null; puede(): true | string; pasar(a: Lado): void; ocupante?: string }): () => void };
+    llevable?(nombre: string, l: { que: string; lado(): Lado | null; puede(): true | string; pasar(a: Lado): void; ocupante?: string; soltar?(): true | string }): () => void };
 };
 type Sesion = { selfPosition(alpha: number): P3 };
 type Interaccion = { actual(): { feature: string } | null; usar(): Res };
@@ -72,6 +72,8 @@ export function montarPescaManos(o: { pesca: Pesca; view: Vista; session: Sesion
   };
   view.manos?.llevable?.("pesca", {
     que: "la caña", lado: () => sujeta, ocupante: "reglas", pasar,
+    // N3: let go of the rod: back on its holder at any time (a fish on the line is let go, as the grip does)
+    soltar: () => { if (!sujeta) return "No llevas la caña"; if (pesca.estado().fase !== "nada") pesca.soltar(); dejar(); view.vr.nota?.("La caña ha vuelto a su soporte"); return true; },
     puede: () => { const f = pesca.estado().fase; return f === "nada" || f === "espera" ? true : "Ahora no: el pez ya ha picado"; },
   });
   const flanco = (antes: Record<Lado, boolean>, l: Lado, ahora: boolean) => { const b = ahora && !antes[l]; antes[l] = ahora; return b; };

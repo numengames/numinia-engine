@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three/webgpu";
-import { createManos, CERCA_CAMBIO_M, type Lado } from "../packages/render/src/manos.ts";
+import { createManos, CERCA_CAMBIO_M, SOLTAR_PULSAR_MS, type Lado } from "../packages/render/src/manos.ts";
 import { montarPescaManos } from "../apps/plaza/pesca-vr.ts";
 import { montarXR } from "../apps/plaza/xr.ts";
 
@@ -14,7 +14,7 @@ function montar() {
   const avisos: string[] = [];
   const m = createManos({ renderer: renderer as never, objetos: () => [], paneles: () => [], nota: (t) => avisos.push(t) } as never);
   m.montar(scene);
-  const botones = [0, 1].map(() => [{ value: 0, pressed: false, touched: false }, { value: 0, pressed: false, touched: false }]);
+  const botones = [0, 1].map(() => [0, 1, 2, 3].map(() => ({ value: 0, pressed: false, touched: false }))); // trigger, grip, (touchpad), thumbstick
   const pulsos: [number, number][] = [];
   const nombres = ["left", "right"] as const; // slot 0 = left, slot 1 = right
   [0, 1].forEach((i) => {
@@ -24,8 +24,10 @@ function montar() {
   const IZQ = 0, DER = 1;
   const poner = (i: number, x: number) => { grip[i].position.set(x, 1, 0); };
   const agarre = (i: number, v: number) => { botones[i][1].value = v; };
-  const cuadro = () => m.update(null);
-  return { m, poner, agarre, cuadro, avisos, pulsos, IZQ, DER };
+  const palanca = (i: number, v: boolean) => { botones[i][3].pressed = v; botones[i][3].value = v ? 1 : 0; };
+  let reloj = 1000; // the page's clock, given to update() so a held stick can be timed without waiting
+  const cuadro = (avanza = 0) => { reloj += avanza; m.update(null, reloj); };
+  return { m, poner, agarre, palanca, cuadro, avisos, pulsos, IZQ, DER };
 }
 
 /** A fake rod piece with the rod's rules: in `lado`, passes only when `fase` allows. */
@@ -235,4 +237,103 @@ test("el dardo: el botón pasa el dardo; con el reloj en la otra mano o sin dard
     // today's rule stays: a hand with a dart receives nothing else (it takes no second dart with the other hand)
     g.agarre(g.DER, 1); e.cuadro(); assert.equal(e.api.sosteniendo(), "izq");
   } finally { e.restaurar(); }
+});
+
+// ── N3: let go of what you carry (Pablo, 18-10: «estas cosas se deberían de poder tirar y dejar ahí») ───────────────────
+
+/** A fake held thing with the rules of a piece that can be let go. */
+function cosaSoltable(f: ReturnType<typeof montar>, lado0: Lado, nombre = "cosa", que = "la cosa", rechaza: string | true = true) {
+  const e = { lado: lado0 as Lado | null, soltadas: 0 };
+  f.m.llevable(nombre, { que, lado: () => e.lado, puede: () => true, pasar: (a) => { e.lado = a; }, soltar: () => { if (rechaza !== true) return rechaza; e.lado = null; e.soltadas++; return true; } });
+  return e;
+}
+
+test("N3 el botón: soltar() deja ir lo que lleva la mano que se nombra, o lo primero que se lleva, y la mano vibra", () => {
+  const f = montar(); const a = cosaSoltable(f, "izq", "uno", "el uno"); const b = cosaSoltable(f, "der", "dos", "el dos");
+  f.cuadro();
+  const r = f.m.soltar("der"); assert.deepEqual(r, { ok: true, que: "el dos", lado: "der" });
+  assert.equal(b.lado, null); assert.equal(a.lado, "izq", "the other hand keeps its thing");
+  assert.deepEqual(f.pulsos.map((p) => p[0]), [1], "only the hand that let go buzzes");
+  assert.deepEqual(f.m.soltar(), { ok: true, que: "el uno", lado: "izq" });
+  assert.deepEqual(f.m.llevando(), []);
+  const v = f.m.soltar(); assert.equal(v.ok, false); assert.match(v.ok ? "" : v.why, /nada en la mano/);
+});
+
+test("N3 una pieza que no sabe soltarse lo dice con palabras; una que rechaza da su motivo", () => {
+  const f = montar();
+  f.m.llevable("fija", { que: "la llave", lado: () => "der", puede: () => true, pasar: () => {} });
+  const r = f.m.soltar("der"); assert.equal(r.ok, false); assert.match(r.ok ? "" : r.why, /La llave no se puede soltar/);
+  const g = montar(); cosaSoltable(g, "izq", "x", "el x", "Ahora no");
+  assert.deepEqual(g.m.soltar("izq"), { ok: false, why: "Ahora no" });
+});
+
+test("N3 el gesto: la palanca de un mando, pulsada y mantenida, suelta lo que lleva esa mano (una vez por pulsación)", () => {
+  const f = montar(); const c = cosaSoltable(f, "der", "dos", "el dos"); const otra = cosaSoltable(f, "izq", "uno", "el uno");
+  f.cuadro();
+  f.palanca(f.DER, true); f.cuadro(); f.cuadro(SOLTAR_PULSAR_MS - 50);
+  assert.equal(c.soltadas, 0, "a click that is not held lets nothing go");
+  f.cuadro(100);
+  assert.equal(c.soltadas, 1, "held long enough: it goes"); assert.equal(otra.lado, "izq", "only that hand's thing");
+  assert.match(f.avisos.at(-1) ?? "", /Soltado: el dos/);
+  c.lado = "der"; f.cuadro(2000); assert.equal(c.soltadas, 1, "the same press does not drop again");
+  f.palanca(f.DER, false); f.cuadro(10); f.palanca(f.DER, true); f.cuadro(10); f.cuadro(SOLTAR_PULSAR_MS + 10);
+  assert.equal(c.soltadas, 2, "a new press does");
+});
+
+test("N3 el gesto: un toque corto, o una palanca de una mano que no lleva nada, no suelta nada", () => {
+  const f = montar(); const c = cosaSoltable(f, "der");
+  f.cuadro();
+  f.palanca(f.DER, true); f.cuadro(); f.cuadro(200); f.palanca(f.DER, false); f.cuadro(10);
+  f.palanca(f.DER, true); f.cuadro(); f.cuadro(300); f.palanca(f.DER, false); f.cuadro(10);
+  assert.equal(c.soltadas, 0, "two short clicks are not one held press");
+  f.palanca(f.IZQ, true); f.cuadro(); f.cuadro(SOLTAR_PULSAR_MS + 100);
+  assert.equal(c.soltadas, 0, "the left stick, with nothing in the left hand, does nothing"); assert.deepEqual(f.avisos, []);
+});
+
+test("N3 la caña: soltar() la devuelve a su soporte (también con un pez en la línea) y la mano queda libre", () => {
+  const c = cañaFalsa("nada"); const f = c.f;
+  f.poner(f.IZQ, -0.6); f.poner(f.DER, 0); f.cuadro();
+  f.agarre(f.DER, 1); c.marco(); f.agarre(f.DER, 0); c.marco(); c.quitarCerca();
+  assert.equal(c.pagina.sujeta(), "der");
+  c.est.fase = "pelea";
+  const r = f.m.soltar("der"); assert.deepEqual(r, { ok: true, que: "la caña", lado: "der" });
+  assert.equal(c.pagina.sujeta(), null); assert.equal(c.sujeciones.at(-1), null);
+  assert.ok(c.llamadas.includes("soltar"), "the fish is let go too (as the grip does)");
+  assert.deepEqual(f.m.llevando(), []);
+  assert.equal(f.m.soltar().ok, false, "nothing left to drop");
+});
+
+test("N3 el dardo: soltar() lo quita de la mano sin lanzarlo, y el mismo agarre cerrado no lo vuelve a coger", async () => {
+  const d = await dardosFalsos(); const f = d.f;
+  try {
+    f.poner(f.IZQ, -0.6); f.poner(f.DER, 0); d.cuadro();
+    f.agarre(f.DER, 1); d.cuadro();
+    assert.equal(d.api.sosteniendo(), "der"); assert.equal(d.enMano(), "der");
+    const r = f.m.soltar("der"); assert.deepEqual(r, { ok: true, que: "el dardo", lado: "der" });
+    assert.equal(d.api.sosteniendo(), null); assert.equal(d.enMano(), null); assert.equal(d.lanzados.length, 0, "it was not thrown");
+    d.cuadro(); d.cuadro(); assert.equal(d.api.sosteniendo(), null, "the grip is still closed: it does not take another");
+    f.agarre(f.DER, 0); d.cuadro(); f.agarre(f.DER, 1); d.cuadro();
+    assert.equal(d.api.sosteniendo(), "der", "open and close the grip: it takes one again");
+    assert.equal(d.lanzados.length, 0);
+  } finally { d.restaurar(); }
+});
+
+test("N3 un objeto de misión: soltarlo libera la mano, no lo redibuja el siguiente cambio del libro, y al acabar el paso vuelve a poder llevarse", () => {
+  const f = montar();
+  const lleva: Record<string, string | null> = {}; const oyentes: ((q: "libro") => void)[] = []; let activa = true;
+  const misiones = { estado: { nota: "" }, libro: () => [{ id: "m", estado: activa ? "activa" : "hecha", titulo: "", paso: 0, pasos: 1, seguida: true, lista: [{ n: 0, texto: "", tipo: "coge", hecho: true, que: "semillas" }] }], objetivos: () => [], dialogo: () => null,
+    elegir: () => ({ ok: true as const }), adios: () => ({ ok: true as const }), usar: () => ({ ok: true as const }), ofrece: () => true, alCambiar: (fn: never) => { oyentes.push(fn); return () => {}; } };
+  const view = { vr: { active: true, pagina: "mandos" as const, dialogo() {}, nota() {}, onElegir() {}, onAtras() {} }, ar: { state: "off" },
+    manos: { reglas() {}, on() {}, vibrar: (l: Lado, v?: number, ms?: number) => f.m.vibrar(l, v, ms), llevable: f.m.llevable },
+    llevar: (k: string, d: string | null) => { lleva[k] = d; }, llevando: () => ({}) };
+  const xr = montarXR({ session: { features: { use: () => ({ ok: true as const }) } }, view: view as never, misiones: misiones as never, interaccion: { actual: () => null, usar: () => ({ ok: true as const }), mirar() {}, mantener: { empezar() {}, soltar() {} } } } as never);
+  assert.deepEqual(xr.enMano(), { semillas: "der" });
+  const r = f.m.soltar("der"); assert.deepEqual(r, { ok: true, que: "lo que llevas", lado: "der" });
+  assert.deepEqual(xr.enMano(), {}); assert.equal(lleva["misiones:semillas"], null, "the hand is drawn empty");
+  assert.deepEqual(f.m.llevando(), []);
+  for (const fn of oyentes) fn("libro");                                  // the book changes (a note, another step): not redrawn
+  assert.deepEqual(xr.enMano(), {}, "stays out of the hand while its step stands");
+  activa = false; for (const fn of oyentes) fn("libro");                    // the quest ends
+  activa = true; for (const fn of oyentes) fn("libro");                     // and a new one with the same name starts
+  assert.deepEqual(xr.enMano(), { semillas: "der" }, "a next quest thing of the same name is carried again");
 });
