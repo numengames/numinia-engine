@@ -68,6 +68,13 @@ export class Activos {
     }
   }
 
+  /** M19: an app's `assets/` folder joins the library: its files (already hash-named and checked by apps.ts) are served at /a/<sha256>.<ext> like any other. */
+  agregar(dir: string): number {
+    const antes = this.indice.size;
+    if (existsSync(dir)) this.indexar(dir);
+    return this.indice.size - antes;
+  }
+
   /** Where the file behind a hash lives, or null. */
   buscar(hash: string, ext: string): string | null {
     const b = this.indice.get(hash);

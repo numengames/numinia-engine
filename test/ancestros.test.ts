@@ -127,7 +127,7 @@ test("3D: the hall is drawn from state, a lit hologram turns to you and flickers
   (globalThis as { document?: unknown }).document = doc;
   try {
     const THREE = await import("three/webgpu");
-    const { crearSalon, VIVO_M } = await import("../packages/render/src/ancestros.ts");
+    const { crearSalon, VIVO_M, LUZ_SALA, LUZ_M, TECHO_GROSOR } = await import("../packages/render/src/ancestros.ts");
     const world = new THREE.Group(), cam = new THREE.PerspectiveCamera();
     const s = crearSalon({ world, camara: () => cam });
     const muros = murosDelSalon().map((m) => ({ id: m.id, x0: m.x0, y0: 0, z0: m.z0, x1: m.x1, y1: SALON.alto, z1: m.z1 }));
@@ -135,8 +135,29 @@ test("3D: the hall is drawn from state, a lit hologram turns to you and flickers
     const holo = { id: "asimov", nombre: "Holograma de Asimov", x: H.x, y: 0, z: H.z, rumbo: 0, encendido: false };
     s.hologramas([holo]);
     s.paneles([{ id: "a-leyes", titulo: "Leyes", lineas: [...LEYES], x: 0, y: 2, z: -50, rumbo: 0 }, { id: "a-nuestras", titulo: "Nuestras", lineas: NUESTRAS.map((n) => n.texto), x: 2, y: 2, z: -50, rumbo: 0 }]);
-    assert.deepEqual(s.contar(), { muros: 5, hologramas: 1, paneles: 2, encendidos: 0, placas: 0 });
-    assert.equal(world.children.length, 5 + 1 + 1 + 2, "walls, floor, hologram, two panels");
+    assert.deepEqual(s.contar(), { muros: 5, techo: true, luz: true, hologramas: 1, paneles: 2, encendidos: 0, placas: 0 });
+    assert.equal(world.children.length, 5 + 1 + 1 + 1 + 1 + 2, "walls, floor, ceiling, light, hologram, two panels");
+    // MIS-228: ONE slab over the walls (one draw call), above their top, not on the top-down map; ONE dim cyan point light inside under it
+    const techo = world.getObjectByName("ancestros:techo") as import("three/webgpu").Mesh, luz = world.getObjectByName("ancestros:luz") as import("three/webgpu").PointLight;
+    assert.ok(techo && luz);
+    assert.equal(world.children.filter((o) => (o as { isMesh?: boolean }).isMesh && o.name === "ancestros:techo").length, 1);
+    techo.geometry.computeBoundingBox();
+    const caja = techo.geometry.boundingBox!;
+    assert.ok(Math.abs((caja.max.y - caja.min.y) - TECHO_GROSOR) < 1e-6);
+    assert.ok(Math.abs(techo.position.y - (SALON.alto + TECHO_GROSOR / 2)) < 1e-6, "sits on top of the walls");
+    assert.ok(caja.max.x - caja.min.x >= SALON.lado && caja.max.z - caja.min.z >= SALON.lado, "covers the hall");
+    assert.equal(techo.userData.mapa, undefined, "a lid on the map would hide the room");
+    assert.equal(luz.color.getHex(), LUZ_SALA.color); assert.equal(luz.castShadow, false);
+    assert.ok(luz.intensity > 0 && luz.intensity <= 8, `dim: ${luz.intensity}`);
+    assert.ok(luz.position.y < SALON.alto && luz.position.y > 0, "inside the room");
+    // the light costs nothing far from the hall, and comes back near it
+    s.actualizar(0.016, { x: SALON.x + LUZ_M + 10, z: SALON.z }); assert.equal(luz.intensity, 0);
+    s.actualizar(0.016, { x: SALON.x, z: SALON.z + 8 }); assert.equal(luz.intensity, LUZ_SALA.intensidad);
+    // the roof is a lid only from outside: inside the hall with the camera above it, it lifts; camera under it or you outside, it stays
+    const dentro = { x: SALON.x, z: SALON.z };
+    cam.position.set(0, 20, SALON.z); cam.updateMatrixWorld(true); s.actualizar(0.016, dentro); assert.equal(techo.visible, false, "inside, camera above: lifted");
+    s.actualizar(0.016, { x: SALON.x + 30, z: SALON.z }); assert.equal(techo.visible, true, "you outside, camera above: the hall reads as closed");
+    cam.position.set(0, 1.7, SALON.z); cam.updateMatrixWorld(true); s.actualizar(0.016, dentro); assert.equal(techo.visible, true, "inside, camera under the roof: shown (it shades the room)");
     const nPanel = world.children.length;
     s.paneles([{ id: "a-leyes", titulo: "Leyes", lineas: [...LEYES], x: 0, y: 2, z: -50, rumbo: 0 }, { id: "a-nuestras", titulo: "Nuestras", lineas: NUESTRAS.map((n) => n.texto), x: 2, y: 2, z: -50, rumbo: 0 }]);
     assert.equal(world.children.length, nPanel, "same panels again: nothing repainted");
@@ -160,8 +181,30 @@ test("3D: the hall is drawn from state, a lit hologram turns to you and flickers
     assert.equal(s.contar().placas, 0);
     // the hologram leaves the page's range: everything of it goes
     s.hologramas([]); s.muros([]); s.paneles([]);
-    assert.deepEqual(s.contar(), { muros: 0, hologramas: 0, paneles: 0, encendidos: 0, placas: 0 });
-    assert.equal(world.children.length, 0);
+    assert.deepEqual(s.contar(), { muros: 0, techo: false, luz: false, hologramas: 0, paneles: 0, encendidos: 0, placas: 0 });
+    assert.equal(world.children.length, 0, "roof and light go with the walls");
+  } finally { (globalThis as { document?: unknown }).document = antes; }
+});
+
+test("3D: the hall's light follows the device tier (none on tier D, the roof stays), and a tier change adds/removes it without touching the rest", async () => {
+  const g = new Proxy({}, { get: (_, k) => (k === "measureText" ? () => ({ width: 10 }) : () => undefined), set: () => true }) as unknown as CanvasRenderingContext2D;
+  const antes = (globalThis as { document?: unknown }).document;
+  (globalThis as { document?: unknown }).document = { createElement: () => ({ width: 0, height: 0, getContext: () => g }) };
+  try {
+    const THREE = await import("three/webgpu");
+    const { crearSalon } = await import("../packages/render/src/ancestros.ts");
+    const world = new THREE.Group(), cam = new THREE.PerspectiveCamera();
+    let quiere = false;
+    const s = crearSalon({ world, camara: () => cam, luz: () => quiere });
+    s.muros(murosDelSalon().map((m) => ({ id: m.id, x0: m.x0, y0: 0, z0: m.z0, x1: m.x1, y1: SALON.alto, z1: m.z1 })));
+    assert.deepEqual([s.contar().techo, s.contar().luz], [true, false], "tier D: a roof, no extra light");
+    const n = world.children.length;
+    quiere = true; s.actualizar(0.016, null);
+    assert.equal(s.contar().luz, true); assert.equal(world.children.length, n + 1);
+    s.actualizar(0.016, null); assert.equal(world.children.length, n + 1, "not twice");
+    quiere = false; s.actualizar(0.016, null);
+    assert.equal(s.contar().luz, false); assert.equal(world.children.length, n);
+    s.muros([]); assert.equal(world.children.length, 0);
   } finally { (globalThis as { document?: unknown }).document = antes; }
 });
 

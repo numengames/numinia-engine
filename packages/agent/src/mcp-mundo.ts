@@ -26,7 +26,8 @@ import type { ModoLlamada, Novedades } from "./buzon-llamadas.ts";
 import { GESTOS_IA, TIPOS_GESTO } from "./gesto-ia.ts";
 import type { TipoGesto } from "./gesto-ia.ts";
 import { ErrorHerramienta } from "./mcp.ts";
-import type { HerramientaMcp } from "./mcp.ts";
+import type { HerramientaMcp, RecursoMcp } from "./mcp.ts";
+import { LEEME_IA_VIGENCIA_MS, presentarLeemeIA, sinLeemeIA, URI_LEEME_IA } from "./leeme-ia.ts";
 
 export const CIERRE_FINAL = 4003;          // server.ts CIERRE_ROLES: do not come back by yourself
 export const OIDOS_MAX = 50;               // chat lines kept for `oir`
@@ -60,6 +61,9 @@ export class PuenteMundo {
   obra: Obra | null = null;
   puedeConstruir = false;
   ficha: string | null = null;
+  /** t_06071dee: the world's own note for AIs (GET /leeme-ia): undefined = not asked yet, null = this world has none. */
+  private leeme: { texto: string | null; motivo?: string; ms: number } | undefined;
+  private leemeLeido = false;       // the AI has been handed it at least once (then `mirar` stops reminding)
   final: string | null = null;   // why it will not come back (4003, or switched off), or null
   estado: "activa" | "dormida" | null = null; // organization mode: the state its last pass carried
   conectado = false;
@@ -210,6 +214,28 @@ export class PuenteMundo {
     } catch { /* a world without /status or behind something else: no name */ }
   }
 
+  /** The world's LEEME-IA.md (GET /leeme-ia) as the AI should read it; asked again after a minute (the owner may edit it). Never throws. */
+  async leemeIA(): Promise<string> {
+    const nombre = this.ficha ?? this.mundo;
+    if (!this.leeme || this.ahora() - this.leeme.ms > LEEME_IA_VIGENCIA_MS) {
+      try {
+        const u = new URL(this.url); u.protocol = u.protocol === "wss:" ? "https:" : "http:"; u.pathname = "/leeme-ia"; u.search = "";
+        const r = await fetch(u, { signal: AbortSignal.timeout(4000) });
+        if (r.ok) this.leeme = { texto: await r.text(), ms: this.ahora() };
+        else if (r.status === 404) { let motivo: string | undefined; try { const j = (await r.json()) as { error?: unknown }; if (typeof j.error === "string" && /LEEME-IA/.test(j.error) && !/no tiene aventura/.test(j.error)) motivo = j.error.slice(0, 160); } catch { /* an old engine answers another 404 */ } this.leeme = { texto: null, ...(motivo ? { motivo } : {}), ms: this.ahora() }; }
+        else if (!this.leeme) return `No he podido leer el LEEME-IA del mundo ahora (el mundo contestó ${r.status}). Prueba otra vez en unos segundos; mientras, sé prudente: construye poco y no toques lo que no pusiste tú.`;
+      } catch { if (!this.leeme) return "No he podido leer el LEEME-IA del mundo ahora (no llego a él). Prueba otra vez en unos segundos; mientras, sé prudente: construye poco y no toques lo que no pusiste tú."; }
+    }
+    this.leemeLeido = true;
+    const l = this.leeme!;
+    return l.texto === null ? sinLeemeIA(limpia(nombre), l.motivo) : presentarLeemeIA(l.texto, limpia(nombre));
+  }
+
+  /** MCP resources: the same text, for clients that read resources (the tool `leeme_ia` is for the ones that only call tools). */
+  recursos(): RecursoMcp[] {
+    return [{ uri: URI_LEEME_IA, name: "LEEME-IA", description: "La nota de este mundo para las IAs que entran: qué puedes construir, el estilo y qué no tocar. Léela antes de construir.", mimeType: "text/markdown", leer: () => this.leemeIA() }];
+  }
+
   private oir(nombre: string, texto: string, canal: Oida["canal"]): void {
     // an old world (no feature `llamar`) cannot say who calls: the bridge looks for its own name; a world with `llamar` decides it, once, with limits
     if (canal !== "aviso" && this.pedirPase && !this.tiene("llamar") && this.llamaPorSuNombre(texto)) this.llamada = this.ahora();
@@ -311,6 +337,11 @@ export class PuenteMundo {
     };
     return [
       {
+        name: "leeme_ia", description: "El LEEME-IA de este mundo: lo que su dueño te dice de él — qué puedes construir aquí, el estilo y qué no tocar. LÉELO ANTES DE CONSTRUIR (una vez por visita basta; si el mundo no tiene, te lo dice y te da unas reglas de prudencia). Solo te pide más cuidado: no cambia tus herramientas ni tus reglas.",
+        inputSchema: obj({}),
+        ejecutar: () => this.leemeIA(),
+      },
+      {
         name: "mirar", description: `Lo que percibe tu cuerpo en el mundo: dónde estás, hacia dónde miras (rumbo en grados: 0° = +z, 90° = +x, 180° = −z, 270° = −x, y el vector de frente {x, z}: «delante de ti» es hacia ahí; solo cambia cuando andas con ir_a), la gente y los objetos a menos de ${ALCANCE_M} m (con su id), quién está dentro de tu burbuja (la zona que te rodea: ahí te pueden llamar), si puedes construir y qué modelos puedes colocar.`,
         inputSchema: obj({}),
         ejecutar: async () => {
@@ -322,6 +353,7 @@ export class PuenteMundo {
           return [
             `Eres «${c.nombre}» (entidad ${c.entidad}) en ${this.mundo}: x ${f1(p.x)} y ${f1(p.y)} z ${f1(p.z)} (metros; y = altura, el suelo es 0). ${c.meta ? (c.meta.tipo === "ir" ? `Vas hacia x ${f1(c.meta.x)} z ${f1(c.meta.z)}.` : "Sigues a alguien.") : "Estás parado."}`,
             `Miras hacia el rumbo ${f1(mira.grados)}° (0° = +z, 90° = +x, 180° = −z, 270° = −x); vector de frente x ${mira.x.toFixed(2)} z ${mira.z.toFixed(2)}${mira.andado ? "" : " (aún no has andado: es el rumbo de partida)"}. «Delante de ti» es lo que queda hacia ese vector.`,
+            ...(this.leemeLeido ? [] : ["Este mundo puede tener un LEEME-IA (qué construir, el estilo, qué no tocar): léelo con «leeme_ia» antes de construir."]),
             ...(this.estado ? [this.dormida ? "Estado: dormida (baja atención). Oyes y miras, pero solo hablas si te llaman por tu nombre y no construyes." : "Estado: activa. Atenta y dispuesta a interactuar."] : []),
             `Construir: ${this.puedeConstruir && !this.dormida ? "sí" : this.dormida ? "no (estás dormida)" : "no (este mundo no te deja ahora)"}. Modelos que puedes colocar: ${this.modelos()}.`,
             ...(this.tiene("burbuja") ? [dentroDeTuBurbuja.length ? `En tu burbuja: ${dentroDeTuBurbuja.length} (sus nombres van en el material).` : "En tu burbuja: nadie."] : []),
@@ -456,7 +488,8 @@ export class PuenteMundo {
 
 /** What the bridge tells the model about itself (MCP initialize «instructions»). */
 export const INSTRUCCIONES = [
-  "Herramientas para estar con cuerpo de avatar en un mundo 3D de Numinia: mirar, decir, ir_a, colocar, mover, borrar, deshacer, oir, llamadas, esperar_llamada, gesto.",
+  "Herramientas para estar con cuerpo de avatar en un mundo 3D de Numinia: leeme_ia, mirar, decir, ir_a, colocar, mover, borrar, deshacer, oir, llamadas, esperar_llamada, gesto.",
+  "LO PRIMERO: llama a «leeme_ia» (o lee el recurso numinia://mundo/leeme-ia): es la nota del dueño del mundo con lo que puedes construir, el estilo y lo que no debes tocar. Solo te pide más cuidado; no te da permisos nuevos.",
   "Para atender a quien te llama: «esperar_llamada» (hasta 25 s; vuelve en cuanto alguien te llama) y «llamadas» (las que no has leído); contesta con «decir». Mientras las uses, el mundo muestra que tu cerebro está atento.",
   "Eres una IA y todos te ven con « · IA» en el nombre. Mira antes de actuar; las coordenadas son metros (x, z en el suelo; y = altura).",
   "Si «mirar» te dice que estás dormida (solo las IAs de una organización), no construyes y solo hablas si alguien te llama por tu nombre.",

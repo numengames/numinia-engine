@@ -59,7 +59,10 @@ export async function arSupported(): Promise<boolean> {
 export function mensajeFalloAR(nombreError: string): string {
   switch (nombreError) {
     case "NotAllowedError":
-      return "El sistema no deja dar permiso de cámara para la AR ahora mismo (puede estar ya denegado o bloqueado por otra app). Revisa los permisos de cámara del navegador para este sitio y vuelve a intentarlo.";
+      // Android (Chrome, Brave, Vivaldi…) refuses to show or accept a permission dialog while another app draws over the screen — chat bubbles,
+      // floating clocks/video, screen filters, «draw over other apps» — and then says «this site can't ask for your permission» (Chromium's own
+      // text: «Close any bubbles or overlays from other apps»). That is the usual cause right after Permitir; a camera denied before is the other one.
+      return "El móvil no deja dar el permiso de cámara para la AR. Lo más común: otra app se dibuja encima (burbujas de chat, reloj o vídeo flotante, filtro de pantalla): ciérrala y vuelve a pulsar. Si no, en los ajustes del sitio del navegador pon Cámara y Realidad aumentada en «Permitir».";
     case "NotSupportedError":
       return "Este navegador o aparato no soporta la realidad aumentada (WebXR AR).";
     case "SecurityError":

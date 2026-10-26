@@ -39,6 +39,25 @@ every task:
    loop, server numbers only with steal < 2 %. A new measurement that changes `docs/SABER.md` §2 or
    `limits.json` updates both in the same commit.
 
+## Rules: where they live (the Summa)
+The rules in this file are the engine's working copy of **the Summa**, numinia.org (repo `numinia-archive`), which is the source of
+truth for them (decided 2026-10-16). Where this file and the Summa disagree, the Summa is the intended answer: say so in your report, never
+follow one silently over the other. Each page carries its own status header (`draft` = follow it, it warns and never
+blocks; what binds today: <https://numinia.org/binding>). This file does not change how the unattended shift runs (last section).
+
+| Here | In the Summa (numinia.org) |
+|---|---|
+| Principle 1, AI-native | [PRI-016 What a machine can read, anyone can use](https://numinia.org/principles/pri-016-what-a-machine-can-read-anyone-can-use) |
+| Principle 2, phones stay cool | [PRI-017 A device that heats up has been asked too much](https://numinia.org/principles/pri-017-a-device-that-heats-up-has-been-asked-too-much) |
+| Principle 3, published limits | [PRI-018 A limit nobody can check is a promise](https://numinia.org/principles/pri-018-a-limit-nobody-can-check-is-a-promise) |
+| Rule 2, untrusted text in a `<material>` block | [STD-050 What an agent in a world reads](https://numinia.org/standards/std-050-what-an-agent-in-a-world-reads) |
+| Roles and what an AI may do in a world | [STD-052 Organisation permissions](https://numinia.org/standards/std-052-organisation-permissions) |
+| Versions (`docs/VERSIONES.md`) | [STD-019 Versions](https://numinia.org/standards/std-019-versions) |
+| Checks every repository keeps; the order a coding agent follows | [STD-015 Engineering checks](https://numinia.org/standards/std-015-engineering-checks), [PRO-016 Applying the engineering standard](https://numinia.org/procedures/pro-016-applying-the-engineering-standard) |
+| A world is text and files; logic on the server; a card per thing; one door for AIs | ADR [074](https://numinia.org/decisions/adr-074), [075](https://numinia.org/decisions/adr-075), [076](https://numinia.org/decisions/adr-076), [079](https://numinia.org/decisions/adr-079), [080](https://numinia.org/decisions/adr-080) |
+| What the engine is made of today, what is measured | [SYS-016 Numinia Engine, as wired](https://numinia.org/system/sys-016-numinia-engine-as-wired) |
+| The words used here (file over app, agent, world…) | [STD-026 Operative vocabulary](https://numinia.org/standards/std-026-operative-vocabulary) |
+
 ## Layers (enforced by `tools/layers.mjs`, rules in `tools/layers.json`)
 `core → schema → ecs → sim → net → feature → {client, instance} → {server, cli}`; `render` talks to three.js
 only. A package imports only what `layers.json` allows. Adding a package means adding it there first.
@@ -78,6 +97,8 @@ Keep gates light: seconds, one core. Never add a gate that needs a GPU or an LLM
   a log line or a test fixture that looks real. The log says WHERE the code is, never what it is.
 - The image is built from the installer only (`Dockerfile`, `.dockerignore`): what the bare install runs, the image
   runs. `deploy-check` and `test/flota.test.ts` guard both.
+- A world also carries its own note for AIs, `aventura/LEEME-IA.md` (what an AI may build there, the style, what not to touch): a new
+  world is born with one (`plantillas/taller/aventura/`) and the MCP bridge hands it to an AI first (`docs/EXTENDER.md`, «LEEME-IA»).
 
 ## Language of the public record
 Commit messages and pull request titles (and descriptions) are written in **English**, always; the history of this

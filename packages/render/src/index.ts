@@ -70,10 +70,11 @@ import { crearDianas3D, crearDianaAR } from "./dardos.ts";
 import { crearPantallasWeb } from "./web.ts";
 import { crearSalon } from "./ancestros.ts";
 import type { DianaAR } from "./dardos.ts";
-import { detalleAgua } from "./calidad.ts";
+import { detalleAgua, LUCES_FUEGO } from "./calidad.ts";
 import { crearLotes } from "./lotes.ts";
 import { debeMejorar, ficheroDeNivel, nivelParaCargar } from "./lod-modelo.ts";
 import { crearHitosMalla } from "./hitos-malla.ts";
+import { HITOS_PLAZA, ALTO_HITO } from "./hitos-plaza.ts";
 import { fundirAnimado } from "./fundir.ts";
 import { crearQuietos } from "./fundir-quietos.ts";
 import { hornearEscena } from "./hornear.ts";
@@ -179,14 +180,13 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   grid.position.y = 0.01;
   world.add(grid);
 
-  // landmarks so movement is visible: fixed positions, no randomness
-  const pillarGeo = new THREE.BoxGeometry(1, 3, 1);
-  const palette = [0xd9a441, 0x5b8cc0, 0xc0605b, 0x6ea86a];
+  // landmarks: only the pillars that mean something (hitos-plaza.ts: the two the example quest names); fixed positions, no randomness
+  const pillarGeo = new THREE.BoxGeometry(1, ALTO_HITO, 1);
   const hitos: THREE.Mesh[] = []; // H4: the environment may hide them (hitos: false)
-  for (let i = 0; i < 24; i++) {
-    const a = (i / 24) * Math.PI * 2, r = 18 + (i % 3) * 9;
-    const p = new THREE.Mesh(pillarGeo, new THREE.MeshStandardMaterial({ color: palette[i % 4] }));
-    p.position.set(Math.cos(a) * r, 1.5, Math.sin(a) * r);
+  for (const h of HITOS_PLAZA) {
+    const p = new THREE.Mesh(pillarGeo, new THREE.MeshStandardMaterial({ color: h.color }));
+    p.name = h.nombre; p.userData.proposito = h.proposito;
+    p.position.set(h.x, ALTO_HITO / 2, h.z);
     world.add(p); hitos.push(p);
   }
   // J5: what the top-down map draws (cenital.ts): ground and grid as its background, the pillars as landmarks
@@ -367,7 +367,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     grabando(si: boolean): void { grabosoQuiere.grabando = si; graboso3d?.grabando(si); },
     visible(): boolean { return graboso3d?.visible() ?? false; },
   };
-  const ancestros = crearSalon({ world, camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera) }); // ancestros v1: the hall and the hologram of the tribute to Asimov (ancestros.ts)
+  const ancestros = crearSalon({ world, camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera), luz: () => LUCES_FUEGO[entorno.nivel] > 0 }); // ancestros v1: the hall and the hologram of the tribute to Asimov (ancestros.ts)
   function dropLabel(t: Target): void {
     const d = labels.get(t);
     if (!d) return;
@@ -838,7 +838,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // the capsules of the people who wear no VRM (the far crowd: one call for all). Before and after the frame every
   // object is as it was, so picking, the map, footprints, hands and the gizmo never see any of this.
   const lotes = crearLotes(world);
-  const hitosMalla = crearHitosMalla(hitos, pillarGeo, lotes.raiz); // MIS-200: the 24 pillars are ONE instanced call (hitos-malla.ts); lotes.raiz shows only while the frame is drawn
+  const hitosMalla = crearHitosMalla(hitos, pillarGeo, lotes.raiz); // MIS-200: the pillars are ONE instanced call (hitos-malla.ts); lotes.raiz shows only while the frame is drawn
   const capsulasParte: Parte[] = [{ geo: bodyGeo, mat: otherMat, sombra: false }];
   const ojo = new THREE.Vector3(), ocultosCuadro: THREE.Object3D[] = [], enLuz = new Set<number | "self">();
   const porLote = new Map<string, { partes: Parte[]; color: string; slots: Slot[] }>();
