@@ -13,7 +13,8 @@
 // to floats (plano()); hornear() did not.
 import * as THREE from "three/webgpu";
 
-export type Horneada = { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean };
+/** `sinSombra`: every mesh baked into this part said «never cast a shadow» (glTF extras `sinSombra`). Meshes that say so and meshes that do not stay in separate parts. */
+export type Horneada = { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean; sinSombra?: boolean };
 export type Merge = (gs: THREE.BufferGeometry[]) => THREE.BufferGeometry | null;
 
 /** A copy of an attribute as plain float32, whatever the file stored: normalized or not, 8 or 16 bits, interleaved. */
@@ -36,7 +37,8 @@ export function aFlotante(a: THREE.BufferAttribute | THREE.InterleavedBufferAttr
 export function hornearEscena(raiz: THREE.Object3D, merge: Merge): Horneada[] | null {
   raiz.updateMatrixWorld(true);
   const inv = raiz.matrixWorld.clone().invert(), rel = new THREE.Matrix4(), v = new THREE.Vector3();
-  const porMat = new Map<THREE.Material, { gs: THREE.BufferGeometry[]; sombra: boolean }>();
+  const porMat = new Map<string, { mat: THREE.Material; gs: THREE.BufferGeometry[]; sombra: boolean; sinSombra: boolean }>();
+  const ids = new Map<THREE.Material, number>();
   let mal = false;
   raiz.traverse((o) => {
     const m = o as THREE.Mesh;
@@ -54,17 +56,20 @@ export function hornearEscena(raiz: THREE.Object3D, merge: Merge): Horneada[] | 
     geo.applyMatrix4(rel.multiplyMatrices(inv, m.matrixWorld));
     const g2 = geo.index ? geo.toNonIndexed() : geo;
     g2.computeVertexNormals();
-    const e = porMat.get(m.material) ?? { gs: [], sombra: false };
-    e.gs.push(g2); e.sombra ||= m.castShadow; porMat.set(m.material, e);
+    const sin = !!m.userData.sinSombra, mat = m.material as THREE.Material;
+    if (!ids.has(mat)) ids.set(mat, ids.size);
+    const k = `${ids.get(mat)}${sin ? "x" : ""}`;
+    const e = porMat.get(k) ?? { mat, gs: [], sombra: false, sinSombra: sin };
+    e.gs.push(g2); e.sombra ||= m.castShadow; porMat.set(k, e);
   });
   if (mal || !porMat.size) return null;
   const out: Horneada[] = [];
-  for (const [mat, e] of porMat) {
+  for (const e of porMat.values()) {
     if (e.gs.some((x) => !!x.attributes.uv) && !e.gs.every((x) => !!x.attributes.uv)) for (const x of e.gs) x.deleteAttribute("uv"); // all or none
     const geo = e.gs.length === 1 ? e.gs[0] : merge(e.gs);
     if (!geo) return null;
     geo.computeBoundingSphere(); geo.computeBoundingBox();
-    out.push({ geo, mat, sombra: e.sombra });
+    out.push({ geo, mat: e.mat, sombra: e.sombra && !e.sinSombra, ...(e.sinSombra ? { sinSombra: true } : {}) });
   }
   return out;
 }
