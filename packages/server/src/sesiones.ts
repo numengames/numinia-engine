@@ -43,7 +43,7 @@ export const SHAPES: Record<string, Shape> = {
     oculta: "bool", bateria: BATERIA, errores: "numero", memoriaMB: "numero",
     // B5 (all optional; an old page sends none of them): stalls the window above hides, and what the GPU was asked
     largos: "conteo", congelado: { n: "conteo", ms: "numero", peor: "numero" }, dc: P2, kTri: P2,
-    programas: "conteo", programasNuevos: "conteo", cambiosRes: "conteo", ratio: "numero",
+    programas: "conteo", programasNuevos: "conteo", compilesTardios: "conteo", cambiosRes: "conteo", ratio: "numero",
     loaf: { n: "conteo", bloqMs: "numero", peorMs: "numero" },
   },
   /** something the player did that nothing else leaves a trace of (`que` is one of ACCIONES; `detalle` a short fixed word like «2d6» or «caña»,

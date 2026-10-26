@@ -29,7 +29,7 @@ type Uno = {
   visible: boolean; animando: boolean;
 };
 
-export function crearElementos(h: { renderer: THREE.WebGPURenderer; scene: THREE.Scene; world: THREE.Group; camera: THREE.PerspectiveCamera; entorno: Entorno }) {
+export function crearElementos(h: { renderer: THREE.WebGPURenderer; scene: THREE.Scene; world: THREE.Group; camera: THREE.PerspectiveCamera; entorno: Entorno; /** t_159e18d2: the scene's light set changed: link the lit materials now, not in a drawn frame. */ luzCambiada?: () => void }) {
   const { world, camera, entorno } = h;
   const todos = new Map<string, Uno>();
   let enUso = 0, calidadVista = JSON.stringify(entorno.calidadActual), nivelVisto = entorno.nivel, animando = 0, tiempo = 0;
@@ -141,7 +141,7 @@ export function crearElementos(h: { renderer: THREE.WebGPURenderer; scene: THREE
       }
       // fire lights: the nearest fires get the tier's lights (made once, on the first fire)
       const max = LUCES_FUEGO[entorno.nivel];
-      if (fuegos.length && luces.length < max) while (luces.length < max) { const l = new THREE.PointLight(0xff8a3a, 0, 14, 2); l.castShadow = false; h.scene.add(l); luces.push(l); }
+      if (fuegos.length && luces.length < max) { while (luces.length < max) { const l = new THREE.PointLight(0xff8a3a, 0, 14, 2); l.castShadow = false; h.scene.add(l); luces.push(l); } h.luzCambiada?.(); }
       fuegos.sort((a, b) => a[0] - b[0]);
       const quedan = luces.slice(0, max);
       for (const [, u] of fuegos) luzPara(u, quedan);
