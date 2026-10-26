@@ -751,7 +751,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     const t = s.want, url = assetUrl(t.model).replace(/\.glb$/, `.${t.ext ?? "glb"}`), model = s.model;
     if ((t.kind === "video" || t.kind === "sonido") && !sePuedeReproducir(t.ext ?? "")) { s.failed = true; console.warn(`[medios] este navegador no reproduce .${t.ext}`); return; }
     if (t.kind === "imagen") s.imgPx = IMAGEN_PX[entorno.nivel];
-    const p = t.kind === "trazo" ? import("./trazo.ts").then((m) => m.cargarTrazo(url)) /* lazy: nothing downloaded until a world has a stroke */ : t.kind === "imagen" ? cargarImagen(url, s.imgPx) /* the picture is redrawn to the tier's size before it is a texture */ : t.kind === "video" ? cargarVideo(url, () => verOcultos) : Promise.resolve(cargarSonido(url, () => verOcultos));
+    const p = t.kind === "trazo" ? import("./trazo.ts").then((m) => m.cargarTrazo(url)) /* lazy: nothing downloaded until a world has a stroke */ : t.kind === "imagen" ? cargarImagen(`${url}?px=${s.imgPx}`, s.imgPx) /* the server's copy made for this tier (activos.ts `?px=`); a picture still bigger than the tier (no copy yet) is redrawn to its size before it is a texture */ : t.kind === "video" ? cargarVideo(url, () => verOcultos) : Promise.resolve(cargarSonido(url, () => verOcultos));
     loading++; if (cerca) cercaCargando++;
     p.then((m) => {
       const now = things.get(key);
