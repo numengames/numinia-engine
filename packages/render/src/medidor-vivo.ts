@@ -113,6 +113,8 @@ export type Censo = {
   ojos: number;
   /** Sum of every row's `llamadas`: the estimate of `renderer.info.render.drawCalls` (frustum culling applied per eye). */
   llamadas: number; piezas: number;
+  /** The renderer's own count of that frame minus `llamadas`: what the census does not see (the sun's shadow pass, post-processing quads, the sky). Filled by the view. */
+  resto?: number;
   porCategoria: Record<Categoria, FilaCenso>;
 };
 
@@ -125,17 +127,19 @@ const fila = (): FilaCenso => ({ piezas: 0, llamadas: 0, materiales: 0, instanci
 
 /**
  * Walk the scene as the renderer sees it NOW (call it between the render and the restore of hidden objects: `view`
- * does) and count what was sent to the GPU, by category. A drawable counts once per eye whose frustum it touches
- * (three's own `intersectsObject`), once per material group (a mesh with 2 materials is 2 calls). `camaras` = the
- * cameras that drew: the camera itself, or an XR array camera's `cameras`.
+ * does) and count what was sent to the GPU, by category. A drawable counts once per eye (when it is inside the frustum
+ * three culls with: the camera's own, or the XR array camera's union), once per material group (a mesh with 2 materials is
+ * 2 calls). `camaras` = the cameras that drew: the camera itself, or an XR array camera's `cameras` (+ that array camera as `union`).
  */
-export function censoDeEscena(raiz: THREE.Object3D, camaras: readonly THREE.Camera[]): Censo {
-  const frustos = camaras.map((c) => {
+export function censoDeEscena(raiz: THREE.Object3D, camaras: readonly THREE.Camera[], union?: THREE.Camera): Censo {
+  // three culls an XR frame ONCE, against the array camera's own (union) frustum, and then draws every survivor once per eye whose layers
+  // match (not per-eye culling): `union` is that array camera. Without it (a screen) the one camera is both.
+  const frustoDe = (c: THREE.Camera) => {
     const f = new THREE.Frustum(), m = new THREE.Matrix4();
     m.multiplyMatrices(c.projectionMatrix, c.matrixWorldInverse);
-    f.setFromProjectionMatrix(m);
-    return { f, capas: c.layers };
-  });
+    return f.setFromProjectionMatrix(m);
+  };
+  const frustos = union ? [{ f: frustoDe(union), capas: union.layers, ojos: camaras.map((c) => c.layers) }] : camaras.map((c) => ({ f: frustoDe(c), capas: c.layers, ojos: [c.layers] }));
   const out = {} as Record<Categoria, FilaCenso>;
   for (const c of CATEGORIAS) out[c] = fila();
   const materiales: Record<Categoria, Set<THREE.Material>> = {} as never;
@@ -151,7 +155,7 @@ export function censoDeEscena(raiz: THREE.Object3D, camaras: readonly THREE.Came
       const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
       if (geo && mats.length) {
         let ojos = 0;
-        for (const x of frustos) if (o.layers.test(x.capas) && (o.frustumCulled === false || x.f.intersectsObject(o))) ojos++;
+        for (const x of frustos) if (o.layers.test(x.capas) && (o.frustumCulled === false || x.f.intersectsObject(o))) for (const l of x.ojos) if (o.layers.test(l)) ojos++;
         if (ojos > 0) {
           nombres.length = 0;
           for (let p: THREE.Object3D | null = o; p; p = p.parent) if (p.name) nombres.push(p.name);
@@ -185,7 +189,7 @@ function nearestUserData(o: THREE.Object3D): Record<string, unknown> {
 
 /** The census as short text lines for the overlay (categories with something in them). */
 export function lineasCenso(c: Censo): string[] {
-  const out = [`piezas ${c.piezas} · llamadas ~${c.llamadas} (${c.ojos} ${c.ojos === 1 ? "ojo" : "ojos"})`];
+  const out = [`piezas ${c.piezas} · llamadas ~${c.llamadas} (${c.ojos} ${c.ojos === 1 ? "ojo" : "ojos"})${c.resto ? ` · +${c.resto} fuera de la escena (sombra, posproceso, cielo)` : ""}`];
   for (const k of CATEGORIAS) {
     const f = c.porCategoria[k];
     if (f.piezas) out.push(`  ${k}: ${f.llamadas} (${f.piezas} piezas, ${f.materiales} mat${f.transparentes ? `, ${f.transparentes} transp.` : ""}${f.instanciadas ? `, ${f.instanciadas} inst.` : ""})`);

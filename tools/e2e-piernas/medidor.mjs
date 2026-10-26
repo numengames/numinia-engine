@@ -39,7 +39,7 @@ try {
     return a.evaluate((donde) => {
       const n = globalThis.__numinia, m = n.medidorVivo, info = n.view.renderer.info.render;
       const censo = m.censo();
-      return { donde, resumen: m.resumen(), infoDrawCalls: info.drawCalls, infoTriangulos: info.triangles, censo: censo && { ojos: censo.ojos, llamadas: censo.llamadas, piezas: censo.piezas, porCategoria: Object.fromEntries(Object.entries(censo.porCategoria).filter(([, f]) => f.piezas)) }, overlay: document.getElementById("medidor")?.textContent ?? null };
+      return { donde, resumen: m.resumen(), infoDrawCalls: info.drawCalls, infoTriangulos: info.triangles, censo: censo && { ojos: censo.ojos, llamadas: censo.llamadas, resto: censo.resto, piezas: censo.piezas, porCategoria: Object.fromEntries(Object.entries(censo.porCategoria).filter(([, f]) => f.piezas)) }, overlay: document.getElementById("medidor")?.textContent ?? null };
     }, donde);
   };
 
@@ -59,7 +59,8 @@ try {
     const vr = await leer("vr");
     r.vr = vr;
     paso("VR: two eyes in the census", vr.censo?.ojos === 2, { ojos: vr.censo?.ojos });
-    paso("VR: the census adds up near the renderer's own count", !!vr.censo && Math.abs(vr.censo.llamadas - vr.infoDrawCalls) <= Math.max(8, vr.infoDrawCalls * 0.15), { censo: vr.censo?.llamadas, renderer: vr.infoDrawCalls });
+    // no shadow pass and no post-processing in a headset: what the census does not see is the sky and little else
+    paso("VR: the census adds up near the renderer's own count", !!vr.censo && vr.censo.llamadas > 0 && Math.abs(vr.censo.llamadas - vr.infoDrawCalls) <= Math.max(6, vr.infoDrawCalls * 0.1), { censo: vr.censo?.llamadas, resto: vr.censo?.resto, renderer: vr.infoDrawCalls });
     paso("VR: the panel carries one short line of the meter", (await a.evaluate(() => globalThis.__numinia.medidorVivo.activo)) === true);
   }
   paso("no page errors", errors.length === 0, { errors });

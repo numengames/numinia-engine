@@ -977,8 +977,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   function tomarCenso(): void {
     censoPedido = false;
     const xr = renderer.xr.isPresenting;
-    const camaras = xr ? ((renderer.xr.getCamera() as THREE.ArrayCamera).cameras ?? []) : [camera];
-    if (camaras.length) censoUltimo = censoDeEscena(scene, camaras);
+    const union = xr ? (renderer.xr.getCamera() as THREE.ArrayCamera) : null;
+    const camaras = union ? (union.cameras ?? []) : [camera];
+    if (camaras.length) { censoUltimo = censoDeEscena(scene, camaras, union ?? undefined); censoUltimo.resto = renderer.info.render.drawCalls - censoUltimo.llamadas; }
   }
   function dibujarCuadro(): void {
     antesDelCuadro();

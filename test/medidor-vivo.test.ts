@@ -82,4 +82,11 @@ test("censo: counts per eye through the frustum, per material group, instanced a
   const c2 = censoDeEscena(escena, [cam, cam]);
   assert.equal(c2.llamadas, 12, "two eyes = every call twice (renderer.info.render.drawCalls counts both)");
   assert.ok(lineasCenso(c1).some((l) => l.includes("mapa: 3")));
+  // XR: three culls once against the array camera and then draws every survivor in both eyes
+  const ojoI = cam.clone(), ojoD = cam.clone(); ojoI.position.x = -0.03; ojoD.position.x = 0.03;
+  for (const o of [ojoI, ojoD]) { o.updateMatrixWorld(); o.matrixWorldInverse.copy(o.matrixWorld).invert(); }
+  const par = Object.assign(new THREE.ArrayCamera([ojoI, ojoD]), { projectionMatrix: cam.projectionMatrix.clone(), matrixWorldInverse: cam.matrixWorldInverse.clone() });
+  const c3 = censoDeEscena(escena, [ojoI, ojoD], par);
+  assert.equal(c3.ojos, 2);
+  assert.equal(c3.llamadas, 12, "inside the array camera's frustum = drawn in both eyes");
 });
