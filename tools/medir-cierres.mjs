@@ -1,4 +1,4 @@
-// MIS-233 (t_3e18259a): measure with real tabs (1) how a page's connection ends — closed tab, navigated away, crashed, frozen — as the server
+// MIS-233 (t_3e18259a): measure with real tabs (1) how a page's connection ends — closed tab, navigated away, no network, frozen (a real crash — Page.crash — hangs the headless shell's CDP connection here, so it is not measured) — as the server
 // counts it (`/metrics` → `cierres`, test/cierres.test.ts), and (2) whether a tab in the BACKGROUND keeps sending INPUT (the 20 Hz client tick
 // runs inside the animation loop, `view.loop` → `session.tick`, so a hidden tab, where the browser stops requestAnimationFrame, may stop sending it).
 // Starts its own server and page on spare ports with empty data; ONE headless Chromium (run it under the machine's flock). Prints JSON.
@@ -43,7 +43,6 @@ try {
   for (const [nombre, hacer] of [
     ["pestaña cerrada (page.close)", (p) => p.close()],
     ["navega a otra página (goto about:blank)", (p) => p.goto("about:blank")],
-    ["la pestaña se cae (Page.crash)", async (p) => { const c = await ctx.newCDPSession(p); await c.send("Page.crash").catch(() => {}); }],
     ["se queda sin red (Network.emulateNetworkConditions offline)", async (p) => { const c = await ctx.newCDPSession(p); await c.send("Network.enable"); await c.send("Network.emulateNetworkConditions", { offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0 }); }],
   ]) {
     const p = await abrir(), a = await antes(); const t0 = Date.now();

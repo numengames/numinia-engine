@@ -362,3 +362,32 @@ Plaza de 200 copias del modelo de 3.668 triángulos a 100–420 m (`COPIAS=200`)
 dio 100 llamadas y 539.983 triángulos. **No hay cifra «antes» fiable de llamadas y triángulos de esa plaza**: el cuadro leído por el
 GPU por software salió a 0 en el motor sin tarjeta (la lectura varía con el cuadro y con la posición, de 100 a 333 llamadas en
 el mismo mundo). Lo medido de verdad es el peso de cada nivel (arriba); las llamadas no bajan con el nivel, bajan los triángulos.
+
+## Cómo acaban las conexiones, y el INPUT con la pestaña de fondo (MIS-233, 26-10-2026)
+
+Falta que cerraba la nota de biblioteca del 16-10 («medir cuántas desconexiones sin despedida tenemos»): el servidor solo contaba `cerradas`, sin decir
+cómo. Ahora `/metrics` trae `cierres` y `/metrics.prom` trae `numinia_connections_closed_total{motivo=…}` con siete motivos por código de cierre
+(`limpio` 1000/1001, `sin_codigo` 1005, **`sin_despedida` 1006** = el socket murió sin trama de cierre, **`silencio` 4005** = lo cortó el servidor porque el
+latido se paró, `expulsado`, `protocolo`, `otro`; suman `cerradas`). **Sin despedida = `sin_despedida` + `silencio`.** Una página cortada por silencio
+acaba en el navegador como 1006 (no contesta la trama de cierre); el servidor la apunta aparte para no contarla dos veces. Prueba: `test/cierres.test.ts`
+(WebSocket real: 2 limpios, 1 muerto, 1 congelado cortado, 1 que sigue; las cuentas suman).
+
+Medida con pestañas reales (`tools/medir-cierres.mjs`, un Chromium sin cabeza, servidor propio con datos vacíos, 26-10 ~12:40 UTC, PC compartido):
+
+| Qué le pasa a la pestaña | Cierre contado | Tarda en notarlo el servidor |
+|---|---|---|
+| se cierra (`page.close`) | `limpio` | 0,26 s |
+| navega a otra página | `limpio` | 0,34 s |
+| se queda sin red (CDP `offline`, el socket no se cierra) | `silencio` | **16,4 s** (el tope es `SILENCIO_MS` = 15 s + el muestreo) |
+| congelada (`Page.setWebLifecycleState frozen`) | nada en 18 s | **no concluyente**: el Chromium sin cabeza no paró sus temporizadores, el latido siguió |
+| se cae el proceso de la pestaña (`Page.crash`) | **no medido**: cuelga la conexión CDP del Chromium sin cabeza | — |
+
+Lo que NO se ha medido, y no se puede aquí: cuántas desconexiones sin despedida hay en los **mundos reales** (esto es una prueba en banco; con `cierres` en
+producción la cifra sale de `numinia_connections_closed_total` en Grafana, ratio `sin_despedida+silencio` sobre el total).
+
+**INPUT con la pestaña de fondo.** Con la tecla W pulsada, la página mandó (5 s por ventana): visible **86 INPUT** (17/s), luego «minimizada» **98** y de nuevo
+visible **100** (20/s), más 12 latidos por ventana (tipo 16: un temporizador de 400 ms que lleva `oculta`, `apps/plaza/main.ts:733`). Pero el Chromium sin cabeza
+**no cambió `document.visibilityState`** al minimizar (siguió `visible`), así que esa fila **no es una pestaña oculta**: no mide nada de fondo. Lo que sí dice el
+código: el INPUT se manda dentro del bucle de dibujo (`view.loop` → `session.tick`), que el navegador **para** en una pestaña oculta (el móvil, además, la
+congela); el latido va por `setInterval`, que sí sigue (a 1 Hz como mucho) y por eso el servidor admite 150 s de silencio a quien dijo `oculta`
+(`SILENCIO_OCULTA_MS`) y 15 s al resto. Medirlo de verdad pide un Chromium con ventana o un móvil (`chrome://inspect`, lote de móviles). Pendiente.
