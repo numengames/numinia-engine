@@ -22,7 +22,7 @@ type Vista = {
   vr: { active: boolean; pagina: "mision" | "mandos" | "ajustes"; dialogo(d: { nombre: string; texto: string; opciones: string[] } | null): void; nota(t: string): void; onElegir(fn: (n: number) => void): unknown; onAtras(fn: () => void): unknown };
   ar: { state: string };
   manos: { reglas(o: { agarrable?: (k: string) => boolean; apuntable?: (k: string) => boolean }): void; on(fn: (e: EventoMano) => void): unknown; vibrar(l: Lado, v?: number, ms?: number): void;
-    llevable?(nombre: string, l: { que: string; lado(): Lado | null; puede(): true | string; pasar(a: Lado): void }): () => void };
+    llevable?(nombre: string, l: { que: string; lado(): Lado | null; puede(): true | string; pasar(a: Lado): void; soltar?(): true | string }): () => void };
   llevar(key: string, donde: Lado | "yo" | null): void;
   llevando(): Record<string, string>;
 };
@@ -81,10 +81,18 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
 
   // hand to hand (MIS-200): each quest thing drawn in a hand can change hands; if the other hand holds one too, the two swap
   const registros = new Map<string, () => void>();
+  // N3 (Pablo, 18-10: «estas cosas se deberían de poder tirar y dejar ahí»): a quest thing you let go of leaves your hand and stays out of it
+  // while its step stands. The quest does not change — the server holds what you took; only the hand is free again.
+  const dejadas = new Set<string>();
   const registrar = (cosa: string) => {
     if (registros.has(cosa) || !view.manos.llevable) return;
     registros.set(cosa, view.manos.llevable(`misiones:${cosa}`, {
       que: "lo que llevas", puede: () => true,
+      soltar: () => {
+        if (!enMano.has(cosa)) return "No llevas eso";
+        dejadas.add(cosa); view.llevar(`misiones:${cosa}`, null); enMano.delete(cosa); registros.get(cosa)?.(); registros.delete(cosa);
+        return true;
+      },
       lado: () => { const l = enMano.get(cosa); return l === "izq" || l === "der" ? l : null; },
       pasar: (a) => {
         const antes = enMano.get(cosa); if (!antes) return;
@@ -97,6 +105,8 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
   const llevar = () => {
     const quiero = new Set<string>();
     for (const m of misiones.libro()) if (m.estado === "activa") for (const s of m.lista) if (s.tipo === "coge" && s.hecho && s.que) quiero.add(s.que);
+    for (const cosa of [...dejadas]) if (!quiero.has(cosa)) dejadas.delete(cosa); // the step is over: a next quest thing with the same name is carried again
+    for (const cosa of dejadas) quiero.delete(cosa);
     for (const [cosa] of enMano) if (!quiero.has(cosa)) { view.llevar(`misiones:${cosa}`, null); enMano.delete(cosa); registros.get(cosa)?.(); registros.delete(cosa); }
     for (const cosa of quiero) {
       if (enMano.has(cosa)) continue;
