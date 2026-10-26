@@ -2,7 +2,7 @@
 // Vuelve a generarlo con `npm run novedades` (también corre antes de "dev" y "build").
 /** La versión del motor cuando se generó este fichero (solo para quien lo lea; la comparación real la hace
  * apps/plaza/novedades.ts contra la versión del paquete que corre la página). */
-export const version = "0.75.0";
+export const version = "0.76.0";
 /** Hasta 3 líneas, la más nueva primero. Vacío si el diario no tenía ninguna entrada con «Qué». */
 export const items: readonly string[] = [
   "una imagen del mundo (hueco, cuadro) se rehace a IMAGEN_PX[nivel] (A 2.048 · B 1.024 · C 512 · D 512 px de lado largo, calidad.ts, publicado en limits.jso…",
