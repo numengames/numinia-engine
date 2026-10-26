@@ -124,13 +124,13 @@ export function fundirQuieto(escena: THREE.Object3D): Quieto | null {
   for (const [mat, l] of looks) { const s = porLook.get(l) ?? new Set(); s.add(mat); porLook.set(l, s); }
   const enVertices = (mat: THREE.Material) => { const l = looks.get(mat)!; return !l.startsWith("mat:") && porLook.get(l)!.size > 1; };
 
-  type Grupo = { piezas: Pieza[]; colores: boolean; mat: THREE.Material; sombra: boolean; recibe: boolean; oculto?: boolean };
+  type Grupo = { piezas: Pieza[]; colores: boolean; mat: THREE.Material; sombra: boolean; recibe: boolean; sinSombra?: boolean; oculto?: boolean };
   const grupos = new Map<string, Grupo>();
   for (const p of piezas) {
     const mat = p.malla.material as THREE.Material, colores = enVertices(mat);
-    const clave = `${colores ? looks.get(mat) : `mat:${mat.uuid}`}#${firma(p.malla.geometry, colores)}#${p.malla.castShadow ? 1 : 0}${p.malla.receiveShadow ? 1 : 0}`;
+    const clave = `${colores ? looks.get(mat) : `mat:${mat.uuid}`}#${firma(p.malla.geometry, colores)}#${p.malla.castShadow ? 1 : 0}${p.malla.receiveShadow ? 1 : 0}${p.malla.userData.sinSombra ? "x" : ""}`; // «sinSombra» (glTF extras) keeps meshes apart: the fused one carries it on
     let g = grupos.get(clave);
-    if (!g) grupos.set(clave, (g = { piezas: [], colores, mat, sombra: p.malla.castShadow, recibe: p.malla.receiveShadow }));
+    if (!g) grupos.set(clave, (g = { piezas: [], colores, mat, sombra: p.malla.castShadow, recibe: p.malla.receiveShadow, sinSombra: !!p.malla.userData.sinSombra }));
     g.piezas.push(p);
   }
   const despues = grupos.size + sueltas.length;
@@ -193,6 +193,7 @@ export function fundirQuieto(escena: THREE.Object3D): Quieto | null {
     const malla = new THREE.Mesh(geo, mat);
     malla.name = g.piezas.length > 1 ? `${g.piezas[0].malla.name}+${g.piezas.length - 1}` : g.piezas[0].malla.name;
     malla.castShadow = g.sombra; malla.receiveShadow = g.recibe;
+    if (g.sinSombra) malla.userData.sinSombra = true;
     if (g.oculto) { malla.visible = false; malla.name = "invisibles"; }
     if (g.colores) {
       malla.userData.fundido = { colores: true }; // index.ts pintar(): painted, one colour (as N15)
@@ -203,14 +204,14 @@ export function fundirQuieto(escena: THREE.Object3D): Quieto | null {
     }
     raiz.add(malla);
   }
-  const partes: Parte[] = raiz.children.filter((c) => c.visible).map((c) => { const m = c as THREE.Mesh; return { geo: m.geometry, mat: m.material as THREE.Material, sombra: m.castShadow }; });
+  const partes: Parte[] = raiz.children.filter((c) => c.visible).map((c) => { const m = c as THREE.Mesh; return { geo: m.geometry, mat: m.material as THREE.Material, sombra: m.castShadow, ...(m.userData.sinSombra ? { sinSombra: true } : {}) }; });
   for (const p of sueltas) {
     const m = new THREE.Mesh(p.malla.geometry, p.malla.material);
     m.name = p.malla.name; m.castShadow = p.malla.castShadow; m.receiveShadow = p.malla.receiveShadow;
     m.renderOrder = p.malla.renderOrder; m.layers.mask = p.malla.layers.mask; m.onBeforeRender = p.malla.onBeforeRender; m.userData = { ...p.malla.userData };
     p.m.decompose(m.position, m.quaternion, m.scale); m.matrixAutoUpdate = false; m.matrix.copy(p.m); // exact, even sheared
     raiz.add(m);
-    partes.push({ geo: m.geometry, mat: m.material as THREE.Material, sombra: m.castShadow, rel: p.m.clone() });
+    partes.push({ geo: m.geometry, mat: m.material as THREE.Material, sombra: m.castShadow, rel: p.m.clone(), ...(m.userData.sinSombra ? { sinSombra: true } : {}) });
   }
   return { escena: raiz, partes, antes, despues };
 }

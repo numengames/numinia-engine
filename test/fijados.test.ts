@@ -125,3 +125,29 @@ test("claveMaterial: two files' own copies of the same plain look merge; a diffe
   const g = planFijados([fijado("a", 1, 1, [{ geo: caja(), mat: a, sombra: false }]), fijado("b", 2, 2, [{ geo: caja(), mat: b, sombra: false }])]);
   assert.equal(g.length, 1, "two materials, one look, one group");
 });
+
+// Auditorio lane: a pinned model marked `sinSombra` (glTF extras → userData.sinSombra) must stay shadow-less once merged. entorno.ts
+// marcarSombras() makes every mesh of the world cast unless its userData says sinSombra, and the merged cell is a new mesh: it has to say it.
+test("sinSombra: a pinned part that never casts is not merged with one that does, and its cell says it (userData + castShadow)", () => {
+  const cupula = [{ geo: caja(3), mat: rojo, sombra: false, sinSombra: true }];
+  const g = planFijados([fijado("a", 1, 1, silla), fijado("b", 2, 2, cupula), fijado("c", 3, 3, silla)]);
+  assert.equal(g.length, 2, "same material, same cell: the shadow-less part is its own group");
+  const sin = g.find((x) => x.sinSombra)!, con = g.find((x) => !x.sinSombra)!;
+  assert.equal(sin.trozos.length, 1);
+  assert.equal(con.trozos.length, 2);
+  assert.equal(sin.sombra, false);
+  const raiz = new THREE.Group(), f = crearFijados(raiz);
+  f.actualizar([fijado("a", 1, 1, silla), fijado("b", 2, 2, cupula)]);
+  const mallas = f.raiz.children as THREE.Mesh[];
+  assert.equal(mallas.length, 2);
+  // what entorno.ts marcarSombras does to the world after the merge
+  raiz.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && !m.userData.sinSombra) m.castShadow = true; });
+  assert.deepEqual(mallas.map((m) => [!!m.userData.sinSombra, m.castShadow]).sort(), [[false, true], [true, false]]);
+  f.destruir();
+});
+
+test("sinSombra: a part that says nothing keeps today's grouping (no new key for models without the flag)", () => {
+  const g = planFijados([fijado("a", 1, 1, silla), fijado("b", 2, 2, [{ geo: caja(), mat: rojo, sombra: true, sinSombra: false }])]);
+  assert.equal(g.length, 1);
+  assert.equal(g[0].sinSombra, false);
+});

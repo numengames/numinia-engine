@@ -462,7 +462,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // ---- H1: things placed in the world (features/objetos): a model by its sha256, loaded once per file and cloned,
   // the nearest first, never more than LOADS_AT_ONCE downloads at a time ----
   type Gltf = { scene: THREE.Object3D; animations: THREE.AnimationClip[] };
-  type Pieza = { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean };
+  type Pieza = { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean; sinSombra?: boolean };
   type Slot = { group: THREE.Group; want: Thing; model: string; loaded: boolean; failed: boolean; mixer?: THREE.AnimationMixer; medio?: Medio; color?: string; horneado?: boolean;
     /** N12: the baked parts (copies of one model share them: a lote draws them), and a sphere round the group's origin that holds the model (m, before scale). */
     partes?: Parte[]; radio?: number;
@@ -539,10 +539,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
        clone: (o: THREE.Object3D) => u.clone(o as never) as unknown as THREE.Object3D, merge: (gs) => b.mergeGeometries(gs as never) as unknown as THREE.BufferGeometry | null }; }));
   // A model that does not animate (people of the world, quest things) is baked ONCE per file into one mesh per
   // material, in the pose it comes in: the house robot goes from 19 draw calls to 3. Copies share the geometry.
-  const horneados = new Map<string, { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean }[] | null>();
-  function hornear(model: string, raiz: THREE.Object3D, merge: Merge): { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean }[] | null {
+  const horneados = new Map<string, Pieza[] | null>();
+  function hornear(model: string, raiz: THREE.Object3D, merge: Merge): Pieza[] | null {
     if (horneados.has(model)) return horneados.get(model)!;
-    let out: { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean }[] | null = null;
+    let out: Pieza[] | null = null;
     try { out = hornearEscena(raiz, merge); } catch (err) { console.warn(`[objetos] no pude hornear ${model}:`, err); out = null; } // E5: hornear.ts (positions as floats first)
     horneados.set(model, out);
     return out;
@@ -561,7 +561,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
         if (!out) return;
         const m = o as THREE.Mesh;
         if ((o as THREE.Line).isLine || (o as THREE.Points).isPoints || (o as THREE.Sprite).isSprite || (m.isMesh && ((m as THREE.SkinnedMesh).isSkinnedMesh || Array.isArray(m.material) || m.morphTargetInfluences?.length))) { out = null; return; }
-        if (m.isMesh) out.push({ geo: m.geometry, mat: m.material as THREE.Material, sombra: m.castShadow, rel: new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld) });
+        if (m.isMesh) out.push({ geo: m.geometry, mat: m.material as THREE.Material, sombra: m.castShadow, sinSombra: !!m.userData.sinSombra || undefined, rel: new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld) });
       });
       if (out && !(out as Parte[]).length) out = null;
     }
@@ -601,7 +601,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
         const geo = coloreadas.length === 1 ? coloreadas[0] : merge(coloreadas);
         if (geo) {
           geo.computeBoundingSphere(); geo.computeBoundingBox();
-          out = { geo, mat: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }), sombra: partes.some((p) => p.sombra) };
+          out = { geo, mat: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }), sombra: partes.some((p) => p.sombra), sinSombra: partes.every((p) => p.sinSombra) || undefined };
         }
       } catch (err) { console.warn(`[objetos] no pude hornear en una pieza ${model}:`, err); out = null; }
     }
@@ -611,7 +611,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   /** Builds the Object3D a Slot shows for a set of baked parts (one Mesh each, sharing geometry across copies). */
   function representacion(piezas: Pieza[]): THREE.Object3D {
     const g = new THREE.Group();
-    for (const p of piezas) { const m = new THREE.Mesh(p.geo, p.mat); m.castShadow = p.sombra; g.add(m); }
+    for (const p of piezas) { const m = new THREE.Mesh(p.geo, p.mat); m.castShadow = p.sombra; if (p.sinSombra) m.userData.sinSombra = true; g.add(m); }
     return g;
   }
   /** J14: a baked figure beyond LOD_LEJOS_M shows its one-piece LOD; up close, its baked parts. Hysteresis

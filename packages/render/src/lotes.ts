@@ -5,7 +5,8 @@
 // read those); index.ts hides them only while the frame is drawn and shows the lote instead (dibujo-politica.ts).
 import * as THREE from "three/webgpu";
 
-export type Parte = { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean; rel?: THREE.Matrix4 };
+/** `sinSombra`: the model said this part never casts a shadow (glTF extras → `userData.sinSombra`, which entorno.ts marcarSombras honours): whatever draws the part in its place must say the same. */
+export type Parte = { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean; rel?: THREE.Matrix4; sinSombra?: boolean };
 type Lote = { partes: Parte[]; mallas: THREE.InstancedMesh[]; matrices: THREE.InstancedBufferAttribute[]; cap: number; n: number; usado: boolean; mats: THREE.Material[] };
 
 export function crearLotes(padre: THREE.Object3D) {
@@ -39,7 +40,7 @@ export function crearLotes(padre: THREE.Object3D) {
       const m = new THREE.InstancedMesh(p.geo, l.mats[i], cap);
       m.instanceMatrix = p.rel ? nueva() : comun;
       if (!l.matrices.includes(m.instanceMatrix)) l.matrices.push(m.instanceMatrix);
-      m.castShadow = p.sombra; m.count = 0; m.visible = false;
+      m.castShadow = p.sombra && !p.sinSombra; if (p.sinSombra) m.userData.sinSombra = true; m.count = 0; m.visible = false;
       m.name = "lote"; m.userData.lote = true;
       raiz.add(m);
       return m;

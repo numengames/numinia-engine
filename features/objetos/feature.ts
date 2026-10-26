@@ -103,7 +103,7 @@ export function motivoEnlace(valor: unknown): string {
 
 export const objetos = defineFeature({
   id: "objetos",
-  version: 8, // J18b: + tipo «trazo» and ext up to 5 bytes (the enum and the text grew: new wire layout); T1 (no bump: a server-only event, nothing on the wire or in the saved state): + event hizo; U10: + tipo/ext, oculto, volumen, solido + world box, intent ajustar; U11: + alcance, radio; H5: + grupo (additive); U12: + holes; M6: + colision (additive: solido stays); M22c: + lote (deshacer agrupado); J4: + enlace
+  version: 8, // J18b: + tipo «trazo» and ext up to 5 bytes (the enum and the text grew: new wire layout); T1 (no bump: a server-only event, nothing on the wire or in the saved state): + event hizo; U10: + tipo/ext, oculto, volumen, solido + world box, intent ajustar; U11: + alcance, radio; H5: + grupo (additive); U12: + holes; M6: + colision (additive: solido stays); M22c: + lote (deshacer agrupado); J4: + enlace; moverCon (additive intent: one message moves a thing and its companion, no bump)
   describe: "Cosas colocadas en el mundo que se quedan (un modelo 3D con su sitio, giro, escala y nombre). Quien tiene permiso de construir las coloca, mueve, duplica, fija, borra y deshace en directo; todos lo ven al momento y sobrevive a los reinicios. Un hueco es un cuadro que espera su obra: se pincha, se elige una imagen y el servidor la encaja.",
   store: { describe: "Por objeto, quién lo colocó y cuándo (`a:<id>`), su caja propia si es sólido (`c:<id>`) y, si es un hueco, el cartel al que vuelve al vaciarlo (`v:<id>`); y el contador de ids (`siguiente`). Nunca va a las páginas." },
   state: {
@@ -122,6 +122,7 @@ export const objetos = defineFeature({
       fields: { modelo: { kind: "text", maxBytes: 64 }, x: X, y: Y, z: X, ry: GIRO, nombre: NOMBRE, decorado: { kind: "bool", default: true }, tipo: TIPO, ext: EXT },
     },
     mover: { describe: "Poner un objeto en otro sitio, con otro giro y otra escala (todo a la vez, como lo deja el gizmo). M22c: `lote` agrupa varios movimientos (de objetos distintos) en un solo paso de deshacer.", spoken: "mover un objeto", fields: { id: ID, ...DONDE, lote: LOTE }, rate: { perSecond: 10, burst: 20 } },
+    moverCon: { describe: "Mover un objeto Y a su compañero de una sola vez (una pieza que va pegada y cambia por su cuenta: la boca de una criatura, un ala, una puerta): `con` toma el mismo sitio, giro y escala (x, y, z, rx, ry, rz, sx, sz) y solo su altura de escala es suya (`syCon`). Cuesta un solo mensaje y un solo paso de deshacer, no dos. Mismo permiso y mismo tope que `mover`.", spoken: "mover un objeto con su pieza", fields: { id: ID, ...DONDE, con: ID, syCon: ESCALA, lote: LOTE }, rate: { perSecond: 10, burst: 20 } },
     girar: { describe: "Girar un objeto sobre sí mismo (grados; positivo = a la izquierda vista desde arriba).", spoken: "girar un objeto", fields: { id: ID, grados: GIRO } },
     duplicar: { describe: "Hacer una copia de un objeto un metro al lado.", spoken: "duplicar un objeto", fields: { id: ID } },
     borrar: { describe: "Quitar un objeto del mundo. M22c: `lote` agrupa el borrado de varios en un solo paso de deshacer.", spoken: "borrar un objeto", fields: { id: ID, lote: LOTE } },
