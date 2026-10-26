@@ -39,8 +39,12 @@ export type Llevable = {
   punto?(): { x: number; y: number; z: number } | null;
   /** The name under which the piece marks its own hand busy with `ocupar` (or `reglas`'s «reglas»): that busyness is not a refusal. */
   ocupante?: string;
+  /** N3: let it go — the hand is free and the piece puts the thing away (the rod back on its holder, the dart back, a quest thing
+   *  out of the hand). true when done; else the reason (a sentence). A piece with no `soltar` cannot be dropped from the hands layer. */
+  soltar?(): true | string;
 };
 export type ResCambio = { ok: true; que: string; a: Lado } | { ok: false; why: string };
+export type ResSoltar = { ok: true; que: string; lado: Lado } | { ok: false; why: string };
 export type EventoMano =
   | { tipo: "agarrar"; key: string; lado: Lado }
   | { tipo: "apuntar"; key: string; lado: Lado }
@@ -53,6 +57,9 @@ export type EventoMano =
 export const ALCANCE_M = 0.22;
 /** The free hand this near the holding hand (or the thing's grip point), with its grip or pinch pressed, takes the thing (m). */
 export const CERCA_CAMBIO_M = 0.15;
+/** N3: a controller's thumbstick held DOWN (clicked) this long, on the hand that carries something, lets it go (ms). A tap does nothing:
+ *  the stick is also how you walk and turn, and a click while pushing it must not drop what you hold. */
+export const SOLTAR_PULSAR_MS = 500;
 /** The ray stops here (m). */
 export const RAYO_M = 12;
 const PIEL = 0xe3b896, MANDO = 0x2b2f36;
@@ -315,6 +322,35 @@ export function createManos(h: ManosHooks) {
     vibrar(ranuras.find((x) => x.lado === de && x.fuente) ?? hacia, 0.5, 60); vibrar(hacia, 0.5, 60);
     return { ok: true, que: reg.que, a };
   }
+  /** N3: let go of what a hand carries (`lado`), or of the first thing carried when no hand is named. Gesture and button both come here. */
+  function soltarLlevado(lado?: Lado): ResSoltar {
+    for (const reg of llevables.values()) {
+      const de = reg.lado();
+      if (!de || (lado && de !== lado)) continue;
+      if (!reg.soltar) return { ok: false, why: `${reg.que[0].toUpperCase()}${reg.que.slice(1)} no se puede soltar` };
+      const r = reg.soltar();
+      if (r !== true) return { ok: false, why: r };
+      const ranura = ranuras.find((x) => x.lado === de && x.fuente);
+      if (ranura) vibrar(ranura, 0.4, 50);
+      return { ok: true, que: reg.que, lado: de };
+    }
+    return { ok: false, why: "No llevas nada en la mano" };
+  }
+  // N3: the controller's stick, clicked and held on the hand that carries something, lets it go (once per press)
+  const palancaDesde: Record<Lado, number> = { izq: 0, der: 0 }, palancaGastada: Record<Lado, boolean> = { izq: false, der: false };
+  function vigilarSoltar(ahora: number): void {
+    for (const r of ranuras) {
+      if (!r.lado || !r.fuente || r.esMano) continue; // a tracked hand has no stick: the Bolsa row is its way
+      const lado = r.lado, pulsada = !!r.fuente.gamepad?.buttons[3]?.pressed;
+      if (!pulsada) { palancaDesde[lado] = 0; palancaGastada[lado] = false; continue; }
+      if (!palancaDesde[lado]) palancaDesde[lado] = ahora;
+      if (palancaGastada[lado] || ahora - palancaDesde[lado] < SOLTAR_PULSAR_MS) continue;
+      if (![...llevables.values()].some((x) => x.lado() === lado)) continue; // nothing in this hand: the click is the system's or nobody's
+      palancaGastada[lado] = true;
+      const res = soltarLlevado(lado);
+      h.nota?.(res.ok ? `Soltado: ${res.que}` : res.why);
+    }
+  }
   /** Every frame, after the hands moved: a free hand close to a held thing, its grip going down = the thing changes hands. */
   function vigilarCambio(): void {
     cercaCambio.clear();
@@ -437,6 +473,8 @@ export function createManos(h: ManosHooks) {
     llevable(nombre: string, l: Llevable): () => void { llevables.set(nombre, l); return () => { if (llevables.get(nombre) === l) llevables.delete(nombre); }; },
     /** What is carried now: name, words, hand. */
     llevando(): { nombre: string; que: string; lado: Lado }[] { const out: { nombre: string; que: string; lado: Lado }[] = []; for (const [nombre, l] of llevables) { const lado = l.lado(); if (lado) out.push({ nombre, que: l.que, lado }); } return out; },
+    /** N3: let go of what a hand carries (no hand: the first thing carried). The stick held down on a controller, and the Bolsa row «Soltar», come here. */
+    soltar(lado?: Lado): ResSoltar { return soltarLlevado(lado); },
     /** The button path of the same handover (the Bolsa row «Cambiar de mano»): the first thing carried goes to the other hand. */
     cambiarMano(): ResCambio {
       for (const reg of llevables.values()) { const de = reg.lado(); if (de) return pasarA(reg, de); }
@@ -450,7 +488,7 @@ export function createManos(h: ManosHooks) {
       return r ? { candidato: r.candidato, apunta: r.apuntado ? (r.apuntado.tipo === "panel" ? `panel:${r.apuntado.fila}` : r.apuntado.key) : null } : null;
     },
     /** Every frame while presenting. `camara` = the XR camera (sprites need it to be hit). */
-    update(camara: THREE.Camera | null, ahora = performance.now()): void { if (!raiz.parent) return; raiz.updateMatrixWorld(); for (const r of ranuras) actualizarRanura(r, camara); vigilarCambio(); vigilarSalto(ahora); },
+    update(camara: THREE.Camera | null, ahora = performance.now()): void { if (!raiz.parent) return; raiz.updateMatrixWorld(); for (const r of ranuras) actualizarRanura(r, camara); vigilarCambio(); vigilarSoltar(ahora); vigilarSalto(ahora); },
     /** t_8d0bc2dd: true once per jump gesture (both wrists flicked up together) since the last call; the VR layer asks each frame. */
     takeSalto(): boolean { const s = saltoPedido; saltoPedido = false; return s; },
     /** Forget the jump gesture's history (leaving VR, a panel opening). */

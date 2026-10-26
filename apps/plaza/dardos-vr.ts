@@ -33,7 +33,7 @@ type Vista = {
     entrada(l: Lado): { gatillo: number; agarre: number; mano: boolean } | null; vibrar(l: Lado, v?: number, ms?: number): void;
     ocupar(nombre: string, fn: (l: Lado) => boolean): () => void; ocupadaPorOtros(l: Lado, excepto: string): boolean; sondeo(l: Lado): { candidato: string | null; apunta: string | null } | null;
     /** Hand to hand (MIS-200): register the held dart so the free hand's grip next to it, or the Bolsa row, passes it over. */
-    llevable?(nombre: string, l: { que: string; lado(): Lado | null; puede(): true | string; pasar(a: Lado): void; ocupante?: string }): () => void;
+    llevable?(nombre: string, l: { que: string; lado(): Lado | null; puede(): true | string; pasar(a: Lado): void; ocupante?: string; soltar?(): true | string }): () => void;
   };
   dardosVR: {
     cargar(): Promise<{
@@ -118,6 +118,9 @@ export async function montarDardosVR(o: { dardos: Controlador; view: Vista; yo: 
   let sinSoltar: Lado | null = null;
   view.manos.llevable?.("dardos", {
     que: "el dardo", lado: () => sosteniendo?.lado ?? null, ocupante: "dardos", puede: () => true,
+    // N3: let the dart go without throwing it: it leaves the hand (it was never thrown, so it still counts as yours to throw);
+    // the grip/pinch that is still closed must open before the hand can take another
+    soltar: () => { const s = sosteniendo; if (!s) return "No llevas ningún dardo"; sosteniendo = null; vrd.enMano(null); antes[s.lado] = { gatillo: true, agarre: true }; sinSoltar = null; return true; },
     pasar: (a) => {
       const de = sosteniendo; if (!de || de.lado === a) return;
       const en = view.manos.entrada(a); if (!en) return;
