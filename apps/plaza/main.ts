@@ -444,6 +444,7 @@ const interaccion = montarInteraccion({ session, view, boton: document.getElemen
 misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
 acciones.conectar((r) => session.report(r)); // read at call time: the «Enviar el informe de la sesión» switch (menu-ajustes.ts) silences these too
 view.manos.on((e) => { if (e.tipo === "soltar") acciones.registrar("soltar", { detalle: e.que }); else if (e.tipo === "salto") acciones.registrar("salto-manos"); });
+{ const soltar = inventarioCtl.soltar.bind(inventarioCtl); inventarioCtl.soltar = (id, n) => { const r = soltar(id, n); if (r.ok) acciones.registrar("soltar", { detalle: "bolsa" }); return r; }; } // the Bolsa's «Soltar» (the panel and the VR card go through this)
 { const tirar = dados.tirar.bind(dados); dados.tirar = (expresion, sitio, oculta) => { const r = tirar(expresion, sitio, oculta); if (r.ok) acciones.registrar("dados", { detalle: expresionDeDados(expresion), activo: oculta === true }); return r; }; }
 const xr = montarXR({ session, view, misiones, interaccion, enlaces, huecos }); // J4: + the ray points at things with a link and the trigger asks before opening // J10: hands in VR take, point and answer; what you took is in your hand
 let condicionesXR: { tick(): void } | null = null; // condiciones/c4: the bubble inside the headset — loaded with the VR chunk below, only where the browser can present VR
