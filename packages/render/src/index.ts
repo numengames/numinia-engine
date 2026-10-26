@@ -72,10 +72,13 @@ import { crearSalon } from "./ancestros.ts";
 import type { DianaAR } from "./dardos.ts";
 import { detalleAgua, LUCES_FUEGO } from "./calidad.ts";
 import { crearLotes } from "./lotes.ts";
+import { crearFijados, type Fijado } from "./fijados.ts";
+import { censoDeEscena, type Censo } from "./medidor-vivo.ts";
 import { debeMejorar, ficheroDeNivel, nivelParaCargar } from "./lod-modelo.ts";
 import { crearHitosMalla } from "./hitos-malla.ts";
 import { HITOS_PLAZA, ALTO_HITO } from "./hitos-plaza.ts";
 import { fundirAnimado } from "./fundir.ts";
+import { congelarMatrices } from "./congelar.ts";
 import { crearQuietos } from "./fundir-quietos.ts";
 import { hornearEscena } from "./hornear.ts";
 import type { Fundido } from "./fundir.ts";
@@ -84,6 +87,7 @@ import { INSTANCIAR_DESDE, INSTANCIAR_DESDE_VR, instanciarDesde, lejosDeNiebla, 
 import { crearTeletransporte } from "./teletransporte.ts";
 import { crearPrecompilador, calentarOcultos } from "./precompilar.ts";
 export { INSTANCIAR_DESDE, INSTANCIAR_DESDE_VR, instanciarDesde, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
+export { crearMedidorVivo, lineaMedidor, lineaMedidorCorta, lineasCenso, CATEGORIAS } from "./medidor-vivo.ts"; // MIS-200 t_ee19c84b: the live frame meter and the draw-call census
 export type { EntornoDatos } from "./entorno.ts";
 export type { Luz } from "./teletransporte.ts";
 // D-058 spike: «materia de bloques» — a shape of dice-shaped blocks that assembles and crumbles (materia.ts, materia-politica.ts)
@@ -112,7 +116,9 @@ export type Thing = { model: string; x: number; y: number; z: number; rx: number
   /** H5 (optional): the mixer group a sound or video plays in (the thing says; without it the engine picks: ambient for a bed, effects for a short sound, music for a video). */
   bus?: "musica" | "efectos" | "ambiente";
   /** N22 (optional): part of the room (pinned or backdrop), downloaded first (carga-orden.ts). */
-  sala?: boolean };
+  sala?: boolean;
+  /** MIS-222 t_e41c0a12 (optional): the builder pinned it (fijado): it never moves, so its parts are merged by material with the other pinned things (fijados.ts). */
+  fijo?: boolean };
 /** J10: where a thing you carry goes: a hand in XR («izq»/«der»), or beside you on a flat screen («yo»). */
 export type Llevar = "izq" | "der" | "yo";
 /** J10: the biggest side of a thing held in a hand (m). */
@@ -713,6 +719,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
           now.horneado = !!quieto; now.partes = partes;
           now.radio = radioDe(copy) * (now.want.animate ? 1.5 : 1); // an animation may reach out of its rest pose
           if (now.mejorando) { now.group.clear(); now.mejorando = false; } // H13: the whole model replaces the level it was showing, in the same frame
+          if (!now.want.animate) congelarMatrices(copy); // a still model never recomposes its node matrices again (congelar.ts: measured in tools/medir-recorrido.mjs)
           now.group.add(copy);
           if (now.want.animate && g.animations.length) { now.mixer = new THREE.AnimationMixer(copy); now.mixer.clipAction((fu ? fu.clips : g.animations)[0]).play(); }
           now.loaded = true; now.color = undefined; pintar(now);
@@ -838,6 +845,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // the capsules of the people who wear no VRM (the far crowd: one call for all). Before and after the frame every
   // object is as it was, so picking, the map, footprints, hands and the gizmo never see any of this.
   const lotes = crearLotes(world);
+  const fijados = crearFijados(world); // MIS-200 t_e41c0a12: pinned things merged by material and cell (fijados.ts); shown only while the frame is drawn
+  const fijosCuadro: Fijado[] = [], fijosSlots: Slot[] = [], instanciados = new Set<Slot>();
   const hitosMalla = crearHitosMalla(hitos, pillarGeo, lotes.raiz); // MIS-200: the pillars are ONE instanced call (hitos-malla.ts); lotes.raiz shows only while the frame is drawn
   const capsulasParte: Parte[] = [{ geo: bodyGeo, mat: otherMat, sombra: false }];
   const ojo = new THREE.Vector3(), ocultosCuadro: THREE.Object3D[] = [], enLuz = new Set<number | "self">();
@@ -878,7 +887,20 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       lotes.dibujar(clave, v.partes, v.color, matricesDe(v.slots.map((s) => s.group)));
       for (const s of v.slots) ocultar(s.group);
       instanciadas += v.slots.length; nLotes++;
+      for (const s of v.slots) instanciados.add(s);
     }
+    // pinned, still (no mixer: `animar` is on by default, a model without clips has none), unpainted copies that no lote draws: one mesh per material and cell instead of one per model part
+    fijosCuadro.length = 0; fijosSlots.length = 0;
+    for (const [k, s] of things) {
+      const g = s.group;
+      if (!s.want.fijo || !s.loaded || !s.partes || s.mixer || s.want.color || k.startsWith("~") || !g.visible || g.parent !== world || instanciados.has(s)) continue;
+      g.updateWorldMatrix(true, false);
+      fijosCuadro.push({ id: k, partes: s.partes, matriz: g.matrixWorld, x: g.position.x, z: g.position.z }); fijosSlots.push(s);
+    }
+    instanciados.clear();
+    fijados.actualizar(fijosCuadro);
+    for (let i = 0; i < fijosSlots.length; i++) if (fijados.cubre(fijosCuadro[i].id)) { const g = fijosSlots[i].group; if (g.visible) ocultar(g); }
+    fijados.antes((x, y, z, r) => tapadoPorNiebla(x - ojo.x, y - ojo.y, z - ojo.z, r, lejos));
     capsulasCuadro.length = 0;
     // N16: whoever the light holds is not there (nor slides across while the server moves them)
     enLuz.clear();
@@ -900,14 +922,14 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     for (const k of enLuz) { const r = avs.raiz(k === "self" ? "yo" : k); if (r?.visible) ocultar(r); }
     for (const r of tags.values()) if (r.s.visible && tapa(r.s, 3)) { ocultar(r.s); niebla++; }
     hitosMalla.antes();
-    lotes.raiz.visible = true;
+    lotes.raiz.visible = true; fijados.raiz.visible = true;
     dibujoUltimo = { lejos, niebla, instanciadas, lotes: nLotes };
   }
   function despuesDelCuadro(): void {
     for (const o of ocultosCuadro) o.visible = true;
     ocultosCuadro.length = 0;
     hitosMalla.despues();
-    lotes.raiz.visible = false;
+    lotes.raiz.visible = false; fijados.raiz.visible = false;
   }
   // MIS-200: the Graboso inside XR films a small mirror of the left eye (espejo-xr.ts); the module is fetched at the first
   // recording in XR and `espejoXR` stays null (one null check per frame) in every other session
@@ -969,9 +991,19 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** Force a build now and resolve when it is drawing (checks). */
     listo: async (): Promise<boolean> => { await sincronizarPP(); return ppVivo; },
   };
+  // MIS-200 t_ee19c84b: the draw-call census (medidor-vivo.ts). Walked once, right after the frame is drawn and while the frame's
+  // hidden things are still hidden (so lotes show, their copies do not: the scene as the GPU got it), and only when asked.
+  let censoPedido = false, censoUltimo: Censo | null = null;
+  function tomarCenso(): void {
+    censoPedido = false;
+    const xr = renderer.xr.isPresenting;
+    const union = xr ? (renderer.xr.getCamera() as THREE.ArrayCamera) : null;
+    const camaras = union ? (union.cameras ?? []) : [camera];
+    if (camaras.length) { censoUltimo = censoDeEscena(scene, camaras, union ?? undefined); censoUltimo.resto = renderer.info.render.drawCalls - censoUltimo.llamadas; }
+  }
   function dibujarCuadro(): void {
     antesDelCuadro();
-    try { if (ppVivo && pp && !renderer.xr.isPresenting) pp.dibujar(); else renderer.render(scene, camera); if (espejoXR?.activo()) espejoXR.cuadro(performance.now()); if (fotoXR?.pendiente()) fotoXR.cuadro(); } finally { despuesDelCuadro(); }
+    try { if (ppVivo && pp && !renderer.xr.isPresenting) pp.dibujar(); else renderer.render(scene, camera); if (censoPedido) tomarCenso(); if (espejoXR?.activo()) espejoXR.cuadro(performance.now()); if (fotoXR?.pendiente()) fotoXR.cuadro(); } finally { despuesDelCuadro(); }
   }
 
   // B4: three's own count of live shader programs (WebGPURenderer info.memory.programs); it only grows when one is made
@@ -1001,6 +1033,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     renderer,
     /** The world's camera (checks project points through it). */
     camera,
+    /** The scene itself (tools/medir-recorrido.mjs walks it to time the per-frame matrix update). */
+    scene,
     /** T1: the graphics chip as the browser names it ("" when it hides it). Read once at start (B3), then remembered. */
     gpu(): Promise<string> { return gpuNombre; },
     /** T1: refresh rate of the XR session (Hz); 0 outside XR or when the browser does not say. */
@@ -1282,6 +1316,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     avatares(): ReturnType<typeof avs.stats> { return avs.stats(); },
     /** J7b: play a move (the wheel's) on an avatar's VRM, or stop it (`null`); false = no VRM there (show a label). */
     movimiento(t: Target, mov: Movimiento | null): boolean { return avs.movimiento(t === "self" ? "yo" : t, mov); },
+    /** t_3f0e5846: fetch the clips of the move the person is pointing at in the wheel; nothing at world entry. */
+    precargarMovimientos(clips: readonly string[]): void { avs.precargar(clips); },
     /** asiento: a standing avatar faces `rumbo` (radians, atan2(dx, dz)); `undefined` = walk-driven again. */
     orientar(t: Target, rumbo: number | undefined): void { avs.orientar(t === "self" ? "yo" : t, rumbo); },
     /** J3: the name over an avatar (`null` takes it away); drawn for the nearest 32 within 24 m, never over yourself. */
@@ -1363,6 +1399,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     },
     /** B4 (for checks): live shader programs as three counts them. */
     programas(): number { return programasVivos(); },
+    /** MIS-200 t_ee19c84b: where the draw calls of the last frame come from, by category (the census of medidor-vivo.ts). The first call
+     * returns null and asks for one: the next drawn frame walks the scene (so nothing is walked while nobody asks); read again after it. */
+    censo(): Censo | null { censoPedido = true; return censoUltimo; },
     /** N12 (for checks): the last frame — from which distance the fog covers everything (m; Infinity = no fog), how
      * many things/people/names it hid, how many copies were drawn instanced and in how many lotes; `mallas` = the
      * instanced meshes those cost (≈ draw calls), `escrituras` = matrix uploads since the start (still = no uploads). */

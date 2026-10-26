@@ -178,7 +178,7 @@ export function validarApp(raw: unknown, idCarpeta?: string): { ok: true; app: A
       } else for (const k of ["min", "max", "paso"] as const) if (x[k] !== undefined) mal(`${p}.${k}`, `un «${tipo}» no lleva ${k} (solo «numero» y «rango»)`);
       if (tipo === "lista") {
         if (!Array.isArray(x.opciones) || x.opciones.length < 1 || x.opciones.length > 32 || !x.opciones.every((o) => texto(o, 60)) || new Set(x.opciones).size !== x.opciones.length) mal(`${p}.opciones`, "una lista de 1–32 textos distintos, de hasta 60 caracteres");
-        else if (d !== undefined && !x.opciones.includes(d)) mal(`${p}.porDefecto`, `«${String(d)}» no es una de las opciones (${x.opciones.join(", ")})`);
+        else if (d !== undefined && !(x.opciones as unknown[]).includes(d)) mal(`${p}.porDefecto`, `«${String(d)}» no es una de las opciones (${x.opciones.join(", ")})`);
         else if (d !== undefined && typeof d !== "string") mal(`${p}.porDefecto`, "una de las opciones");
       } else if (x.opciones !== undefined) mal(`${p}.opciones`, `un «${tipo}» no lleva opciones (solo «lista»)`);
       if (tipo === "fichero" && d !== undefined) {

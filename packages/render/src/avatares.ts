@@ -4,7 +4,7 @@
 // The capsules stay as anchors: labels, bounces, the camera and the jump read them; a capsule that has a VRM is only
 // hidden from every camera (layers), never `.visible = false`, so those keep working.
 import * as THREE from "three/webgpu";
-import { ANIMAR_HASTA_M, FUNDIDO_S, clipPara, cupoVRM, elegirAvatar, elegirCercanos, empezarMovimiento, estadoPor, movimientoOcupa, nuevaMarcha, pasoDeMovimiento, seguir } from "./avatares-politica.ts";
+import { FUNDIDO_S, cadenciaAnimacion, clipPara, cupoVRM, distanciaVRM, elegirAvatar, elegirCercanos, empezarMovimiento, estadoPor, metaApoyo, movimientoOcupa, nuevaMarcha, pasoDeMovimiento, seguir, suavizarApoyo } from "./avatares-politica.ts";
 import type { Clip, EnCurso, Estado, Marcha, Movimiento } from "./avatares-politica.ts";
 import type { Copia, Plantilla } from "./avatares-vrm.ts";
 import type { VRMAnimation } from "@pixiv/three-vrm-animation";
@@ -28,7 +28,9 @@ type Avatar = {
   clave: number | "yo"; modelo: number; marcha: Marcha; estado: Estado; copia?: Copia;
   clip?: string; tramo?: string; accion?: THREE.AnimationAction; saliente?: THREE.AnimationAction; fundidoHasta: number;
   ancla?: THREE.Object3D; mascara?: number; cerca: boolean;
+  cadencia: 0 | 1 | 2; pendienteDt: number; // J14: how often its animation steps (1 = every frame, 2 = every other, 0 = frozen) and the time not yet given to the mixer
   rumboFijo?: number; // pesca v2: while fishing the body faces the water (only while standing still)
+  apoyo?: number; // t_3f0e5846: metres the body is moved so its feet stand on the floor during a calm posture (sitting, crouching); eases back to 0
 };
 
 export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: () => boolean; catalogo?: CatalogoAvatares; yo?: () => number; compilar?: (raiz: THREE.Object3D) => Promise<unknown>; suelo?: (x: number, z: number, y: number) => number;
@@ -99,7 +101,7 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     const libres = poza.get(a.modelo) ?? [];
     if (libres.length < POZA) { libres.push(c); poza.set(a.modelo, libres); }
     else void herramientas().then(({ m }) => m.soltar(c));
-    a.copia = undefined; a.accion = undefined; a.saliente = undefined; a.clip = undefined; a.tramo = undefined;
+    a.copia = undefined; a.accion = undefined; a.saliente = undefined; a.clip = undefined; a.tramo = undefined; a.apoyo = undefined;
     movs.delete(a.clave);
   }
 
@@ -121,7 +123,8 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     let altura = pos.y - ALTURA_CAPSULA;
     a.estado = estadoPor(a.marcha.velocidad, altura - (o.suelo?.(pos.x, pos.z, altura) ?? 0)); // over the ground under you
     if (o.asentar && a.estado !== "saltar") altura += o.asentar(pos.x, pos.z, altura); // on relieve: drawn on the drawn ground, not buried in the collision mesh
-    a.cerca = a.clave === "yo" || !desde || Math.hypot(pos.x - desde.x, pos.z - desde.z) <= ANIMAR_HASTA_M;
+    a.cadencia = a.clave === "yo" || !desde ? 1 : cadenciaAnimacion(Math.hypot(pos.x - desde.x, pos.z - desde.z));
+    a.cerca = a.cadencia > 0;
     if (fallidas.has(a.modelo)) return;
     const p = plantillas.get(a.modelo);
     if (!p) { pedirModelo(a.modelo); return; }
@@ -157,7 +160,19 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
       if (a.accion && quiere && quiere.clip === a.clip) a.accion.setEffectiveTimeScale(quiere.ritmo);
     }
     if (a.saliente && ahora > a.fundidoHasta) { a.saliente.stop(); a.saliente = undefined; }
-    if (a.cerca && !oculto) { c.mixer.update(dt); c.humanoid.update(); } // far ones stand still (cold phones)
+    // far ones stand still (cold phones); middle ones step every other frame (J14), the parity set by the id so they do not all fall on the same frame
+    if (a.cerca && !oculto) {
+      a.pendienteDt += dt;
+      if (a.cadencia === 1 || ((cuadros + (typeof a.clave === "number" ? a.clave : 0)) & 1) === 0) { c.mixer.update(a.pendienteDt); c.humanoid.update(); a.pendienteDt = 0; }
+    } else a.pendienteDt = 0;
+    // t_3f0e5846: a sitting or crouching body keeps its feet on the floor whatever its leg proportions (two ankle positions, only while the posture plays)
+    const planta = !!(mov && paso && !paso.esperar && mov.mov.apoya);
+    if ((planta || a.apoyo) && a.cerca && !oculto) {
+      const pie = planta ? m.pieMasBajo(c.humanoid, c.raiz) : null;
+      a.apoyo = suavizarApoyo(a.apoyo ?? 0, pie === null ? 0 : metaApoyo(pie, p.pie), dt);
+      if (!a.apoyo && !planta) a.apoyo = undefined;
+      c.raiz.position.y = altura + (a.apoyo ?? 0);
+    }
     // U13: your mouth shape is never driven here (you never hear yourself, voz.ts); others' comes from who you hear
     if (c.boca.length && typeof a.clave === "number") {
       const nivel = nivelesVoz.get(a.clave) ?? 0;
@@ -177,7 +192,7 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
       if (ahora - ultimoRepaso >= REPASO_MS) {
         ultimoRepaso = ahora;
         const lista = [...otros].map(([id, m]) => ({ id, x: m.position.x, z: m.position.z }));
-        conVrm = elegirCercanos(desde, lista, cupoVRM({ mobile: o.mobile, xr: o.xr() }), conVrm);
+        conVrm = elegirCercanos(desde, lista, cupoVRM({ mobile: o.mobile, xr: o.xr() }), conVrm, undefined, distanciaVRM({ mobile: o.mobile, xr: o.xr() }));
       }
       const quien = new Set<number | "yo">();
       if (yo) {
@@ -185,7 +200,7 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
         const modelo = o.eleccion?.("yo") ?? elegirAvatar(Math.max(0, o.yo?.() ?? 0), n);
         let a = avatares.get("yo");
         if (a && a.modelo !== modelo) { desvestir(a); avatares.delete("yo"); a = undefined; }
-        if (!a) { a = { clave: "yo", modelo, marcha: nuevaMarcha(), estado: "quieto", fundidoHasta: 0, cerca: true }; avatares.set("yo", a); }
+        if (!a) { a = { clave: "yo", modelo, marcha: nuevaMarcha(), estado: "quieto", fundidoHasta: 0, cerca: true, cadencia: 1, pendienteDt: 0 }; avatares.set("yo", a); }
         actualizar(a, yo, primeraPersona || o.xr(), desde, ahora, dt, modulo);
       }
       for (const id of conVrm) {
@@ -195,12 +210,15 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
         const modelo = o.eleccion?.(id) ?? elegirAvatar(id, n);
         let a = avatares.get(id);
         if (a && a.modelo !== modelo) { desvestir(a); avatares.delete(id); a = undefined; } // H10: someone else just changed avatar
-        if (!a) { a = { clave: id, modelo, marcha: nuevaMarcha(), estado: "quieto", fundidoHasta: 0, cerca: true }; avatares.set(id, a); }
+        if (!a) { a = { clave: id, modelo, marcha: nuevaMarcha(), estado: "quieto", fundidoHasta: 0, cerca: true, cadencia: 1, pendienteDt: 0 }; avatares.set(id, a); }
         actualizar(a, ancla, false, desde, ahora, dt, modulo);
       }
       for (const [k, a] of avatares) if (!quien.has(k)) { desvestir(a); avatares.delete(k); if (typeof k === "number") nivelesVoz.delete(k); }
       ocupado = cargando > 0 || [...avatares.values()].some((a) => a.copia && a.cerca && (a.estado !== "quieto" || ahora < a.fundidoHasta || (movs.has(a.clave) && movimientoOcupa(movs.get(a.clave)!, ahora, durDe))));
     },
+    /** t_3f0e5846: ask for these clips ahead (the move the wheel is pointing at), so the first time a move is made it does not wait for its files.
+     * Nothing is fetched at world entry (the page weight): only what the person is about to choose. Asking twice costs nothing. */
+    precargar(clips: readonly string[]): void { for (const c of clips) pedirAnim(c); },
     /** J7b: play a move on this avatar (`null` stops it). False when it wears no VRM now (the caller shows a label). */
     movimiento(clave: number | "yo", mov: Movimiento | null): boolean {
       const a = avatares.get(clave);

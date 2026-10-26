@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "skipLibCheck": true
+  },
+  "include": ["packages/**/*.ts", "features/**/*.ts", "apps/**/*.ts", "tools/**/*.ts", "test/**/*.ts"],
+  "exclude": ["node_modules", "**/dist", "aventuras", "plantillas", "activos"]
+}

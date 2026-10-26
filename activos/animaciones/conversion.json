@@ -86,6 +86,50 @@
    "minToeY": 0.002,
    "sha256": "dd3d3f85e5762bec709b05b559b9353d9521552db7c64c56cdb0be23fc93b452"
   },
+  "asentir": {
+   "from": "Idle_Loop + asentir",
+   "duration": 1.5,
+   "frames": 46,
+   "tracks": 53,
+   "bytes": 84728,
+   "speedMs": 0,
+   "speedPerHipHeight": 0,
+   "minToeY": 0.002,
+   "sha256": "a4ee2fe4ec8ac25f110aac40e2032e792d0c8393fe02ae4ee433f143314b62a3"
+  },
+  "negar": {
+   "from": "Idle_Loop + negar",
+   "duration": 1.5,
+   "frames": 46,
+   "tracks": 53,
+   "bytes": 84712,
+   "speedMs": 0,
+   "speedPerHipHeight": 0,
+   "minToeY": 0.002,
+   "sha256": "4366c46fa4c31dfda97b284f038e21a3e986f11e1e4f49b16c35d171a27e481e"
+  },
+  "pensar": {
+   "from": "Idle_Loop + pensar",
+   "duration": 3,
+   "frames": 91,
+   "tracks": 53,
+   "bytes": 132180,
+   "speedMs": 0,
+   "speedPerHipHeight": 0,
+   "minToeY": 0.002,
+   "sha256": "247c644b1fe4d40535c9e842cacb0ec690d8cf45f90ab817d7b22503ef5ef461"
+  },
+  "senalar": {
+   "from": "Idle_Loop + senalar",
+   "duration": 2,
+   "frames": 61,
+   "tracks": 53,
+   "bytes": 100432,
+   "speedMs": 0,
+   "speedPerHipHeight": 0,
+   "minToeY": 0.002,
+   "sha256": "2dc76d7746712bf083d2e9c18d24b19d3325c93ba7562c49c9f9bd1edccfed9b"
+  },
   "hablar": {
    "from": "Idle_Talking_Loop",
    "duration": 3.667,

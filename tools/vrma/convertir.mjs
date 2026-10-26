@@ -3,8 +3,9 @@
 // (the Hyperfy .glb build of the same originals lives in ../movimientos/conversion/). Never hand-edit a build: rerun this.
 // Runs in one headless Chromium (software GL), ~20 s of one core.
 //
-// Usage: nice -n 19 node tools/vrma/convertir.mjs [--fbx <UAL1_Standard.fbx>] [--vrm a.vrm,b.vrm] [--fotos <dir>] [--solo-comprobar]
+// Usage: nice -n 19 node tools/vrma/convertir.mjs [--fbx <UAL1_Standard.fbx>] [--vrm a.vrm,b.vrm] [--fotos <dir>] [--solo-comprobar] [--clips a,b]
 //   --vrm      avatars to check the animations on (default: every activos/avatares/*.vrm)
+//   --clips    convert only these (comma-separated names) and merge them into conversion.json; the rest stay byte for byte
 //   --fotos    write one picture per avatar × animation there (for people; never committed)
 //   --solo-comprobar   do not convert, only check what is in activos/animaciones/
 import http from "node:http";
@@ -35,6 +36,11 @@ export const CLIPS = [
   // Sword_Attack_RM (the hips leave the capsule); two one-frame aim poses (Pistol_Aim_Down, Pistol_Aim_Neutral) and two
   // exits (Sitting_Exit, Spell_Simple_Exit: walking ends a move at once). `saludo`/`hasta`: see convertir.js.
   { name: "saludar", clip: "Idle_Loop", saludo: true, hasta: 2.5 }, // UAL1 has no wave: the idle body, a wave written in convertir.js
+  // the other four gestures of an AI's body (packages/agent/src/gesto-ia.ts), written over the idle body like the wave
+  { name: "asentir", clip: "Idle_Loop", gesto: "asentir", hasta: 1.5 },
+  { name: "negar", clip: "Idle_Loop", gesto: "negar", hasta: 1.5 },
+  { name: "pensar", clip: "Idle_Loop", gesto: "pensar", hasta: 3 },
+  { name: "senalar", clip: "Idle_Loop", gesto: "senalar", hasta: 2 },
   { name: "hablar", clip: "Idle_Talking_Loop" },
   { name: "antorcha", clip: "Idle_Torch_Loop" },
   { name: "bailar", clip: "Dance_Loop" },
@@ -99,7 +105,8 @@ const sha = (b) => createHash("sha256").update(b).digest("hex");
 let report = null;
 if (!SOLO) {
   const t0 = Date.now();
-  const r = await page.evaluate(([u, c]) => window.convertir(u, c), ["/fbx/UAL1.fbx", CLIPS]);
+  const SOLO_CLIPS = arg("--clips", null)?.split(",");
+  const r = await page.evaluate(([u, c]) => window.convertir(u, c), ["/fbx/UAL1.fbx", SOLO_CLIPS ? CLIPS.filter((c) => SOLO_CLIPS.includes(c.name)) : CLIPS]);
   mkdirSync(OUT, { recursive: true });
   for (const [name, b64] of Object.entries(r.files)) {
     const bytes = Buffer.from(b64, "base64");
@@ -107,6 +114,10 @@ if (!SOLO) {
     Object.assign(r.report.clips[name], { sha256: sha(bytes) });
   }
   report = { fuente: "Quaternius Universal Animation Library (UAL1 Standard), CC0", fbx: { bytes: statSync(FBX).size, sha256: sha(readFileSync(FBX)) }, convertMs: Date.now() - t0, ...r.report };
+  if (SOLO_CLIPS && existsSync(join(OUT, "conversion.json"))) { // only some clips were made: keep the rest of the report
+    const antes = JSON.parse(readFileSync(join(OUT, "conversion.json"), "utf8"));
+    report = { ...antes, clips: Object.fromEntries(CLIPS.filter((c) => (SOLO_CLIPS.includes(c.name) ? report.clips[c.name] : antes.clips[c.name])).map((c) => [c.name, SOLO_CLIPS.includes(c.name) ? report.clips[c.name] : antes.clips[c.name]])) };
+  }
   writeFileSync(join(OUT, "conversion.json"), JSON.stringify(report, null, 1) + "\n");
 }
 
@@ -131,5 +142,16 @@ for (const [i, f] of VRMS.entries()) {
 }
 await browser.close();
 server.close();
-console.log(JSON.stringify({ conversion: report && { convertMs: report.convertMs, rest: report.rest, missingBones: report.missingBones, clips: report.clips }, checks, errors }, null, 1));
+// feet planting (t_3f0e5846): how far the engine moves the body for the calm postures (same arithmetic as metaApoyo, max 0.12 m)
+// and where the lowest point of the mesh ends up after it; ~0 means the feet stand on the floor
+const apoyo = {};
+for (const [name, r] of Object.entries(checks)) {
+  for (const clip of ["sentado", "sentado-hablar", "agachado"]) {
+    const s = r.clips[`/activos/animaciones/${clip}.vrma`]?.samples?.at(-1);
+    if (!s) continue;
+    const meta = Math.max(-0.12, Math.min(0.12, r.avatar.pie - s.pie));
+    (apoyo[name] ??= {})[clip] = { sinCorregir: s.lowest, mueve: +meta.toFixed(3), despues: +(s.lowest + meta).toFixed(3) };
+  }
+}
+console.log(JSON.stringify({ conversion: report && { convertMs: report.convertMs, rest: report.rest, missingBones: report.missingBones, clips: report.clips }, apoyo, checks, errors }, null, 1));
 process.exit(errors.length ? 1 : 0);

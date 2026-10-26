@@ -66,6 +66,27 @@ function brazoQueSaluda(t, dur) {
   };
 }
 
+// The other four gestures an AI makes (asentir, negar, pensar, señalar) are written the same way, over the idle body
+// (UAL1 free has none of them; ../movimientos/PLAN.md, «los cinco gestos de la IA»). `gesto` names one; each returns a
+// weight (eased in and out over 0.3 s so the loop is seamless) and, per UAL bone, a rotation to blend in:
+//   abs = replace the source clip's own rotation (like the wave's arm), mul = turn on top of it (a head that nods).
+// Same frame as above: +X = the avatar's left, +Y up, +Z forward; X turns a head DOWN (nod), Y turns it to the left, Z tilts it.
+const envolvente = (t, dur) => { const s = Math.max(0, Math.min(1, t / 0.3, (dur - t) / 0.3)); return s * s * (3 - 2 * s); };
+const GESTOS_ESCRITOS = {
+  // two nods: head down 16° and back, neck a third of it
+  asentir: (t, dur) => { const a = Math.sin(2 * Math.PI * 1.7 * t) * 0.5 + 0.5; return { peso: envolvente(t, dur), mul: { Head: qe(16 * a, 0, 0), neck_01: qe(6 * a, 0, 0) } }; },
+  // «no»: the head turns ±24° about three times a second, neck helping
+  negar: (t, dur) => { const s = Math.sin(2 * Math.PI * 1.9 * t); return { peso: envolvente(t, dur), mul: { Head: qe(0, 24 * s, 0), neck_01: qe(0, 8 * s, 0) } }; },
+  // «hmm»: the right forearm up, the hand at the chin, the head a little down and to the side, a slow sway of the head
+  pensar: (t, dur) => ({ peso: envolvente(t, dur),
+    abs: { upperarm_r: qe(0, 0, 55), lowerarm_r: qe(-100, 0, -135) },
+    mul: { Head: qe(8, 6 * Math.sin(2 * Math.PI * 0.4 * t), 5), neck_01: qe(4, 0, 0) } }),
+  // the right arm straight out to the front, a little up, held (a finger-point), the head following it
+  senalar: (t, dur) => ({ peso: envolvente(t, dur),
+    abs: { upperarm_r: qe(0, 80, 40), lowerarm_r: qe(0, 0, -8) },
+    mul: { Head: qe(0, -8, 0) } }),
+};
+
 window.convertir = async (fbxUrl, wanted) => {
   const fbx = new FBXLoader().parse(await (await fetch(fbxUrl)).arrayBuffer(), "");
   const report = { clipsInFile: fbx.animations.length, missingBones: [], clips: {} };
@@ -102,7 +123,7 @@ window.convertir = async (fbxUrl, wanted) => {
   report.rest = { hipHeight: +hipHeight.toFixed(4), unit, facing: fwd.toArray().map((n) => +n.toFixed(3)) };
 
   const files = {};
-  for (const { name, clip: clipName, saludo, hasta } of wanted) {
+  for (const { name, clip: clipName, saludo, gesto, hasta } of wanted) {
     const fuente = findClip(fbx, clipName);
     const clip = fuente && hasta ? Object.assign(fuente.clone(), { duration: Math.min(hasta, fuente.duration) }) : fuente;
     if (!clip) { report.clips[name] = { error: `no clip ${clipName} in the file` }; continue; }
@@ -124,6 +145,11 @@ window.convertir = async (fbxUrl, wanted) => {
         const local = p ? D[p].clone().invert().multiply(D[n]) : D[n].clone();
         const arr = rot[n];
         if (saludo && n in SALUDO_HUESOS) { const b = brazoQueSaluda(t, clip.duration); local.slerp(b[n], b.peso); }
+        if (gesto) {
+          const g = GESTOS_ESCRITOS[gesto](t, clip.duration);
+          if (g.abs?.[n]) local.slerp(g.abs[n], g.peso);
+          if (g.mul?.[n]) local.premultiply(new THREE.Quaternion().slerp(g.mul[n], g.peso)); // identity → the rotation, by the weight
+        }
         if (i > 0) { const prev = new THREE.Quaternion().fromArray(arr, (i - 1) * 4); if (prev.dot(local) < 0) local.set(-local.x, -local.y, -local.z, -local.w); }
         local.toArray(arr, i * 4);
       }
@@ -159,7 +185,7 @@ window.convertir = async (fbxUrl, wanted) => {
     files[name] = btoa(bin);
     const speed = slideFrames ? Math.max(0, slide / slideFrames) : 0;
     report.clips[name] = {
-      from: saludo ? `${clipName} + saludo` : clipName, duration: +clip.duration.toFixed(3), frames, tracks: tracks.length, bytes: glb.length,
+      from: saludo ? `${clipName} + saludo` : gesto ? `${clipName} + ${gesto}` : clipName, duration: +clip.duration.toFixed(3), frames, tracks: tracks.length, bytes: glb.length,
       speedMs: +speed.toFixed(3), speedPerHipHeight: +(speed / hipHeight).toFixed(3), minToeY: +minFootY.toFixed(3),
     };
   }

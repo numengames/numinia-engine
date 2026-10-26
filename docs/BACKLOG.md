@@ -139,7 +139,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | F1 | Amigos, bloqueo y moderación (los roles son H3; toca red y guardado; de `docs/JUGADOR.md`). Primer corte (F1a, 18-10): `/silenciar` calla chat Y voz, se guarda con el mundo y sobrevive reinicios; `/hablar <persona>` lo levanta; bloqueo personal `/bloquear` `/desbloquear <persona>` (solo para quien bloquea: ni chat ni voz; guardado por identidad) y botón «Silenciar/Oír» en Gente; aviso accesible al silenciado. Sin tocar el tope de voces (D-024). Queda: amigos, denunciar | hecho (F1a) | sí |
 | F2 | Portales entre instancias y grupo (toca red e instancias; de `docs/JUGADOR.md`) | para Opus | no |
 | A1 | Página de multitud (50/200/1.000/2.000 robots, completos vs horneados) | pendiente | sí |
-| D1 | Puerta de tipos: TypeScript 7 estricto, 0 errores | pendiente | sí |
+| D1 | Puerta de tipos: TypeScript 7 estricto, 0 errores | primer corte hecho (lote 12): `npm run tipos` (tsc estricto) corre en `npm run gates` como trinquete — 316 errores en 132 archivos apuntados en `tools/tipos-permitidos.json`, 0 nuevos; lo demás ya está en 0. Queda: bajar esos 316 a 0 | parcial | sí |
 | S3 | Dilatación de tiempo cuando el tick no cabe (4.000 bots) | para Opus | no |
 | P4a | Habitante IA sin cerebro (E0): entra como jugador con billete de agente, «· IA» puesto por el servidor, servicio aparte `numinia-habitantes` (Lía en la plaza) | hecho | sí |
 | P4b | Sentidos y verbos completos del habitante: su ficha (V1), verbos del catálogo por escalón, permiso por rol (H3), guía determinista con el árbol de Alma | pendiente | sí |
@@ -326,6 +326,12 @@ por el mismo origen; el cliente usa `wss://` en https. e2e por https ignorando e
 ### D1 — Puerta de tipos
 TypeScript 7 (`tsc --noEmit`, estricto) con las dependencias de tipos que hagan falta (licencias
 libres, versión exacta). 0 errores. Entra en `npm run gates` con su coste medido.
+**Primer corte, hecho (lote 12).** `typescript` 7.0.2, `@types/node` y `@types/three` (versión exacta), `tsconfig.json`
+(estricto, `noEmit`, todo `.ts` de `packages`, `features`, `apps`, `tools` y `test`; los `.mjs` no se miran) y
+`npm run tipos` (`tools/tipos.ts`, ~1,5 s). Hoy hay **316 errores en 132 archivos**: `test` 141, `packages/render` 93,
+`apps/plaza` 40, `features` 17, `packages/server` 14, `apps/banco` 5, `tools` 4, `packages/client` 1, `packages/net` 1; el
+resto de paquetes está en 0. La puerta de `npm run gates` es un trinquete: cada archivo con errores figura en
+`tools/tipos-permitidos.json` con su tope, un archivo que no figura debe tener 0 y ninguno puede subir; `npm run tipos -- --fijar` baja el tope cuando se arregla algo (nunca lo sube). Cuando el fichero quede vacío, D1 está hecho.
 
 ### S3 — Dilatación de tiempo
 Si el tick no cabe en su presupuesto, la simulación va más despacio (como EVE) en vez de acumular
@@ -433,6 +439,8 @@ pide el agente: saludar, asentir, negar, pensar, señalar — los gestos de `fea
 cuando existan.
 
 **Hecho, trozo 1 (15-10, rama `wt/avatares`).** Tú y los más cercanos como humanoides VRM (60 en escritorio, 25 en XR, 12 en móvil; el resto, cápsulas), mirando hacia donde andan, con animaciones por velocidad: quieto, andar o trotar (según la zancada natural de cada avatar), correr y en el aire; cambio fundido en 0,2 s sin pose en T; congelados a más de 40 m. Tres avatares de la casa de 100Avatars (Polygonal Mind, CC0 dentro del fichero y en la fuente; 2.130–2.880 triángulos; `activos/avatares/LICENCIAS.md`), cada jugador uno según su id hasta H10. Animaciones `.vrma` convertidas de UAL1 de Quaternius (CC0) con `tools/vrma/` (pies en el suelo ±3 cm en 8 avatares). `@pixiv/three-vrm` y `three-vrm-animation` 3.5.5 (MIT, exactas) llegan después del primer cuadro (64 kB gz aparte). Sin MToon (Lambert con su textura): MToon metía ~30 kB gz en el arranque. `packages/server/src/vrm.ts` lee un VRM sin three (licencia, triángulos): listo para H10. **Medido:** 9 pruebas; pierna `tools/e2e-piernas/avatares.mjs` (2 VRM por pestaña, 0 fallos, B ve a A pasar de quieto a andar y trotar); 974–1.142 kB por avatar, 491 kB las cinco animaciones; arranque +5 kB gz. **Falta:** elegir el tuyo (H10), etiquetas a la altura de cada cabeza (J1b), gestos con clips, ficheros más ligeros, probar 60 a la vez y en aparatos reales.
+
+**Lote 12 (26-10).** Los cinco gestos de la IA (saludar, asentir, negar, pensar, señalar) tienen clip propio (`activos/animaciones/`, escritos sobre el cuerpo quieto de UAL1 en `tools/vrma/convertir.js`; `--clips a,b` convierte solo esos) y salen del puente (`gesto`, `packages/agent/src/gesto-ia.ts`) sin «parar»: cada uno acaba solo. También están en la rueda (Reacciones, ya con ocho). Sentarse y agacharse plantan los pies en cualquier avatar: mientras dura la postura la página mide el hueso de pie más bajo y sube o baja el cuerpo hasta donde está en reposo (`apoya` en el movimiento, `metaApoyo`, tope 12 cm); `tools/vrma/convertir.mjs --solo-comprobar` imprime `apoyo`: sentado deja los pies a ±3 mm en los tres avatares; agachado, a ±1 mm en dos y 6 cm por debajo en Polybot (pies enormes: la punta del pie se dobla). El salto de la primera vez: la rueda pide los ficheros del movimiento que se señala mientras la persona decide (nada al entrar). Falta: medir el salto en un móvil real y la recolocación de Polybot agachado.
 
 ### J2 — Salto y altura
 La simulación gana altura, velocidad vertical, gravedad y suelo, y la entrada un bit de salto; la
@@ -1270,6 +1278,15 @@ Minimapa, lista de lo cercano y ficha en un panel 3D sobre la muñeca (mano izqu
 El robot de la casa son 19 llamadas por persona (tope del nivel D: 80). LOD o un modelo de una pieza; con avatares VRM, decidir. **Hecho cuando:** 20 personas a la vista en el nivel D caben en su tope.
 
 **Hecho (18-10, rama `lod/dibujo-barato-personas`).** `packages/render/src/lod-politica.ts` (puro, `test/lod-personas.test.ts`): más allá de `LOD_LEJOS_M` (22 m, histéresis ±4 m para no parpadear en el borde) una figura horneada (J5: sin animar, ya 19 → 3 llamadas por material) baja a UNA pieza — una sola malla con un color por parte (sin textura) en vez de una por material: 3 → 1 llamada. Una figura pintada con un color propio (J10) se queda siempre en «cerca» (pintar() no puede teñir una pieza fusionada). `packages/render/src/index.ts`: `hornearPieza`, `representacion`, `actualizarLOD` (una vez por figura horneada y por fotograma; solo reconstruye el grupo si cambia de estado). **Medido** (`tools/medir-lod-robot.mjs`, parseando `activos/robot/RobotExpressive.glb` igual que el motor): 19 llamadas sin hornear, 3 horneado «cerca», 1 horneado «lejos». 20 personas a la vista: 380 sin hornear, 60 horneadas todas «cerca» (ya cerca del tope 80 sin nada más en la escena), 20 todas «lejos», 40 con la mitad y mitad — cualquier mezcla de cerca/lejos cabe en el tope de 80 con margen para el resto de la escena. Verificado también en vivo (plaza real, Chromium headless, WebGL2): el cambio de estado dispara en el punto esperado y no oscila en el borde de la banda. **Falta:** decidir si un avatar VRM (J1) sigue la misma política cuando esté lejos y quieto (hoy solo se congela su animación, `ANIMATE_WITHIN_M`); extender la pieza lejana a otros modelos horneados con más de un material (hoy solo probado con el robot).
+
+**Personas de lejos (26-10, rama `lote13/personas`; MIS-253, MIS-233).** Decisión sobre los VRM: **más allá de 30 m (móvil, visor) o 45 m (PC) una
+persona deja de llevar VRM y es la cápsula de siempre** (`VRM_HASTA_M`, `distanciaVRM`, histéresis de 4 m en `elegirCercanos`; la cápsula sigue
+siendo el ancla del nombre, los botes y la cámara, así que los nombres se leen igual). Entre 15 m y `ANIMAR_HASTA_M` la animación avanza un cuadro de cada dos
+(`cadenciaAnimacion`; el reloj no se pierde: el mezclador recibe el tiempo acumulado). Medida (`tools/medir-gente.mjs`, clase móvil nivel D, CPU ×8, SwiftShader,
+mismo arranque antes y después, dos rondas alternadas): 12 personas a 36 m, 27 → 16 llamadas, 12 → 1 VRM, CPU del cuadro 5,7 y 7,1 → 3,6 y 3,0 ms
+(×16: 16,4 y 15,1 → 5,1 y 5,9); además el aparato pasa al ritmo de reposo (12 fps) porque no hay nada animado cerca. A 20 m (medio ritmo) la ganancia
+es pequeña: sin cambio a ×8 (6,8 y 6,2 → 6,9 y 6,3 ms) y ~10 % a ×16 (14,0 y 16,7 → 12,5 y 13,5 ms). A 6 m no cambia nada (lo previsto). Los ms de SwiftShader solo
+valen comparando condiciones iguales; falta un aparato real.
 
 ### J15 — Marcas de misión sobre las personas
 «!» si alguien tiene una misión para ti, «?» si espera algo tuyo; es por jugador (un evento, no estado compartido). **Hecho cuando:** e2e: A ve «!» sobre Alma y B, que ya la hizo, no.

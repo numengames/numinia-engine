@@ -4,6 +4,7 @@
 // same bridge in a world that has no `llamar` (the old behaviour). No network, no model.
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { fx } from "../packages/core/src/index.ts";
 import { Instance } from "../packages/instance/src/index.ts";
 import { MARCA_IA } from "../packages/instance/src/identidad.ts";
@@ -124,16 +125,20 @@ test("mailbox: esperar returns at once when something is waiting, ends at the ti
 
 // ---------- (2) the gestures ----------
 
-test("gesto: the four types exist, each plays a move that is in the world's list, and the ones without a clip of their own say so and stop by themselves", () => {
-  assert.deepEqual([...TIPOS_GESTO], ["saludar", "asentir", "pensar", "señalar"]);
+test("gesto: the five types exist, each plays a move of the world's list with a clip of its own in the catalogue, and none needs a «parar»", () => {
+  assert.deepEqual([...TIPOS_GESTO], ["saludar", "asentir", "negar", "pensar", "señalar"]);
   const ids = new Set(MOVIMIENTOS.map((m) => m.id));
+  const catalogo = JSON.parse(readFileSync(new URL("../activos/avatares/catalogo.json", import.meta.url), "utf8")).animaciones as Record<string, { fichero: string }>;
   for (const tipo of TIPOS_GESTO) {
     const g = GESTOS_IA[tipo];
     assert.ok(ids.has(g.movimiento) && GESTOS.includes(g.movimiento), `${tipo} → «${g.movimiento}» is not a move of features/gestos/movimientos.ts`);
     assert.ok(g.como.length > 10);
-    if (!g.propio && MOVIMIENTOS.find((m) => m.id === g.movimiento)!.modo !== "una") assert.ok((g.paraS ?? 0) > 0, `${tipo}: a looping move must be stopped`);
+    assert.equal(g.propio, true, `${tipo} has a clip of the house`);
+    const mov = MOVIMIENTOS.find((m) => m.id === g.movimiento)!;
+    assert.equal(mov.modo, "una", `${tipo} ends by itself`);
+    assert.equal(g.paraS, undefined);
+    for (const clip of mov.clips) assert.ok(catalogo[clip], `${tipo}: the clip «${clip}» is not in activos/avatares/catalogo.json`);
   }
-  assert.equal(GESTOS_IA.saludar.propio, true);
   assert.equal(MOVIMIENTOS.find((m) => m.id === GESTOS_IA.saludar.movimiento)!.dice, "¡Hola!");
 });
 
@@ -346,33 +351,24 @@ test("S13: `mirar` adds «En tu burbuja» (who is inside, from the bubble events
   } finally { m.cerrarTodo(); }
 });
 
-test("S13: `gesto` plays the move of its type, everyone near sees it; the types without a clip of their own say so and stop by themselves; bad type is refused", { timeout: 30_000 }, async () => {
+test("S13: `gesto` plays the move of its type, everyone near sees it, all five end by themselves; bad type is refused", { timeout: 30_000 }, async () => {
   const m = await mundoCompleto();
   try {
     const luis = await m.persona(2, 0);
     const r = await m.usar("gesto", { tipo: "saludar" });
     assert.match(r, /^Hecho: saludar — saludas con la mano\./);
-    assert.doesNotMatch(r, /aún no tiene/);
+    for (const [tipo, mov] of [["asentir", "asentir"], ["negar", "negar"], ["pensar", "pensar"], ["señalar", "senalar"]] as const) {
+      await espera(1100); // the world allows one move a second
+      const a = await m.usar("gesto", { tipo });
+      assert.match(a, new RegExp(`^Hecho: ${tipo} — `));
+      assert.doesNotMatch(a, /aún no tiene/);
+    }
     await espera(300);
-    assert.deepEqual(luis.gestos.map((g) => [g.quien, g.gesto]), [[m.ai, "saludar"]]);
-    luis.gestos.length = 0;
-    await espera(1100); // the world allows one move a second
-    const a = await m.usar("gesto", { tipo: "asentir" });
-    assert.match(a, /^Hecho: asentir — /);
-    assert.match(a, /aún no tiene un movimiento propio/);
-    await espera(300);
-    assert.deepEqual(luis.gestos.map((g) => g.gesto), ["hablar"]);
-    await espera(GESTOS_IA.asentir.paraS! * 1000 + 300);
-    assert.deepEqual(luis.gestos.map((g) => g.gesto), ["hablar", "parar"], "it ends by itself");
-    // a new gesture cancels the pending «parar» of the old one
-    luis.gestos.length = 0;
-    await m.usar("gesto", { tipo: "pensar" });
-    await espera(1100);
-    await m.usar("gesto", { tipo: "señalar" });
-    await espera(GESTOS_IA.pensar.paraS! * 1000 + 300);
-    assert.deepEqual(luis.gestos.map((g) => g.gesto), ["agacharse", "usar"], "señalar is not cut by the old «parar»");
-    await assert.rejects(m.herr("gesto").ejecutar({ tipo: "bailar" }), /Ese gesto no existe: elige uno de saludar, asentir, pensar, señalar/);
-    assert.deepEqual(m.herr("gesto").inputSchema.properties.tipo.enum, ["saludar", "asentir", "pensar", "señalar"]);
+    assert.deepEqual(luis.gestos.map((g) => [g.quien, g.gesto]), [m.ai, m.ai, m.ai, m.ai, m.ai].map((q, i) => [q, ["saludar", "asentir", "negar", "pensar", "senalar"][i]]), "everyone near sees the five, in order");
+    await espera(2500);
+    assert.ok(!luis.gestos.some((g) => g.gesto === "parar"), "none of them is stopped by the bridge: each move ends by itself");
+    await assert.rejects(m.herr("gesto").ejecutar({ tipo: "bailar" }), /Ese gesto no existe: elige uno de saludar, asentir, negar, pensar, señalar/);
+    assert.deepEqual(m.herr("gesto").inputSchema.properties.tipo.enum, ["saludar", "asentir", "negar", "pensar", "señalar"]);
   } finally { m.cerrarTodo(); }
 });
 

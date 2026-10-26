@@ -6,6 +6,20 @@
 export const CUPO_VRM = { escritorio: 60, visor: 25, movil: 12 } as const;
 /** Farther than this from you, an avatar's animation stands still (cold phones), like H1's things. */
 export const ANIMAR_HASTA_M = 40;
+/** J14 (lote13): farther than this from you (m), a player stops wearing a VRM and is the capsule again: at that distance a
+ * person is a few dozen pixels tall (1.7 m at 30 m is ~40 px on a phone), the face and the gait cannot be read, and the
+ * skinned mesh costs a draw call, ~2.6 k triangles and a skeleton update per person. The capsule stays the anchor for names,
+ * bounces and the camera, so name tags keep reading. A PC has the room: it keeps VRMs out to the animation range. */
+export const VRM_HASTA_M = { escritorio: 45, visor: 30, movil: 30 } as const;
+/** A VRM already worn stays until it is this much (m) beyond `VRM_HASTA_M` (no flicker at the edge of the band). */
+export const VRM_HISTERESIS_M = 4;
+/** Between this distance and ANIMAR_HASTA_M an avatar's animation steps every other frame (one half of the mixer and rig
+ * work; the eye does not tell a walk cycle at 15 Hz from one at 30 Hz past 15 m). Nearer: every frame. */
+export const ANIMAR_MITAD_DESDE_M = 15;
+/** How often an avatar `distanciaM` away steps its animation: 1 = every frame, 2 = every other frame, 0 = not at all. */
+export function cadenciaAnimacion(distanciaM: number, hastaM = ANIMAR_HASTA_M, mitadM = ANIMAR_MITAD_DESDE_M): 0 | 1 | 2 {
+  return distanciaM > hastaM ? 0 : distanciaM > mitadM ? 2 : 1;
+}
 /** A VRM file with more triangles than this is refused (the player stays a capsule). */
 export const TRIANGULOS_MAX = 10_000;
 /** Speed thresholds (m/s, horizontal): below QUIETO idle, above CORRER run, walk in between. */
@@ -48,6 +62,10 @@ export type Clip = "quieto" | "andar" | "trotar" | "correr" | "saltar";
 
 export function cupoVRM(c: { mobile: boolean; xr: boolean }): number {
   return c.xr ? CUPO_VRM.visor : c.mobile ? CUPO_VRM.movil : CUPO_VRM.escritorio;
+}
+/** How far (m) a VRM is worn, by device class (same classes as `cupoVRM`). */
+export function distanciaVRM(c: { mobile: boolean; xr: boolean }): number {
+  return c.xr ? VRM_HASTA_M.visor : c.mobile ? VRM_HASTA_M.movil : VRM_HASTA_M.escritorio;
 }
 
 /** Which of the `n` house avatars a player gets: fixed by its entity id until players can choose (row H10). */
@@ -97,10 +115,14 @@ function elegirPaso(relativa: number, natural: Partial<Record<Clip, number>>): C
 /**
  * Who wears a VRM: you (when `yo` is set) and the nearest others, `cupo` in total. Whoever already has one keeps it
  * unless someone else is `margen` metres closer (no flicker when two people stand at the same distance).
+ * `hastaM`: the farthest a VRM is worn at all (the capsule beyond; `distanciaVRM`).
  */
-export function elegirCercanos(yo: { x: number; z: number } | null, otros: { id: number; x: number; z: number }[], cupo: number, actuales: ReadonlySet<number>, margen = 3): Set<number> {
+export function elegirCercanos(yo: { x: number; z: number } | null, otros: { id: number; x: number; z: number }[], cupo: number, actuales: ReadonlySet<number>, margen = 3, hastaM = Infinity): Set<number> {
   const plazas = Math.max(0, cupo - (yo ? 1 : 0));
-  const orden = otros.map((o) => ({ id: o.id, d: (yo ? Math.hypot(o.x - yo.x, o.z - yo.z) : 0) - (actuales.has(o.id) ? margen : 0) }))
+  // `hastaM` (J14): nobody beyond it wears a VRM (a VRM already worn keeps it VRM_HISTERESIS_M longer)
+  const orden = otros.map((o) => ({ id: o.id, real: yo ? Math.hypot(o.x - yo.x, o.z - yo.z) : 0, ya: actuales.has(o.id) }))
+    .filter((o) => o.real <= hastaM + (o.ya ? VRM_HISTERESIS_M : 0))
+    .map((o) => ({ id: o.id, d: o.real - (o.ya ? margen : 0) }))
     .sort((a, b) => a.d - b.d || a.id - b.id);
   return new Set(orden.slice(0, plazas).map((o) => o.id));
 }
@@ -161,7 +183,9 @@ export function decaerBoca(anterior: number, rms: number | null, factor = 0.55):
 
 // ---- J7b: moves (the movement wheel) over the speed-driven clips ----
 /** A move as the view plays it (same shape as the feature's MovimientoVista; render does not import packages/feature). */
-export type Movimiento = { id: string; clips: readonly string[]; modo: "una" | "bucle" | "quedarse"; hastaS: number; viva: boolean };
+export type Movimiento = { id: string; clips: readonly string[]; modo: "una" | "bucle" | "quedarse"; hastaS: number; viva: boolean;
+  /** a posture that keeps the feet on the floor (sitting, crouching): the page lifts or lowers the body so they are (apoyoDePies) */
+  apoya?: boolean };
 /** One avatar's move in progress. `desde` = when its first clip started (ms), null while its files are still loading. */
 export type EnCurso = { mov: Movimiento; pedido: number; desde: number | null; serie: number };
 /** A move whose files have not all arrived after this long is dropped (a slow network must not freeze someone later). */
@@ -200,4 +224,23 @@ export function movimientoOcupa(e: EnCurso, ahora: number, duracion: (clip: stri
   let entrada = 0;
   for (const c of e.mov.modo === "bucle" ? e.mov.clips.slice(0, -1) : e.mov.clips) entrada += duracion(c) ?? 0;
   return (ahora - e.desde) / 1000 < entrada + FUNDIDO_S;
+}
+
+// ---- feet on the floor during a posture (t_3f0e5846: «sentado, los pies se hunden unos 5 cm») ----
+// The house clips come from one body (Quaternius): sitting drops the hips to 0.586 of their height, but an avatar with
+// other leg proportions then ends with its feet 5 cm in the floor (a robot: 7 cm) or the same above it. While a calm
+// posture plays, the page measures the lowest ankle over the avatar's own root and moves the root so that ankle sits
+// as high as it does standing. Everything is relative to the avatar's own rest pose, so any VRM works.
+/** The most the body is moved for this, either way (m): a bigger gap is a broken file, not a proportion. */
+export const APOYO_MAX_M = 0.12;
+/** How fast the body follows the target (1/s): the crossfade into the posture lasts 0.2 s, so the plant arrives with it. */
+export const APOYO_RITMO = 12;
+/** Metres to move the body (positive = up) so the lowest ankle (`pieMin`, over the avatar's root) sits where it does at rest (`pieReposo`). */
+export const metaApoyo = (pieMin: number, pieReposo: number): number =>
+  Number.isFinite(pieMin) && Number.isFinite(pieReposo) ? Math.max(-APOYO_MAX_M, Math.min(APOYO_MAX_M, pieReposo - pieMin)) : 0;
+/** One frame of following `meta` from `actual` (exponential, frame-rate independent); lands exactly when it is within half a millimetre. */
+export function suavizarApoyo(actual: number, meta: number, dt: number): number {
+  const d = meta - actual;
+  if (Math.abs(d) < 0.0005) return meta;
+  return actual + d * (1 - Math.exp(-APOYO_RITMO * Math.max(0, dt)));
 }

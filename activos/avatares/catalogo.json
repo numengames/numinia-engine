@@ -83,24 +83,56 @@
   },
   "saludar": {
    "fichero": "activos/animaciones/saludar.vrma",
-   "sha256": "dd3d3f85e5762bec709b05b559b9353d9521552db7c64c56cdb0be23fc93b452",
-   "bytes": 116472,
+   "sha256": "1b02e435a2b3fa9d34f421614ff4abe8bf26741e306ae5caba0ce7f9c506aeac",
+   "bytes": 94968,
    "duracion": 2.5,
    "origen": "Idle_Loop + saludo",
    "pasoPorCadera": 0
   },
+  "asentir": {
+   "fichero": "activos/animaciones/asentir.vrma",
+   "sha256": "30dca4afb784aba9d7bbefaf3eb3c2d42ad3faf747682df8f6bb9fa495aaceb6",
+   "bytes": 79696,
+   "duracion": 1.5,
+   "origen": "Idle_Loop + asentir",
+   "pasoPorCadera": 0
+  },
+  "negar": {
+   "fichero": "activos/animaciones/negar.vrma",
+   "sha256": "8b232c39f3cbc2bba6acec5e527bc3ff88be61966a7d7b91beb91a6ac2849721",
+   "bytes": 79788,
+   "duracion": 1.5,
+   "origen": "Idle_Loop + negar",
+   "pasoPorCadera": 0
+  },
+  "pensar": {
+   "fichero": "activos/animaciones/pensar.vrma",
+   "sha256": "678a3e6c3849a7d2a890aaafd3a321d4b472464dd16fac55b6cfc98f944534d1",
+   "bytes": 100672,
+   "duracion": 3,
+   "origen": "Idle_Loop + pensar",
+   "pasoPorCadera": 0
+  },
+  "senalar": {
+   "fichero": "activos/animaciones/senalar.vrma",
+   "sha256": "fd20e5f3c099a233a010af434595b2a7dbdedf860bc0dc094a4cf1e915d02310",
+   "bytes": 86276,
+   "duracion": 2,
+   "origen": "Idle_Loop + senalar",
+   "pasoPorCadera": 0
+  },
   "hablar": {
    "fichero": "activos/animaciones/hablar.vrma",
-   "sha256": "27e69b1873047ea4926a60b0c6db6a5ca9af87404656303a8365f68cf37c49ec",
-   "bytes": 154336,
+   "sha256": "de0578b9399d1362a121dd048a73a7ab69e13cc4f58946ea633aa93f1f8ca883",
+   "bytes": 127408,
    "duracion": 3.667,
    "origen": "Idle_Talking_Loop",
    "pasoPorCadera": 0
   },
   "antorcha": {
    "fichero": "activos/animaciones/antorcha.vrma",
-   "sha256": "81191ffa5781995ecb6c71845152758c73a597b4224a40f0bbbba24df6c4ac30",
-   "bytes": 88668,
+   "sha256": "17679322ae28b90e95e7591c139d8b057e044a0b4e538c83209e69c92a4349b9",
+   "bytes": 83268,
    "duracion": 1.583,
    "origen": "Idle_Torch_Loop",
    "pasoPorCadera": 0
@@ -115,32 +147,32 @@
   },
   "agachado": {
    "fichero": "activos/animaciones/agachado.vrma",
-   "sha256": "9dc029eb0e420b5f2f2179e4300c076f9977bd677b6efe2901f72d281975b9fb",
-   "bytes": 154404,
+   "sha256": "bca102ed63931f80fc5cd9b2203c8153a6ce1a122cfc0912fd50345107f3ebe9",
+   "bytes": 124700,
    "duracion": 3.667,
    "origen": "Crouch_Idle_Loop",
    "pasoPorCadera": 0
   },
   "caer-muerto": {
    "fichero": "activos/animaciones/caer-muerto.vrma",
-   "sha256": "411ef1f131deb459f2d94457baed70883d6055dca43dc28e16126382f8e7a108",
-   "bytes": 132232,
+   "sha256": "8543c3b0e38107f94866cd15716d0f6daeacd58035a1e99af5f1feacb5368e49",
+   "bytes": 115384,
    "duracion": 3,
    "origen": "Death01",
    "pasoPorCadera": 0
   },
   "conducir": {
    "fichero": "activos/animaciones/conducir.vrma",
-   "sha256": "993fd207cdd78d05fd779c6aa4936f76902cc9656c9a5b232877d463fce3ffe7",
-   "bytes": 103468,
+   "sha256": "7b1d809df96a848fb788fb0a0920bec6e5a9267d673c88aa7af30c92b2af3507",
+   "bytes": 80212,
    "duracion": 2.083,
    "origen": "Driving_Loop",
    "pasoPorCadera": 0
   },
   "arreglar": {
    "fichero": "activos/animaciones/arreglar.vrma",
-   "sha256": "f88ac7597b7fbb3778daf6285cbf389fe4a2ce81905ee169cd66e5f00c847ac2",
-   "bytes": 243368,
+   "sha256": "20ca23781f523df14b96876fbca28e39da7334aa9bc9e6a08f0a4d19d8d81f9e",
+   "bytes": 179000,
    "duracion": 6.5,
    "origen": "Fixing_Kneeling",
    "pasoPorCadera": 0.032
@@ -163,8 +195,8 @@
   },
   "usar": {
    "fichero": "activos/animaciones/usar.vrma",
-   "sha256": "5c76477a25ace59a18f64da99c4cdee622909ee81ff656f0c69c4b5b2f70467b",
-   "bytes": 116448,
+   "sha256": "2b4148c2ce593898dc601975620ebd294211673240459a3e9ca2026a4ed9e600",
+   "bytes": 95960,
    "duracion": 2.5,
    "origen": "Interact",
    "pasoPorCadera": 0
@@ -187,16 +219,16 @@
   },
   "pistola-guardia": {
    "fichero": "activos/animaciones/pistola-guardia.vrma",
-   "sha256": "85de330f5f14dbfab3f4a81b4b07725b9847795f395d151f94a9b82fa3274806",
-   "bytes": 103424,
+   "sha256": "18d3fa3f3e2146f91c18204209c2a2357a6a78ed7b2470cdd528ca3d266a9555",
+   "bytes": 82000,
    "duracion": 2.083,
    "origen": "Pistol_Idle_Loop",
    "pasoPorCadera": 0
   },
   "pistola-recargar": {
    "fichero": "activos/animaciones/pistola-recargar.vrma",
-   "sha256": "55142bbf37751e981d6ec4ef88c2692ae845a3873a76d07320d2bfea2086f36d",
-   "bytes": 103456,
+   "sha256": "ba8da45754717c7014821ebc31d8e39e81e8193c189788e877b3df48e93e9ce3",
+   "bytes": 93096,
    "duracion": 2.083,
    "origen": "Pistol_Reload",
    "pasoPorCadera": 0
@@ -227,8 +259,8 @@
   },
   "empujar": {
    "fichero": "activos/animaciones/empujar.vrma",
-   "sha256": "85a6e6b7241a4801df2f5a5b18d3104a59483503da5dab3940ed4cc5c176cafa",
-   "bytes": 143380,
+   "sha256": "71edcd72a5c9d385cd25288946bc12a51710fee0547609eb5416de296eb863be",
+   "bytes": 114124,
    "duracion": 3.333,
    "origen": "Push_Loop",
    "pasoPorCadera": 0.219
@@ -251,16 +283,16 @@
   },
   "sentado": {
    "fichero": "activos/animaciones/sentado.vrma",
-   "sha256": "5cbaef9a1564401112191eb1bee3e5aa75945ba090bd1963f8b7de62853bad38",
-   "bytes": 103436,
+   "sha256": "872af43ef51f019456ad04efb842f0698e69add1fccfd9e5cd34f19eacde325d",
+   "bytes": 87792,
    "duracion": 2.083,
    "origen": "Sitting_Idle_Loop",
    "pasoPorCadera": 0
   },
   "sentado-hablar": {
    "fichero": "activos/animaciones/sentado-hablar.vrma",
-   "sha256": "e9f892413db5baa90fc085718677c7a0a93df273de71186c9bfb699319b2cfc5",
-   "bytes": 154188,
+   "sha256": "7a0448261c232236a6f993bf827b49af6763db40ae38b8a1b1687ef5894412eb",
+   "bytes": 120308,
    "duracion": 3.667,
    "origen": "Sitting_Talking_Loop",
    "pasoPorCadera": 0
@@ -275,8 +307,8 @@
   },
   "hechizo-sostener": {
    "fichero": "activos/animaciones/hechizo-sostener.vrma",
-   "sha256": "f1360a36e7299b0e727d3d218579ed9e1002318504cc962d011c6e44fc7ad922",
-   "bytes": 120832,
+   "sha256": "b0bda06ed834ae5c077a597efcfcbb28a7fdb9c88c10122719ef0d6b96b0e68c",
+   "bytes": 96184,
    "duracion": 2.625,
    "origen": "Spell_Simple_Idle_Loop",
    "pasoPorCadera": 0
@@ -291,24 +323,24 @@
   },
   "flotar": {
    "fichero": "activos/animaciones/flotar.vrma",
-   "sha256": "daeee950f0668ae7a039b55e91fccd2525c3cb1abb61dbd63cadc310ab892814",
-   "bytes": 170268,
+   "sha256": "c70a811e6d891535ba50303ff4c0ae61d365a3919e6c54be6c5e5a30e4846f1a",
+   "bytes": 144096,
    "duracion": 4.167,
    "origen": "Swim_Idle_Loop",
    "pasoPorCadera": 0.451
   },
   "espada-tajo": {
    "fichero": "activos/animaciones/espada-tajo.vrma",
-   "sha256": "8482d81696bbaf30f3766506a160ea9b62bd13e926fd662223842f11075893df",
-   "bytes": 98100,
+   "sha256": "6ce4ae2216b3455e5ce7640bb9f0b80f021fa1a6775e9d9b2aad54c1bec13e17",
+   "bytes": 91956,
    "duracion": 1.917,
    "origen": "Sword_Attack",
    "pasoPorCadera": 0.663
   },
   "espada-guardia": {
    "fichero": "activos/animaciones/espada-guardia.vrma",
-   "sha256": "ba912170434a9ff3cc1e710f5c605e9fe7752ee1d430bbe0d3817a8fe93ebd5d",
-   "bytes": 103420,
+   "sha256": "f29532cbb2619ab84003816f8b729bdc21abd77ada10d425939c74886891c76a",
+   "bytes": 92804,
    "duracion": 2.083,
    "origen": "Sword_Idle",
    "pasoPorCadera": 0

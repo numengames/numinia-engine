@@ -30,6 +30,8 @@ const lowest = () => {
   vrm.scene.traverse((o) => { if (o.isSkinnedMesh) { o.computeBoundingBox(); const b = o.boundingBox.clone().applyMatrix4(o.matrixWorld); min = Math.min(min, b.min.y); } });
   return +min.toFixed(3);
 };
+// the lowest foot joint (ankles and toes, raw bones), the number the engine plants during a sitting or crouching move (avatares-politica apoyoDePies)
+const pieMin = () => { vrm.scene.updateMatrixWorld(true); return +Math.min(...["leftFoot", "rightFoot", "leftToes", "rightToes"].map((b) => vrm.humanoid.getRawBoneNode(b)?.getWorldPosition(new THREE.Vector3()).y ?? Infinity)).toFixed(3); };
 const y = (bone) => +(vrm.humanoid.getRawBoneNode(bone)?.getWorldPosition(new THREE.Vector3()).y ?? NaN).toFixed(3);
 
 window.comprobar = async (vrmUrl, vrmaUrls, times) => {
@@ -49,7 +51,7 @@ window.comprobar = async (vrmUrl, vrmaUrls, times) => {
   vrm.update(0);
   const materials = new Set(); let tris = 0;
   vrm.scene.traverse((o) => { if (o.isMesh) { (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => materials.add(m.type)); tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; } });
-  const avatar = { loadMs, metaVersion: vrm.meta.metaVersion, materials: [...materials], triangles: tris, hips: y("hips"), head: y("head"), lowest: lowest(),
+  const avatar = { loadMs, metaVersion: vrm.meta.metaVersion, materials: [...materials], triangles: tris, hips: y("hips"), head: y("head"), lowest: lowest(), pie: pieMin(),
     bones: Object.keys(vrm.humanoid.humanBones).length };
   mixer = new THREE.AnimationMixer(vrm.scene);
   actions = [];
@@ -65,7 +67,7 @@ window.comprobar = async (vrmUrl, vrmaUrls, times) => {
     for (const t of times) {
       mixer.stopAllAction(); action.reset().play(); mixer.setTime(Math.min(t, clip.duration));
       vrm.update(0);
-      samples.push({ t, hips: y("hips"), head: y("head"), lowest: lowest() });
+      samples.push({ t, hips: y("hips"), head: y("head"), lowest: lowest(), pie: pieMin() });
     }
     clips[url] = { duration: +clip.duration.toFixed(3), tracks: clip.tracks.length, samples };
   }
