@@ -8,7 +8,7 @@
 import { alAnunciar } from "./paneles.ts";
 import { horaVR } from "../../packages/client/src/reloj.ts";
 import { pathsIcono } from "./iconos.ts";
-import { resumenTexto } from "./inventario.ts";
+import { resumenTexto } from "./inventario-resumen.ts";
 import { sonar } from "./sonar.ts";
 import { ESCALERA } from "./ficha.ts";
 import { listaGenteVR, textos } from "./gente-ia.ts";

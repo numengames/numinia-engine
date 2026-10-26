@@ -47,6 +47,22 @@ test("main.ts mounts the builder's drawers, dice, bubbles and director with a dy
   }
 });
 
+test("main.ts leaves «Gente», the photo mode and the Bolsa panel behind façades, and the voice pool out of the start bundle", () => {
+  const main = readFileSync("apps/plaza/main.ts", "utf8");
+  for (const f of ["gente", "foto", "inventario"]) {
+    assert.ok(!new RegExp(`^import .* from "\\./${f}\\.ts"`, "m").test(main), `${f}.ts must not be imported statically by main.ts`);
+    assert.ok(main.includes(`./${f}-puerta.ts`), `${f}-puerta.ts is the façade main.ts mounts`);
+    assert.ok(readFileSync(`apps/plaza/${f}-puerta.ts`, "utf8").includes(`import("./${f}.ts")`), `${f}-puerta.ts loads ${f}.ts with import()`);
+  }
+  // what the sheet, the VR menu and fishing need from the Bolsa stays small and apart, so inventario.ts can wait
+  for (const f of ["ficha.ts", "xr-menu.ts", "pesca.ts"]) assert.ok(!/from "\.\/inventario\.ts"/.test(readFileSync(`apps/plaza/${f}`, "utf8")), `${f} reads inventario-resumen.ts, not the panel`);
+  // a photo's link cannot wait for the first frame: the façade brings the mode at once for it
+  assert.match(readFileSync("apps/plaza/foto-puerta.ts", "utf8"), /if \(enlace\) void puerta\.cargarYa\(\)/);
+  const sonidos = readFileSync("packages/render/src/audio/sonidos.ts", "utf8");
+  assert.ok(!/^import \{ crearVoces \}/m.test(sonidos), "sonidos.ts must not import the voice pool statically");
+  assert.ok(sonidos.includes('import("./voces.ts")'));
+});
+
 test("alPrimerCuadro: waits for the first frame, then runs once; a failing task does not stop the others", async () => {
   const visto: string[] = [];
   const anota = (s: string): void => { visto.push(s); };

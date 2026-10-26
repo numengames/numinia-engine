@@ -14,7 +14,6 @@
 // todavía no se mide. Se elige UNA vez por página con `canPlayType`, no por fichero.
 import { audio } from "./nucleo.ts";
 import type { Bus, Nucleo } from "./nucleo.ts";
-import { crearVoces } from "./voces.ts";
 import type { Variante as VarianteVoz, Voces, Voz } from "./voces.ts";
 
 /** Una variante como viene en la tabla de la página: su URL por contenido y su peso (a más peso, más veces sale). */
@@ -112,7 +111,10 @@ export function leerTabla(crudo: unknown, avisar: (m: string) => void = () => {}
 
 export function crearSonidos(h: HechurasSonidos = {}): Sonidos {
   const nucleo = h.nucleo ?? audio();
-  const voces = h.voces ?? crearVoces({ nucleo });
+  // t_45ef2f70: the voice pool (voces.ts, ~4 kB gz) is fetched on first need, not with the start bundle: a sound asked for
+  // before it lands says «not played» (the one gate then falls back to its recipe), and asking brings the chunk.
+  let voces: Voces | null = h.voces ?? null, vocesProm: Promise<Voces> | null = null;
+  const traerVoces = (): Promise<Voces> => (vocesProm ??= import("./voces.ts").then((m) => (voces ??= m.crearVoces({ nucleo })), (e) => { vocesProm = null; throw e; }));
   const ruta = h.ruta ?? RUTA_TABLA;
   // los ficheros `/a/…` de la tabla son del SERVIDOR que la sirve: si la tabla vino de otro origen (la página de dev en
   // :5173 y el servidor en :8790), sus ficheros también; si la ruta es relativa (página y servidor en el mismo sitio), nada
@@ -163,6 +165,7 @@ export function crearSonidos(h: HechurasSonidos = {}): Sonidos {
     if (!s) { fallados++; if (tabla) avisar(`«${p.id}» no está en el catálogo: no suena (y nada se rompe)`); return false; }
     // una fila `receta` no tiene fichero: no es un fallo, es que este id lo hace la receta. Lo resuelve `sonar.ts`.
     if (s.fuente !== "fichero" || !s.variantes.length) return false;
+    if (!voces) { void traerVoces().catch(() => {}); return false; }
     let v: Voz | null = null;
     try {
       v = voces.reproducir({
@@ -199,6 +202,7 @@ export function crearSonidos(h: HechurasSonidos = {}): Sonidos {
     },
     suena,
     precargar: async (ids) => {
+      const pool = await traerVoces(); // also how the page asks for the pool once the first frame is out (ids = [])
       if (!tabla) return 0;
       let n = 0;
       for (const id of ids) {
@@ -206,7 +210,7 @@ export function crearSonidos(h: HechurasSonidos = {}): Sonidos {
         if (!s) continue;
         for (const v of urlsDe(s)) {
           if (!v.uri) continue;
-          try { if (await voces.cargar(v.uri)) n++; } catch { /* un fichero que no baja no estropea los demás */ }
+          try { if (await pool.cargar(v.uri)) n++; } catch { /* un fichero que no baja no estropea los demás */ }
         }
       }
       return n;

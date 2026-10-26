@@ -12,7 +12,7 @@ import { SECCIONES, ETIQUETAS, ICONOS, BOTONES_RELOJ, NOMBRES_RELOJ } from "../p
 import { pathsIcono } from "../apps/plaza/iconos.ts";
 
 const leer = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
-const FUENTES = ["main.ts", "gente.ts", "avisos.ts", "mapa.ts", "movil.ts", "graboso.ts", "pantalla.ts", "voz.ts", "xr-menu.ts"].map((f) => leer(`apps/plaza/${f}`)).join("\n") + leer("apps/plaza/index.html");
+const FUENTES = ["main.ts", "gente.ts", "gente-comun.ts", "avisos.ts", "mapa.ts", "movil.ts", "graboso.ts", "pantalla.ts", "voz.ts", "xr-menu.ts"].map((f) => leer(`apps/plaza/${f}`)).join("\n") + leer("apps/plaza/index.html");
 
 /** The exceptions: a section of the computer or the phone that VR does not have. Adding one means editing this list
  * AND giving it a reason in menu-secciones.ts (`sinVR`). `debe: true` = VR still owes it (the pending list). */
@@ -96,7 +96,7 @@ test("every section's button exists in the page, and every button of the bar is 
 });
 
 test("the bar, the phone and the VR menu read the list instead of writing their own names", () => {
-  for (const f of ["main.ts", "gente.ts", "avisos.ts", "mapa.ts", "movil.ts", "xr-menu.ts"]) assert.match(leer(`apps/plaza/${f}`), /menu-secciones/, `${f} reads menu-secciones`);
+  for (const f of ["main.ts", "gente-comun.ts", "avisos.ts", "mapa.ts", "movil.ts", "xr-menu.ts"]) assert.match(leer(`apps/plaza/${f}`), /menu-secciones/, `${f} reads menu-secciones`);
   assert.doesNotMatch(leer("apps/plaza/movil.ts"), /"Pantalla completa", "desktop"|"Ficha", icono: "user"/, "the phone's «…» menu names come from the list");
   assert.doesNotMatch(leer("apps/plaza/avisos.ts"), /title = "Avisos \(N\)"/);
   assert.doesNotMatch(leer("apps/plaza/gente.ts"), /title: "Gente \(L\)"/);
