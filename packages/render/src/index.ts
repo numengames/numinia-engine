@@ -92,6 +92,7 @@ import type { Parte } from "./lotes.ts";
 import { INSTANCIAR_DESDE, INSTANCIAR_DESDE_VR, instanciarDesde, lejosDeNiebla, tapadoPorNiebla, esGrupoDeFuncion } from "./dibujo-politica.ts";
 import { crearTeletransporte } from "./teletransporte.ts";
 import { crearPrecompilador, calentarOcultos } from "./precompilar.ts";
+import { contarCompiles } from "./compilaciones.ts";
 export { INSTANCIAR_DESDE, INSTANCIAR_DESDE_VR, instanciarDesde, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
 export { crearMedidorVivo, lineaMedidor, lineaMedidorCorta, lineasCenso, CATEGORIAS } from "./medidor-vivo.ts"; // MIS-200 t_ee19c84b: the live frame meter and the draw-call census
 export type { EntornoDatos } from "./entorno.ts";
@@ -169,6 +170,23 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   try { (renderer.backend as unknown as { capabilities?: { getMaxAnisotropy?(): number } }).capabilities?.getMaxAnisotropy?.(); } catch { /* WebGPU: nothing to ask */ }
   const paralelo = backend === "WebGPU" || !!gl?.getSupportedExtensions()?.includes("KHR_parallel_shader_compile"); // three takes it at init
   const gpuNombre = leerGpu(renderer, backend);
+  // t_159e18d2: pipelines three links inside a drawn frame (not through compileAsync) are counted; after the loading screen each one is a late compile
+  const compiles = contarCompiles((renderer as unknown as { backend: Parameters<typeof contarCompiles>[0] }).backend, undefined, () => firmaEscena());
+  /** t_159e18d2: the scene's light set changed (a light made or removed: three re-keys EVERY lit material of the world). Start linking the world
+   * for the new set now, off the frame (compileAsync, in parallel where the GPU can), instead of letting the next drawn frame do it. One call per tick. */
+  let lucesAvisadas = 0, lucesPendiente = false;
+  const camaraDeCompilar = (): THREE.Camera => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera);
+  function luzCambiada(): void {
+    lucesAvisadas++;
+    if (lucesPendiente) return; lucesPendiente = true;
+    queueMicrotask(() => { lucesPendiente = false; void renderer.compileAsync(scene, camaraDeCompilar(), scene).catch(() => {}); });
+  }
+  /** The scene-wide state three keys every material by (compilaciones.ts names it on each late compile). */
+  function firmaEscena(): string {
+    let luces = 0; scene.traverseVisible((o) => { if ((o as THREE.Light).isLight) luces++; });
+    const f = scene.fog as THREE.Fog | null;
+    return `nivel ${entorno.nivel} · tono ${renderer.toneMapping} · niebla ${f ? "fog" : scene.fogNode ? "nodo" : "no"} · entorno ${scene.environment ? "si" : "no"} · sombra ${sun.castShadow ? (sun.shadow.autoUpdate && sun.shadow.intensity > 0 ? "viva" : "parada") : "no"} · luces ${luces} · xr ${renderer.xr.isPresenting ? 1 : 0} · fondo ${scene.background ? "si" : "no"}`;
+  }
   renderer.setPixelRatio(power.pixelRatio());
   renderer.setSize(innerWidth, innerHeight);
   parent.appendChild(renderer.domElement);
@@ -302,7 +320,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       *cosas() { for (const [k, s] of things) yield [k, s.want] as [string, { x: number; y: number; z: number }]; },
     } });
 
-  const vr = createVR({ renderer, scene, camera, manos, ocupado: () => loading > 0 || precompilar.pendientes() > 0 }); // MIS-200: the VR extras wait for the world's loading work
+  const vr = createVR({ renderer, scene, camera, manos, alEntrar: () => { const ojos = renderer.xr.getCamera(); void renderer.compileAsync(scene, ojos, scene).catch(() => {}); }, ocupado: () => loading > 0 || precompilar.pendientes() > 0 }); // MIS-200: the VR extras wait for the world's loading work
   // where XR exists, the hands' code is fetched a few seconds after start, so entering VR/AR does not wait for it
   void Promise.all([vrSupported(), arSupported()]).then(([v, a]) => { if (v || a) setTimeout(() => { void cargarManos().catch(() => {}); }, 3000); });
   // MIS-200: once the hands are in and the world has stopped loading, link the programs only VR draws (rig, panels, vignette, watch, hands) while hidden,
@@ -329,7 +347,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // H4 + H12: sky, sun, light, fog, wind and ground come from data (features/entorno), quality from the device tier
   const entorno = crearEntorno({ renderer, scene, world, camera, hemi, sun, ground, grid, hitos, aparato: { mobile: power.mobile, deviceMemoryGB: readCaps().deviceMemoryGB, saveData: readCaps().saveData }, foco: () => selfXZ,
     fichero: (f) => { const i = f.lastIndexOf("."); return (opts.assetUrl ?? ((m: string) => `/a/${m}.glb`))(f.slice(0, i)).replace(/\.glb$/, f.slice(i)); } });
-  const elementos = vistaElementos({ renderer, scene, world, camera, entorno }); // H4/H8: water, fire, smoke, dust (lazy)
+  const elementos = vistaElementos({ renderer, scene, world, camera, entorno, luzCambiada }); // H4/H8: water, fire, smoke, dust (lazy)
   const tele = crearTeletransporte({ world, nivel: () => entorno.nivel }); // N16: the light of a trip (none on tier D)
 
   const yoNat = { x: 0, y: 0, z: 0 }; // F4 audit: one object reused every frame (the nature reads it at once)
@@ -390,7 +408,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** MIS-247: which head is on («fina» = the GLB, «sencilla» = the fallback; «ninguna» = the relic's code has not loaded yet). */
     cabeza(): "fina" | "sencilla" | "ninguna" { return graboso3d?.cabeza() ?? "ninguna"; },
   };
-  const ancestros = crearSalon({ world, camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera), luz: () => LUCES_FUEGO[entorno.nivel] > 0 }); // ancestros v1: the hall and the hologram of the tribute to Asimov (ancestros.ts)
+  const ancestros = crearSalon({ world, camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera), luz: () => LUCES_FUEGO[entorno.nivel] > 0, luzCambiada }); // ancestros v1: the hall and the hologram of the tribute to Asimov (ancestros.ts)
   function dropLabel(t: Target): void {
     const d = labels.get(t);
     if (!d) return;
@@ -1384,6 +1402,13 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** B3: how the world's models got their shaders ready before showing (precompilar.ts): prepared, batches, failures,
      * shown without waiting (ESPERA_MAX_MS), in the queue, ms per batch, and whether this GPU links in parallel. */
     shaders() { return precompilar.estado(); },
+    /** t_159e18d2: shader pipelines linked inside a drawn frame instead of through compileAsync (compilaciones.ts): `tardias` counts those after
+     * the loading screen came down (must stay 0 while walking), with the last few named in `recientes`. */
+    compiles() { return { ...compiles.estado(), lucesAvisadas }; },
+    /** The loading screen came down: from here a pipeline linked by a draw counts as late. */
+    cargaOculta(): void { compiles.cargaLista(); },
+    /** Zero the late counters (a check starts a walk). */
+    reiniciarCompiles(): void { compiles.reiniciarTardias(); },
     /** J10: carry a placed thing (`key` as in place): in a hand in XR, beside you on a flat screen; `null` puts it back. */
     llevar(key: string, donde: Llevar | null): void {
       if (!donde) { if (llevados.has(key)) soltarLlevado(key); return; }
@@ -1506,6 +1531,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       // compiled a new shader program (blocking, on its first draw) or something else created one since the last draw
       power.setCargando(loading > 0 || waiting.size > 0);
       try { dibujar(dtSeconds); } finally {
+        compiles.primerCuadro();
         const p = programasVivos();
         if (p > programasVistos) power.paron();
         programasVistos = p;

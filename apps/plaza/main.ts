@@ -820,7 +820,7 @@ view.loop((now) => {
     // (B5), unless the page was hidden or frozen meanwhile; draw calls, triangles, programs and pixel ratio ride along
     const xr = view.vr.active || view.ar.state !== "off";
     const programas = view.programas(); // the pulse never carried the programs: `cost.programs` was never set (the live meter reads them from three)
-    if (lastDrawAt) medidorUI.cuadro({ dtMs: now - lastDrawAt, cpuMs: cost.cpuMs, llamadas: cost.calls, triangulos: cost.triangles, programas });
+    if (lastDrawAt) medidorUI.cuadro({ dtMs: now - lastDrawAt, cpuMs: cost.cpuMs, llamadas: cost.calls, triangulos: cost.triangles, programas, compilesTardios: view.compiles().tardias });
     medidorUI.pintar(now);
     if (lastDrawAt) medidor.cuadro(now - lastDrawAt, cost.cpuMs, xr ? view.xrHz() || 72 : view.power.targetFps(active), { dc: cost.calls, tri: cost.triangles, programas, ratio: view.power.pixelRatio(), xr });
     if (lastDrawAt) view.posproceso.vigilar(now - lastDrawAt, active); // H12b: the effects' cost gate (level A only; a no-op when they are off)
@@ -835,7 +835,7 @@ view.loop((now) => {
       const msDesdeWelcome = informe.bienvenidaMs ? Math.round(performance.now()) - informe.bienvenidaMs : 0;
       const est = estadoCarga({ welcome: !!session.welcome, mundoRecibido: session.stats.snapshots > 0, primerCuadro: true, sueloPendiente: pendiente, piezasPendientes: piezasPendientes(mundo), msDesdeWelcome });
       if (est !== "esperando") {
-        cargaOculta = true; carga.ocultar();
+        cargaOculta = true; carga.ocultar(); view.cargaOculta();
         const pend = piezasPendientes(mundo);
         informe.carga = { ocultaMs: Math.round(performance.now()), msDesdeWelcome, piezas: mundo.total, pendientes: pend, tope: est === "tope" };
         if (est === "tope") console.warn(`[carga] the cap (${TOPE_CARGA_MS / 1000} s) fired: the loading screen left with ${pend} of ${mundo.total} pieces still not ready${pendiente ? " and the ground still pending" : ""}`);

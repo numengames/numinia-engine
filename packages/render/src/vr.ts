@@ -88,6 +88,8 @@ export type VRHooks = {
   onChange?: (state: VRState) => void;
   /** MIS-200: true while the world still has loading work (models, compiles); the VR extras wait for it to end (entrada-estable.ts). */
   ocupado?: () => boolean;
+  /** t_159e18d2: the session was handed to three (the VR tier is in force): link the world for it now. */
+  alEntrar?: () => void;
   /** The house's Phosphor icons for the watch and the menu (apps/plaza/iconos.ts); without them, text only. */
   iconos?: PathsIcono;
 };
@@ -411,6 +413,7 @@ export function createVR(h: VRHooks) {
       h.renderer.xr.setReferenceSpaceType("local-floor");
       aplicarRendimiento(h.renderer as unknown as RendererLike, rendimiento); // scale + multiview are read by setSession
       await h.renderer.xr.setSession(session);
+      try { h.alEntrar?.(); } catch { /* best effort */ } // t_159e18d2: the world as the VR tier draws it (shadows, environment, fog differ) is linked now, not by the first frames
       // Nothing of VR is shown yet (rig stays hidden): the world is all you see until update() finds calm frames (mostrarVR).
       void pedirFrecuencia(session); // Quest lists 72 Hz; Pico (Chrome 105) has no list: nothing happens
       rig.add(h.camera);
