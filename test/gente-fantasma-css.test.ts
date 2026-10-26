@@ -12,7 +12,9 @@ const hojas = [{ f: "index.html", t: readFileSync(new URL("index.html", PLAZA), 
 
 /** The selectors of every rule written in these sheets (comments and declaration bodies dropped; @media bodies are walked through). */
 function selectores(texto: string): string[] {
-  const sin = texto.replace(/\/\*[\s\S]*?\*\//g, "").replace(/<!--[\s\S]*?-->/g, "");
+  // index.html carries its rules inside <style> blocks: read those only, so HTML comments never need stripping.
+  const css = texto.includes("<style") ? [...texto.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join("\n") : texto;
+  const sin = css.replace(/\/\*[\s\S]*?\*\//g, "");
   const out: string[] = [];
   for (const m of sin.matchAll(/([^{}@;]+)\{/g)) for (const s of m[1].split(",")) out.push(s.trim());
   return out;
