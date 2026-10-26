@@ -407,6 +407,8 @@ export function crearEntorno(h: EntornoHooks) {
   }
   let forzado: Nivel | null = null;
   /** The tier can change while running (entering VR = B) or be simulated (checks): new defaults, caps and sky mode. */
+  let enVR = 0, volverDeVR: (() => void) | null = null; // comoEnVR: nested uses share one window (the state is put back when the last one settles)
+  const SALTO_LLAMADAS = 0x40000000;
   function actualizarNivel(): void {
     const nv = forzado ?? nivelDe({ ...h.aparato, xr: renderer.xr.isPresenting });
     if (nv === nivel) return;
@@ -459,6 +461,35 @@ export function crearEntorno(h: EntornoHooks) {
         atm = null; domo.material = domoMat; scene.fogNode = null; horneadoClave = ""; domo.renderOrder = -10;
         if (d) aplicar(d);
       };
+    },
+    /**
+     * t_159e18d2: run `fn` with the scene-wide state three keys every shader by, as it will be once a headset is presented (tier B: no environment light,
+     * shadows stopped, the sky as a baked cube), then put everything back. If `fn` returns a promise the state holds until it settles (renderer.compileAsync
+     * builds the shaders AFTER its first await, from the state of that moment): that is how the VR variants of the world's programs are linked off the
+     * frame, before entering VR changes the state and every lit material relinks inside the first stereo frames. Only the fields that enter
+     * the key are touched (no re-apply of the environment, no bake, no shadow map resize).
+     */
+    comoEnVR<T>(fn: () => T): T {
+      const nv = nivelDe({ ...h.aparato, xr: true });
+      if (nv === nivel) return fn();
+      if (enVR++ === 0) {
+        const cal = acotarCalidad(nv, { ...CALIDAD_POR_NIVEL[nv] }, pedido);
+        const info = (renderer as unknown as { info: { calls: number } }).info;
+        // three keeps the scene-wide key (lights, environment, fog...) per renderer.info.calls: with no draw in between (an idle page, a warm-up) the key
+        // computed in the normal state would be handed back here unchanged. A call number nobody draws with makes it recompute.
+        info.calls += SALTO_LLAMADAS;
+        const env = scene.environment, fondo = scene.background, auto = sun.shadow.autoUpdate, inten = sun.shadow.intensity;
+        if (!cal.hdr) scene.environment = null;
+        if (SOMBRA_PX[cal.sombras] <= 0 && sun.castShadow) { sun.shadow.autoUpdate = false; sun.shadow.intensity = 0; }
+        if (modoCielo === "vivo" || (atm && !atm.cielo && modoCielo === "degradado")) scene.background = cubo.texture; // the tiers other than A bake these skies into a cube
+        volverDeVR = () => { info.calls -= SALTO_LLAMADAS; scene.environment = env; scene.background = fondo; sun.shadow.autoUpdate = auto; sun.shadow.intensity = inten; };
+      }
+      const salir = () => { if (--enVR === 0) { volverDeVR?.(); volverDeVR = null; } };
+      let r: T;
+      try { r = fn(); } catch (e) { salir(); throw e; }
+      if (r && typeof (r as unknown as PromiseLike<unknown>).then === "function") return Promise.resolve(r).finally(salir) as unknown as T;
+      salir();
+      return r;
     },
     /** For checks and the bench: behave as another tier (its defaults, caps and sky mode); null = this device again. */
     simularNivel(nv: Nivel | null): void { forzado = nv; actualizarNivel(); },
