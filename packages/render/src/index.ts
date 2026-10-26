@@ -836,9 +836,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     // sonaba igual que uno a tu derecha. Mientras el módulo del oyente no haya llegado (un par de fotogramas) se usa
     // la cámara a secas, para que un sonido no nazca mudo.
     const op = oyente?.pose();
-    const oido: { x: number; y: number; z: number } | null = op && op.fuente !== "ninguna"
-      ? { x: op.x, y: op.y, z: op.z }
-      : { x: camera.position.x, y: camera.position.y, z: camera.position.z };
+    const sano = (q: { x: number; y: number; z: number }): boolean => Number.isFinite(q.x + q.y + q.z);
+    const oidoOyente = op && op.fuente !== "ninguna" ? { x: op.x, y: op.y, z: op.z } : null;
+    // al salir de VR la cámara puede traer NaN un cuadro: sin posición sana no hay oyente (nada de NaN en `volume`)
+    const oido: { x: number; y: number; z: number } | null = oidoOyente && sano(oidoOyente) ? oidoOyente : sano(camera.position) ? { x: camera.position.x, y: camera.position.y, z: camera.position.z } : null;
     for (const [k, s] of things) {
       if (s.nivel && s.loaded && !s.mejorando && debeMejorar(selfXZ ? Math.sqrt(distance2(s)) : null, s.nivel)) { s.mejorando = true; s.nivel = undefined; waiting.add(k); pumpPronto(); } // H13: you came near: load the whole model
       if (s.medio) { s.medio.actualizar(s.group, oido, { hidden: !!s.want.hidden, volume: s.want.volume ?? 1, reach: s.want.reach ?? "burbuja", radius: s.want.radius ?? 8, ...(s.want.bus ? { bus: s.want.bus } : {}) }); if (s.want.kind === "video" && s.medio.sonando()) mediosSonando = true; }

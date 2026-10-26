@@ -292,7 +292,7 @@ export function createAR(h: ARHooks) {
     set(sinHitTest ? "ready" : "searching");
     return true;
   }
-  async function exit(): Promise<void> { if (session) await session.end(); }
+  async function exit(): Promise<void> { if (session) { try { await session.end(); } catch { /* already over (the system button, or a second tap): leaving is done either way */ } } }
 
   /** Call every frame while presenting. */
   function update(dtSeconds = 1 / 60): void {

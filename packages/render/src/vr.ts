@@ -452,7 +452,7 @@ export function createVR(h: VRHooks) {
     pagina = "mandos"; panel.visible = true; panelDelante = false; // the first thing you see: how the controllers work
     ajusteMalla.visible = false; salirMalla.visible = true;
   }
-  async function exit(): Promise<void> { if (session) await session.end(); }
+  async function exit(): Promise<void> { if (session) { try { await session.end(); } catch { /* already over (the system button, or a second tap): leaving is done either way */ } } }
 
   /** Call every frame while presenting; `self` is where the avatar is (metres; J2: the floor rises with its jumps). */
   function update(self: { x: number; z: number; y?: number } | null, dtSeconds: number): void {

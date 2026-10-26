@@ -43,7 +43,7 @@ type Vista = {
   vrSupported(): Promise<boolean>;
   ar: { exit(): Promise<void>; readonly jugando: boolean; readonly state?: string };
   vr: { active: boolean; nota?(t: string): void };
-  manos?: { on(fn: (e: { tipo: string; lado: "izq" | "der" }) => void): () => void; rayo(lado: "izq" | "der"): { origen: { x: number; y: number; z: number }; dir: { x: number; y: number; z: number } } | null; vibrar(lado: "izq" | "der", v?: number, ms?: number): void };
+  manos?: { on(fn: (e: { tipo: string; lado?: "izq" | "der" }) => void): () => void; rayo(lado: "izq" | "der"): { origen: { x: number; y: number; z: number }; dir: { x: number; y: number; z: number } } | null; vibrar(lado: "izq" | "der", v?: number, ms?: number): void };
 };
 
 /** How long the turn's result stays (ms) after the third dart. */

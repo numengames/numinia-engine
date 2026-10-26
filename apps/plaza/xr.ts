@@ -8,7 +8,7 @@ import { LINEAS_MANDOS } from "./xr-mandos.ts"; // the controls sheet's words (t
 import { crearAlcance } from "./xr-alcance.ts"; // the ray only lands on what is within reach
 type Res = { ok: true } | { ok: false; why: string };
 type Lado = "izq" | "der";
-type EventoMano = { tipo: "agarrar"; key: string; lado: Lado } | { tipo: "apuntar"; key: string; lado: Lado } | { tipo: "panel"; fila: number; lado: Lado } | { tipo: "gatillo"; lado: Lado } | { tipo: "gatillo_fin"; lado: Lado };
+type EventoMano = { tipo: "agarrar"; key: string; lado: Lado } | { tipo: "apuntar"; key: string; lado: Lado } | { tipo: "panel"; fila: number; lado: Lado } | { tipo: "gatillo"; lado: Lado } | { tipo: "gatillo_fin"; lado: Lado } | { tipo: "soltar"; que: string; lado: Lado } | { tipo: "salto" };
 type Misiones = {
   estado: { nota: string };
   libro(): { id: string; estado: string; titulo: string; paso: number; pasos: number; seguida: boolean; lista: { n: number; texto: string; tipo: string; hecho: boolean; que: string }[] }[];
@@ -69,6 +69,8 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
       decir(session.features.use(f, key));
     } else if (e.tipo === "panel") {
       if (e.fila) decir(misiones.elegir(e.fila));
+    } else if (e.tipo === "soltar" || e.tipo === "salto") {
+      return; // told to the session log (main.ts); nothing for the world to do here
     } else if (e.tipo === "gatillo_fin") {
       o.interaccion.mantener.soltar(); // J4: releasing the trigger before a held `hold` finishes cancels it
     } else if (o.interaccion.actual()) o.interaccion.mantener.empezar(); // J4: fires at once, or starts the hold
