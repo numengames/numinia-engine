@@ -153,7 +153,7 @@ export function montarInventario(c: Ctl, boton: HTMLButtonElement) {
   panel.cuerpo.addEventListener("pointerdown", (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>("button.hueco[data-arrastrable]"); if (!b || (e.pointerType === "mouse" && e.button !== 0)) return;
     const o = hueco.find((h) => h.o?.id === b.dataset.id)?.o; if (!o) return;
-    arrastrando = { o, fantasma: el("div", "", "fantasma"), x0: e.clientX, y0: e.clientY, origen: b, vivo: false };
+    arrastrando = { o, fantasma: el("div", "", "bolsa-fantasma"), x0: e.clientX, y0: e.clientY, origen: b, vivo: false };
     arrastrando.fantasma.style.setProperty("--c", colorDe(o)); conIcono(arrastrando.fantasma, o.icono || ICONO_TIPO[o.tipo], 36);
     try { b.setPointerCapture(e.pointerId); } catch { /* a synthetic pointer */ }
   });
