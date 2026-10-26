@@ -367,6 +367,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     },
     grabando(si: boolean): void { grabosoQuiere.grabando = si; graboso3d?.grabando(si); },
     visible(): boolean { return graboso3d?.visible() ?? false; },
+    /** MIS-247: which head is on («fina» = the GLB, «sencilla» = the fallback; «ninguna» = the relic's code has not loaded yet). */
+    cabeza(): "fina" | "sencilla" | "ninguna" { return graboso3d?.cabeza() ?? "ninguna"; },
   };
   const ancestros = crearSalon({ world, camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera), luz: () => LUCES_FUEGO[entorno.nivel] > 0 }); // ancestros v1: the hall and the hologram of the tribute to Asimov (ancestros.ts)
   function dropLabel(t: Target): void {

@@ -147,7 +147,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | A3 | Normales horneadas en la animación de textura (luz correcta al girar) | pendiente | sí |
 | A4 | Robots en la plaza: cercanos completos, lejanos horneados | pendiente | sí |
 | B3 | Telemetría en el visor: p99 de cuadro y cuadros perdidos | hecho (dentro de T1; sin probar en un visor real → X1) | sí |
-| D2 | Puerta de tamaño del cliente (meta ≤ 300 kB comprimido) | puerta hecha (18-10: `npm run tamano` y en `gates`, tope 480 kB); recorte pendiente (hoy 434,9 kB) | sí |
+| D2 | Puerta de tamaño del cliente (meta ≤ 300 kB comprimido) | puerta hecha (`npm run tamano` y en `gates`, tope 1 MB); recorte pendiente: 666,0 → 661,7 kB gz el 26-10 (MIS-253: `npm run tamano:trozos` pesa cada trozo; el trozo de VR ya no baja sin gafas; lo que queda, en `docs/MEDIDAS.md`: el grupo del constructor ≈ 30 kB) | sí |
 | D3 | Fuzz de todos los decodificadores de red | pendiente | sí |
 | D4 | Los mensajes del núcleo (entrada, snapshot, bienvenida) salen del esquema, como ya los de las funciones (J7) | para Opus | no |
 | M16 | Carga de zonas: manifiesto por zona (arranque / fondo / perezoso), sha256 por fichero, caché del navegador por hash | hecho en `lote7/activos` (`GET /manifiesto.json`, caché de hashes en `hashes.json`, Cache API por sha256 con verificación; falta O2 sobre él) | sí |
@@ -159,7 +159,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | V11 | Baja visión: contraste por función, contornos en lo importante, lupa, texto a 200 % (coste medido) | pendiente | sí |
 | V14 | Página compañera accesible: el móvil o el PC muestra lo que pasa en las gafas (chat, avisos, lista) | espera a V4 | sí |
 | M18 | Medios: vídeo en pantallas del mundo sincronizado con el reloj del servidor (función J7) | pendiente | sí |
-| M18b | El Graboso: la reliquia que graba lo que ves (cabeza de oso de nube translúcida; K la saca y graba, 30 s–1 min con tope duro, clip descargable) | hecho (v1, rama `objetos/graboso`; falta: conectar con Y1, voces de otros, modelo fino, VR) | no |
+| M18b | El Graboso: la reliquia que graba lo que ves (cabeza de oso de nube translúcida; K la saca y graba, 30 s–1 min con tope duro, clip descargable) | hecho (v1, rama `objetos/graboso`; hecho 26-10: modelo fino `activos/graboso/graboso-cabeza.glb`, MIS-247; falta: conectar con Y1, voces de otros, VR) | no |
 | M18c | Compartir el clip del Graboso: subirlo al mundo (`PUT /a/`, H9) y reproducirlo en una pantalla (M18); aviso a quien sale («X ha sacado el Graboso») — **confirmado por Pablo (18-10): sí, avisar** | espera a M18 | sí |
 | V8 | Perfil de accesibilidad en la identidad, aplicado antes del primer fotograma en cualquier aparato | pendiente | sí |
 | P5a | El puente nuevo y el primer cerebro (E2 contesta, E4 construye si el mundo deja): clave sin eco (`--clave-ia`), topes, `<material>`, herramientas comprobadas en código | hecho (primer corte; falta: E1, probarlo con Claude en el VPS, D7 revisión del contrato) | no |
