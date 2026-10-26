@@ -19,7 +19,7 @@ export const CELDA_M = 40;
 
 export type Fijado = { id: string; partes: readonly Parte[]; matriz: THREE.Matrix4; /** The copy's centre, to pick its cell. */ x: number; z: number };
 export type Trozo = { id: string; parte: Parte; matriz: THREE.Matrix4 };
-export type Grupo = { clave: string; celda: string; mat: THREE.Material; sombra: boolean; trozos: Trozo[] };
+export type Grupo = { clave: string; celda: string; mat: THREE.Material; sombra: boolean; /** The parts say «never cast a shadow» (glTF `sinSombra`): the merged mesh says it too, or entorno.ts marcarSombras would make it cast. */ sinSombra: boolean; trozos: Trozo[] };
 
 
 /** What a material looks like, so two glTF files that each made their own copy of «the same grey plastic» still merge. A material with node
@@ -62,9 +62,9 @@ export function planFijados(fijados: readonly Fijado[], celdaM = CELDA_M): Grupo
     const celda = `${Math.floor(f.x / celdaM)},${Math.floor(f.z / celdaM)}`;
     for (const p of f.partes) {
       if (!sePuede(p)) continue;
-      const clave = `${celda}|${claveMaterial(p.mat)}|${p.sombra ? "s" : "-"}|${disposicion(p.geo)}`;
+      const sinSombra = !!p.sinSombra, clave = `${celda}|${claveMaterial(p.mat)}|${p.sombra ? "s" : "-"}${sinSombra ? "x" : "-"}|${disposicion(p.geo)}`;
       let g = grupos.get(clave);
-      if (!g) grupos.set(clave, (g = { clave, celda, mat: p.mat, sombra: p.sombra, trozos: [] }));
+      if (!g) grupos.set(clave, (g = { clave, celda, mat: p.mat, sombra: p.sombra && !sinSombra, sinSombra, trozos: [] }));
       g.trozos.push({ id: f.id, parte: p, matriz: p.rel ? tmp.multiplyMatrices(f.matriz, p.rel).clone() : f.matriz.clone() });
     }
   }
@@ -143,6 +143,7 @@ export function crearFijados(padre: THREE.Object3D) {
       for (const g of planFijados(fijados.filter((f) => fusionable(f.partes)))) {
         const m = new THREE.Mesh(geometriaDeGrupo(g), g.mat);
         m.castShadow = g.sombra; m.receiveShadow = true; m.matrixAutoUpdate = false;
+        if (g.sinSombra) m.userData.sinSombra = true; // marcarSombras (entorno.ts) skips it, as it skips the unmerged meshes
         m.name = "fijados"; m.userData.fijados = true;
         const s = m.geometry.boundingSphere!;
         ocultables.set(m, { x: s.center.x, y: s.center.y, z: s.center.z, r: s.radius });

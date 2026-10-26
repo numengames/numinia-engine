@@ -188,20 +188,41 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     hecho(from, id, "colocar");
   });
 
+  /** Put thing `id` (already looked up as `o`) where `m` says, with the scale `sy` on its own height. */
+  const colocarEnSitio = (from: number, id: string, o: Msg, m: Msg, sy: unknown, opts: { mover?: boolean; lote?: string }) => {
+    apuntar(from, { id, antes: o }, opts);
+    const nuevo = conCaja(id, {
+      ...o, x: q(m.x, PASO.pos), y: q(m.y, PASO.pos), z: q(m.z, PASO.pos),
+      rx: girado(Number(m.rx)), ry: girado(Number(m.ry)), rz: girado(Number(m.rz)),
+      sx: q(m.sx, PASO.escala), sy: q(sy, PASO.escala), sz: q(m.sz, PASO.escala),
+    });
+    guardar(id, nuevo);
+    const cambia = (...k: string[]) => k.some((c) => Number(o[c]) !== Number(nuevo[c]));
+    hecho(from, id, "mover", { mueve: cambia("x", "y", "z"), gira: cambia("rx", "ry", "rz"), escala: cambia("sx", "sy", "sz") });
+  };
+
   api.on("mover", (from, m) => {
     if (!puede(from)) return;
     const o = objeto(from, m.id), id = String(m.id);
     if (!o) return;
     if (o.fijado) return void rechazar(from, "Está fijado: suéltalo antes de moverlo.");
-    apuntar(from, { id, antes: o }, { mover: true, lote: String(m.lote || "") });
-    const nuevo = conCaja(id, {
-      ...o, x: q(m.x, PASO.pos), y: q(m.y, PASO.pos), z: q(m.z, PASO.pos),
-      rx: girado(Number(m.rx)), ry: girado(Number(m.ry)), rz: girado(Number(m.rz)),
-      sx: q(m.sx, PASO.escala), sy: q(m.sy, PASO.escala), sz: q(m.sz, PASO.escala),
-    });
-    guardar(id, nuevo);
-    const cambia = (...k: string[]) => k.some((c) => Number(o[c]) !== Number(nuevo[c]));
-    hecho(from, id, "mover", { mueve: cambia("x", "y", "z"), gira: cambia("rx", "ry", "rz"), escala: cambia("sx", "sy", "sz") });
+    colocarEnSitio(from, id, o, m, m.sy, { mover: true, lote: String(m.lote || "") });
+  });
+
+  // moverCon (R-1: a piece any world may use): a thing and its companion (a creature's mouth, a wing) move in ONE message,
+  // so a driver (a session that moves a bolita) pays one slot of the per-player rate for both, not two. The companion takes the
+  // same place, turn and scale except its own height scale (`syCon`); both are one undo step.
+  api.on("moverCon", (from, m) => {
+    if (!puede(from)) return;
+    const o = objeto(from, m.id), id = String(m.id), idCon = String(m.con);
+    if (!o) return;
+    if (idCon === id) return void rechazar(from, "Una cosa no puede ser su propio compañero.");
+    const c = objeto(from, idCon);
+    if (!c) return;
+    if (o.fijado || c.fijado) return void rechazar(from, "Está fijado: suéltalo antes de moverlo.");
+    const lote = String(m.lote || "") || `c${id}`.slice(0, 16);
+    colocarEnSitio(from, id, o, m, m.sy, { mover: true, lote });
+    colocarEnSitio(from, idCon, c, m, m.syCon, { mover: true, lote });
   });
 
   api.on("girar", (from, m) => {

@@ -142,3 +142,18 @@ test("aFlotante: interleaved and normalized attributes become plain floats with 
   const inter = new THREE.InterleavedBufferAttribute(new THREE.InterleavedBuffer(new Float32Array([1, 2, 3, 9, 4, 5, 6, 9]), 4), 3, 0);
   assert.deepEqual([...aFlotante(inter).array], [1, 2, 3, 4, 5, 6]);
 });
+
+test("hornear: meshes that say sinSombra (glTF extras) stay apart from those that do not, even on one material", () => {
+  const mat = new THREE.MeshStandardMaterial();
+  const tri = (dx: number) => { const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute([dx, 0, 0, dx + 1, 0, 0, dx, 1, 0], 3)); return g; };
+  const a = new THREE.Mesh(tri(0), mat), b = new THREE.Mesh(tri(2), mat), c = new THREE.Mesh(tri(4), mat);
+  b.userData.sinSombra = true; a.castShadow = true; c.castShadow = true;
+  const raiz = new THREE.Group(); raiz.add(a, b, c);
+  const hs = hornearEscena(raiz, merge)!;
+  assert.equal(hs.length, 2, "one part that casts, one that never does");
+  const sin = hs.find((h) => h.sinSombra)!, con = hs.find((h) => !h.sinSombra)!;
+  assert.equal(sin.geo.attributes.position.count, 3);
+  assert.equal(con.geo.attributes.position.count, 6);
+  assert.equal(sin.sombra, false);
+  assert.equal(con.sombra, true);
+});
