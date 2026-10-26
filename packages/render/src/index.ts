@@ -57,6 +57,8 @@ export { NOMBRE_VISIBLE_M, NOMBRES_DIBUJADOS, BOCADILLO_VISIBLE_M } from "./nomb
 import { crearCenital } from "./cenital.ts";
 export type { Huella, ImagenCenital } from "./cenital.ts";
 import { crearEntorno } from "./entorno.ts";
+import { crearPuerta, TOPE_MS } from "./posproceso-politica.ts"; // H12b: pure cost gate (the passes themselves load lazily)
+import type { Posproceso } from "./posproceso.ts";
 import { vistaElementos } from "./elementos-vista.ts";
 
 import { crearEspacioBasePerezoso } from "./espacio-base/cargador.ts"; // H2: the empty night world of luminous lines (a separate chunk, fetched only when a world asks)
@@ -141,7 +143,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // 16-10 over USB): there a WebGPU page can never enter VR or AR. Devices that can do XR but not XR-on-WebGPU draw
   // with WebGL2 from the start (the backend cannot change later).
   const xrSinGpu = typeof (globalThis as { XRGPUBinding?: unknown }).XRGPUBinding === "undefined" && (await vrSupported() || await arSupported());
-  const renderer = new THREE.WebGPURenderer({ antialias: !power.mobile, forceWebGL: !!opts.forceWebGL || xrSinGpu, powerPreference: power.mobile ? "low-power" : "high-performance" });
+  const renderer = new THREE.WebGPURenderer({ antialias: !power.mobile, alpha: !power.mobile, /* H8: a transparent canvas lets a web screen's page show through the hole its panel punches (desktop only) */ forceWebGL: !!opts.forceWebGL || xrSinGpu, powerPreference: power.mobile ? "low-power" : "high-performance" });
   usarRenderer(renderer); // N22: KTX2 textures transcode to what this GPU takes
   await renderer.init();
   const backend: Backend = (renderer as unknown as { backend: { isWebGPUBackend?: boolean } }).backend.isWebGPUBackend ? "WebGPU" : "WebGL2";
@@ -346,7 +348,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     visible: (q) => (q === "self" ? selfMat.visible : true),
     hueso: (q, donde, out) => (donde === "mano" ? avs.mano(q === "self" ? "yo" : q, "derecha", out) : avs.cabeza(q === "self" ? "yo" : q, out)),
     rumbo: (q) => avs.rumbo(q === "self" ? "yo" : q) });
-  const web = crearPantallasWeb({ world, camera, enXR: () => renderer.xr.isPresenting, cajas: () => cajasM }); // N17: web screens (web.ts)
+  const web = crearPantallasWeb({ world, camera, enXR: () => renderer.xr.isPresenting, cajas: () => cajasM, agujero: () => !power.mobile && !ppVivo && !!matchMedia?.("(pointer: fine)").matches, lienzo: renderer.domElement }); // N17: web screens (web.ts); H8: hole-punch on a desktop
   // M18b: the Graboso, the relic that records, over your right shoulder (lazy: packages/render/src/graboso.ts, fetched at the first invocation)
   const grabosoPos = new THREE.Vector3();
   let graboso3d: import("./graboso.ts").Graboso3D | null = null, grabosoCarga: Promise<void> | null = null;
@@ -930,9 +932,46 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       return (await fotoCarga).sacar();
     },
   };
+  // H12b: bloom + AO through a RenderPipeline, only on level A and only when asked. posproceso.ts (and the node modules it needs) is fetched when
+  // the first effect is switched on: nothing of it is in the start bundle, and a phone or a headset never asks (the tier clamps the wish to off).
+  let pp: Posproceso | null = null, ppCarga: Promise<Posproceso> | null = null, ppVivo = false;
+  const puertaPP = crearPuerta(), alApagarPP: (() => void)[] = [];
+  const ppEstado = { apagadoPorCoste: 0, ultimaMediaMs: 0, error: "" };
+  async function sincronizarPP(): Promise<void> {
+    const e = entorno.efectosActual, quiere = (e.bloom || e.ao) && !renderer.xr.isPresenting;
+    if (!quiere) { ppVivo = false; pp?.soltar(); return; }
+    try {
+      ppCarga ??= import("./posproceso.ts").then((m) => m.crearPosproceso({ renderer, scene, camera }));
+      const m = await ppCarga;
+      const ahora = entorno.efectosActual;
+      if (!(ahora.bloom || ahora.ao)) return; // switched off while the chunks came
+      await m.construir(ahora);
+      pp = m; puertaPP.reiniciar(); power.paron(3); ppVivo = true; ppEstado.error = "";
+    } catch (err) { ppVivo = false; ppEstado.error = String((err as Error)?.message ?? err); console.warn("posproceso:", ppEstado.error); pp?.soltar(); } // no effect rather than no picture
+  }
+  entorno.alCambiarEfectos(() => { void sincronizarPP(); });
+  const posproceso = {
+    /** The extra passes are drawing now. */
+    get activo(): boolean { return ppVivo; },
+    /** Per drawn frame, from the page: `dtMs` since the last draw and whether something moves. The cost gate switches the effects off if the machine cannot hold the target. */
+    vigilar(dtMs: number, activo: boolean): void {
+      if (!ppVivo || !activo || dtMs > 250) return;
+      const tope = Math.max(TOPE_MS, (1.25 * 1000) / power.targetFps(true));
+      if (puertaPP.alDibujar(dtMs, tope) === "apagar") {
+        ppEstado.apagadoPorCoste++; ppEstado.ultimaMediaMs = Math.round(puertaPP.media() * 10) / 10;
+        entorno.efectos({ bloom: false, ao: false }); // the soft shadows stay: they cost no pass
+        for (const f of alApagarPP) f();
+      }
+    },
+    /** Tell me when the cost gate switched the passes off by itself (the settings menu then shows them off). */
+    alApagar(f: () => void): void { alApagarPP.push(f); },
+    estado: () => ({ activo: ppVivo, construido: pp ? { ...pp.construido } : null, ...ppEstado, mediaMs: Math.round(puertaPP.media() * 10) / 10, muestras: puertaPP.muestras() }),
+    /** Force a build now and resolve when it is drawing (checks). */
+    listo: async (): Promise<boolean> => { await sincronizarPP(); return ppVivo; },
+  };
   function dibujarCuadro(): void {
     antesDelCuadro();
-    try { renderer.render(scene, camera); if (espejoXR?.activo()) espejoXR.cuadro(performance.now()); if (fotoXR?.pendiente()) fotoXR.cuadro(); } finally { despuesDelCuadro(); }
+    try { if (ppVivo && pp && !renderer.xr.isPresenting) pp.dibujar(); else renderer.render(scene, camera); if (espejoXR?.activo()) espejoXR.cuadro(performance.now()); if (fotoXR?.pendiente()) fotoXR.cuadro(); } finally { despuesDelCuadro(); }
   }
 
   // B4: three's own count of live shader programs (WebGPURenderer info.memory.programs); it only grows when one is made
@@ -960,6 +999,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     backend,
     power,
     renderer,
+    /** The world's camera (checks project points through it). */
+    camera,
     /** T1: the graphics chip as the browser names it ("" when it hides it). Read once at start (B3), then remembered. */
     gpu(): Promise<string> { return gpuNombre; },
     /** T1: refresh rate of the XR session (Hz); 0 outside XR or when the browser does not say. */
@@ -973,6 +1014,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     vrSupported,
     /** H4 + H12: the environment (aplicar, estado, calidad, capacidades) — packages/render/src/entorno.ts. */
     entorno,
+    /** H12b: bloom + AO passes (activo, vigilar, alApagar, estado) — packages/render/src/posproceso.ts, loaded the first time an effect is switched on, level A only. */
+    posproceso,
     /** N4: the world's low-poly nature (aplicar, estadisticas, terreno) — packages/render/src/naturaleza/naturaleza.ts; builds nothing until a world asks. */
     naturaleza,
     /** H2: the espacio base (aplicar, estadisticas, alturaEn) — packages/render/src/espacio-base/espacio-base.ts; builds nothing until a world asks. */

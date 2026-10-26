@@ -11,6 +11,7 @@ import { lucha as decl } from "./feature.ts";
 import { ESCALERA, CALMA_TICKS, NIVEL_ALETARGADO } from "./estados.ts";
 import type { Estado } from "./estados.ts";
 import { CARGA_MAX } from "./habilidades.ts";
+import { intermedios } from "./persecucion.ts";
 import biblioteca from "../objetos/biblioteca.json" with { type: "json" };
 
 const BLOQUE = biblioteca.modelos.find((m) => m.id === "bloque")?.modelo ?? "";
@@ -18,6 +19,10 @@ const BLOQUE = biblioteca.modelos.find((m) => m.id === "bloque")?.modelo ?? "";
 export const FLASH_MS = 80, DANO_MS = 700;
 /** Flash colour of a critical (gold, not white) and its damage text. */
 export const COLOR_CRITICO = "#ffd24a";
+/** A walking creature's lunge: red flash and «¡ataca!» in its tag (MIS-245). */
+export const COLOR_ATAQUE = "#e5503f";
+/** A step of a walking creature (0,2 s apart) is drawn as this many in-between positions, one every PASO_MS: smooth, and nothing runs while it stands. */
+export const SUAVIZAR_PASOS = 4, PASO_MS = 50;
 export const textoDano = (dano: number, critico: boolean): string => (critico ? `  ¡CRÍTICO! −${dano}` : `  −${dano}`);
 /** The Estado rungs as the character HUD names them (index = rung, 0 = ninguno → no name = stable). */
 export const NOMBRE_ESTADO = ["", "Desestabilizado", "Confundido", "Colapsado", "Aletargado"] as const;
@@ -69,9 +74,21 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void, reloj: (
   let visto = false;                               // this world has fighting: a creature, my Carga or my Estado reached the page
   const luego = (key: string, ms: number, fn: () => void) => { const l = temporizadores.get(key) ?? []; l.push(setTimeout(fn, ms)); temporizadores.set(key, l); };
   const limpiar = (key: string) => { for (const t of temporizadores.get(key) ?? []) clearTimeout(t); temporizadores.delete(key); };
+  const dibujado = new Map<string, { x: number; z: number }>();   // where each creature was last drawn (to glide, not jump, to its next step)
   const dibujar = (key: string, v: Msg | undefined) => {
     if (!A) return;
-    if (!v || v.modo === "disuelta") { A.view.place?.(`lucha:${key}`, null); A.view.tag?.(`lucha:${key}`, null); return; }
+    limpiar(`paso:${key}`);
+    if (!v || v.modo === "disuelta") { dibujado.delete(key); A.view.place?.(`lucha:${key}`, null); A.view.tag?.(`lucha:${key}`, null); return; }
+    const antes = dibujado.get(key), ahora = { x: Number(v.x), z: Number(v.z) };
+    dibujado.set(key, ahora);
+    const salto = antes ? Math.hypot(ahora.x - antes.x, ahora.z - antes.z) : 0;
+    if (antes && salto > 0.01 && salto < 3) {                      // a step of a walker: glide in SUAVIZAR_PASOS frames (the last one is the real place)
+      intermedios(antes, ahora, SUAVIZAR_PASOS).forEach((p, i) => luego(`paso:${key}`, i * PASO_MS, () => {
+        const w = A!.state.get(key);
+        if (w && w.modo !== "disuelta") { A!.view.place?.(`lucha:${key}`, { ...aspecto(w), x: p.x, z: p.z }); A!.view.tag?.(`lucha:${key}`, { ...nombre(w), x: p.x, z: p.z }); }
+      }));
+      return;
+    }
     A.view.place?.(`lucha:${key}`, aspecto(v));
     A.view.tag?.(`lucha:${key}`, nombre(v));
   };
@@ -138,6 +155,16 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void, reloj: (
       luego(key, DANO_MS, () => { const w = a.state.get(key); if (w && w.modo !== "disuelta") a.view.tag?.(`lucha:${key}`, nombre(w)); });
     });
     a.on("critico", (m) => { espia?.("critico", m); });
+    a.on("ataca", (m) => {                          // the creature lunges at someone: red flash and «¡ataca!»; the wounded person's own number comes as jugadorHerido
+      espia?.("ataca", m);
+      const key = String(m.objetivo), v = a.state.get(key);
+      if (!v || v.modo === "disuelta") return;
+      limpiar(key);
+      a.view.place?.(`lucha:${key}`, aspecto(v, COLOR_ATAQUE));
+      a.view.tag?.(`lucha:${key}`, nombre(v, "  ¡ataca!"));
+      luego(key, FLASH_MS * 2, () => { const w = a.state.get(key); if (w && w.modo !== "disuelta") a.view.place?.(`lucha:${key}`, aspecto(w)); });
+      luego(key, DANO_MS, () => { const w = a.state.get(key); if (w && w.modo !== "disuelta") a.view.tag?.(`lucha:${key}`, nombre(w)); });
+    });
     a.on("aire", (m) => { espia?.("aire", m); });
     a.on("estado", (m) => {                          // my own rung feeds the HUD; every rung heard also puts the icon over that person
       espia?.("estado", m);

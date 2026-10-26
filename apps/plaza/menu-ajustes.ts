@@ -26,7 +26,9 @@ type Contratos = {
   entorno?: {
     calidad?(o: { sombras?: string; agua?: string; particulas?: string; hdr?: boolean }): void;
     capacidades?(): Record<string, unknown> | null | undefined;
+    efectos?(o: { bloom?: boolean; ao?: boolean; sombraSuave?: boolean }): unknown; // H12b: level A only (the render clamps the wish)
   };
+  posproceso?: { alApagar?(f: () => void): void };
 };
 
 let activo: Ajustes | null = null;
@@ -67,7 +69,7 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
     let c: Record<string, unknown> = {};
     try { c = (hay && e?.capacidades?.()) || {}; } catch { c = {}; }
     const out: Record<string, boolean> = { entorno: hay };
-    for (const k of ["sombras", "agua", "particulas", "hdr"]) out[`entorno.${k}`] = hay && c[k] !== false;
+    for (const k of ["sombras", "agua", "particulas", "hdr", "efectos"]) out[`entorno.${k}`] = hay && c[k] !== false;
     return out;
   };
   const nivelUrl = (params.get("nivel") ?? "").toUpperCase() as Nivel;
@@ -123,6 +125,10 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
     extra.entorno?.calidad?.({ sombras: texto(pide("graficos.sombras", l)), agua: texto(pide("graficos.agua", l)), particulas: texto(pide("graficos.particulas", l)), hdr: hdr === undefined ? undefined : hdr === true });
   };
   for (const id of ["graficos.sombras", "graficos.agua", "graficos.particulas", "graficos.hdr"]) a.alAplicar(id, entorno);
+  // H12b: bloom, AO, soft shadows — the render turns them off on any tier but A; if its cost gate drops the passes, the menu shows them off
+  const efectos = (_: Valor, l: Lectura) => extra.entorno?.efectos?.({ bloom: l.get("graficos.bloom") === true, ao: l.get("graficos.ao") === true, sombraSuave: l.get("graficos.sombraSuave") === true });
+  for (const id of ["graficos.bloom", "graficos.ao", "graficos.sombraSuave"]) a.alAplicar(id, efectos);
+  extra.posproceso?.alApagar?.(() => { a.set("graficos.bloom", false); a.set("graficos.ao", false); });
   const camara = (_: Valor, l: Lectura) => extra.cam?.ajustar?.({ sensibilidad: Number(l.get("controles.sensibilidad")) / 100, invertirY: l.get("controles.invertirY") === true });
   a.alAplicar("controles.sensibilidad", camara);
   a.alAplicar("controles.invertirY", camara);
@@ -131,6 +137,7 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   // t_bf8947cf (MVL1): the VR rig always exists (unlike cam/entorno, built in parallel branches), so this
   // writes straight to view.vr instead of going through Contratos.
   a.alAplicar("controles.modoMovimientoVR", (v) => { view.vr.modoMovimiento = v as "mirada" | "mando" | "cuerpo"; });
+  a.alAplicar("controles.gestoAndarVR", (v) => { view.vr.gestoAndar = v === "remar" ? "remar" : "apuntar"; }); // MIS-229: rowing with the hands
   a.alAplicar("controles.vrManoMenu", (v) => { view.vr.manoMenu = v === "der" ? "der" : "izq"; }); // t_d5f5523a: the watch's hand
   // rediseño v2: the VR menu's «Ajustes» rows (also here on the computer)
   a.alAplicar("controles.giroVR", (v) => { view.vr.giroGrados = Number(v); });
@@ -179,6 +186,8 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   const api = {
     lista: () => a.lista(), grupos: () => a.grupos(), get: (id: string) => a.get(id), set: (id: string, v: unknown) => a.set(id, v),
     restablecer: (id?: string) => a.restablecer(id), capacidades: () => caps.describir(),
+    /** D-076: the page hears a setting change (id, value). */
+    alCambiar: (f: (id: string, v: unknown) => void) => a.alCambiar(f),
     abrir: (): boolean => abrir(), cerrar: (): void => cerrar(),
     get abierto(): boolean { return !!dlg?.open; },
   };

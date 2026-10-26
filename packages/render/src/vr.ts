@@ -21,6 +21,7 @@ import type { AccionFichaVR, DatosFichaVR, FichaVR } from "./vr-ficha.ts"; // ty
 import type { CondicionesVR } from "./condiciones-vr.ts"; // types only: the entry bubble's panel is fetched on first use (c4)
 import { ID_BARRA, palancaPagina, palancasDelPanel, type EntradaMano, type LadoMano, type ModeloVR, type Zona } from "./condiciones-vr-geom.ts"; // pure numbers, no three.js
 import { empujaFuera } from "./vr-paredes.ts";
+import { crearRemo, REMO_RITMO } from "./remo.ts"; // MIS-229: rowing with the hands
 import { completarSesionXR, textoDeFallo } from "./xr-compat.ts"; // old headset browsers lack XRSession.enabledFeatures (Chrome 105)
 import { calentarOcultos } from "./precompilar.ts"; // MIS-200: warm what only VR draws while it is still hidden
 import { crearEstable } from "./entrada-estable.ts"; // MIS-200: no VR drawing until the first calm frames
@@ -30,6 +31,8 @@ import { audio } from "./audio/nucleo.ts"; // S1: the engine's one audio graph (
 export type ManosXR = { cargar(): Promise<unknown>;
   /** MIS-200: the hands' root group (once loaded), so its programs can be warmed before the session. */
   raiz?(): THREE.Object3D | null; montar(p: THREE.Object3D | null): void; update(c: THREE.Camera | null): void; andar?(excluida?: Lado | null): [number, number] | null;
+  /** MIS-229 (rowing): the tracked hands pinching in empty air, world space. */
+  remar?(excluida?: Lado | null): { lado: Lado; x: number; y: number; z: number }[];
   /** t_8d0bc2dd: true once per jump made with the hands (both wrists flicked up); reiniciarSalto forgets the gesture's history. */
   takeSalto?(): boolean; reiniciarSalto?(): void;
   /** t_bf8947cf: where a controller points, flattened (world, unit); null without that controller. */
@@ -47,6 +50,8 @@ export type ManosXR = { cargar(): Promise<unknown>;
  * mirada: forward is where the head looks (as shipped). mando: forward is where the left controller points.
  * cuerpo: forward is the rig's own facing (only snap turns move it) — looking around does not redirect it. */
 export type ModoMovimientoVR = "mirada" | "mando" | "cuerpo";
+/** MIS-229: how tracked hands walk — point (pinch and hold: go where the hand points, as shipped) or row (pull back = faster, push forward = brake). */
+export type GestoAndarVR = "apuntar" | "remar";
 
 export const SNAP_DEG = 30;
 /** Rediseño v2 (VR settings): the snap turn's steps the menu offers, and the stick's pace and the floor's lift limits. */
@@ -306,6 +311,8 @@ export function createVR(h: VRHooks) {
   let session: any = null;
   let comfort = 0.8; // 0 = off, 1 = strongest
   let modoMovimiento: ModoMovimientoVR = "mirada"; // t_bf8947cf: settings menu, remembered by the registry
+  let gestoAndar: GestoAndarVR = "apuntar"; // MIS-229: the setting controles.gestoAndarVR
+  const remo = crearRemo(), manosRemo: { lado: string; delante: number }[] = [];
   let rendimiento: RendimientoXR = { ...RENDIMIENTO_DEFECTO }; // MIS-200: «Rendimiento en gafas», applied on entering
   let giroDeg: number = SNAP_DEG, yawDeg = 0, velocidad = 1, alturaM = 0; // rediseño v2: the menu's VR settings
   let moveX = 0, moveZ = 0, turnLatched = false, strength = 0, navLatched = false;
@@ -526,7 +533,14 @@ export function createVR(h: VRHooks) {
     else { const len = Math.hypot(dir.x, dir.z) || 1; fx = dir.x / len; fz = dir.z / len; }
     moveX = fx * -ly + -fz * lx;
     moveZ = fz * -ly + fx * lx;
-    const conMano = visible && !lx && !ly ? h.manos?.andar?.(menu.abierto ? LADO_RELOJ : null) : null; // tracked hands: pinch and hold in the air = walk where that hand points; t_41d8e44c: never with the hand holding the open menu
+    const conMano = visible && !lx && !ly && gestoAndar === "apuntar" ? h.manos?.andar?.(menu.abierto ? LADO_RELOJ : null) : null; // tracked hands: pinch and hold in the air = walk where that hand points; t_41d8e44c: never with the hand holding the open menu
+    // MIS-229, rowing (remo.ts): the hands' distance in front of the head along where you face drives a speed along that facing
+    if (gestoAndar === "remar") {
+      manosRemo.length = 0;
+      if (visible && !lx && !ly && !enPanel) for (const m of h.manos?.remar?.(menu.abierto ? LADO_RELOJ : null) ?? []) manosRemo.push({ lado: m.lado, delante: (m.x - xrCam.matrixWorld.elements[12]) * fx + (m.z - xrCam.matrixWorld.elements[14]) * fz });
+      const s = remo.paso(dtSeconds, manosRemo);
+      if (s > 0 && !lx && !ly) { moveX = fx * s * REMO_RITMO; moveZ = fz * s * REMO_RITMO; }
+    }
     if (conMano) { moveX = conMano[0] * 0.7; moveZ = conMano[1] * 0.7; } // walking pace (the edge, 0.9, runs)
     if (enPanel) { moveX = moveZ = 0; turned = false; } // c4: inside the bubble the sticks turn pages, they do not move or turn you (the server holds you too)
     const m = Math.hypot(moveX, moveZ);
@@ -578,6 +592,8 @@ export function createVR(h: VRHooks) {
     set comfort(v: number) { comfort = Math.max(0, Math.min(1, v)); },
     get modoMovimiento() { return modoMovimiento; },
     set modoMovimiento(v: ModoMovimientoVR) { modoMovimiento = v === "mando" || v === "cuerpo" ? v : "mirada"; },
+    get gestoAndar() { return gestoAndar; },
+    set gestoAndar(v: GestoAndarVR) { gestoAndar = v === "remar" ? "remar" : "apuntar"; remo.reset(); },
     get manoMenu(): ManoMenuVR { return manoMenu; },
     set manoMenu(v: ManoMenuVR) { elegirManoMenu(v === "der" ? "der" : "izq"); },
     get yawDegrees() { return yawDeg; },

@@ -11,6 +11,8 @@
 import { comprobarFichero, motivo, sha256Hex, topeBytes, TOPES_MB, TIPOS } from "../../packages/net/src/ficheros.ts";
 import { sePuedeReproducir } from "../../packages/render/src/medios.ts";
 import { HUECO_PX_PAGINA } from "../../features/objetos/feature.ts";
+import { fondoAceptable } from "./entorno-fino-logica.ts";
+import type { CampoFondo } from "./entorno-fino-logica.ts";
 
 /** U10: what each file becomes in the world (features/objetos `tipo`). */
 const CLASE: Record<string, "modelo" | "imagen" | "video" | "sonido"> = { glb: "modelo", png: "imagen", jpg: "imagen", webp: "imagen", mp4: "video", webm: "video", mp3: "sonido", ogg: "sonido" };
@@ -189,6 +191,31 @@ export function montarSoltar(o: OpcionesSoltar) {
     cuenta.colocadas++;
     decir(`${ya ? "Ya estaba en el servidor: no se volvió a subir. " : ""}Colocado: «${nombre}».`);
   }
+  /** H4b: a sky picture or an HDR light for the environment panel. The same checks and the same /a/ door as a model (kind, cap,
+   * the file reads, sha256, no second upload), but nothing is placed: resolves with «<sha256>.<ext>» for the panel to write
+   * into the environment (the server still validates it). */
+  async function subirFondo(file: File, campo: CampoFondo): Promise<{ ok: true; nombre: string } | { ok: false; why: string }> {
+    const fichero = file.name, ac = fondoAceptable(campo, fichero);
+    if (!ac.ok) return { ok: false, why: ac.why };
+    const tipo = ac.ext;
+    if (!o.puede()) return { ok: false, why: "no puedes construir aquí" };
+    if (file.size > topeBytes(tipo)) return { ok: false, why: `pasa de ${TOPES_MB[tipo]} MB, el tope para .${tipo}` };
+    const billete = o.billete();
+    if (!billete) return { ok: false, why: "aún no sé quién eres; espera un segundo y vuelve a probar" };
+    decir(`Leyendo «${fichero}»…`, true);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const valido = comprobarFichero(tipo, bytes);
+    if (!valido.ok) { decir(""); return { ok: false, why: motivo(valido.issues).replace(/\.$/, "") }; }
+    const sha = await huella(bytes), url = `${o.origen}/a/${sha}.${tipo}`;
+    const ya = await fetch(url, { method: "HEAD", cache: "no-store" }).then((r) => r.status === 200, () => false);
+    if (!ya) {
+      const r = await put(url, bytes, billete, fichero, TIPOS[tipo], (f) => decir(`Subiendo «${fichero}»… ${Math.round(f * 100)} %`, true));
+      if (r.status !== 200 && r.status !== 201) { decir(""); return { ok: false, why: r.error.replace(/\.$/, "") || POR_ESTADO[r.status] || `el servidor dijo ${r.status}` }; }
+      cuenta.subidas++;
+    } else cuenta.yaEstaban++;
+    decir(ya ? `«${fichero}» ya estaba en el servidor.` : `«${fichero}» subido.`);
+    return { ok: true, nombre: `${sha}.${tipo}` };
+  }
   let cola = Promise.resolve();
   const varios = (files: File[], donde: { x: number; z: number } | null) => {
     files.forEach((f, i) => { cola = cola.then(() => subir(f, { donde: donde && { x: donde.x + 1.5 * i, z: donde.z } })).catch((e) => no(f.name, String((e as Error)?.message ?? e))); });
@@ -245,5 +272,5 @@ export function montarSoltar(o: OpcionesSoltar) {
   document.body.append(entrada);
   /** Open the file picker (call it inside a click or a key press: browsers refuse a picker otherwise). */
   const elegir = () => { if (o.puede()) entrada.click(); };
-  return { cuenta, subir: varios, rellenar, rellenarYa, decir, elegir };
+  return { cuenta, subir: varios, rellenar, rellenarYa, decir, elegir, subirFondo };
 }

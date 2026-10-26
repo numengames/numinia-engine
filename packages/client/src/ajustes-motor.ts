@@ -92,6 +92,28 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     describe: "Luz del cielo de alto rango: más realista y más pesada. Sin ella en móvil y en visor.",
     defecto: { valor: false, nivel: { A: true } },
   },
+  // D-076: the sun follows the real one where you are. Off by default; it does nothing unless the WORLD offers it, and the browser asks you again.
+  {
+    grupo: "graficos", id: "solReal", tipo: "bool", nombre: "Sol real", requiere: ["entorno"],
+    describe: "En los mundos que lo permiten, el sol sigue al de verdad donde estás. El navegador te pregunta tu ubicación; solo se usa aquí y solo su zona aproximada.",
+    defecto: false,
+  },
+  // H12b: extra effects, level A only (entorno.efectos is true only on a desktop): off for everyone until a person turns them on
+  {
+    grupo: "graficos", id: "bloom", tipo: "bool", nombre: "Brillo (bloom)", requiere: ["entorno.efectos"],
+    describe: "Un halo suave alrededor de lo muy brillante (fuego, luces, sol). Solo en escritorio. Si el ordenador no aguanta los 60 cuadros por segundo, se apaga solo.",
+    defecto: false,
+  },
+  {
+    grupo: "graficos", id: "ao", tipo: "bool", nombre: "Sombras de contacto (AO)", requiere: ["entorno.efectos"],
+    describe: "Oscurece los rincones y donde las cosas se tocan. Solo en escritorio, más pesado; si no aguanta los 60 cuadros por segundo, se apaga solo.",
+    defecto: false,
+  },
+  {
+    grupo: "graficos", id: "sombraSuave", tipo: "bool", nombre: "Sombras suaves", requiere: ["entorno.efectos"],
+    describe: "Bordes difusos en las sombras del sol (necesita las sombras encendidas). Solo en escritorio.",
+    defecto: false,
+  },
   // ---- Sonido: the sliders are the VCAs of the audio graph (packages/render/src/audio/nucleo.ts); «Avisos» and «mono» are V6 ----
   { grupo: "sonido", id: "general", tipo: "numero", min: 0, max: 100, paso: 5, unidad: "%", nombre: "Volumen general", describe: "El volumen de todo lo que suena en el mundo.", defecto: 80, nota: H5 },
   { grupo: "sonido", id: "musica", tipo: "numero", min: 0, max: 100, paso: 5, unidad: "%", nombre: "Música", describe: "El volumen de la música del mundo.", defecto: 60, nota: H5 },
@@ -118,6 +140,12 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     describe: "Hacia dónde tira la palanca izquierda del visor: tu mirada, tu mando, o tu cuerpo (mirar no cambia el rumbo).",
     opciones: [{ valor: "mirada", nombre: "Según la mirada" }, { valor: "mando", nombre: "Según el mando" }, { valor: "cuerpo", nombre: "De lado (según el cuerpo)" }],
     defecto: "mirada", requiere: ["xrVr"],
+  },
+  {
+    grupo: "controles", id: "gestoAndarVR", tipo: "eleccion", nombre: "Andar con las manos en VR",
+    describe: "Con las manos sin mandos: Apuntar = pellizca y andas hacia donde apunta la mano; Remar = pellizca y echa la mano atrás para avanzar, adelante para frenar.",
+    opciones: [{ valor: "apuntar", nombre: "Apuntar (como hasta ahora)" }, { valor: "remar", nombre: "Remar (atrás acelera, adelante frena)" }],
+    defecto: "apuntar", requiere: ["xrVr"],
   },
   {
     grupo: "controles", id: "vrManoMenu", tipo: "eleccion", nombre: "Mano del menú de muñeca",
