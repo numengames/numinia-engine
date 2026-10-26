@@ -2,7 +2,7 @@
 //   <mundo>/apps/<id>/
 //     app.json        numinia-engine/app@1: who/what/licence, the model, the files by hash, the properties and events with
 //                     their schema, the accessible card; for an app imported from a .hyp, what is still to be ported (H11)
-//     main.ts         the app's script. STORED, hashed and listed, never parsed or run here (the SES sandbox is M20, later)
+//     main.ts         the app's script. This file only STORES, hashes and lists it; apps-ejecutar.ts runs it in the SES sandbox (M20)
 //     assets/<sha256>.<ext>   the app's files, named by the SHA-256 of their bytes (the same names as datos/activos/ and /a/)
 //     README.md, IMPORTADO.md  for people (optional)
 //     por-portar/     a script written for another engine (Hyperfy), kept apart and marked «por portar»; never run
@@ -276,7 +276,7 @@ export function validarApp(raw: unknown, idCarpeta?: string): { ok: true; app: A
 
 export type AppCargada = {
   app: App; carpeta: string;
-  /** main.ts as stored: its hash and size. `ejecuta` is always false in this slice (M20 runs scripts). */
+  /** main.ts as stored: its hash and size. `ejecuta` is always false HERE (this reader runs nothing); apps-ejecutar.ts runs it and GET /apps says so. */
   main: { fichero: "main.ts"; sha256: string; bytes: number; ejecuta: false } | null;
   /** the files read, hash-checked and kind-checked (what the server may serve at /a/<sha256>.<ext>) */
   activos: { archivo: string; sha256: string; ext: string; bytes: number }[];
@@ -302,7 +302,7 @@ export function leerApp(carpeta: string, id: string): LecturaApp {
   const app = v.app, is: Issue[] = [], avisos: string[] = [];
   const mal = (path: string, message: string) => { is.push({ path: `${base}/${path}`, message }); };
 
-  // main.ts: stored, hashed, read as text; not parsed, not run
+  // main.ts: stored, hashed, read as text; not parsed, not run (apps-ejecutar.ts does that, M20)
   let main: AppCargada["main"] = null;
   const rutaMain = join(carpeta, "main.ts");
   if (app.main) {
@@ -376,15 +376,26 @@ export function leerApps(dir: string | null): LecturaApps {
   return out;
 }
 
+/** What the sandbox says about one script (apps-ejecutar.ts `estado`), copied here so this file stays free of the runner. */
+export type EstadoGuionApp = { id: string; estado: string; version: number; sha256: string; bytes: number; cortes: { cpu: number; memoria: number; error: number }; informes: { cuando: string; motivo: string; detalle: string }[]; porQue?: string };
+function scriptDe(main: NonNullable<AppCargada["main"]>, e: EstadoGuionApp | undefined) {
+  if (!e) return { fichero: main.fichero, sha256: main.sha256, bytes: main.bytes, ejecuta: false };
+  return {
+    fichero: main.fichero, sha256: e.sha256 || main.sha256, bytes: e.bytes || main.bytes, ejecuta: e.estado !== "sin-sitio" && e.estado !== "cerrada",
+    estado: e.estado, version: e.version, cortes: e.cortes, informes: e.informes, ...(e.porQue ? { porQue: e.porQue } : {}),
+  };
+}
+
 /** The list GET /apps answers and `tools/apps.ts listar` prints: what an inspector and an agent need, no disk paths. */
-export function listaDeApps(l: LecturaApps) {
+export function listaDeApps(l: LecturaApps, guiones: EstadoGuionApp[] = []) {
+  const g = new Map(guiones.map((e) => [e.id, e]));
   return {
     schema: "numinia-engine/apps@1",
     apps: l.apps.map(({ app, main, activos, avisos }) => ({
       id: app.id, nombre: app.nombre, version: app.version, licencia: app.licencia, ficha: app.ficha,
       ...(app.descripcion ? { descripcion: app.descripcion } : {}), ...(app.autor ? { autor: app.autor } : {}),
       modelo: app.modelo ?? null, propiedades: app.propiedades, eventos: app.eventos,
-      script: main ? { fichero: main.fichero, sha256: main.sha256, bytes: main.bytes, ejecuta: false } : null,
+      script: main ? scriptDe(main, g.get(app.id)) : null,
       porPortar: app.portar ? { estado: app.portar.estado, origen: app.portar.origen, motivo: app.portar.motivo } : null,
       activos: activos.map((x) => ({ archivo: x.archivo, bytes: x.bytes, url: `/a/${x.archivo}` })),
       omitidos: app.activos.filter((x) => x.estado === "omitido").map((x) => ({ archivo: x.archivo, licencia: x.licencia, motivo: x.motivo })),
@@ -398,7 +409,7 @@ export function listaDeApps(l: LecturaApps) {
 export function textoDeApps(l: LecturaApps): string {
   const o: string[] = [`${l.apps.length} app${l.apps.length === 1 ? "" : "s"} cargada${l.apps.length === 1 ? "" : "s"}${l.rechazadas.length ? `, ${l.rechazadas.length} rechazada${l.rechazadas.length === 1 ? "" : "s"}` : ""}`];
   for (const { app, main, activos, avisos } of l.apps) {
-    o.push(`- ${app.id} · ${app.nombre} ${app.version} · ${app.licencia} · ${app.propiedades.length} propiedades, ${app.eventos.length} eventos, ${activos.length} ficheros${main ? `, main.ts (${main.bytes} B, no se ejecuta)` : ""}${app.portar ? `, script ${app.portar.estado}` : ""}`);
+    o.push(`- ${app.id} · ${app.nombre} ${app.version} · ${app.licencia} · ${app.propiedades.length} propiedades, ${app.eventos.length} eventos, ${activos.length} ficheros${main ? `, main.ts (${main.bytes} B, no se ejecuta aquí: lo ejecuta el servidor en su caja)` : ""}${app.portar ? `, script ${app.portar.estado}` : ""}`);
     for (const a of avisos) o.push(`    aviso: ${a}`);
   }
   for (const r of l.rechazadas) for (const i of r.issues) o.push(`✗ ${i.path}: ${i.message}`);
