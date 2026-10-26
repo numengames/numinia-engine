@@ -6,6 +6,20 @@
 export const CUPO_VRM = { escritorio: 60, visor: 25, movil: 12 } as const;
 /** Farther than this from you, an avatar's animation stands still (cold phones), like H1's things. */
 export const ANIMAR_HASTA_M = 40;
+/** J14 (lote13): farther than this from you (m), a player stops wearing a VRM and is the capsule again: at that distance a
+ * person is a few dozen pixels tall (1.7 m at 30 m is ~40 px on a phone), the face and the gait cannot be read, and the
+ * skinned mesh costs a draw call, ~2.6 k triangles and a skeleton update per person. The capsule stays the anchor for names,
+ * bounces and the camera, so name tags keep reading. A PC has the room: it keeps VRMs out to the animation range. */
+export const VRM_HASTA_M = { escritorio: 45, visor: 30, movil: 30 } as const;
+/** A VRM already worn stays until it is this much (m) beyond `VRM_HASTA_M` (no flicker at the edge of the band). */
+export const VRM_HISTERESIS_M = 4;
+/** Between this distance and ANIMAR_HASTA_M an avatar's animation steps every other frame (one half of the mixer and rig
+ * work; the eye does not tell a walk cycle at 15 Hz from one at 30 Hz past 15 m). Nearer: every frame. */
+export const ANIMAR_MITAD_DESDE_M = 15;
+/** How often an avatar `distanciaM` away steps its animation: 1 = every frame, 2 = every other frame, 0 = not at all. */
+export function cadenciaAnimacion(distanciaM: number, hastaM = ANIMAR_HASTA_M, mitadM = ANIMAR_MITAD_DESDE_M): 0 | 1 | 2 {
+  return distanciaM > hastaM ? 0 : distanciaM > mitadM ? 2 : 1;
+}
 /** A VRM file with more triangles than this is refused (the player stays a capsule). */
 export const TRIANGULOS_MAX = 10_000;
 /** Speed thresholds (m/s, horizontal): below QUIETO idle, above CORRER run, walk in between. */
@@ -48,6 +62,10 @@ export type Clip = "quieto" | "andar" | "trotar" | "correr" | "saltar";
 
 export function cupoVRM(c: { mobile: boolean; xr: boolean }): number {
   return c.xr ? CUPO_VRM.visor : c.mobile ? CUPO_VRM.movil : CUPO_VRM.escritorio;
+}
+/** How far (m) a VRM is worn, by device class (same classes as `cupoVRM`). */
+export function distanciaVRM(c: { mobile: boolean; xr: boolean }): number {
+  return c.xr ? VRM_HASTA_M.visor : c.mobile ? VRM_HASTA_M.movil : VRM_HASTA_M.escritorio;
 }
 
 /** Which of the `n` house avatars a player gets: fixed by its entity id until players can choose (row H10). */
@@ -97,10 +115,14 @@ function elegirPaso(relativa: number, natural: Partial<Record<Clip, number>>): C
 /**
  * Who wears a VRM: you (when `yo` is set) and the nearest others, `cupo` in total. Whoever already has one keeps it
  * unless someone else is `margen` metres closer (no flicker when two people stand at the same distance).
+ * `hastaM`: the farthest a VRM is worn at all (the capsule beyond; `distanciaVRM`).
  */
-export function elegirCercanos(yo: { x: number; z: number } | null, otros: { id: number; x: number; z: number }[], cupo: number, actuales: ReadonlySet<number>, margen = 3): Set<number> {
+export function elegirCercanos(yo: { x: number; z: number } | null, otros: { id: number; x: number; z: number }[], cupo: number, actuales: ReadonlySet<number>, margen = 3, hastaM = Infinity): Set<number> {
   const plazas = Math.max(0, cupo - (yo ? 1 : 0));
-  const orden = otros.map((o) => ({ id: o.id, d: (yo ? Math.hypot(o.x - yo.x, o.z - yo.z) : 0) - (actuales.has(o.id) ? margen : 0) }))
+  // `hastaM` (J14): nobody beyond it wears a VRM (a VRM already worn keeps it VRM_HISTERESIS_M longer)
+  const orden = otros.map((o) => ({ id: o.id, real: yo ? Math.hypot(o.x - yo.x, o.z - yo.z) : 0, ya: actuales.has(o.id) }))
+    .filter((o) => o.real <= hastaM + (o.ya ? VRM_HISTERESIS_M : 0))
+    .map((o) => ({ id: o.id, d: o.real - (o.ya ? margen : 0) }))
     .sort((a, b) => a.d - b.d || a.id - b.id);
   return new Set(orden.slice(0, plazas).map((o) => o.id));
 }

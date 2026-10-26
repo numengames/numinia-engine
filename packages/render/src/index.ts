@@ -78,6 +78,7 @@ import { debeMejorar, ficheroDeNivel, nivelParaCargar } from "./lod-modelo.ts";
 import { crearHitosMalla } from "./hitos-malla.ts";
 import { HITOS_PLAZA, ALTO_HITO } from "./hitos-plaza.ts";
 import { fundirAnimado } from "./fundir.ts";
+import { congelarMatrices } from "./congelar.ts";
 import { crearQuietos } from "./fundir-quietos.ts";
 import { hornearEscena } from "./hornear.ts";
 import type { Fundido } from "./fundir.ts";
@@ -718,6 +719,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
           now.horneado = !!quieto; now.partes = partes;
           now.radio = radioDe(copy) * (now.want.animate ? 1.5 : 1); // an animation may reach out of its rest pose
           if (now.mejorando) { now.group.clear(); now.mejorando = false; } // H13: the whole model replaces the level it was showing, in the same frame
+          if (!now.want.animate) congelarMatrices(copy); // a still model never recomposes its node matrices again (congelar.ts: measured in tools/medir-recorrido.mjs)
           now.group.add(copy);
           if (now.want.animate && g.animations.length) { now.mixer = new THREE.AnimationMixer(copy); now.mixer.clipAction((fu ? fu.clips : g.animations)[0]).play(); }
           now.loaded = true; now.color = undefined; pintar(now);
@@ -1031,6 +1033,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     renderer,
     /** The world's camera (checks project points through it). */
     camera,
+    /** The scene itself (tools/medir-recorrido.mjs walks it to time the per-frame matrix update). */
+    scene,
     /** T1: the graphics chip as the browser names it ("" when it hides it). Read once at start (B3), then remembered. */
     gpu(): Promise<string> { return gpuNombre; },
     /** T1: refresh rate of the XR session (Hz); 0 outside XR or when the browser does not say. */

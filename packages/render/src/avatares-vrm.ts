@@ -149,6 +149,7 @@ export function copiar(p: Plantilla): Copia {
     m.boundingSphere.radius *= 1.5;
   });
   const raiz = new THREE.Group();
+  raiz.name = "avatar-vrm"; // the live meter's census counts it under «personas»
   raiz.add(escena);
   // U13: this copy's own meshes that carry the "aa" shape (there may be none: p.boca is null, or the mesh was
   // pruned by removeUnnecessaryVertices above); `quieta` is its geometry right now, with no shape at all — the
