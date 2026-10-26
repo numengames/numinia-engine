@@ -6,6 +6,7 @@ Para quien llega nuevo (persona o IA). La versión de una página para máquinas
 |---|---|
 | entender las reglas | `AGENTS.md` |
 | saber qué se decidió, qué se midió y por qué (todo lo aprendido en el proyecto) | `docs/SABER.md` |
+| saber qué documento manda si dos se contradicen (reglas, decisiones, números, orden de trabajo) | `docs/SABER.md` §9 |
 | ver qué hace cada paquete | `packages/<nombre>/README.md` |
 | cambiar cómo se mueve un avatar | `packages/sim/src/index.ts` (solo enteros, ver `docs/DETERMINISM.md`) |
 | cambiar qué se manda a cada cliente | `packages/net/src/index.ts` (`selectVisible`, `encodeSnapshot`) |
