@@ -1053,6 +1053,15 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // B4: three's own count of live shader programs (WebGPURenderer info.memory.programs); it only grows when one is made
   const programasVivos = (): number => (renderer as unknown as { info: { memory: { programs?: number } } }).info.memory.programs ?? 0;
   let programasVistos = programasVivos();
+  // t_8217ffea (N1, N2): in VR your hands wear your avatar's skin and your own body is drawn under your head (settings controles.pielManosVR / cuerpoVR)
+  let cuerpoVR = true, pielManosVR = true;
+  function cuerpoEnVR(): void {
+    manosReal?.piel(pielManosVR ? avs.colorPiel("yo") : null);
+    if (!cuerpoVR) return;
+    camera.updateWorldMatrix(true, false);
+    const e = camera.matrixWorld.elements;
+    avs.colocarVR({ x: e[12], y: e[13], z: e[14], fx: -e[8], fy: -e[9], fz: -e[10], ux: e[4], uy: e[5], uz: e[6] }, performance.now());
+  }
   /** Move the camera (N1), then draw. */
   function dibujar(dtSeconds: number): void {
     updateDecorations(performance.now());
@@ -1060,7 +1069,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
     editor.frame();
     entorno.actualizar(); naturaleza.actualizar(dtSeconds); espacioBase.actualizar(dtSeconds); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds); ancestros.actualizar(dtSeconds, selfXZ);
-    if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); pesca.actualizar(dtSeconds); dardosVR.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); oyente?.actualizar(); dibujarCuadro(); return; } // S5: tras vr.update, el oyente lee la pose de la cabeza de este cuadro // N4: after the hands moved, so a held rod does not trail a frame
+    if (renderer.xr.isPresenting) { ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); cuerpoEnVR(); pesca.actualizar(dtSeconds); dardosVR.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); oyente?.actualizar(); dibujarCuadro(); return; } // S5: tras vr.update, el oyente lee la pose de la cabeza de este cuadro // N4: after the hands moved, so a held rod does not trail a frame
     pesca.actualizar(dtSeconds); dardos.actualizar(dtSeconds); dados3d.actualizar(dtSeconds);
     if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
     cam.update(dtSeconds, selfXZ ? feet : null);
@@ -1348,6 +1357,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     puestos(): ReturnType<typeof puestos.estado> { return puestos.estado(); },
     /** J10: your hands in XR (manos.ts): rules, events, state. */
     manos,
+    /** t_8217ffea (N2): in VR your own avatar is drawn under your head, head and arms collapsed (default yes; the setting controles.cuerpoVR). */
+    get cuerpoVR(): boolean { return cuerpoVR; },
+    set cuerpoVR(v: boolean) { cuerpoVR = v; avs.cuerpoPropio(v); },
+    /** t_8217ffea (N1): in VR your hands wear your avatar's skin colour with circuit lights (default yes; controles.pielManosVR). Off = the plain skin. */
+    get pielManosVR(): boolean { return pielManosVR; },
+    set pielManosVR(v: boolean) { pielManosVR = v; },
     /** M22: the builder's hands (packages/render/src/gizmo.ts): select, the point under the pointer, gizmo, hold. */
     editor,
     /** M22: the key of the placed thing under a screen point (client px), or null. */
