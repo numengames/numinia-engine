@@ -54,7 +54,7 @@ test("a search shows every category with a match; otherwise only the open one", 
 });
 
 test("no setting is lost: every registry group lands in one of the card's categories", async () => {
-  const fuente = readFileSync(new URL("../apps/plaza/menu-ajustes.ts", import.meta.url), "utf8");
+  const fuente = readFileSync(new URL("../apps/plaza/menu-ajustes-ui.ts", import.meta.url), "utf8");
   const ids = [...fuente.matchAll(/\{ id: "(\w+)", nombre: "[^"]+", icono: "[\w-]+" \}/g)].map((m) => m[1]);
   assert.deepEqual(ids, ["juego", "interfaz", "controles", "graficos", "sonido", "accesibilidad", "cuenta"]);
   const { AJUSTES_MOTOR } = await import("../packages/client/src/ajustes.ts");
