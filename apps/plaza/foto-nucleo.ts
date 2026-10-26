@@ -67,6 +67,18 @@ export function nombreArchivo(mundo: string, cuando: Date): string {
   return `${base}-${cuando.getFullYear()}${d(cuando.getMonth() + 1)}${d(cuando.getDate())}-${d(cuando.getHours())}${d(cuando.getMinutes())}${d(cuando.getSeconds())}.png`;
 }
 
+/** MIS-265: a world's cover (its card on numinia.com, a link's preview) is the photo redrawn as a JPEG this long on its
+ * longest side at most: sharp on a wide card and a retina screen, ~200–400 kB, well under the 4 MB an upload may weigh. */
+export const PORTADA_PX = 1600;
+export const PORTADA_CALIDAD = 0.86;
+/** The cover's size for a picture of `ancho` × `alto`: scaled down to PORTADA_PX on its longest side, never enlarged. */
+export function medidaPortada(ancho: number, alto: number, max = PORTADA_PX): { ancho: number; alto: number } {
+  const lado = Math.max(ancho, alto);
+  if (!(lado > 0)) return { ancho: 0, alto: 0 };
+  const k = Math.min(1, max / lado);
+  return { ancho: Math.max(1, Math.round(ancho * k)), alto: Math.max(1, Math.round(alto * k)) };
+}
+
 /** Where a photo was made: the camera's pivot (m), its heading and tilt (radians, like the camera's `yaw()`/pitch) and distance. */
 export type Sitio = { x: number; y: number; z: number; yaw: number; pitch: number; dist: number };
 const LIMITE = 100_000; // metres: anything farther is not a place of a world

@@ -11,7 +11,10 @@
 // watch's camera button takes ONE picture of the headset's view (view.fotoVR: the head's pose re-drawn into a target; the page's
 // canvas gets nothing inside XR), always with the frame and the world's name, saves it, and keeps it: on leaving VR the picture
 // is on screen with «Compartir» / «Guardar» / «Copiar enlace». In AR there is no photo mode yet.
-import { FILTROS, filtro, valoresSvg, aplicarMatriz, marco, nombreArchivo, enlaceSitio, tomarSitioDeLaDireccion, rumboHacia, type Sitio, type Filtro } from "./foto-nucleo.ts";
+// MIS-265: who may change the world's settings (its owner, the administrator) also gets «Usar de portada»: the picture,
+// redrawn as a JPEG of at most PORTADA_PX, is uploaded to the world and set as the ficha's `portada` — the picture the
+// world shows while it loads, its og:image (server/pagina.ts) and so its card in numinia.com's worlds room.
+import { FILTROS, filtro, valoresSvg, aplicarMatriz, marco, nombreArchivo, enlaceSitio, tomarSitioDeLaDireccion, rumboHacia, medidaPortada, PORTADA_CALIDAD, type Sitio, type Filtro } from "./foto-nucleo.ts";
 import { escribiendo } from "./escribiendo.ts";
 import { icono } from "./iconos.ts";
 import "./foto.css";
@@ -38,6 +41,8 @@ export type FotoOpts = {
   ocupado?: () => boolean;                                  // something else holds the keys (a dartboard in hand)
   /** N16: whether this world puts you at a photo's place (null = not known yet) and the asking (the server decides). */
   aparecer?: { puede(): boolean | null; pedir(s: Sitio): void };
+  /** MIS-265: make the picture the world's cover — offered only when `puede()` (the server lets you change the settings). */
+  portada?: { puede(): boolean; usar(f: File): Promise<{ ok: true } | { ok: false; why: string }> };
 };
 
 const MAX_LADO = 3200;          // px: the saved picture's longest side at most (a 4K phone at 2× would be 7680)
@@ -84,6 +89,7 @@ export function montarFoto(o: FotoOpts) {
         <button type="button" class="foto-guardar">${icono("download-simple", 18)}<span>Guardar</span></button>
         <button type="button" class="foto-copiar-imagen" hidden>${icono("copy", 18)}<span>Copiar imagen</span></button>
         <button type="button" class="foto-copiar-enlace">${icono("copy", 18)}<span>Copiar enlace</span></button>
+        <button type="button" class="foto-portada" hidden title="La imagen del mundo: la que se ve mientras carga y en su tarjeta de numinia.com">${icono("image-square", 18)}<span>Usar de portada</span></button>
         <button type="button" class="foto-otra">Otra foto</button>
       </div>
       <input class="foto-enlace" type="text" readonly hidden aria-label="Enlace a este sitio del mundo" />
@@ -95,6 +101,7 @@ export function montarFoto(o: FotoOpts) {
   const panel = $<HTMLDivElement>(".foto-hecha"), img = panel.querySelector("img")!, estado = $<HTMLParagraphElement>(".foto-hecha .estado");
   const bCompartir = $<HTMLButtonElement>(".foto-compartir"), bGuardar = $<HTMLButtonElement>(".foto-guardar"), bCopiarImg = $<HTMLButtonElement>(".foto-copiar-imagen");
   const bEnlace = $<HTMLButtonElement>(".foto-copiar-enlace"), campoEnlace = $<HTMLInputElement>(".foto-enlace");
+  const bPortada = $<HTMLButtonElement>(".foto-portada");
   raiz.addEventListener("pointerdown", (e) => e.stopPropagation()); // a press on the photo bar is never the page's joystick
   raiz.addEventListener("wheel", (e) => e.stopPropagation());
 
@@ -224,6 +231,7 @@ export function montarFoto(o: FotoOpts) {
   }
   function mostrarHecha(): void {
     panel.hidden = false; raiz.classList.add("con-foto");
+    bPortada.hidden = !o.portada?.puede(); bPortada.disabled = false;
     (bCompartir.hidden ? bGuardar : bCompartir).focus({ preventScroll: true });
     deVR = false;
     o.decir("Foto hecha. Puedes compartirla, guardarla o copiar el enlace a este sitio.");
@@ -291,6 +299,28 @@ export function montarFoto(o: FotoOpts) {
     if (!hecha) return;
     try { await navigator.clipboard.write([new ClipboardItem({ "image/png": hecha.blob })]); estado.textContent = "Imagen copiada: pégala donde quieras."; }
     catch { estado.textContent = "No se pudo copiar la imagen: guárdala."; }
+  });
+  /** MIS-265: the picture on hand as the world's cover (a JPEG of at most PORTADA_PX); says how it went. */
+  async function usarDePortada(): Promise<{ ok: true; bytes: number } | { ok: false; why: string }> {
+    if (!hecha) return { ok: false, why: "aún no hay foto" };
+    if (!o.portada?.puede()) return { ok: false, why: "solo quien cuida el mundo puede cambiar su portada" };
+    const bmp = await createImageBitmap(hecha.blob);
+    const m = medidaPortada(bmp.width, bmp.height), c = document.createElement("canvas");
+    c.width = m.ancho; c.height = m.alto;
+    const ctx = c.getContext("2d")!;
+    ctx.imageSmoothingQuality = "high"; ctx.drawImage(bmp, 0, 0, m.ancho, m.alto); bmp.close();
+    const jpg = await new Promise<Blob | null>((ok) => c.toBlob(ok, "image/jpeg", PORTADA_CALIDAD));
+    if (!jpg) return { ok: false, why: "el navegador no pudo hacer el JPEG" };
+    const r = await o.portada.usar(new File([jpg], hecha.nombre.replace(/\.png$/, "-portada.jpg"), { type: "image/jpeg" }));
+    return r.ok ? { ok: true, bytes: jpg.size } : r;
+  }
+  bPortada.addEventListener("click", async () => {
+    bPortada.disabled = true; estado.textContent = "Poniendo la portada…";
+    let r: Awaited<ReturnType<typeof usarDePortada>>;
+    try { r = await usarDePortada(); } catch (e) { r = { ok: false, why: String((e as Error)?.message ?? e) }; }
+    bPortada.disabled = false;
+    estado.textContent = r.ok ? "Es la portada del mundo: la verás al cargar y en su tarjeta de numinia.com." : `No se puso de portada: ${r.why}.`;
+    o.decir(estado.textContent);
   });
   bEnlace.addEventListener("click", async () => {
     const t = hecha?.enlace ?? enlace();
@@ -374,6 +404,8 @@ export function montarFoto(o: FotoOpts) {
     ultima: () => (hecha ? { ancho: hecha.ancho, alto: hecha.alto, bytes: hecha.blob.size, nombre: hecha.nombre, enlace: hecha.enlace } : null),
     /** The last picture's bytes as a data URL (checks read its pixels). */
     datos: async () => (hecha ? await new Promise<string>((ok) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.readAsDataURL(hecha!.blob); }) : null),
+    /** MIS-265: the last picture as the world's cover (checks and agents; the button does the same). */
+    usarDePortada,
     /** A photo's link opened this page: where it leads and how far it got. */
     guia: () => (guia ? { ...guia, estado: guiaEstado } : null),
   };

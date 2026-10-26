@@ -254,6 +254,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     const portada = sha && activos.buscar(sha, ext) ? `/a/${f!.portada}` : undefined;
     return f ? { nombre: f.nombre, descripcion: f.descripcion, portada, tema: tema ?? undefined, avatar: f.avatar, aforo: aforo(), ...(ficha?.audio ? { audio: ficha.audio } : {}) } : { aforo: aforo() };
   };
+  if (pagina) pagina.portada = () => { const p = fichaPublica(); return "portada" in p ? p.portada ?? null : null; }; // MIS-265: the cover in every page's og:image, live as the owner changes it
   (o.features ?? []).find(conFicha)?.ficha.conectar({ ajustes: fichaViva.ajustes, cambiar: fichaViva.cambiar });
   if (o.suelo) log(`[mundo] suelo mínimo ${o.suelo.minimo} m: bajo él se vuelve a la última posición segura${o.suelo.vuelta ? ` (punto de vuelta ${o.suelo.vuelta.x}, ${o.suelo.vuelta.y}, ${o.suelo.vuelta.z})` : ""}`);
   if (o.aparicion) log(`[mundo] la gente aparece en el cuadrado de ${2 * o.aparicion.radio} m centrado en (${o.aparicion.x}, ${o.aparicion.z})`);

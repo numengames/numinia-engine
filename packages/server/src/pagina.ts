@@ -5,6 +5,9 @@
 //   names): a year, immutable · ETag + Last-Modified → 304. Anything that is not a file there is not answered here
 //   (the features' routes and the 404 come after).
 //   With the world's name (aventura/ficha.json, ADR-074) every page's <title> says it; without one, the file as it is.
+//   MIS-265: with a cover (the ficha's `portada`, e.g. a photo taken inside the world) every page also carries og:title,
+//   og:image and twitter:card, the image as an absolute URL on the address the visitor asked for (Host / X-Forwarded-*),
+//   so a link preview — and numinia.com's worlds room, which reads og:image — shows the world itself.
 //   N22: text and wasm go compressed to a browser that takes it (brotli, else gzip; Vary: Accept-Encoding) — the page's
 //   1.6 MB of JS is ~0.5 MB on the wire, what a phone on 4G waits for before its first frame. Made once per file
 //   (at start, in the background; the first request before that gets gzip made on the spot) and kept in memory.
@@ -34,6 +37,8 @@ export class Pagina {
   readonly dir: string;
   /** The world's name in every page's <title>; the owner may change it while the server runs (H7). */
   titulo: string | null;
+  /** MIS-265: the world's cover as this server serves it (`/a/<sha256>.<ext>`), read on every page; null = none. */
+  portada: () => string | null = () => null;
   private readonly raiz: string;
   private readonly comprimidos = new Map<string, Comprimido>(); // file -> its gzip/brotli, for one etag
 
@@ -91,9 +96,16 @@ export class Pagina {
     const f = this.fichero(path);
     if (!f) return false;
     const st = statSync(f);
-    // the world's name in <title> (an HTML page only): the bytes change, so does the ETag
-    const html = this.titulo && extname(f).toLowerCase() === ".html" ? conTitulo(readFileSync(f, "utf8"), this.titulo) : null;
-    const marca = html ? `-${createHash("sha256").update(this.titulo!).digest("hex").slice(0, 8)}` : "";
+    // the world's name in <title> and its cover in og: tags (an HTML page only): the bytes change, so does the ETag
+    const esHtml = extname(f).toLowerCase() === ".html", portada = esHtml ? this.portada() : null;
+    const imagen = portada ? urlAbsoluta(req, portada) : null;
+    const titulo = this.titulo;
+    let html: string | null = null;
+    if (esHtml && (titulo || imagen)) {
+      const crudo = readFileSync(f, "utf8"), conNombre = titulo ? conTitulo(crudo, titulo) : crudo;
+      html = imagen ? conCara(conNombre, { titulo, imagen }) : conNombre;
+    }
+    const marca = html ? `-${createHash("sha256").update(`${this.titulo ?? ""}\n${imagen ?? ""}`).digest("hex").slice(0, 8)}` : "";
     const etag = this.etagDe(f, st, marca), ext = extname(f).toLowerCase();
     const comprimible = COMPRIMIR.has(ext) && st.size >= MIN_COMPRIMIR;
     const cabeceras: Record<string, string> = {
@@ -129,4 +141,30 @@ const escapar = (t: string): string => t.replace(/&/g, "&amp;").replace(/</g, "&
 /** The page with `titulo` as its <title> (the first one; a page without one is left as it is). */
 export function conTitulo(html: string, titulo: string): string {
   return html.replace(/<title>[^<]*<\/title>/i, () => `<title>${escapar(titulo)}</title>`);
+}
+
+const primero = (v: string | string[] | undefined): string => String((Array.isArray(v) ? v[0] : v) ?? "").split(",")[0].trim().toLowerCase();
+
+/** MIS-265: `ruta` (a path of this server) as an absolute URL on the address the visitor asked for; null when the request
+ * names no believable host (an odd Host header never reaches the page). Behind Caddy, X-Forwarded-Proto says https. */
+export function urlAbsoluta(req: { headers: IncomingMessage["headers"]; socket?: unknown }, ruta: string): string | null {
+  const host = primero(req.headers["x-forwarded-host"]) || primero(req.headers.host);
+  if (!/^[a-z0-9.-]{1,253}(:\d{1,5})?$/.test(host) || !ruta.startsWith("/")) return null;
+  const pedido = primero(req.headers["x-forwarded-proto"]);
+  const cifrado = typeof req.socket === "object" && req.socket !== null && (req.socket as { encrypted?: boolean }).encrypted === true;
+  const proto = pedido === "https" || pedido === "http" ? pedido : cifrado ? "https" : "http";
+  return `${proto}://${host}${ruta}`;
+}
+
+/** MIS-265: the page with og:title (when named), og:image and twitter:card before </head>; any of those it already had is
+ * replaced (one of each). A page without </head> is left as it is. */
+export function conCara(html: string, c: { titulo: string | null; imagen: string }): string {
+  if (!/<\/head>/i.test(html)) return html;
+  const limpio = html.replace(/[ \t]*<meta\s+(?:property|name)="(?:og:title|og:image|twitter:card)"[^>]*>\r?\n?/gi, "");
+  const tags = [
+    ...(c.titulo ? [`<meta property="og:title" content="${escapar(c.titulo)}" />`] : []),
+    `<meta property="og:image" content="${escapar(c.imagen)}" />`,
+    `<meta name="twitter:card" content="summary_large_image" />`,
+  ].map((t) => `  ${t}\n`).join("");
+  return limpio.replace(/<\/head>/i, () => `${tags}</head>`);
 }
