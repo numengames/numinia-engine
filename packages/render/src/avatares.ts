@@ -4,7 +4,7 @@
 // The capsules stay as anchors: labels, bounces, the camera and the jump read them; a capsule that has a VRM is only
 // hidden from every camera (layers), never `.visible = false`, so those keep working.
 import * as THREE from "three/webgpu";
-import { ANIMAR_HASTA_M, FUNDIDO_S, clipPara, cupoVRM, elegirAvatar, elegirCercanos, empezarMovimiento, estadoPor, movimientoOcupa, nuevaMarcha, pasoDeMovimiento, seguir } from "./avatares-politica.ts";
+import { ANIMAR_HASTA_M, FUNDIDO_S, clipPara, metaApoyo, suavizarApoyo, cupoVRM, elegirAvatar, elegirCercanos, empezarMovimiento, estadoPor, movimientoOcupa, nuevaMarcha, pasoDeMovimiento, seguir } from "./avatares-politica.ts";
 import type { Clip, EnCurso, Estado, Marcha, Movimiento } from "./avatares-politica.ts";
 import type { Copia, Plantilla } from "./avatares-vrm.ts";
 import type { VRMAnimation } from "@pixiv/three-vrm-animation";
@@ -29,6 +29,7 @@ type Avatar = {
   clip?: string; tramo?: string; accion?: THREE.AnimationAction; saliente?: THREE.AnimationAction; fundidoHasta: number;
   ancla?: THREE.Object3D; mascara?: number; cerca: boolean;
   rumboFijo?: number; // pesca v2: while fishing the body faces the water (only while standing still)
+  apoyo?: number; // t_3f0e5846: metres the body is moved so its feet stand on the floor during a calm posture (sitting, crouching); eases back to 0
 };
 
 export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: () => boolean; catalogo?: CatalogoAvatares; yo?: () => number; compilar?: (raiz: THREE.Object3D) => Promise<unknown>; suelo?: (x: number, z: number, y: number) => number;
@@ -99,7 +100,7 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     const libres = poza.get(a.modelo) ?? [];
     if (libres.length < POZA) { libres.push(c); poza.set(a.modelo, libres); }
     else void herramientas().then(({ m }) => m.soltar(c));
-    a.copia = undefined; a.accion = undefined; a.saliente = undefined; a.clip = undefined; a.tramo = undefined;
+    a.copia = undefined; a.accion = undefined; a.saliente = undefined; a.clip = undefined; a.tramo = undefined; a.apoyo = undefined;
     movs.delete(a.clave);
   }
 
@@ -158,6 +159,14 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     }
     if (a.saliente && ahora > a.fundidoHasta) { a.saliente.stop(); a.saliente = undefined; }
     if (a.cerca && !oculto) { c.mixer.update(dt); c.humanoid.update(); } // far ones stand still (cold phones)
+    // t_3f0e5846: a sitting or crouching body keeps its feet on the floor whatever its leg proportions (two ankle positions, only while the posture plays)
+    const planta = !!(mov && paso && !paso.esperar && mov.mov.apoya);
+    if ((planta || a.apoyo) && a.cerca && !oculto) {
+      const pie = planta ? m.pieMasBajo(c.humanoid, c.raiz) : null;
+      a.apoyo = suavizarApoyo(a.apoyo ?? 0, pie === null ? 0 : metaApoyo(pie, p.pie), dt);
+      if (!a.apoyo && !planta) a.apoyo = undefined;
+      c.raiz.position.y = altura + (a.apoyo ?? 0);
+    }
     // U13: your mouth shape is never driven here (you never hear yourself, voz.ts); others' comes from who you hear
     if (c.boca.length && typeof a.clave === "number") {
       const nivel = nivelesVoz.get(a.clave) ?? 0;
@@ -201,6 +210,9 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
       for (const [k, a] of avatares) if (!quien.has(k)) { desvestir(a); avatares.delete(k); if (typeof k === "number") nivelesVoz.delete(k); }
       ocupado = cargando > 0 || [...avatares.values()].some((a) => a.copia && a.cerca && (a.estado !== "quieto" || ahora < a.fundidoHasta || (movs.has(a.clave) && movimientoOcupa(movs.get(a.clave)!, ahora, durDe))));
     },
+    /** t_3f0e5846: ask for these clips ahead (the wheel shows a ring), so the first time a move is made it does not wait for its files.
+     * Nothing is fetched at world entry (the page weight): only what the person is looking at. Asking twice costs nothing. */
+    precargar(clips: readonly string[]): void { for (const c of clips) pedirAnim(c); },
     /** J7b: play a move on this avatar (`null` stops it). False when it wears no VRM now (the caller shows a label). */
     movimiento(clave: number | "yo", mov: Movimiento | null): boolean {
       const a = avatares.get(clave);

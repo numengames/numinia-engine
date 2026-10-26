@@ -533,7 +533,9 @@ addEventListener("visibilitychange", () => { if (document.hidden) soltarEntradaP
 // ---- J7b: the movement wheel (hold G, «Movimientos» on touch, Y on a gamepad); while open nobody walks ----
 const avisar = (t: string) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); };
 const rueda = montarRueda({ gestos: gestosDePagina, favoritosIniciales: FAVORITOS_INICIALES, aviso: avisar,
-  haciendo: () => view.avatares().lista.find((a) => a.id === "yo")?.movimiento ?? null });
+  haciendo: () => view.avatares().lista.find((a) => a.id === "yo")?.movimiento ?? null,
+  // t_3f0e5846: the files of the moves on show are fetched while the person chooses, so the first one does not wait
+  alVer: (ids) => view.precargarMovimientos(gestosDePagina.lista.filter((m) => ids.includes(m.id)).flatMap((m) => m.clips)) });
 
 /** MIS-257: is a hand on the controls (a key, the touch stick, the pad, the headset's stick, a jump)? Then the walk-by-itself gives way. */
 function manoEnMandos(): boolean {

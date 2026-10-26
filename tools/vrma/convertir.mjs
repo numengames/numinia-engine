@@ -131,5 +131,16 @@ for (const [i, f] of VRMS.entries()) {
 }
 await browser.close();
 server.close();
-console.log(JSON.stringify({ conversion: report && { convertMs: report.convertMs, rest: report.rest, missingBones: report.missingBones, clips: report.clips }, checks, errors }, null, 1));
+// feet planting (t_3f0e5846): how far the engine moves the body for the calm postures (same arithmetic as metaApoyo, max 0.12 m)
+// and where the lowest point of the mesh ends up after it; ~0 means the feet stand on the floor
+const apoyo = {};
+for (const [name, r] of Object.entries(checks)) {
+  for (const clip of ["sentado", "sentado-hablar", "agachado"]) {
+    const s = r.clips[`/activos/animaciones/${clip}.vrma`]?.samples?.at(-1);
+    if (!s) continue;
+    const meta = Math.max(-0.12, Math.min(0.12, r.avatar.pie - s.pie));
+    (apoyo[name] ??= {})[clip] = { sinCorregir: s.lowest, mueve: +meta.toFixed(3), despues: +(s.lowest + meta).toFixed(3) };
+  }
+}
+console.log(JSON.stringify({ conversion: report && { convertMs: report.convertMs, rest: report.rest, missingBones: report.missingBones, clips: report.clips }, apoyo, checks, errors }, null, 1));
 process.exit(errors.length ? 1 : 0);

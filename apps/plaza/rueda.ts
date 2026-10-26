@@ -23,7 +23,9 @@ const GUARDA = "numinia.rueda.favoritos";
 const C = 200, R0 = 92, R1 = 196, RT = 145; // the drawing: 400 × 400, ring from R0 to R1, names on RT
 const BOTON_Y = 3, BOTON_A = 0, BOTON_B = 1, BOTON_LB = 4, BOTON_RB = 5, CRUZ_IZQ = 14, CRUZ_DER = 15;
 
-export function montarRueda(o: { gestos: Gestos; favoritosIniciales: readonly string[]; haciendo: () => string | null; aviso: (t: string) => void }) {
+export function montarRueda(o: { gestos: Gestos; favoritosIniciales: readonly string[]; haciendo: () => string | null; aviso: (t: string) => void;
+  /** t_3f0e5846: the moves of the ring on show (ids), so the page can fetch their files before one is chosen; called on every redraw */
+  alVer?: (ids: string[]) => void }) {
   const g = o.gestos;
   const porId = new Map(g.lista.map((m) => [m.id, m]));
   const conocidos = g.lista.map((m) => m.id);
@@ -94,6 +96,7 @@ export function montarRueda(o: { gestos: Gestos; favoritosIniciales: readonly st
 
   function pintar(): void {
     const a = anillo(actual), ahora = o.haciendo();
+    o.alVer?.(a.ranuras.filter((m): m is Mov => !!m).map((m) => m.id));
     tabs.forEach((t, k) => {
       t.textContent = anillo(k).nombre;
       t.setAttribute("aria-selected", String(k === actual)); t.tabIndex = k === actual ? 0 : -1;

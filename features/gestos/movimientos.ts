@@ -15,6 +15,8 @@ export type Movimiento = {
   etiqueta: string;
   /** a word over the head even when the VRM plays it (the wave says «¡Hola!») */
   dice?: string;
+  /** a posture with the feet on the floor (sitting, crouching): the page plants them whatever the avatar's leg proportions (avatares-politica apoyoDePies) */
+  apoya?: boolean;
 };
 export type GrupoId = "social" | "acciones" | "combate" | "reacciones";
 export const GRUPOS: readonly { id: GrupoId; nombre: string }[] = [
@@ -35,9 +37,9 @@ export const MOVIMIENTOS: readonly Movimiento[] = [
   { ...m("saludar", "Saludar", "social", "Saluda con la mano", ["saludar"], "una", true, "¡Hola!"), dice: "¡Hola!" },
   m("hablar", "Hablar", "social", "Habla con las manos", ["hablar"], "bucle", false),
   m("bailar", "Bailar", "social", "Baila sin parar", ["bailar"], "bucle", true, "♪ ♪ ♪"),
-  m("sentarse", "Sentarse", "social", "Se sienta y se queda sentado", ["sentarse", "sentado"], "bucle", false),
-  m("charlar-sentado", "Charlar sentado", "social", "Se sienta y habla", ["sentarse", "sentado-hablar"], "bucle", false),
-  m("agacharse", "Agacharse", "social", "Se queda en cuclillas", ["agachado"], "bucle", false),
+  { ...m("sentarse", "Sentarse", "social", "Se sienta y se queda sentado", ["sentarse", "sentado"], "bucle", false), apoya: true },
+  { ...m("charlar-sentado", "Charlar sentado", "social", "Se sienta y habla", ["sentarse", "sentado-hablar"], "bucle", false), apoya: true },
+  { ...m("agacharse", "Agacharse", "social", "Se queda en cuclillas", ["agachado"], "bucle", false), apoya: true },
   m("conducir", "Conducir", "social", "Hace que conduce", ["conducir"], "bucle", false),
   m("antorcha", "Alzar la antorcha", "social", "Levanta una antorcha imaginaria", ["antorcha"], "bucle", false),
   // acciones
