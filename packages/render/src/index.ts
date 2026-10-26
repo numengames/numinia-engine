@@ -366,12 +366,15 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       if (graboso3d) { graboso3d.mostrar(si); return; }
       if (!si) return;
       grabosoCarga ??= import("./graboso.ts").then((m) => {
-        graboso3d = m.crearGraboso({ world, posicion: () => (selfXZ ? grabosoPos.set(selfXZ.x, selfXZ.y ?? 0, selfXZ.z) : null), yaw: () => cam.yaw() });
+        graboso3d = m.crearGraboso({ world, posicion: () => (selfXZ ? grabosoPos.set(selfXZ.x, selfXZ.y ?? 0, selfXZ.z) : null), yaw: () => cam.yaw(),
+          modelo: async (sha) => (await (await getTools()).load(assetUrl(sha))).scene as THREE.Object3D }); // MIS-247: the fine head, by its content
         graboso3d.mostrar(grabosoQuiere.fuera); graboso3d.grabando(grabosoQuiere.grabando);
       }).catch((e) => console.warn(`[graboso] no se pudo cargar: ${(e as Error)?.message ?? e}`));
     },
     grabando(si: boolean): void { grabosoQuiere.grabando = si; graboso3d?.grabando(si); },
     visible(): boolean { return graboso3d?.visible() ?? false; },
+    /** MIS-247: which head is on («fina» = the GLB, «sencilla» = the fallback; «ninguna» = the relic's code has not loaded yet). */
+    cabeza(): "fina" | "sencilla" | "ninguna" { return graboso3d?.cabeza() ?? "ninguna"; },
   };
   const ancestros = crearSalon({ world, camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera), luz: () => LUCES_FUEGO[entorno.nivel] > 0 }); // ancestros v1: the hall and the hologram of the tribute to Asimov (ancestros.ts)
   function dropLabel(t: Target): void {
@@ -737,9 +740,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   /** U10: an image, a video or a sphere of sound instead of a .glb (medios.ts). */
   function cargarMedio(key: string, s: Slot, cerca = true): void {
     const t = s.want, url = assetUrl(t.model).replace(/\.glb$/, `.${t.ext ?? "glb"}`), model = s.model;
-    if (t.kind === "trazo") { s.failed = true; return; } // J18b: a brush stroke is stored (story 1) but not drawn yet (story 3): never open it as a sound
     if ((t.kind === "video" || t.kind === "sonido") && !sePuedeReproducir(t.ext ?? "")) { s.failed = true; console.warn(`[medios] este navegador no reproduce .${t.ext}`); return; }
-    const p = t.kind === "imagen" ? cargarImagen(url) : t.kind === "video" ? cargarVideo(url, () => verOcultos) : Promise.resolve(cargarSonido(url, () => verOcultos));
+    const p = t.kind === "trazo" ? import("./trazo.ts").then((m) => m.cargarTrazo(url)) /* lazy: nothing downloaded until a world has a stroke */ : t.kind === "imagen" ? cargarImagen(url) : t.kind === "video" ? cargarVideo(url, () => verOcultos) : Promise.resolve(cargarSonido(url, () => verOcultos));
     loading++; if (cerca) cercaCargando++;
     p.then((m) => {
       const now = things.get(key);

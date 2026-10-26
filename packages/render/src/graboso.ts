@@ -1,10 +1,17 @@
 // graboso (M18b): the relic that records — a head of an electronic bear whose shell is a translucent cloud. A simple
-// mesh for v1 (sphere + ears + muzzle + eyes + an antenna with a red pilot light that beats while it records); a fine
-// CC0 model in activos/ is a later row. Floats over the right shoulder of whoever invoked it, looking where the camera
-// looks. Lazy: packages/render/src/index.ts imports this file only at the first invocation (nothing in the start bundle).
+// mesh for v1 (sphere + ears + muzzle + eyes + an antenna with a red pilot light that beats while it records) that stays as the
+// FALLBACK; MIS-247: the fine head is a CC0 model of our own, activos/graboso/graboso-cabeza.glb (tools/hacer-graboso.mjs,
+// 1.784 triangles, one material, three nodes: `concha` = the cloud shell, `rasgos` = the dark parts, `piloto` = the lamp). It is
+// fetched the first time the relic comes out, by its content (MODELO_SHA → /a/<sha>.glb); until it lands, and if it never does
+// (offline, a world that serves no house assets), the simple head is what you see. Floats over the right shoulder of whoever invoked
+// it, looking where the camera looks. Lazy: packages/render/src/index.ts imports this file only at the first invocation.
 import * as THREE from "three/webgpu";
 
-export type AyudasGraboso = { world: THREE.Group; posicion: () => THREE.Vector3 | null; yaw: () => number };
+/** `modelo`: the fine head's scene (the page loads /a/<MODELO_SHA>.glb); absent or failing → the simple head stays. */
+export type AyudasGraboso = { world: THREE.Group; posicion: () => THREE.Vector3 | null; yaw: () => number; modelo?: (sha: string) => Promise<THREE.Object3D> };
+
+/** The sha256 of activos/graboso/graboso-cabeza.glb (test/graboso-modelo.test.ts checks it; `node tools/hacer-graboso.mjs` prints it). */
+export const MODELO_SHA = "6520815e830d36a8f8d489047e439e1c731383e0f00ed01dc28088796e7bdba8";
 
 /** Where it floats, relative to the avatar's feet (m): to the right, a little behind, above the shoulder. */
 export const SITIO = { lado: 0.45, atras: 0.25, alto: 1.75 } as const;
@@ -56,8 +63,22 @@ export function crearGraboso(h: AyudasGraboso) {
   ojoI.position.set(-RADIO_M * 0.4, RADIO_M * 0.2, -RADIO_M * 0.88); ojoD.position.set(RADIO_M * 0.4, RADIO_M * 0.2, -RADIO_M * 0.88);
   const antena = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, RADIO_M * 0.7, 6), oscuro); antena.position.set(0, RADIO_M * 1.3, 0);
   const luz = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), piloto); luz.position.set(0, RADIO_M * 1.7, 0);
-  grupo.add(craneo, orejaI, orejaD, hocico, nariz, ojoI, ojoD, antena, luz);
+  const sencilla = new THREE.Group(); sencilla.name = "graboso-sencilla"; // the fallback, hidden when the fine head arrives
+  sencilla.add(craneo, orejaI, orejaD, hocico, nariz, ojoI, ojoD, antena, luz);
+  grupo.add(sencilla);
   h.world.add(grupo);
+  // the fine head: its three nodes take the looks above (cloud, dark, pilot), by NAME; whatever the file brings is dropped
+  let fina: THREE.Object3D | null = null;
+  const hacerFina = (escena: THREE.Object3D): void => {
+    const vista = escena.clone(true);
+    vista.traverse((o) => {
+      const m = o as THREE.Mesh; if (!m.isMesh) return;
+      const viejo = m.material as THREE.Material; viejo.dispose?.();
+      m.material = m.name === "concha" ? nube : m.name === "piloto" ? piloto : oscuro;
+    });
+    vista.name = "graboso-fina"; fina = vista; sencilla.visible = false; grupo.add(vista);
+  };
+  if (h.modelo) void h.modelo(MODELO_SHA).then(hacerFina).catch((e) => console.warn(`[graboso] la cabeza fina no se pudo cargar (se queda la sencilla): ${(e as Error)?.message ?? e}`));
 
   let fuera = false, grabando = false, t = 0, escala = 0;
   return {
@@ -65,6 +86,8 @@ export function crearGraboso(h: AyudasGraboso) {
     mostrar(si: boolean): void { fuera = si; if (si) grupo.visible = true; },
     grabando(si: boolean): void { grabando = si; },
     visible(): boolean { return grupo.visible; },
+    /** Which head is on: «fina» (the GLB) or «sencilla» (the fallback) — the e2e leg and the test read it. */
+    cabeza(): "fina" | "sencilla" { return fina ? "fina" : "sencilla"; },
     actualizar(dt: number): void {
       if (!grupo.visible) return;
       t += dt;
@@ -82,7 +105,7 @@ export function crearGraboso(h: AyudasGraboso) {
     },
     quitar(): void {
       h.world.remove(grupo);
-      for (const m of grupo.children) (m as THREE.Mesh).geometry.dispose();
+      grupo.traverse((o) => { const g = (o as THREE.Mesh).geometry; g?.dispose(); });
       nube.map?.dispose(); nube.dispose(); oscuro.dispose(); piloto.dispose();
     },
   };

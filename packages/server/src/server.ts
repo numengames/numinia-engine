@@ -21,7 +21,7 @@ import { construirMalla } from "./colision-mundo.ts";
 import { CIERRE_LLENO, CIERRE_SILENCIO, FUNCIONES_DE_ENLACE, MSG, PASE_MAX, WS_FRAME_MAX, esVisitaDeEnlace } from "../../net/src/index.ts";
 import type { Transport } from "../../net/src/index.ts";
 import type { HttpReply, ServerPart } from "../../feature/src/index.ts";
-import { buildMetrics, ByteWindow, CosteTick, OPENMETRICS, PROM_TEXT, quiereOpenMetrics, TickWindow, toPrometheus } from "./metrics.ts";
+import { buildMetrics, ByteWindow, CosteTick, cierresVacios, motivoDeCierre, OPENMETRICS, PROM_TEXT, quiereOpenMetrics, TickWindow, toPrometheus } from "./metrics.ts";
 import { entorno, Runtime } from "./runtime.ts";
 import { KEEP_DAYS, Sesiones } from "./sesiones.ts";
 import { FileStorage } from "./datos.ts";
@@ -300,6 +300,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const runtime = new Runtime(), env = entorno();
   const coste = new CosteTick(FASES_TICK, 200); // B2: where each tick's time goes (phases, features)
   const counts = { aceptadas: 0, cerradas: 0, rechazadasLlenas: 0 };
+  const cierres = cierresVacios(), cortadosPorSilencio = new Set<number>(); // MIS-233: how each connection ended (a page we cut for silence never answers our close frame: it ends as 1006, so it is remembered here)
   const tickMs = 1000 / TICK_HZ;
   let n = 0, lagMs = 0, start = 0, stopped = false, tickSumMs = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -307,7 +308,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const metrics = () => buildMetrics({
     version, uptimeMs: performance.now() - born, tick: inst.sim.tick, tickHz: TICK_HZ, people: inst.conns.length,
     capacity: aforo(), ticks, bytes, lagMs, mem: process.memoryUsage(),
-    lags, responses, runtime: runtime.window(), entorno: env, counts, bytesTotal: bytesOut, tickSumMs,
+    lags, responses, runtime: runtime.window(), entorno: env, counts, cierres, bytesTotal: bytesOut, tickSumMs,
     coste, erroresDe: inst.features.erroresDe, piezasStats: inst.features.stats,
   });
 
@@ -422,13 +423,13 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     const entity = inst.connect(wsTransport(ws), undefined, req.headers.host, esVisitaDeEnlace(req.url) ? FUNCIONES_DE_ENLACE : undefined); // ADR-080: the host an outside agent signs
     sockets.set(entity, ws);
     sesiones.abrir(entity);
-    ws.on("close", (code) => { counts.cerradas++; sockets.delete(entity); sesiones.cerrar(entity, { cierre: code }); inst.disconnect(entity); });
+    ws.on("close", (code) => { counts.cerradas++; cierres[cortadosPorSilencio.delete(entity) ? "silencio" : motivoDeCierre(code)]++; sockets.delete(entity); sesiones.cerrar(entity, { cierre: code }); inst.disconnect(entity); });
     ws.on("error", () => ws.terminate());
   });
 
   // t_9cb3f636: a page that sends heartbeats and then goes quiet has lost its connection without closing it: drop it now (its avatar
   // leaves for everyone) instead of waiting minutes for the network. Pages without heartbeats (AIs, bots, old pages) are never judged.
-  const vigia = setInterval(() => { for (const e of inst.expirarSilencio(o.silencioMs)) { const ws = sockets.get(e); if (ws) { try { ws.close(CIERRE_SILENCIO, "sin latido"); } catch { /* gone */ } setTimeout(() => ws.terminate(), 1000).unref(); } } }, 250);
+  const vigia = setInterval(() => { for (const e of inst.expirarSilencio(o.silencioMs)) { const ws = sockets.get(e); if (ws) { cortadosPorSilencio.add(e); try { ws.close(CIERRE_SILENCIO, "sin latido"); } catch { /* gone */ } setTimeout(() => ws.terminate(), 1000).unref(); } } }, 250);
   vigia.unref?.();
 
   // fixed-rate loop: schedule against the start time so timer drift never accumulates

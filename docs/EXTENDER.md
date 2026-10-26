@@ -871,6 +871,12 @@ página solo pide tres cosas (`lanzar { sitio }`, `recoger { activo }`, `soltar`
   radius: "radio" }`): «E: pescar» al lado del agua. Por defecto uno («Estanque de la plaza», x 18, z −14, radio 4,
   `SITIOS_DEFECTO` en `server.ts`); un mundo trae los suyos en `MUNDO_DIR/pesca.json` (`{ "sitios": [{ id, nombre, x, y, z,
   radio }] }`, leído en `features/mundo.ts`). Un pescador por sitio (`ocupado`).
+- **Que la caña se vea** (MIS-221, 26-10): la caña vive en un soporte junto al pantalán del sitio, y el sitio es lo que trae el mundo. Si el mundo no
+  trae `pesca.json`, hereda el estanque de la casa (x 18, z −14), que en un mundo con otro plano cae fuera de vista (en la Torre, a ~43 m de la
+  aparición, detrás de los muros: de ahí el «no veo la caña» del vídeo del 17-10). Un mundo que quiera pescar pone en `pesca.json` un sitio **a la vista
+  de la aparición**, con el estanque (radio) y el pantalán fuera de sus sólidos. Comprobado 26-10 con la Torre (sitio «Estanque del vestíbulo», x 5,4 z 20,6
+  radio 2): desde la aparición se ven el pantalán, el soporte con la caña y el estanque. En VR el soporte se coge con el agarre; el rayo solo se posa en lo
+  que está al alcance (lote 5). No verificado: pescar entero con las gafas (lanzar, recoger); el 17-10 `vr.ts`, `manos.ts` y `xr.ts` no nombraban la pesca y aquí no se ha probado con un casco.
 - **Ciclo** (números en `feature.ts`, de bridge-mind/tideline, MIT): espera 3–12 s → quizá un `mordisqueo` al 45 % → `picada`
   con ventana 1,2 s (× rareza) → `recoger { activo: true }` a tiempo engancha → `pelea`: recogiendo sube la tensión (+26 %/s ×
   fuerza) y el progreso (+13,5 %/s ÷ peso); descansando bajan (−21, −5,5 × fuerza); arrancadas avisadas 0,75 s antes

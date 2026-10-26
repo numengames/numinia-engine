@@ -36,6 +36,11 @@ try {
   out.grabando = await estado(p);
   checks.grabando = out.grabando.fase === "grabando" && out.grabando.boton.texto === "Guardar" && out.grabando.boton.pressed === "true";
   checks.cabezaFuera = out.grabando.cabeza === true;
+  // MIS-247: the fine head (the CC0 GLB, fetched by its sha) replaces the simple one
+  await p.waitForFunction(() => globalThis.__numinia.view.graboso.cabeza() === "fina", null, { timeout: 8000 }).catch(() => {});
+  out.cabezaFina = await p.evaluate(() => globalThis.__numinia.view.graboso.cabeza());
+  checks.cabezaFina = out.cabezaFina === "fina";
+  if (process.env.SHOTS) await p.screenshot({ path: `${process.env.SHOTS}/graboso-fina.png` });
   checks.contador = /0:0\d \/ 1:00/.test(out.grabando.hud);
   checks.conMicrofono = out.grabando.sonido === true;
 

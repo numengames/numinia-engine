@@ -24,6 +24,7 @@
     "gates": "node tools/gates.mjs",
     "tipos": "node tools/tipos.ts",
     "tamano": "node tools/tamano.mjs",
+    "tamano:trozos": "node tools/tamano-trozos.mjs",
     "puente": "node tools/empaquetar-puente.mjs",
     "deploy": "node tools/build-deploy.mjs",
     "enlaces": "node tools/enlaces.ts",
