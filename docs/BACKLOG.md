@@ -132,7 +132,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | H9b | Subidas: borrar lo que nadie usa y cupo por identidad | espera a H3 | sí |
 | H7 | Paridad Hyperfy2: ajustes del mundo — título, descripción, imagen, escenario, avatar por defecto, abierto a construir, límite de personas | hecho (fichero `ficha.json` con avatar y aforo, aviso al lleno; panel «Ajustes del mundo» en el cajón Entorno, solo quien manda: título, imagen, avatar, límite; el servidor escribe el fichero y la puerta sigue el límite al momento; faltan descripción, escenario y «abierto a construir» en el panel) | sí |
 | H10 | Paridad Hyperfy2: tu avatar — elegir uno de la casa o soltar tu VRM, guardado con tu identidad | hecho | sí |
-| H13 | Paridad Hyperfy2: nivel de detalle (LOD) de los modelos, generado en la ingesta | espera a M21 | sí |
+| H13 | Paridad Hyperfy2: nivel de detalle (LOD) de los modelos, generado en la ingesta | hecho en `lote7/activos` (dos niveles `.lod1/.lod2.glb` por modelo quieto y pesado, `packages/server/src/lod.ts`; la página elige por distancia, `lod-modelo.ts`) | sí |
 | H11 | Paridad Hyperfy2: importar de Hyperfy — `.hyp` → carpeta de app; un mundo entero → carpeta del mundo | en curso (la mitad `db.sqlite`+`assets/` → carpeta del mundo, hecha; la mitad `.hyp` → carpeta de app sigue esperando a M19) | sí |
 | H14 | El mundo en un zip: bajarlo y subirlo en `/mundo` con el código de administración (`mundo-zip.ts`, `zip.ts`); falta: la aventura dentro del zip, la sala de numinia.com | hecho (primer corte) | sí |
 | H15 | Dónde aparece la gente: `aparicion { x, z, radio }` opcional en `entorno.json` (radio 1–40 m, x y z ±460; viaja en la carpeta y el zip del mundo, nunca por el cable) → `InstanceOptions.aparicion` → `spawnAvatar`; sin él, el cuadrado de 40 m de siempre con las mismas tiradas (huella de referencia `93b192c8` intacta) | hecho (16-10, rama `torre/aparicion-y-altura`) | sí |
@@ -150,7 +150,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | D2 | Puerta de tamaño del cliente (meta ≤ 300 kB comprimido) | puerta hecha (18-10: `npm run tamano` y en `gates`, tope 480 kB); recorte pendiente (hoy 434,9 kB) | sí |
 | D3 | Fuzz de todos los decodificadores de red | pendiente | sí |
 | D4 | Los mensajes del núcleo (entrada, snapshot, bienvenida) salen del esquema, como ya los de las funciones (J7) | para Opus | no |
-| M16 | Carga de zonas: manifiesto por zona (arranque / fondo / perezoso), sha256 por fichero, caché del navegador por hash | pendiente | sí |
+| M16 | Carga de zonas: manifiesto por zona (arranque / fondo / perezoso), sha256 por fichero, caché del navegador por hash | hecho en `lote7/activos` (`GET /manifiesto.json`, caché de hashes en `hashes.json`, Cache API por sha256 con verificación; falta O2 sobre él) | sí |
 | O2 | Origen de reserva fuera de Cloudflare: el cliente prueba una lista de orígenes (LaLiga bloquea rangos de Cloudflare en España) | espera a M16 | sí |
 | M21 | Ingesta de contenido: glTF → validar presupuestos y licencia → comprimir (colisionadores sin cuantizar) → publicar por hash | espera a M16 | sí |
 | M23 | CLI completa: `check`, `shot`, `diff-shot`, `replay` (ya hay `run` y `describe`) | pendiente | sí |

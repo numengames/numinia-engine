@@ -25,6 +25,7 @@ import { entorno, Runtime } from "./runtime.ts";
 import { KEEP_DAYS, Sesiones } from "./sesiones.ts";
 import { FileStorage } from "./datos.ts";
 import { Activos, BIBLIOTECA } from "./activos.ts";
+import { archivoHashes, CacheHashes, construirManifiesto, type Cosa } from "./manifiesto.ts";
 import { avataresDelMundo } from "./avatares-mundo.ts";
 import { leerMundo } from "./mundo.ts";
 import { Subidas } from "./subidas.ts";
@@ -220,6 +221,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const puede = (who: Who | null, accion: string) => roles.puede(who, accion);
   const activos = new Activos(o.biblioteca === undefined ? BIBLIOTECA : o.biblioteca, o.subidas ?? null, log);
   const optimizar = new ColaOptimizar(activos, log, o.optimizar ?? process.env.MOTOR_OPTIMIZAR !== "no"); // N22
+  const hashes = new CacheHashes(archivoHashes(o.subidas ?? null)); // M16: the sha256 of every file the manifest lists, kept while the file does not change
   // E3: the world's own avatars (entorno/avatares.json → files in datos/activos/, checked now with the same VRM reader the uploads use); none = nothing told, the world as always
   const avataresMundo = o.entorno ? avataresDelMundo(leerMundo(o.entorno, log), (h, ext) => activos.buscar(h, ext), log) : [];
   optimizar.repasar();
@@ -346,6 +348,14 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
       res.writeHead(200, { "content-type": om ? OPENMETRICS : PROM_TEXT, "cache-control": "no-store", vary: "Accept" });
       return void res.end(toPrometheus(metrics(), { coste, gc: runtime.gcHist, erroresDe: inst.features.erroresDe }, om));
     }
+    if ((method === "GET" || method === "HEAD") && path === "/manifiesto.json") { // M16: the zone's files, each with its sha256, size and class (manifiesto.ts)
+      const cosas: Cosa[] = [];
+      for (const [k, v] of inst.features.allState()) if (k.startsWith("objetos:") && k !== "objetos:siguiente" && v && typeof (v as Cosa).modelo === "string") cosas.push(v as Cosa);
+      return void construirManifiesto("principal", cosas, activos, hashes).then((m) => {
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "no-cache" });
+        res.end(method === "HEAD" ? undefined : JSON.stringify(m));
+      }, (e) => json(res, 500, { error: String((e as Error)?.message ?? e) }));
+    }
     if ((method === "GET" || method === "HEAD") && path.startsWith("/a/") && activos.servir(path, res, method === "HEAD", req.headers.range, String(req.headers["accept-encoding"] ?? ""), String(req.headers.accept ?? ""))) return; // H1: files by their sha256
     if ((method === "PUT" || method === "OPTIONS") && path.startsWith("/a/")) return subidas.atender(method, path, req, res); // H9: uploads
     if (agentesHttp.atender(method, path, req, res)) return; // ADR-080: numinia.com's panel manages the outside agents (pass-authenticated)
@@ -358,7 +368,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     const answer = (body: string) => {
       const r = inst.features.http(method, path, Object.fromEntries(new URLSearchParams(qs)), body);
       if (r) return reply(res, r);
-      json(res, 404, { error: `no existe ${method} ${path}`, hay: ["/health", "/status", "/metrics", "/metrics.prom", "/sesiones", "/agentes", "/habitantes", "/funciones", ...inst.features.routes(), "WebSocket en cualquier ruta (/ws)"] });
+      json(res, 404, { error: `no existe ${method} ${path}`, hay: ["/health", "/status", "/metrics", "/metrics.prom", "/sesiones", "/agentes", "/habitantes", "/funciones", "/manifiesto.json", ...inst.features.routes(), "WebSocket en cualquier ruta (/ws)"] });
     };
     if (method === "GET") return answer("");
     let body = "", size = 0;

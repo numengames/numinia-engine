@@ -33,7 +33,9 @@ export const BITS = { quantizePosition: 16, quantizeNormal: 12, quantizeTexcoord
 export type Huella = { triangulos: number; nodos: number; texturas: number; animaciones: number; min: number[]; max: number[] };
 export type Resultado = { bytes: Uint8Array | null; antes: number; despues: number; ms: number; motivo?: string; huella?: Huella;
   /** The copy's kind when it is not the original's (a PNG's copy is a WebP). */
-  ext?: string; webp?: number };
+  ext?: string; webp?: number;
+  /** H13: the levels of detail made from the original (lod.ts); only for a .glb. */
+  lods?: import("./lod.ts").Lods };
 
 // ---- pictures: PNG → lossless WebP ----
 
@@ -97,8 +99,12 @@ export async function optimizarImagen(bytes: Uint8Array, tipo: string): Promise<
 }
 
 /** Any file of the world: the right optimizer for its kind. */
-export function optimizar(bytes: Uint8Array, tipo: string): Promise<Resultado> {
-  return tipo === "glb" ? optimizarGlb(bytes) : optimizarImagen(bytes, tipo);
+export async function optimizar(bytes: Uint8Array, tipo: string): Promise<Resultado> {
+  if (tipo !== "glb") return optimizarImagen(bytes, tipo);
+  const r = await optimizarGlb(bytes);
+  // H13: the levels of detail come from the ORIGINAL, whether or not it also got a lighter copy (lod.ts is loaded here, not at the top: it imports this file)
+  const { generarLods } = await import("./lod.ts");
+  return { ...r, lods: await generarLods(bytes) };
 }
 
 /** The JSON chunk of a .glb (null = not a glb). */

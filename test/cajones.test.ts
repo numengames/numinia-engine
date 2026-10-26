@@ -7,8 +7,8 @@ import { icono } from "../apps/plaza/iconos.ts";
 const existe = (ic: string) => icono(ic) !== "";
 
 test("the dock: Añadir · Cable · Entorno · Precisión · Inspector · Ayuda, each with a house icon and a tooltip", () => {
-  assert.deepEqual(CAJONES.map(([id]) => id), ["anadir", "cable", "entorno", "precision", "inspector", "ayuda"]);
-  assert.deepEqual(CAJONES.map(([, ic]) => ic), ["plus", "lightning", "sun", "ruler", "eye", "question"]);
+  assert.deepEqual(CAJONES.map(([id]) => id), ["anadir", "objetos", "cable", "entorno", "precision", "inspector", "ayuda"]);
+  assert.deepEqual(CAJONES.map(([, ic]) => ic), ["plus", "list", "lightning", "sun", "ruler", "eye", "question"]);
   for (const [id, ic, titulo, tip] of CAJONES) {
     assert.ok(existe(ic), `${id}: icon ${ic}`);
     assert.ok(tip.startsWith(`${titulo}:`), `${id}: the tooltip starts with the title`);

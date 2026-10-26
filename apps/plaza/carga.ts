@@ -37,13 +37,21 @@ export type Etapa = keyof typeof ETAPAS;
 export const TRAMO_PIEZAS = { desde: ETAPAS.bienvenida, hasta: 0.97 } as const;
 
 /** C: how many pieces of the world within view are ready out of how many there are (`total` 0 = none placed yet). */
-export type Piezas = { listas: number; total: number };
+export type Piezas = { listas: number; total: number; /** M16: bytes in of the bytes the manifest says the zone needs to play. */ bytes?: { listos: number; total: number } };
+
+/** «3,2 de 8,1 MB»-style text for the loading screen: what is in (bytes) of what the zone needs to play. Empty without a manifest. */
+export function textoBytes(listos: number, total: number): string {
+  if (!(total > 0)) return "";
+  const mb = (n: number) => (n / 1048576).toFixed(n >= 10 * 1048576 ? 0 : 1).replace(".", ",");
+  return `${mb(Math.min(listos, total))} de ${mb(total)} MB`;
+}
 
 /** C: the text of the count — «120 de 146 piezas»; empty when there are none (a bare world says nothing). */
 export function textoPiezas(p: Piezas | null): string {
   if (!p || p.total <= 0) return "";
   const listas = Math.max(0, Math.min(p.listas, p.total));
-  return `${listas} de ${p.total} ${p.total === 1 ? "pieza" : "piezas"}`;
+  const mb = p.bytes ? textoBytes(p.bytes.listos, p.bytes.total) : "";
+  return `${listas} de ${p.total} ${p.total === 1 ? "pieza" : "piezas"}${mb ? ` · ${mb}` : ""}`;
 }
 
 /**
