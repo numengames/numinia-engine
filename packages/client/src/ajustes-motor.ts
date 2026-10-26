@@ -169,8 +169,8 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
     defecto: "30", requiere: ["xrVr"],
   },
   {
-    grupo: "controles", id: "velocidadVR", tipo: "numero", min: 40, max: 100, paso: 10, unidad: "%", nombre: "Velocidad al andar en VR",
-    describe: "Lo deprisa que te lleva la palanca izquierda del visor. Menos: más cómodo si te mareas.", defecto: 100, requiere: ["xrVr"],
+    grupo: "controles", id: "velocidadVR", tipo: "numero", min: 40, max: 200, paso: 10, unidad: "%", nombre: "Velocidad al andar en VR",
+    describe: "Lo deprisa que te lleva la palanca izquierda. 100 %: el paso de siempre; hasta 200 % (3 m/s, tope de limits.json) sin correr. Menos: más cómodo.", defecto: 100, requiere: ["xrVr"],
   },
   {
     grupo: "controles", id: "confortVR", tipo: "numero", min: 0, max: 100, paso: 10, unidad: "%", nombre: "Viñeta de confort en VR",

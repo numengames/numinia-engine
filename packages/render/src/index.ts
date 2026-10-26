@@ -17,8 +17,8 @@ export type { VRState, DialogoVR } from "./vr.ts";
 /** Rediseño v2: the VR session as the page wires its watch and menu (apps/plaza/xr-menu.ts). */
 export type MenuVR = ReturnType<typeof createVR>;
 export type { Contenido as ContenidoMenuVR } from "./menu-invocado.ts";
-import type { Manos, EventoMano, Llevable, ResCambio } from "./manos.ts";
-export type { EventoMano, Lado, Llevable, ResCambio } from "./manos.ts";
+import type { Manos, EventoMano, Llevable, ResCambio, ResSoltar } from "./manos.ts";
+export type { EventoMano, Lado, Llevable, ResCambio, ResSoltar } from "./manos.ts";
 import { createPower, readCaps, checkCost, conClase } from "./power.ts";
 export { createPower, readCaps, checkCost, conClase } from "./power.ts";
 export { limitesGraficos } from "./capacidades.ts"; // N2: max texture size for the capabilities
@@ -269,6 +269,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     llevable(nombre: string, l: Llevable) { llevablesManos.set(nombre, l); const off = manosReal?.llevable(nombre, l); return () => { off?.(); if (llevablesManos.get(nombre) === l) llevablesManos.delete(nombre); }; },
     llevando: () => manosReal?.llevando() ?? [],
     cambiarMano: (): ResCambio => manosReal?.cambiarMano() ?? { ok: false, why: "Las manos aún no están listas" },
+    /** N3: let go of what a hand carries (no hand: the first thing carried). */
+    soltar: (l?: "izq" | "der"): ResSoltar => manosReal?.soltar(l) ?? { ok: false, why: "Las manos aún no están listas" },
     sondeo: (l: "izq" | "der") => manosReal?.sondeo(l) ?? null,
     ocupadaPorOtros: (l: "izq" | "der", excepto: string) => manosReal?.ocupadaPorOtros(l, excepto) ?? false,
     on(fn: (e: EventoMano) => void) { oyentesManos.add(fn); return () => oyentesManos.delete(fn); },

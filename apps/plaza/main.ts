@@ -621,7 +621,7 @@ function readButtons(): number {
   // (was 0.9 — reached with barely half the throw, so there was no way to just walk).
   const RUN_EDGE = 0.97;
   if (andarCorrer) b |= BTN_RUN; // MIS-257: a long walk-by-itself runs (ir-andando.ts), the last stretch walks
-  if (view.vr.active) { if (Math.hypot(...view.vr.axes()) >= RUN_EDGE) b |= BTN_RUN; return b; } // in VR only the headset's stick runs
+  if (view.vr.active) { if (view.vr.correr()) b |= BTN_RUN; return b; } // in VR only the headset's stick runs: its edge (RUN_EDGE, packages/render/src/vr-paso.ts) or a speed above 100 %
   const alBorde = touch && Math.hypot(touch.dx, touch.dy) >= RUN_EDGE;
   if (keys.has("ShiftLeft") || keys.has("ShiftRight") || alBorde) b |= BTN_RUN;
   b |= botonesDeVuelo(keys, session.volando() && !rueda.abierta()); // H2: while flying a held Space climbs and a held Ctrl descends (on foot Space jumps once per press, above); the server decides who flies

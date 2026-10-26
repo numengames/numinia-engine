@@ -22,6 +22,7 @@ import type { CondicionesVR } from "./condiciones-vr.ts"; // types only: the ent
 import { ID_BARRA, palancaPagina, palancasDelPanel, type EntradaMano, type LadoMano, type ModeloVR, type Zona } from "./condiciones-vr-geom.ts"; // pure numbers, no three.js
 import { empujaFuera } from "./vr-paredes.ts";
 import { crearRemo, REMO_RITMO } from "./remo.ts"; // MIS-229: rowing with the hands
+import { pasoVR, VELOCIDAD_MAX, VELOCIDAD_MIN } from "./vr-paso.ts"; // the stick's push and the run flag, speeds above 100 %
 import { completarSesionXR, textoDeFallo } from "./xr-compat.ts"; // old headset browsers lack XRSession.enabledFeatures (Chrome 105)
 import { calentarOcultos } from "./precompilar.ts"; // MIS-200: warm what only VR draws while it is still hidden
 import { crearEstable } from "./entrada-estable.ts"; // MIS-200: no VR drawing until the first calm frames
@@ -56,7 +57,7 @@ export type GestoAndarVR = "apuntar" | "remar";
 export const SNAP_DEG = 30;
 /** Rediseño v2 (VR settings): the snap turn's steps the menu offers, and the stick's pace and the floor's lift limits. */
 export const GIROS_DEG = [15, 30, 45] as const;
-export const VELOCIDAD = { min: 0.4, max: 1 } as const;
+export const VELOCIDAD = { min: VELOCIDAD_MIN, max: VELOCIDAD_MAX } as const; // 40-200 %: above 100 % see vr-paso.ts (the cap is published in limits.json)
 export const ALTURA_M = { min: -0.3, max: 0.6 } as const;
 export const DEADZONE = 0.2;
 /** How long a note stays in front of you (ms). */
@@ -315,7 +316,7 @@ export function createVR(h: VRHooks) {
   const remo = crearRemo(), manosRemo: { lado: string; delante: number }[] = [];
   let rendimiento: RendimientoXR = { ...RENDIMIENTO_DEFECTO }; // MIS-200: «Rendimiento en gafas», applied on entering
   let giroDeg: number = SNAP_DEG, yawDeg = 0, velocidad = 1, alturaM = 0; // rediseño v2: the menu's VR settings
-  let moveX = 0, moveZ = 0, turnLatched = false, strength = 0, navLatched = false;
+  let moveX = 0, moveZ = 0, correrVR = false, turnLatched = false, strength = 0, navLatched = false;
   let ultimoFotograma = 0; // performance.now() of the last update(): axes() goes stale after INTENCION_CADUCA_MS
   // J2: A (right) or X (left) = jump, like Hyperfy2's A; a press waits here until the page's next tick takes it
   let jumpWanted = false;
@@ -545,7 +546,7 @@ export function createVR(h: VRHooks) {
     if (enPanel) { moveX = moveZ = 0; turned = false; } // c4: inside the bubble the sticks turn pages, they do not move or turn you (the server holds you too)
     const m = Math.hypot(moveX, moveZ);
     if (m > 1) { moveX /= m; moveZ /= m; }
-    moveX *= velocidad; moveZ *= velocidad; // rediseño v2: the menu's «Velocidad» (1 = as shipped)
+    { const p = pasoVR(moveX, moveZ, velocidad); moveX = p.mx; moveZ = p.mz; correrVR = p.correr; } // rediseño v2: the menu's «Velocidad» (1 = as shipped, up to 2: a smaller push with the run flag, vr-paso.ts)
     // vignette fades in fast while moving or turning, out slowly; a wall push forces it fully dark for an
     // instant regardless of the comfort setting (safety feedback, not a comfort option)
     const want = (m > 0 || turned ? 1 : 0) * comfort;
@@ -586,6 +587,8 @@ export function createVR(h: VRHooks) {
     /** Movement intention in the world frame, each -1..1. Zero when no XR frame ran lately: a real Quest stops the
      * session's frames while it is hidden (headset off the head), and the page's tick must not keep the last push. */
     axes(): [number, number] { return performance.now() - ultimoFotograma > INTENCION_CADUCA_MS ? [0, 0] : [moveX, moveZ]; },
+    /** Does the stick's push run (the edge, or a speed above 100 %)? The page adds BTN_RUN to the tick's buttons. */
+    correr(): boolean { return correrVR && performance.now() - ultimoFotograma <= INTENCION_CADUCA_MS && (moveX !== 0 || moveZ !== 0); },
     /** J2: true once per press of A or X since the last call (the page asks on each tick). */
     takeJump(): boolean { const j = jumpWanted; jumpWanted = false; return j; },
     get comfort() { return comfort; },
