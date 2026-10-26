@@ -14,6 +14,7 @@ import { icono } from "./iconos.ts";
 import { FORMAS_EQUIPO, ICONO_TIPO, SILUETA, accionDe, colorDe, cuentaTexto, destinoDeSoltar, etiquetaHueco, lineaTipo, lineaValor, mover, nombreConCuenta, novedades, plano } from "./bolsa-rejilla.ts";
 import type { Objeto, Zona } from "./bolsa-rejilla.ts";
 import { crearSoltar, preguntaSoltar } from "./bolsa-soltar.ts";
+import { acciones } from "./acciones-informe.ts"; // session log: the drop
 export { ICONO_TIPO, RAREZA_DE_COLOR, detalleDeCaptura } from "./bolsa-rejilla.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
@@ -43,7 +44,7 @@ export function montarInventario(c: Ctl, boton: HTMLButtonElement) {
   let firma = "", sel: string | null = null, foco: { zona: Zona; i: number } = { zona: "bolsa", i: 0 }, parpadean = new Set<string>(), arrastrado = false;
   const antes = new Map<string, number>();
   // «Soltar» a weapon or a relic asks first (bolsa-soltar.ts); the question is an inline choice in the card, so it also reads in VR
-  const soltar = crearSoltar((id, n) => c.soltar(id, n), anunciar, () => pintar(true));
+  const soltar = crearSoltar((id, n) => { const r = c.soltar(id, n); if (r.ok) acciones.registrar("soltar", { detalle: "bolsa" }); return r; }, anunciar, () => pintar(true));
   let hueco: { zona: Zona; i: number; o: Objeto | null }[] = [];
   const botonDe = (zona: Zona, i: number): HTMLButtonElement | null => (zona === "equipo" ? equipoEl : rejilla).children[i] as HTMLButtonElement | null ?? null;
 

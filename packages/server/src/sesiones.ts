@@ -11,6 +11,9 @@ export const MAX_REPORTS_PER_SESSION = 600;    // a 10 s pulse for ~90 min, plus
 export const MAX_ERRORS_WRITTEN = 10;          // per session
 export const MAX_DAY_BYTES = 50 * 1024 * 1024; // one day's file stops growing past this
 export const TEXT_MAX = 160;
+export const MAX_ACCIONES_PER_SESSION = 200;   // per session, apart from the reports above: a dice-happy player must not push out the pulses
+/** The actions a page may log (kind `accion`): ids only, never free text. A new action is added here AND in apps/plaza/acciones-informe.ts. */
+export const ACCIONES = ["dados", "foto", "soltar", "salto-manos", "cuerpo-vr", "velocidad-vr"] as const;
 export const CONTEO_MAX = 1_000_000;
 
 type Kind = "texto" | "numero" | "bool" | "conteo"; // conteo: a whole number, 0..CONTEO_MAX
@@ -43,6 +46,9 @@ export const SHAPES: Record<string, Shape> = {
     programas: "conteo", programasNuevos: "conteo", cambiosRes: "conteo", ratio: "numero",
     loaf: { n: "conteo", bloqMs: "numero", peorMs: "numero" },
   },
+  /** something the player did that nothing else leaves a trace of (`que` is one of ACCIONES; `detalle` a short fixed word like «2d6» or «caña»,
+   *  `valor` a number such as a speed in %, `activo` an on/off; never names, texts or places) */
+  accion: { que: "texto", detalle: "texto", valor: "numero", activo: "bool" },
   /** entering or leaving VR/AR, or failing to */
   xr: { modo: "texto", accion: "texto", detalle: "texto" },
   /** an uncaught error in the page */
@@ -76,7 +82,7 @@ function sumar(t: Totales, p: Rec): void {
   t.largos += n(p.largos); t.cambiosRes += n(p.cambiosRes); t.loaf += n((p.loaf as Rec | undefined)?.n); t.programasMax = Math.max(t.programasMax, n(p.programas));
 }
 
-type Viva = { id: string; inicio: number; informes: number; errores: number; entrada?: Rec; pulso?: Rec; xr: string[]; totales: Totales };
+type Viva = { id: string; inicio: number; informes: number; acciones: number; errores: number; entrada?: Rec; pulso?: Rec; xr: string[]; totales: Totales };
 export type SesionesOpts = { dir: string | null; log?: (line: string) => void; now?: () => number };
 const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
@@ -99,7 +105,7 @@ export class Sesiones {
   /** A connection opened (call right after the instance spawns its avatar). */
   abrir(entity: number): void {
     const t = this.now();
-    this.vivas.set(entity, { id: `s${t.toString(36)}${entity.toString(36)}`, inicio: t, informes: 0, errores: 0, xr: [], totales: totalesVacios() });
+    this.vivas.set(entity, { id: `s${t.toString(36)}${entity.toString(36)}`, inicio: t, informes: 0, acciones: 0, errores: 0, xr: [], totales: totalesVacios() });
   }
 
   /** A REPORT from that connection. Returns false when it is dropped (unknown kind, too many, second `entrada`). */
@@ -107,6 +113,13 @@ export class Sesiones {
     const v = this.vivas.get(entity);
     const k = typeof raw.k === "string" ? raw.k : "";
     const shape = SHAPES[k];
+    if (v && shape && k === "accion") { // its own budget; a known id or nothing
+      const datos = limpiar(shape, raw);
+      if (v.acciones >= MAX_ACCIONES_PER_SESSION || !(ACCIONES as readonly unknown[]).includes(datos.que)) { this.stats.descartados++; return false; }
+      v.acciones++; this.stats.informes++;
+      this.escribir({ t: new Date(this.now()).toISOString(), sesion: v.id, k, ...datos });
+      return true;
+    }
     if (!v || !shape || v.informes >= MAX_REPORTS_PER_SESSION || (k === "entrada" && v.entrada)) { this.stats.descartados++; return false; }
     const datos = limpiar(shape, raw);
     if (v.informes === 0) this.stats.sesionesConInforme++;
@@ -125,7 +138,7 @@ export class Sesiones {
     if (!v) return;
     this.vivas.delete(entity);
     if (v.informes === 0) return;
-    this.escribir({ t: new Date(this.now()).toISOString(), sesion: v.id, k: "sale", duracionS: Math.round((this.now() - v.inicio) / 1000), informes: v.informes, errores: v.errores, xr: v.xr, ...(v.totales.pulsos ? { cliente: { ...v.totales } } : {}), ...servidor });
+    this.escribir({ t: new Date(this.now()).toISOString(), sesion: v.id, k: "sale", duracionS: Math.round((this.now() - v.inicio) / 1000), informes: v.informes, ...(v.acciones ? { acciones: v.acciones } : {}), errores: v.errores, xr: v.xr, ...(v.totales.pulsos ? { cliente: { ...v.totales } } : {}), ...servidor });
   }
 
   /** Who is connected now and what they last said (GET /sesiones). */

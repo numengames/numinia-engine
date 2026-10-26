@@ -251,7 +251,9 @@ function cosaSoltable(f: ReturnType<typeof montar>, lado0: Lado, nombre = "cosa"
 test("N3 el botón: soltar() deja ir lo que lleva la mano que se nombra, o lo primero que se lleva, y la mano vibra", () => {
   const f = montar(); const a = cosaSoltable(f, "izq", "uno", "el uno"); const b = cosaSoltable(f, "der", "dos", "el dos");
   f.cuadro();
+  const oidos: unknown[] = []; f.m.on((e) => { oidos.push(e); });
   const r = f.m.soltar("der"); assert.deepEqual(r, { ok: true, que: "el dos", lado: "der" });
+  assert.deepEqual(oidos, [{ tipo: "soltar", que: "el dos", lado: "der" }], "the page hears the drop (session log)");
   assert.equal(b.lado, null); assert.equal(a.lado, "izq", "the other hand keeps its thing");
   assert.deepEqual(f.pulsos.map((p) => p[0]), [1], "only the hand that let go buzzes");
   assert.deepEqual(f.m.soltar(), { ok: true, que: "el uno", lado: "izq" });
