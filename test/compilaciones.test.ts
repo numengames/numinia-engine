@@ -107,3 +107,15 @@ test("the hall's light is the SAME object after the walls are rebuilt (a new lig
     s.muros([]); assert.equal(luzDe().length, 0); assert.equal(avisos, 4);
   } finally { (globalThis as { document?: unknown }).document = antes; }
 });
+
+test("the session pulse reports the late compiles of each window (the new ones since the last window); absent when the page does not send them", async () => {
+  const { medidorDeCuadros } = await import("../packages/render/src/sesion.ts");
+  const m = medidorDeCuadros();
+  m.cuadro(16, 1, 60, { programas: 30 });
+  assert.ok(!("compilesTardios" in m.ventana()), "an old page sends none: absent");
+  m.cuadro(16, 1, 60, { compilesTardios: 2 });
+  m.cuadro(16, 1, 60, { compilesTardios: 5 });
+  assert.equal(m.ventana().compilesTardios, 3, "5 now, 2 when the window opened (first value seen)");
+  m.cuadro(16, 1, 60, { compilesTardios: 5 });
+  assert.equal(m.ventana().compilesTardios, 0, "nothing new: reported as zero, not absent");
+});

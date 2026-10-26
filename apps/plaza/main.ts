@@ -827,7 +827,7 @@ view.loop((now) => {
     const programas = view.programas(); // the pulse never carried the programs: `cost.programs` was never set (the live meter reads them from three)
     if (lastDrawAt) medidorUI.cuadro({ dtMs: now - lastDrawAt, cpuMs: cost.cpuMs, llamadas: cost.calls, triangulos: cost.triangles, programas, compilesTardios: view.compiles().tardias });
     medidorUI.pintar(now);
-    if (lastDrawAt) medidor.cuadro(now - lastDrawAt, cost.cpuMs, xr ? view.xrHz() || 72 : view.power.targetFps(active), { dc: cost.calls, tri: cost.triangles, programas, ratio: view.power.pixelRatio(), xr });
+    if (lastDrawAt) medidor.cuadro(now - lastDrawAt, cost.cpuMs, xr ? view.xrHz() || 72 : view.power.targetFps(active), { dc: cost.calls, tri: cost.triangles, programas, ratio: view.power.pixelRatio(), xr, compilesTardios: view.compiles().tardias });
     if (lastDrawAt) view.posproceso.vigilar(now - lastDrawAt, active); // H12b: the effects' cost gate (level A only; a no-op when they are off)
     lastDrawAt = now;
     if (session.welcome && !informe.primerCuadroMs) { informe.primerCuadroMs = Math.round(performance.now()); primerCuadroDado(); }
