@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+// @ts-ignore plain .mjs tool
 import { construir, medirArranque, topeBr, TOPE_GZ } from "../tools/tamano.mjs";
 import { alPrimerCuadro, primerCuadroDado, primerCuadroYaDado } from "../apps/plaza/primer-cuadro.ts";
 import { CSS_FUENTES } from "../apps/plaza/fuentes.ts";
@@ -48,6 +49,7 @@ test("main.ts mounts the builder's drawers, dice, bubbles and director with a dy
 
 test("alPrimerCuadro: waits for the first frame, then runs once; a failing task does not stop the others", async () => {
   const visto: string[] = [];
+  const anota = (s: string): void => { visto.push(s); };
   alPrimerCuadro(() => { visto.push("a"); });
   alPrimerCuadro(() => { throw new Error("boom"); });
   alPrimerCuadro(async () => { visto.push("c"); throw new Error("boom async"); });
@@ -60,7 +62,7 @@ test("alPrimerCuadro: waits for the first frame, then runs once; a failing task 
     primerCuadroDado(); primerCuadroDado(); // idempotent
     await new Promise((r) => setTimeout(r, 30));
     assert.deepEqual(visto, ["a", "c", "d"]);
-    alPrimerCuadro(() => { visto.push("tarde"); }); // after the frame: runs right away
+    alPrimerCuadro(() => { anota("tarde"); }); // after the frame: runs right away
     await new Promise((r) => setTimeout(r, 30));
     assert.equal(visto.at(-1), "tarde");
   } finally { console.warn = aviso; }
