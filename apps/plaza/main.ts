@@ -56,7 +56,7 @@ import { montarFicha } from "./ficha.ts";
 import { avatarQueLlevas, lineaDeTu } from "./tu-logica.ts"; // «Tú»: which house avatar you wear, for its portrait
 import { montarObjetivo } from "./objetivo.ts";
 import { montarCombate, fuentesDeLucha } from "./combate.ts";
-import { montarInventario, resumenTexto } from "./inventario.ts"; // Y1: the Inventario panel (L)
+import { montarInventarioPuerta } from "./inventario-puerta.ts";
 import { inventarioCtl } from "../../features/inventario/client.ts";
 import { ambiente } from "../../features/entorno/client.ts";
 import { interruptor as interruptorBase } from "../../features/espaciobase/client.ts"; // H8: the «Espacio base» switch and «Restaurar el mundo»
@@ -72,7 +72,7 @@ import { montarBienes } from "./bienes.ts";
 import { ajustes as ajustesMundo } from "../../features/ficha-mundo/client.ts"; // H7: the world's settings as the server says (title, picture, default avatar, people limit)
 import { dirigir } from "../../features/director/client.ts";
 import { ambienteDeEscena } from "../../features/director/feature.ts";
-import { montarGente } from "./gente.ts";
+import { montarGentePuerta } from "./gente-puerta.ts"; // t_45ef2f70: «Gente»'s button now, its panel after the first frame
 import { rumboHacia } from "./foto-nucleo.ts"; // ux2-gente: «Saludar» turns you towards them first
 import { viajar } from "../../features/teletransporte/client.ts";
 import { llamarPagina } from "../../features/llamar/client.ts"; // ia-llamar S11: how each AI is called and the intent behind «Hablar con ella» / E
@@ -95,7 +95,7 @@ import { ancestros } from "../../features/ancestros/client.ts"; // ancestros v1:
 import { montarAncestros } from "./ancestros.ts";
 import { montarVoz } from "./voz.ts";
 import { montarPantalla } from "./pantalla.ts";
-import { montarCondiciones } from "./condiciones.ts"; // condiciones/c3: the bubble of entry (only when the world's gate is on; the server decides)
+import { montarCondicionesPuerta } from "./condiciones-puerta.ts"; // condiciones/c3: the bubble of entry (only when the world's gate is on; the server decides). t_45ef2f70: its façade now (holds the page while the offer is on and the bubble is not here); the bubble itself loads after the first frame
 import { montarGraboso } from "./graboso.ts"; // M18b: the relic that records what you see (K)
 import { icono } from "./iconos.ts";
 import { rotularBoton } from "./menu-secciones-ui.ts"; // v2 paridad: the bar reads the one list of sections
@@ -105,7 +105,7 @@ import { FAVORITOS_INICIALES } from "../../features/gestos/movimientos.ts";
 import { montarRueda } from "./rueda.ts";
 import { montarXR } from "./xr.ts";
 import { aplicarTema } from "./tema-mundo.ts"; // a world's look (ficha@1 `tema`): an event's colours and title face
-import { montarFoto } from "./foto.ts"; // N13: photo mode (P): hide the interface, frame, filter, PNG, share, a link to the place
+import { montarFotoPuerta } from "./foto-puerta.ts"; // t_45ef2f70: the button now, the mode (foto.ts) after the first frame or at once for a photo's link. N13: photo mode (P): hide the interface, frame, filter, PNG, share, a link to the place
 import { esTactil, perfil, montarMarco } from "./perfil-aparato.ts"; // U25: the device profile (touch, small screen, VR), one answer for the whole page
 import { montarNovedades } from "./novedades.ts"; // t_bdc2c2db: «qué hay de nuevo» card, once per version
 import { crearListo, aspectoBoton, MOTIVO_PREPARANDO } from "./boton-listo.ts"; // MIS-200 (t_9687b5fc): the entry buttons wait for the world
@@ -264,7 +264,7 @@ burbujaPagina.alEntrar((ia) => view.burbujaDestello(ia === session.entity ? "sel
 
 // condiciones/c3: with the world's gate on, the server sends its conditions after you join and you stand in a bubble until you accept;
 // with it off it sends nothing and this does nothing. The gate itself is the server's; here the walking input is also held still.
-const condiciones = montarCondiciones({ session, mundo: () => nombreDelMundo, decir: (t) => anunciar(t), ciudadUrl: () => ciudad.url, cerrarConexion: () => transport.close(), movil: () => enMovil,
+const condiciones = montarCondicionesPuerta({ session, mundo: () => nombreDelMundo, decir: (t) => anunciar(t), ciudadUrl: () => ciudad.url, cerrarConexion: () => transport.close(), movil: () => enMovil,
   vr: { soportado: () => vrDisponible, activo: () => view.vr.active, entrar: () => { if (view.vr.state === "off") void view.vr.enter().then((ok) => { if (!ok) session.report({ k: "xr", modo: "vr", accion: "falla", detalle: view.vr.lastError }); }); } } });
 let vrDisponible = false; // set once the browser says it can present VR (below); the bubble then offers its own «Entrar en VR»
 
@@ -352,7 +352,7 @@ alPrimerCuadro(() => import("./director.ts").then((m) => m.montarDirector({ dj: 
 // world (gente-tarjeta.ts). Silenciar = voz.ts drops their voice here; Bloquear = /bloquear; Denunciar = /denunciar.
 const distanciaA = (q: number): number | null => { if (session.entity < 0) return null; const r = session.remotePositions().find((x) => x.id === q); if (!r) return null; const y = session.selfPosition(1); return Math.hypot(r.x - y.x, r.z - y.z); };
 const llamarIA = montarLlamarIA({ llamar: llamarPagina, ia: iaPagina, burbuja: burbujaPagina, distancia: distanciaA, nombre: (q) => chatDePagina.nombres.get(q) ?? null, idioma: () => document.documentElement.lang });
-const gente = montarGente({ viajar, llamar: { puede: llamarIA.puede, hablar: llamarIA.hablar }, barra: document.getElementById("barra-arriba"), orden: (t) => chatDePagina.decir(t),
+const gente = montarGentePuerta({ viajar, llamar: { puede: llamarIA.puede, hablar: llamarIA.hablar }, barra: document.getElementById("barra-arriba"), orden: (t) => chatDePagina.decir(t),
   mundo: () => estado?.nombre ?? "",
   ia: iaPagina, idioma: () => document.documentElement.lang,
   baliza: (q, texto) => { const r = session.remotePositions().find((x) => x.id === q); if (!r) return { ok: false, why: "No sé dónde está desde aquí." }; view.beacon(r.x, r.z, texto, 60_000); return { ok: true }; }, // ia-visible S7: where trips are off, «Ir hacia ella» marks where the AI is
@@ -402,7 +402,7 @@ dardos.alCambiar(() => { if (!dardos.sitios().length) return; /* f2: darts switc
 // ---- S6f: todo suena por UNA puerta — el fichero del catálogo si lo hay, y si no la receta sintetizada; los botones,
 // mis pasos, mi salto y mi aterrizaje son locales, y lo compartido (puerta, dados, dardos, pez, teleport) lo manda el
 // servidor. Perezoso, para que quede fuera del paquete de arranque. ----
-void import("./sonidos.ts").then(async (m) => {
+alPrimerCuadro(() => import("./sonidos.ts").then(async (m) => { // t_45ef2f70: the house sounds (and the voice pool behind them) wait for the first frame; until then the notices keep their oscillator notes
   const { crearPuerta, ponerPuerta } = await import("../../packages/render/src/audio/sonar.ts");
   const puerta = ponerPuerta(crearPuerta());
   sonarServidor = (s) => puerta.sonar(s.id, { semilla: s.semilla, donde: s.donde ?? null });
@@ -416,7 +416,7 @@ void import("./sonidos.ts").then(async (m) => {
   const ponerAmbiente = () => { if (a || dirigir.ambienteActual()) puerta.ambiente(ambienteDeEscena(dirigir.ambienteActual(), a)); };
   ponerAmbiente();
   dirigir.alCambiar((que) => { if (que === "actual") ponerAmbiente(); });
-}).catch((e) => console.warn(`[sonidos] no se pudieron montar: ${(e as Error)?.message ?? e}`));
+}).catch((e) => console.warn(`[sonidos] no se pudieron montar: ${(e as Error)?.message ?? e}`)));
 
 // ---- U10: the microphone (button or Q): your voice to who is near; theirs from where they stand ----
 const voz = montarVoz({ session, view: { label: (t, text, ms) => view.label(t, text, ms), cam: view.cam, voz: (id, nivel) => view.voz(id, nivel) }, escribiendo, ajuste: leerAjuste, vr: { activo: () => view.vr.active, cerrada: () => condiciones.cerrada(), nota: (t) => view.vr.nota(t) }, decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } } });
@@ -455,7 +455,7 @@ montarLibro(misiones, {
 });
 
 // ---- Y1: the Inventario panel (L, «Inventario»): what you carry and your Reserva; the sheet shows its summary ----
-const inventario = montarInventario(inventarioCtl, document.getElementById("inventario-abrir") as HTMLButtonElement);
+const inventario = montarInventarioPuerta(inventarioCtl, document.getElementById("inventario-abrir") as HTMLButtonElement);
 
 // ---- J5: minimap (corner), big map (M, «Mapa») and player sheet (I, «Ficha»); other branches' contracts are read
 // from __numinia when present (misiones.objetivos/resumen, ajustes.abrir, chat.nombres) ----
@@ -493,7 +493,7 @@ async function ponerPortada(f: File): Promise<{ ok: true } | { ok: false; why: s
   }
   return { ok: false, why: "el servidor no contestó a tiempo; mira la imagen en Ajustes del mundo" };
 }
-const foto = montarFoto({ view, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), mapa, boton: document.getElementById("foto-abrir") as HTMLButtonElement, volverA: () => document.getElementById("camara-abrir"), ocupado: () => dardos.tirando(),
+const foto = montarFotoPuerta({ view, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), mapa, boton: document.getElementById("foto-abrir") as HTMLButtonElement, volverA: () => document.getElementById("camara-abrir"), ocupado: () => dardos.tirando(),
   aparecer: { puede: () => (viajar.estado.recibido ? viajar.foto() : null), pedir: (s) => { viajar.aparecerEnFoto(s.x, s.y, s.z); } }, // N16: the world may put you at the photo's place
   portada: { puede: () => ajustesMundo.estado.puede && ajustesMundo.actual() !== null, usar: ponerPortada }, // MIS-265: the photo as the world's cover
   decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); } });
@@ -646,8 +646,8 @@ view.arSupported().then((ok) => {
   // chooser is its own chunk, prefetched here so that opening it needs no wait; the darts' connection and norms are settled INSIDE it, before the
   // click that enters AR (ar-elegir.ts). No link (the Tower itself, `enlace: false`, an own AR board): the button is what it always was.
   let elegirAR: Promise<import("./ar-elegir.ts").ElegirAR> | null = null;
-  const cargarElegir = (): Promise<import("./ar-elegir.ts").ElegirAR> => (elegirAR ??= import("./ar-elegir.ts").then((m) => m.crearElegirAR({
-    enlace: dardosEnlace, view, condiciones: montarCondiciones, alMiniatura: entrarMiniatura, movil: () => enMovil, decir: decirAviso,
+  const cargarElegir = (): Promise<import("./ar-elegir.ts").ElegirAR> => (elegirAR ??= Promise.all([import("./ar-elegir.ts"), import("./condiciones.ts")]).then(([m, c]) => m.crearElegirAR({
+    enlace: dardosEnlace, view, condiciones: c.montarCondiciones, alMiniatura: entrarMiniatura, movil: () => enMovil, decir: decirAviso,
     falloAR: () => mensajeFalloAR(view.ar.lastErrorName), informarFallo: () => session.report({ k: "xr", modo: "ar", accion: "falla", detalle: view.ar.lastError }),
   })).catch((e) => { elegirAR = null; throw e; }));
   const sinElegir = (): void => { console.warn("[ar] no se pudo cargar la elección de AR: se entra con la maqueta"); };

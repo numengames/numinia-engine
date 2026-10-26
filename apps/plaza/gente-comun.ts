@@ -2,6 +2,7 @@
 // person as both show them, the actions, the portrait (or a silhouette, never a hole) and a button with an icon.
 // innerHTML only ever receives the house icons (constants); every name goes in with textContent.
 import { icono } from "./iconos.ts";
+import { rotularBoton } from "./menu-secciones-ui.ts"; // v2 paridad: icon, name and tooltip from the one list of sections
 import type { Amigo } from "./amigos.ts";
 import type { IAPublica } from "../../features/ia/feature.ts";
 
@@ -82,3 +83,12 @@ export type Acciones = {
   puedeHablar?(p: Elegido): boolean; hablar?(p: Elegido): Res;
 };
 
+
+/** The bar's «Gente» button: icon, name and tooltip from the one list of sections, placed before «Foto» when that one is in the bar. */
+export function crearBotonGente(barra: HTMLElement | null): HTMLButtonElement {
+  const boton = el("button", { type: "button", id: "gente-abrir", className: "solo-icono" });
+  rotularBoton(boton, "gente");
+  const foto = document.getElementById("foto-abrir");
+  if (barra && foto?.parentElement === barra) foto.before(boton); else (barra ?? document.body).appendChild(boton);
+  return boton;
+}
