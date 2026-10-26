@@ -23,7 +23,7 @@ export type EstadoPintar = { pintando: boolean; puntos: number; trazos: number; 
 const huella = async (b: Uint8Array): Promise<string> => {
   const sutil = (globalThis.crypto as Crypto | undefined)?.subtle; // only in secure contexts (https, localhost)
   if (!sutil) return sha256Hex(b);
-  return Array.from(new Uint8Array(await sutil.digest("SHA-256", b)), (x) => x.toString(16).padStart(2, "0")).join("");
+  return Array.from(new Uint8Array(await sutil.digest("SHA-256", b as Uint8Array<ArrayBuffer>)), (x) => x.toString(16).padStart(2, "0")).join("");
 };
 
 export function montarPintar(o: OpcionesPintar) {
