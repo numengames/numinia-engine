@@ -46,6 +46,7 @@
     "meshoptimizer": "1.3.0",
     "ndarray-pixels": "file:tools/vacio/ndarray-pixels",
     "qrcode-svg": "1.1.0",
+    "ses": "2.3.0",
     "three": "^0.186.1",
     "ws": "^8.22.0"
   },

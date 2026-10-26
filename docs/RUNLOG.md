@@ -1714,3 +1714,8 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5 (subagente).
 - Commit: rama `lote/7` sobre main `a60cc1ca`, fusiones normales de `lote/5`, `lote7/interfaz`, `lote7/activos` y main.
 - Siguiente: O2 y M21 esperan al manifiesto y los niveles; `dardos-vr.mjs` y `constructor.mjs` se arreglan en lote/8.
+
+## 2026-10-26 04:18 UTC · M20 first slice: world scripts in an SES sandbox with CPU and memory caps · hecho
+- Qué: `packages/server/src/guion.ts` + `guion-trabajador.ts` (card `t_ae9eb860`). A script runs in an SES Compartment inside a worker thread and sees only `app.on/off/log/emit`; each call has a CPU budget (default 50 ms) after which the worker is killed and the overrun reported (`alInforme`, counter `cortes.cpu`); heap capped (64 MB); `recargar` swaps code without restarting the world. Copies: Hyperfy 2 `Apps.js` public API object, SES Compartment; changes: a worker per script so a runaway loop can be cut. New dependency `ses@2.3.0` (pinned).
+- Números: `test/guion.test.ts` 8/8 (no process/require/fetch, frozen intrinsics, CPU cut <2 s and recovery, memory cap, thrown errors, hot reload, log/emit). Versión 0.63.0.
+- Siguiente: wire it to the app folder (`apps.ts`, M19) so each app's `main.ts` loads on start and on file change by admins; expose the world API (`get/set`, `chat`, players); export `numinia_guion_cortes_total{motivo}` in /metrics; e2e.
