@@ -12,6 +12,8 @@ export const es = {
   responde: "Responde por ella",
   sinResponsable: "no consta",
   construye: "Puede construir", noConstruye: "No puede construir",
+  /** t_5096d6f4: «Ojos: ◆ Medio» — the size of the model behind it (never its name); the sentence under it explains the eyes. */
+  ojos: "Ojos", tamSinModelo: "Sin modelo", tamPequeno: "Modelo pequeño", tamMedio: "Modelo medio", tamGrande: "Modelo grande", tamDesconocido: "Tamaño sin determinar",
   /** The main button, and why it may do something else. */
   ir: "Ir hacia ella",
   irTitulo: "Te lleva junto a ella",

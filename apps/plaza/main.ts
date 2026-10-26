@@ -76,6 +76,7 @@ import { viajar } from "../../features/teletransporte/client.ts";
 import { llamarPagina } from "../../features/llamar/client.ts"; // ia-llamar S11: how each AI is called and the intent behind «Hablar con ella» / E
 import { montarLlamarIA } from "./llamar-ia.ts"; // ia-llamar S11: the notice and the box of «Hablar con ella», and the prompt «E: hablar con…»
 import { burbujaPagina } from "../../features/burbuja/client.ts"; // ia-llamar S9: the shape of each AI's action bubble and the «entras» that flashes it
+import { ojosDe } from "../../features/ia/ojos.ts"; // t_5096d6f4: the eyes of an AI by the size of its model
 import { iaPagina } from "../../features/ia/client.ts"; // ia-visible S3: the public card of each AI (state, who answers, what it may do)
 import { asiento, interruptor as interruptorAsiento } from "../../features/asiento/client.ts"; // asiento v1: sitting down for real
 import { burbujas, interruptor as interruptorBurbujas } from "../../features/burbujas/client.ts"; // burbujas v1: voice bubbles
@@ -252,7 +253,7 @@ view.fijarRelojMundo(() => session.relojServidorMs());
 
 // ia-visible S4: an AI's plate is always on, green, with an «IA» chip (and a moon asleep); the server's public card says who is one and its state.
 // Nothing is made in a world without AIs: this only fires when an entry appears, changes or goes.
-iaPagina.alCambiar((quien, ficha) => view.ia(quien === session.entity ? "self" : quien, ficha ? ficha.estado : null));
+iaPagina.alCambiar((quien, ficha) => view.ia(quien === session.entity ? "self" : quien, ficha ? ficha.estado : null, ficha ? { color: ojosDe(ficha.tamano).color, forma: ojosDe(ficha.tamano).forma } : null));
 
 // ia-llamar S9: the action bubble of each AI, drawn with the shape, radius and visibility the server publishes (nothing is made in a world without AIs);
 // «entras» (YOU crossed its edge) makes it flash for a moment. Who is inside is the server's: the page only draws.

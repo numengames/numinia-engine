@@ -6,15 +6,19 @@
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { ServerApi } from "../../packages/feature/src/index.ts";
 import { ATENTA_TICKS, ia } from "./feature.ts";
+import { tamanoDeHabitante } from "./ojos.ts";
 
 const esIA = (id: string | undefined): boolean => !!id && id.startsWith("ia-"); // identidad.ts agenteDe
+
+/** The size class the roles feature's event carries: an inhabitant says its escalón (+ the model of its file); anything else (an organization's AI, an outside agent) says nothing, so the eyes are the honest «no sabemos». The model's name stops here: only the class is published. */
+const tamano = (m: Record<string, unknown>) => (typeof m.escalon === "number" && m.escalon >= 0 ? tamanoDeHabitante({ escalon: m.escalon, modelo: typeof m.modelo === "string" && m.modelo ? m.modelo : undefined }) : "desconocido");
 
 function setup(api: ServerApi): void {
   const poner = (entity: number, v: Record<string, unknown>) => api.state.set(String(entity), v);
   const hasta = new Map<number, number>(); // AI entity → tick at which its «attentive» ends (S12); only AIs that reported are here
   api.onIdentify((entity, who) => {
     hasta.delete(entity);
-    if (esIA(who.id)) poner(entity, { estado: "activa", comunidad: "", nombre: "", cartera: "", construye: false, atenta: false });
+    if (esIA(who.id)) poner(entity, { estado: "activa", comunidad: "", nombre: "", cartera: "", construye: false, atenta: false, tamano: "desconocido" });
   });
   api.onLeave((entity) => { hasta.delete(entity); api.state.delete(String(entity)); });
   // S12: the bridge says its brain is listening (every `llamadas` / `esperar_llamada`). The public flag is true for ATENTA_S seconds
@@ -38,7 +42,7 @@ function setup(api: ServerApi): void {
   api.listen("roles", "ia", (m) => {
     const entity = Number(m.quien);
     if (!esIA(api.who(entity)?.id)) return false; // only an AI's entry; a stray event for a person changes nothing
-    poner(entity, { estado: m.estado === "dormida" ? "dormida" : "activa", comunidad: String(m.comunidad ?? ""), nombre: String(m.nombre ?? ""), cartera: String(m.cartera ?? ""), construye: m.construye === true, atenta: (hasta.get(entity) ?? 0) > api.tick() }); // a fresh pass keeps «attentive» as it was
+    poner(entity, { estado: m.estado === "dormida" ? "dormida" : "activa", comunidad: String(m.comunidad ?? ""), nombre: String(m.nombre ?? ""), cartera: String(m.cartera ?? ""), construye: m.construye === true, atenta: (hasta.get(entity) ?? 0) > api.tick(), tamano: tamano(m) }); // a fresh pass keeps «attentive» as it was
     return true;
   });
 }

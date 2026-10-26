@@ -64,7 +64,7 @@ const RESPONDE = { comunidad: "La Torre", nombre: "Ana", cartera: CARTERA };
 test("ia pública: an AI whose pass says who answers shows state, community + name + short wallet, and that it builds", () => {
   const W = mundo();
   const A = W.entrar(paseIA(T0, { ia: { responde: RESPONDE } }));
-  assert.deepEqual(W.pagina.de(A.e), { estado: "activa", responde: { comunidad: "La Torre", nombre: "Ana", cartera: "0x12…ab" }, puede: { construir: true }, atenta: false });
+  assert.deepEqual(W.pagina.de(A.e), { estado: "activa", responde: { comunidad: "La Torre", nombre: "Ana", cartera: "0x12…ab" }, puede: { construir: true }, atenta: false, tamano: "desconocido" });
   assert.equal(W.pagina.es(A.e), true);
   assert.ok(!JSON.stringify([...W.estado()]).includes(CARTERA.slice(6)), "the full address never reaches a page");
   assert.deepEqual(W.pagina.lista(), [{ quien: A.e, ia: W.pagina.de(A.e) }]);
@@ -85,9 +85,9 @@ test("ia pública: a wallet without a name is shown short; a name without a wall
 test("ia pública: an AI without an «ia» block still has a minimal card (it is an AI): state and abilities, nobody listed as answering", () => {
   const W = mundo();
   const A = W.entrar(paseIA(T0));
-  assert.deepEqual(W.pagina.de(A.e), { estado: "activa", puede: { construir: true }, atenta: false });
+  assert.deepEqual(W.pagina.de(A.e), { estado: "activa", puede: { construir: true }, atenta: false, tamano: "desconocido" });
   const B = W.entrar(paseIA(T0, { sub: `a_${"cd".repeat(16)}`, perm: ["enter-worlds"], name: "Bea" }));
-  assert.deepEqual(W.pagina.de(B.e), { estado: "activa", puede: { construir: false }, atenta: false }, "no build permission in its pass = does not build");
+  assert.deepEqual(W.pagina.de(B.e), { estado: "activa", puede: { construir: false }, atenta: false, tamano: "desconocido" }, "no build permission in its pass = does not build");
   assert.deepEqual(W.pagina.lista().map((x) => x.quien), [A.e, B.e].sort((x, y) => x - y));
 });
 
@@ -100,7 +100,7 @@ test("ia pública: asleep says «dormida» and never builds, whatever the pass l
   W.pagina.alCambiar((q, f) => { if (q === A.e) visto.push(f?.estado ?? null); });
   W.reloj(T0 + 60_000);
   W.enviarPase(A.t, paseIA(T0 + 60_000, { state: "activa", ia: { responde: { comunidad: "La Torre", nombre: "Otra" } } }));
-  assert.deepEqual(W.pagina.de(A.e), { estado: "activa", responde: { comunidad: "La Torre", nombre: "Otra" }, puede: { construir: true }, atenta: false });
+  assert.deepEqual(W.pagina.de(A.e), { estado: "activa", responde: { comunidad: "La Torre", nombre: "Otra" }, puede: { construir: true }, atenta: false, tamano: "desconocido" });
   assert.deepEqual(visto, ["activa"]);
   W.reloj(T0 + 120_000);
   W.enviarPase(A.t, paseIA(T0 + 120_000, { state: "dormida", ia: { responde: RESPONDE } }));
@@ -130,15 +130,15 @@ test("ia pública: an inhabitant (agent ticket, no pass, no roles feature) still
   const hab = new Cuerpo(inst.join(0), emitirAgente(agents, "lia", today(NOW)));
   for (let i = 0; i < 4; i++) { t.flush(); hab.paso(); inst.tick(); t.flush(); s.tick(0, 0); }
   assert.equal(hab.nombre, "Lía · IA");
-  assert.deepEqual(pagina.de(hab.entidad), { estado: "activa", puede: { construir: false }, atenta: false });
+  assert.deepEqual(pagina.de(hab.entidad), { estado: "activa", puede: { construir: false }, atenta: false, tamano: "desconocido" });
   assert.equal(pagina.es(s.entity), false);
   assert.deepEqual(pagina.lista().map((x) => x.quien), [hab.entidad]);
 });
 
 test("ia pública: publica() reads an entry safely; an unknown or odd value falls back to the safest reading", () => {
-  assert.deepEqual(publica({}), { estado: "activa", puede: { construir: false }, atenta: false });
-  assert.deepEqual(publica({ estado: "dormida", construye: true, comunidad: "La Torre", atenta: true }), { estado: "dormida", responde: { comunidad: "La Torre" }, puede: { construir: false }, atenta: true });
-  assert.deepEqual(publica({ estado: 7, comunidad: 3, nombre: "Ana", construye: "si" }), { estado: "activa", puede: { construir: false }, atenta: false });
+  assert.deepEqual(publica({}), { estado: "activa", puede: { construir: false }, atenta: false, tamano: "desconocido" });
+  assert.deepEqual(publica({ estado: "dormida", construye: true, comunidad: "La Torre", atenta: true, tamano: "desconocido" }), { estado: "dormida", responde: { comunidad: "La Torre" }, puede: { construir: false }, atenta: true, tamano: "desconocido" });
+  assert.deepEqual(publica({ estado: 7, comunidad: 3, nombre: "Ana", construye: "si" }), { estado: "activa", puede: { construir: false }, atenta: false, tamano: "desconocido" });
 });
 
 test("ia pública: the full server and page lists carry the feature (nothing to switch on, R-1)", () => {
