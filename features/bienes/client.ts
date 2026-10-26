@@ -131,12 +131,22 @@ export function crearCliente(o: { guarda?: Guarda | null } = {}) {
     a.on("recibido", (m) => { nuevo = String(m.nombre); avisar(); });
     a.on("traido", (m) => { esperando?.(m); });
     // N18: what each person wears → the page draws it on their avatar (and on yours)
-    a.state.onChange((k, v) => {
+    const vestir = (k: string, v: Msg | undefined, intento = 0): void => {
       if (!k.startsWith("p:")) return;
       const ent = Number(k.slice(2));
-      if (Number.isInteger(ent)) a.view.lleva?.(ent, v ? { model: String(v.modelo), donde: String(v.donde) as Donde, nombre: String(v.nombre) } : null);
+      try {
+        if (Number.isInteger(ent)) a.view.lleva?.(ent, v ? { model: String(v.modelo), donde: String(v.donde) as Donde, nombre: String(v.nombre) } : null);
+      } catch {
+        // the state that comes with the connection can arrive while the page is still building its session (the page's hooks
+        // read `session` before it exists): try again a moment later, with what the state says THEN
+        if (intento < 40) setTimeout(() => vestir(k, a.state.get(k), intento + 1), 100);
+      }
       avisar();
-    });
+    };
+    a.state.onChange((k, v) => vestir(k, v));
+    // whoever was already wearing something when this page came in (the state arrived before this part listened): apply it too, so a
+    // late guest does not see people with empty hands (the Torre's «Ir» photo: the Seed was not there)
+    for (const k of a.state.keys()) vestir(k, a.state.get(k));
   });
   return { parts: [parte], bienes: control };
 }

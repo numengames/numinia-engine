@@ -391,3 +391,23 @@ visible **100** (20/s), más 12 latidos por ventana (tipo 16: un temporizador de
 código: el INPUT se manda dentro del bucle de dibujo (`view.loop` → `session.tick`), que el navegador **para** en una pestaña oculta (el móvil, además, la
 congela); el latido va por `setInterval`, que sí sigue (a 1 Hz como mucho) y por eso el servidor admite 150 s de silencio a quien dijo `oculta`
 (`SILENCIO_OCULTA_MS`) y 15 s al resto. Medirlo de verdad pide un Chromium con ventana o un móvil (`chrome://inspect`, lote de móviles). Pendiente.
+
+## Lo que la niebla tapa, también en las piezas de función: la Torre de los Alquimistas entera (t_43143556)
+
+El corte por niebla de N12 solo miraba las cosas, las personas y los rótulos. Los grupos que dibujan las funciones
+del mundo (`pesca:`, `dardos:`, `elemento:`, `ancestros:`) se seguían dibujando a 110 m con una niebla que acaba en 60.
+Ahora entran en el mismo corte con su esfera englobante (re-medida cada 60 cuadros: la línea de la caña o un dardo en
+vuelo la agrandan). La luz de la sala de los Ancestros no se oculta nunca (ocultar una luz recompila todos los materiales).
+Medida en la muestra de la Torre (mundo `muestra-torre`, niebla 60 m, GL por software, planta B = sin sombras, el
+punto más caro: de pie en el porche de la Torre mirando al este, con todo el mundo delante):
+
+| vista | antes | después |
+|---|---|---|
+| Quest simulada (nivel B), llamadas | 88 | 55 |
+| PC (nivel A, con sombras), llamadas | 112 | 77 |
+| llegada, Quest | 40 | 20 |
+| junto al Ayuntamiento, Quest | 65 | 49 |
+
+Con casco emulado (IWER Meta Quest 3 sobre la misma página, `?medidor`): los 12 rumbos del porche dan como peor caso
+125 llamadas en total = 62 por ojo (`ojos: 2` en el censo); tope de la plantilla B: 150 por ojo (`limits.json`), objetivo de la
+tarjeta: 80. `muestra-torre/medir.mjs` y `medir-vr.mjs` lo repiten.
