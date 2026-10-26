@@ -2,10 +2,13 @@
 // entry per AI entity: this part itself, at identify (an «ia-…» identity gets the minimal entry: it is an AI, active), and the
 // roles feature's server-only event «ia», which knows the pass (state, who answers, whether it builds) and says it again when a
 // fresh pass changes it. Third source (S12): the AI's intent `atenta` — the bridge says its brain just used its listening tools; `atenta` is
-// true for ATENTA_S (90) seconds after the last report, and a fresh pass does not reset it. People never get an entry: nothing here runs for an identity without the «ia-» prefix.
+// true for ATENTA_S (90) seconds after the last report, and a fresh pass does not reset it. Fourth (t_466efdb8): `pensando` — decided by the
+// server alone, from what it SEES: a call reaches the AI (the llamar feature's server-only event «llamada») → `pensando` until that AI says
+// a line in the chat (near or zone) or PENSANDO_S (45) seconds pass, whichever comes first. No intent: nothing a page or an agent sends can
+// turn the orb on or off. People never get an entry: nothing here runs for an identity without the «ia-» prefix.
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { ServerApi } from "../../packages/feature/src/index.ts";
-import { ATENTA_TICKS, ia } from "./feature.ts";
+import { ATENTA_TICKS, PENSANDO_TICKS, ia } from "./feature.ts";
 import { tamanoDeHabitante } from "./ojos.ts";
 
 const esIA = (id: string | undefined): boolean => !!id && id.startsWith("ia-"); // identidad.ts agenteDe
@@ -16,11 +19,27 @@ const tamano = (m: Record<string, unknown>) => (typeof m.escalon === "number" &&
 function setup(api: ServerApi): void {
   const poner = (entity: number, v: Record<string, unknown>) => api.state.set(String(entity), v);
   const hasta = new Map<number, number>(); // AI entity → tick at which its «attentive» ends (S12); only AIs that reported are here
+  const piensa = new Map<number, number>(); // AI entity → tick at which its «thinking» ends (t_466efdb8); only AIs with a call waiting are here
+  const pensar = (entity: number, si: boolean): void => {
+    const actual = api.state.get(String(entity));
+    if (!actual || (actual.pensando === true) === si) return; // the state changes only when the flag flips
+    poner(entity, { ...actual, pensando: si });
+  };
   api.onIdentify((entity, who) => {
-    hasta.delete(entity);
-    if (esIA(who.id)) poner(entity, { estado: "activa", comunidad: "", nombre: "", cartera: "", construye: false, atenta: false, tamano: "desconocido" });
+    hasta.delete(entity); piensa.delete(entity);
+    if (esIA(who.id)) poner(entity, { estado: "activa", comunidad: "", nombre: "", cartera: "", construye: false, atenta: false, tamano: "desconocido", pensando: false });
   });
-  api.onLeave((entity) => { hasta.delete(entity); api.state.delete(String(entity)); });
+  api.onLeave((entity) => { hasta.delete(entity); piensa.delete(entity); api.state.delete(String(entity)); });
+  // t_466efdb8: a call reached this AI (llamar's «llamada», the server's own event) → thinking; its first line in the chat → answered.
+  api.listen("llamar", "llamada", (m) => {
+    const entity = Number(m.ia), actual = api.state.get(String(entity));
+    if (!actual || actual.estado !== "activa") return false; // an AI that sleeps, or one we do not know, does not think
+    piensa.set(entity, api.tick() + PENSANDO_TICKS); pensar(entity, true);
+    return false; // only looking: the call is llamar's
+  });
+  const contesto = (m: Record<string, unknown>): boolean => { const entity = Number(m.quien); if (piensa.delete(entity)) pensar(entity, false); return false; };
+  api.listen("chat", "dicho", contesto);
+  api.listen("chat", "zona", contesto);
   // S12: the bridge says its brain is listening (every `llamadas` / `esperar_llamada`). The public flag is true for ATENTA_S seconds
   // after the last report. The state changes only when the flag flips, so a brain that reports all day sends nothing to the pages.
   api.on("atenta", (from) => {
@@ -31,6 +50,7 @@ function setup(api: ServerApi): void {
     if (actual.atenta !== true) poner(from, { ...actual, atenta: true });
   });
   api.onTick((t) => {
+    if (piensa.size > 0) for (const [entity, fin] of piensa) { if (t >= fin) { piensa.delete(entity); pensar(entity, false); } }
     if (hasta.size === 0) return; // no AI reported: no work
     for (const [entity, fin] of hasta) {
       if (t < fin) continue;
@@ -42,7 +62,8 @@ function setup(api: ServerApi): void {
   api.listen("roles", "ia", (m) => {
     const entity = Number(m.quien);
     if (!esIA(api.who(entity)?.id)) return false; // only an AI's entry; a stray event for a person changes nothing
-    poner(entity, { estado: m.estado === "dormida" ? "dormida" : "activa", comunidad: String(m.comunidad ?? ""), nombre: String(m.nombre ?? ""), cartera: String(m.cartera ?? ""), construye: m.construye === true, atenta: (hasta.get(entity) ?? 0) > api.tick(), tamano: tamano(m) }); // a fresh pass keeps «attentive» as it was
+    poner(entity, { estado: m.estado === "dormida" ? "dormida" : "activa", comunidad: String(m.comunidad ?? ""), nombre: String(m.nombre ?? ""), cartera: String(m.cartera ?? ""), construye: m.construye === true, atenta: (hasta.get(entity) ?? 0) > api.tick(), tamano: tamano(m), pensando: m.estado !== "dormida" && piensa.has(entity) }); // a fresh pass keeps «attentive» and «thinking» as they were (an AI that went to sleep stops thinking)
+    if (m.estado === "dormida") piensa.delete(entity);
     return true;
   });
 }

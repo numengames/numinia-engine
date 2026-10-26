@@ -52,6 +52,8 @@ import { createAros } from "./aros.ts"; // ia-visible S5: a green ring on the fl
 import { arosMax } from "./ia-marca.ts";
 import { createOjosIA } from "./ojos-ia.ts"; // t_5096d6f4: the eyes of an AI say the size of its model (one mesh per near AI, shared geometry and material)
 import { ojosMax } from "./ojos-ia-forma.ts";
+import { createOrbesIA } from "./orbe-ia.ts"; // t_466efdb8: the «thinking» orb over an AI that was called and has not answered (one instanced quad for all, none on tier D)
+import { orbesMax } from "./orbe-ia-forma.ts";
 import { createBurbujas } from "./burbujas.ts"; // ia-llamar S9: the action bubble of every AI (4 shapes; pooled, shared geometry and materials, capped)
 import { burbujasMax } from "./burbujas-politica.ts";
 import { createPompas } from "./pompas.ts"; // condiciones/c5: the bubble over someone who is still reading the norms
@@ -345,6 +347,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const nombres = createNombres({ world, camera, avatarOf: meshOf }); // J3: names over heads and speech bubbles
   const aros = createAros({ world, avatarOf: (t) => meshOf(t), camera, max: () => arosMax(power.mobile) }); // ia-visible S5: nothing is made until the first AI
   const ojosIA = createOjosIA({ world, cuerpo: (t) => meshOf(t), visible: (t) => (t === "self" ? selfMat.visible : true), cabeza: (t, out) => avs.cabeza(t === "self" ? "yo" : t, out), rumbo: (t) => avs.rumbo(t === "self" ? "yo" : t), camera, max: () => ojosMax(power.mobile) });
+  const orbesIA = createOrbesIA({ world, cuerpo: (t) => meshOf(t), visible: (t) => (t === "self" ? selfMat.visible : true), encima: (t, c) => nombres.above(t, c), camera, max: () => orbesMax(power.mobile), nivel: () => entorno.nivel });
   const burbujas = createBurbujas({ world, avatarOf: (t) => meshOf(t), yo: () => selfXZ ? { x: selfXZ.x, y: selfXZ.y ?? 0, z: selfXZ.z } : null, max: () => burbujasMax(power.mobile, renderer.xr.isPresenting) }); // ia-llamar S9: nothing is made until the first AI
   const pompas = createPompas({ world, avatarOf: (t) => meshOf(t) }); // condiciones/c5: a bubble around whoever is reading the norms (one shared sphere)
   // pesca v1: rods, lines and floats of whoever fishes near (lazy: packages/render/src/pesca.ts). "self" hides in first person, so the rod uses the capsule's place anyway
@@ -447,6 +450,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     pompas.update(now);
     aros.update();
     ojosIA.update(); // after the avatars moved (the VRM's head follows its capsule)
+    orbesIA.update(now); // after the plates are placed: it floats over the name
     burbujas.update(now);
   }
 
@@ -1437,6 +1441,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     sinRotulos<T>(f: () => T): T { return nombres.sinRotulos(f); },
     /** ia-visible S4: this avatar is an AI (`activa`|`dormida`) or no longer (`null`): its plate is always on, green, with an «IA» chip (and a moon asleep). `ojos` (t_5096d6f4) = the colour and shape of its model-size step, drawn on its face. */
     ia(t: Target, estado: "activa" | "dormida" | null, ojos?: { color: number; forma: "punto" | "ranura" | "redondo" | "estrella" } | null): void { nombres.ia(t, estado); aros.poner(t, estado); ojosIA.poner(t, estado === null ? null : ojos ?? null); burbujas.dormida(t, estado === "dormida"); rotulosPendiente = true; },
+    /** t_466efdb8: this AI is thinking (the server says it was called and has not answered) or not any more: a «thinking» orb over its plate. Off on tier D and far away; one draw call for all of them. */
+    pensando(t: Target, si: boolean): void { orbesIA.poner(t, si); },
+    /** t_466efdb8: «menos movimiento» — the orbs stand still. */
+    orbeQuieto(si: boolean): void { orbesIA.quieto(si); },
+    /** t_466efdb8 (for checks): who thinks, how many orbs are drawn, that they share one mesh. */
+    orbesIA() { return orbesIA.lista(); },
     /** ia-visible S5 (for checks): who has a ring, whether it is drawn, and how much the rings share (one geometry, one material per state). */
     aros() { return { lista: aros.lista(), ...aros.compartidos() }; },
     /** t_5096d6f4 (for checks): who has eyes (colour and shape), whether they are drawn, and how much the eyes share (one geometry per shape, one material per colour). */
@@ -1458,7 +1468,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
     /** MIS-200 (t_9687b5fc): the world still loads models or shaders: the entry buttons wait (the same gate as the VR entry, not busy()). */
     cargando(): boolean { return loading > 0 || precompilar.pendientes() > 0; },
-    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || reacciones.size > 0 || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || ojosIA.busy() || burbujas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || dados3d.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ); },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || reacciones.size > 0 || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || ojosIA.busy() || orbesIA.busy() || burbujas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || dados3d.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); power.paron(2); }, // B4: the next frames pay the resize
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */

@@ -38,6 +38,7 @@ import { movedores } from "../../features/movedores/client.ts"; // the movers a 
 import { montarVideoMandos } from "./video-mandos.ts";
 import { avataresDelMundo, catalogoDeAvatares, idAvatarDe } from "./catalogo-avatares.ts"; // not "./a…": dev:lan proxies every path starting with /a to the server
 import { montarChat } from "./chat.ts";
+import { montarPensando } from "./ia-pensando.ts"; // t_466efdb8: the small «thinking» orb in the chat line
 import { escribiendo } from "./escribiendo.ts";
 import { misiones } from "../../features/misiones/client.ts";
 import { montarInteraccion, construyendo } from "./interactuar.ts";
@@ -253,6 +254,7 @@ view.fijarRelojMundo(() => session.relojServidorMs());
 // ia-visible S4: an AI's plate is always on, green, with an «IA» chip (and a moon asleep); the server's public card says who is one and its state.
 // Nothing is made in a world without AIs: this only fires when an entry appears, changes or goes.
 iaPagina.alCambiar((quien, ficha) => view.ia(quien === session.entity ? "self" : quien, ficha ? ficha.estado : null, ficha ? { color: ojosDe(ficha.tamano).color, forma: ojosDe(ficha.tamano).forma } : null));
+iaPagina.alCambiar((quien, ficha) => view.pensando(quien === session.entity ? "self" : quien, ficha?.pensando === true)); // t_466efdb8: the server says an AI was called and has not answered → an orb over it (off on tier D)
 
 // ia-llamar S9: the action bubble of each AI, drawn with the shape, radius and visibility the server publishes (nothing is made in a world without AIs);
 // «entras» (YOU crossed its edge) makes it flash for a moment. Who is inside is the server's: the page only draws.
@@ -423,6 +425,7 @@ const graboso = montarGraboso({ lienzo: view.renderer.domElement, view, xr: { pr
 
 // ---- J3: the chat box (Enter opens, Enter sends, Escape closes; a «Chat» button on touch screens) ----
 const cajaChat = montarChat(chatDePagina, document.getElementById("chat")!);
+montarPensando({ ia: iaPagina, nombre: (q) => chatDePagina.nombres.get(q) ?? null, distancia: distanciaA, idioma: () => document.documentElement.lang, raiz: document.getElementById("chat")! }); // t_466efdb8: «Ada está pensando…» with a tiny orb, under the chat list
 
 // ---- M18 (trozo 2, local only): «Compartir pantalla» (button or P): your screen on the nearest video screen of the world,
 // or in a floating window; only this page sees it — nothing is sent (apps/plaza/pantalla.ts) ----
