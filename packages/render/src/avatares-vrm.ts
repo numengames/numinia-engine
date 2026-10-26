@@ -15,7 +15,7 @@ import { TRIANGULOS_MAX } from "./avatares-politica.ts";
  * (visemes for e/i/o/u and the blink) stay dropped; only this one may come back, and only while needed. */
 type Boca = Map<THREE.Mesh, THREE.BufferAttribute>;
 /** A VRM file parsed once: never drawn itself, only cloned. */
-export type Plantilla = { vrm: VRM; cadera: number; triangulos: number; clips: Map<string, THREE.AnimationClip>; boca: Boca | null };
+export type Plantilla = { vrm: VRM; cadera: number; /** the lowest ankle over the model's root at rest (m): where a planted foot sits (apoyoDePies) */ pie: number; triangulos: number; clips: Map<string, THREE.AnimationClip>; boca: Boca | null };
 /** One player's copy: its own bones and normalized rig, shared geometry, materials and clips.
  * `boca`: this copy's meshes that carry the kept "aa" shape, each remembering its normal (shape-less) geometry
  * so U13 can put it back unchanged the moment nobody near is heard any more. */
@@ -95,7 +95,7 @@ export function crearCargador() {
       sinFormas(vrm.scene);
       aLambert(vrm.scene);
       const cadera = vrm.humanoid.normalizedRestPose.hips?.position?.[1] ?? 1;
-      return { vrm, cadera, triangulos, clips: new Map(), boca };
+      return { vrm, cadera, pie: pieMasBajo(vrm.humanoid, vrm.scene) ?? 0, triangulos, clips: new Map(), boca };
     },
     async animacion(url: string): Promise<VRMAnimation> {
       const gltf = await (await listo).loadAsync(url);
@@ -202,4 +202,14 @@ export function desactivarBoca(c: Copia): void {
  * on a copy whose mouth is not active (closed already) or that has no "aa" shape at all. */
 export function ponerNivelBoca(c: Copia, nivel: number): void {
   for (const b of c.boca) if (b.malla.morphTargetInfluences) b.malla.morphTargetInfluences[0] = nivel;
+}
+
+const _a = new THREE.Vector3(), _b = new THREE.Vector3();
+const HUESOS_PIE = ["leftFoot", "rightFoot", "leftToes", "rightToes"] as const; // the toes too: crouching stands on the balls of the feet, the ankles rise
+/** The lowest foot joint (ankles and toes, raw bones) over `raiz`'s own origin, in metres, or null when the rig has no feet. Four bone positions, no allocation. */
+export function pieMasBajo(humanoid: VRM["humanoid"], raiz: THREE.Object3D): number | null {
+  raiz.getWorldPosition(_b);
+  let min = Infinity;
+  for (const nombre of HUESOS_PIE) { const h = humanoid.getRawBoneNode(nombre); if (h) min = Math.min(min, h.getWorldPosition(_a).y - _b.y); }
+  return min === Infinity ? null : min;
 }

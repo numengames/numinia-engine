@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { checkLayers } from "./layers.mjs";
 import { runHeadless } from "../packages/cli/src/run.ts";
 import { medirArranque, construir, TOPE_GZ } from "./tamano.mjs";
+import { puerta as puertaTipos } from "./tipos.ts";
 
 const root = join(fileURLToPath(import.meta.url), "../..");
 const rows = [];
@@ -36,6 +37,9 @@ gate("capas", "0 imports prohibidos", () => {
   const v = checkLayers(root);
   return [v.length === 0, v.length ? v[0] : "0"];
 });
+
+// strict TypeScript as a ratchet (BACKLOG D1): a package at 0 errors stays at 0, a file with errors may not get more
+gate("tipos (tsc estricto)", "0 errores nuevos", () => puertaTipos());
 
 let base;
 gate("determinismo", "misma semilla = misma huella", () => {

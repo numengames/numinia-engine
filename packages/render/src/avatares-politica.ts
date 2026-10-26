@@ -161,7 +161,9 @@ export function decaerBoca(anterior: number, rms: number | null, factor = 0.55):
 
 // ---- J7b: moves (the movement wheel) over the speed-driven clips ----
 /** A move as the view plays it (same shape as the feature's MovimientoVista; render does not import packages/feature). */
-export type Movimiento = { id: string; clips: readonly string[]; modo: "una" | "bucle" | "quedarse"; hastaS: number; viva: boolean };
+export type Movimiento = { id: string; clips: readonly string[]; modo: "una" | "bucle" | "quedarse"; hastaS: number; viva: boolean;
+  /** a posture that keeps the feet on the floor (sitting, crouching): the page lifts or lowers the body so they are (apoyoDePies) */
+  apoya?: boolean };
 /** One avatar's move in progress. `desde` = when its first clip started (ms), null while its files are still loading. */
 export type EnCurso = { mov: Movimiento; pedido: number; desde: number | null; serie: number };
 /** A move whose files have not all arrived after this long is dropped (a slow network must not freeze someone later). */
@@ -200,4 +202,23 @@ export function movimientoOcupa(e: EnCurso, ahora: number, duracion: (clip: stri
   let entrada = 0;
   for (const c of e.mov.modo === "bucle" ? e.mov.clips.slice(0, -1) : e.mov.clips) entrada += duracion(c) ?? 0;
   return (ahora - e.desde) / 1000 < entrada + FUNDIDO_S;
+}
+
+// ---- feet on the floor during a posture (t_3f0e5846: «sentado, los pies se hunden unos 5 cm») ----
+// The house clips come from one body (Quaternius): sitting drops the hips to 0.586 of their height, but an avatar with
+// other leg proportions then ends with its feet 5 cm in the floor (a robot: 7 cm) or the same above it. While a calm
+// posture plays, the page measures the lowest ankle over the avatar's own root and moves the root so that ankle sits
+// as high as it does standing. Everything is relative to the avatar's own rest pose, so any VRM works.
+/** The most the body is moved for this, either way (m): a bigger gap is a broken file, not a proportion. */
+export const APOYO_MAX_M = 0.12;
+/** How fast the body follows the target (1/s): the crossfade into the posture lasts 0.2 s, so the plant arrives with it. */
+export const APOYO_RITMO = 12;
+/** Metres to move the body (positive = up) so the lowest ankle (`pieMin`, over the avatar's root) sits where it does at rest (`pieReposo`). */
+export const metaApoyo = (pieMin: number, pieReposo: number): number =>
+  Number.isFinite(pieMin) && Number.isFinite(pieReposo) ? Math.max(-APOYO_MAX_M, Math.min(APOYO_MAX_M, pieReposo - pieMin)) : 0;
+/** One frame of following `meta` from `actual` (exponential, frame-rate independent); lands exactly when it is within half a millimetre. */
+export function suavizarApoyo(actual: number, meta: number, dt: number): number {
+  const d = meta - actual;
+  if (Math.abs(d) < 0.0005) return meta;
+  return actual + d * (1 - Math.exp(-APOYO_RITMO * Math.max(0, dt)));
 }

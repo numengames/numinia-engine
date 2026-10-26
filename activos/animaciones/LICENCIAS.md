@@ -30,6 +30,10 @@ raíz `Roll_RM` y `Sword_Attack_RM` (la cadera se sale de la cápsula), dos pose
 | Fichero | Clip de UAL1 | Para qué |
 |---|---|---|
 | `saludar.vrma` | `Idle_Loop + saludo` | saludar con la mano (UAL1 gratis no trae saludo: el cuerpo de `Idle_Loop` y el brazo derecho escrito en `tools/vrma/convertir.js`; obra derivada, también CC0) |
+| `asentir.vrma` | `Idle_Loop + asentir` | decir que sí con la cabeza (UAL1 gratis no trae ninguno: el cuerpo de `Idle_Loop` y la cabeza escrita en `tools/vrma/convertir.js`; obra derivada, también CC0) |
+| `negar.vrma` | `Idle_Loop + negar` | decir que no con la cabeza (ídem) |
+| `pensar.vrma` | `Idle_Loop + pensar` | la mano en la barbilla (ídem) |
+| `senalar.vrma` | `Idle_Loop + senalar` | señalar con el brazo derecho extendido (ídem) |
 | `hablar.vrma` | `Idle_Talking_Loop` | hablar con las manos |
 | `antorcha.vrma` | `Idle_Torch_Loop` | alzar una antorcha |
 | `bailar.vrma` | `Dance_Loop` | bailar |

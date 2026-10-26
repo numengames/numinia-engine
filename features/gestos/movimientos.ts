@@ -15,6 +15,8 @@ export type Movimiento = {
   etiqueta: string;
   /** a word over the head even when the VRM plays it (the wave says «¡Hola!») */
   dice?: string;
+  /** a posture with the feet on the floor (sitting, crouching): the page plants them whatever the avatar's leg proportions (avatares-politica apoyoDePies) */
+  apoya?: boolean;
 };
 export type GrupoId = "social" | "acciones" | "combate" | "reacciones";
 export const GRUPOS: readonly { id: GrupoId; nombre: string }[] = [
@@ -35,9 +37,9 @@ export const MOVIMIENTOS: readonly Movimiento[] = [
   { ...m("saludar", "Saludar", "social", "Saluda con la mano", ["saludar"], "una", true, "¡Hola!"), dice: "¡Hola!" },
   m("hablar", "Hablar", "social", "Habla con las manos", ["hablar"], "bucle", false),
   m("bailar", "Bailar", "social", "Baila sin parar", ["bailar"], "bucle", true, "♪ ♪ ♪"),
-  m("sentarse", "Sentarse", "social", "Se sienta y se queda sentado", ["sentarse", "sentado"], "bucle", false),
-  m("charlar-sentado", "Charlar sentado", "social", "Se sienta y habla", ["sentarse", "sentado-hablar"], "bucle", false),
-  m("agacharse", "Agacharse", "social", "Se queda en cuclillas", ["agachado"], "bucle", false),
+  { ...m("sentarse", "Sentarse", "social", "Se sienta y se queda sentado", ["sentarse", "sentado"], "bucle", false), apoya: true },
+  { ...m("charlar-sentado", "Charlar sentado", "social", "Se sienta y habla", ["sentarse", "sentado-hablar"], "bucle", false), apoya: true },
+  { ...m("agacharse", "Agacharse", "social", "Se queda en cuclillas", ["agachado"], "bucle", false), apoya: true },
   m("conducir", "Conducir", "social", "Hace que conduce", ["conducir"], "bucle", false),
   m("antorcha", "Alzar la antorcha", "social", "Levanta una antorcha imaginaria", ["antorcha"], "bucle", false),
   // acciones
@@ -58,6 +60,11 @@ export const MOVIMIENTOS: readonly Movimiento[] = [
   m("disparar", "Disparar", "combate", "Dispara una vez", ["pistola-disparar"], "una", true),
   m("recargar", "Recargar", "combate", "Recarga", ["pistola-recargar"], "una", true),
   // reacciones
+  // the four non-verbal answers of an AI's body (packages/agent/src/gesto-ia.ts), a person may make them too: one short move each
+  m("asentir", "Asentir", "reacciones", "Dice que sí con la cabeza", ["asentir"], "una", false, "Sí"),
+  m("negar", "Negar", "reacciones", "Dice que no con la cabeza", ["negar"], "una", false, "No"),
+  m("pensar", "Pensar", "reacciones", "Se lleva la mano a la barbilla y piensa", ["pensar"], "una", false, "Hmm…"),
+  m("senalar", "Señalar", "reacciones", "Señala lo que tiene delante", ["senalar"], "una", false, "☞"),
   m("ay", "¡Ay!", "reacciones", "Un golpe en la cabeza", ["golpe-cabeza"], "una", true),
   m("encajar", "Encajar", "reacciones", "Un golpe en el pecho", ["golpe-pecho"], "una", true),
   m("manos-arriba", "Manos arriba", "reacciones", "Levanta las manos y las deja arriba", ["pistola-arriba"], "quedarse", false),
