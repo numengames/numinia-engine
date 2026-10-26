@@ -749,7 +749,7 @@ let modoAntes = "plano";
 setInterval(() => { const m = modo(); if (m !== modoAntes) { session.report({ k: "xr", modo: m === "plano" ? modoAntes : m, accion: m === "plano" ? "sale" : "entra", detalle: m === "plano" ? "" : `${view.xrHz() || "?"} Hz` }); modoAntes = m; } }, 250);
 const informarError = (mensaje: unknown, donde: string) => { informe.errores++; if (informe.errores <= 5) session.report({ k: "error", mensaje: String(mensaje).slice(0, 160), donde: donde.slice(0, 160) }); };
 addEventListener("error", (e) => informarError(e.message, `${(e.filename ?? "").split("/").pop()}:${e.lineno}`));
-addEventListener("unhandledrejection", (e) => informarError((e.reason as Error)?.message ?? e.reason, "promesa"));
+addEventListener("unhandledrejection", (e) => { const r = e.reason as { message?: unknown; name?: unknown } | null | undefined; informarError(r === undefined || r === null ? `rechazo sin motivo (${modo()})` : r.message ?? r.name ?? r, "promesa"); });
 let lastDrawAt = 0;
 
 // ---- loop: fixed 20 Hz client ticks inside the display loop, drawing blends between ticks ----

@@ -66,13 +66,18 @@ export function sePuedeReproducir(ext: string): boolean {
 }
 
 const distancia = (g: THREE.Object3D, p: Punto) => Math.hypot(g.position.x - p.x, g.position.y - p.y, g.position.z - p.z);
+/** 0–1; NaN/Infinity (un dato roto) = 0, porque `volume` y `gain.value` no admiten valores no finitos. */
+const acotarVolumen = (x: number): number => (Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : 0);
 /** Volume for someone `d` metres from the centre of a bubble of radius `r`, or everyone's when the reach is wider.
  *  Solo se usa en el camino viejo (sin Web Audio) y para el respaldo del vídeo: con grafo, la distancia la hace el
  *  `PannerNode` (`distanciaDeSonido`). */
 export function volumenEn(d: number, r: number, o: { volume: number; reach: Alcance }): number {
-  const v = Math.max(0, Math.min(1, o.volume));
+  // `HTMLMediaElement.volume` lanza un TypeError con NaN/Infinity: aquí nunca sale un valor no finito. Sin saber dónde
+  // estás (oyente sin posición al salir de VR) dentro de una burbuja no suena; un volumen roto del mundo es silencio.
+  const v = acotarVolumen(o.volume);
   if (o.reach !== "burbuja") return v;
-  return v * (d <= r * BORDE ? 1 : d >= r ? 0 : (r - d) / (r * (1 - BORDE)));
+  const x = v * (d <= r * BORDE ? 1 : d >= r ? 0 : (r - d) / (r * (1 - BORDE)));
+  return Number.isFinite(x) ? x : 0; // d, r o v rotos (NaN): silencio, nunca un valor que el navegador rechace
 }
 // ——— M18: el reloj del mundo ———
 // Hasta ahora «el reloj de pared» era `Date.now()` de CADA ordenador: dos pestañas de máquinas con la hora distinta veían
@@ -332,7 +337,7 @@ export async function cargarVideo(url: string, verOcultos: () => boolean = () =>
         // el grafo manda: el panner hace la distancia y el bus hace el ducking y los deslizadores. Aquí solo queda
         // lo que es MÍO (mi volumen, mi silencio) y el volumen que el mundo le puso a la cosa.
         colocarVideo(g, o, r);
-        const vol = Math.max(0, Math.min(1, o.volume)) * mio;
+        const vol = acotarVolumen(o.volume) * mio;
         try { cadena.g.gain.value = vol; } catch { /* un parámetro terco: el resto sigue */ }
         if (vol > 0.001 && !quiereSonar) { quiereSonar = true; esperarGesto(() => { if (quiereSonar && cadena) v.muted = false; }); }
         if (vol <= 0.001) quiereSonar = false;
@@ -438,7 +443,7 @@ export function cargarSonido(url: string, verOcultos: () => boolean, h: Hechuras
     if (!gr) return;
     const bus = busDeSonido(o, fase === "cama"), dist = distanciaDeSonido(r, o, avisar);
     const posicion = { x: g.position.x, y: g.position.y, z: g.position.z };
-    const gain = Math.max(0, Math.min(1, o.volume));     // U11 `volume` ES el `gain` del emisor (KHR_audio_emitter)
+    const gain = acotarVolumen(o.volume);     // U11 `volume` ES el `gain` del emisor (KHR_audio_emitter)
     ultRadio = r; ultAlcance = o.reach; ultBus = bus; ultVol = gain;
     if (fase === "cama") {
       const m = sonda;
@@ -478,7 +483,7 @@ export function cargarSonido(url: string, verOcultos: () => boolean, h: Hechuras
       const r = radioDeSonido(g.scale.x);
       // de dónde oyes lo decide `audio/oyente.ts`: aquí NO se calcula nada (antes era la posición de red +1,5 m)
       const d = oyente ? distancia(g, oyente) : Infinity;
-      const gain = Math.max(0, Math.min(1, o.volume));
+      const gain = acotarVolumen(o.volume);
       // pausa por distancia: fuera de la burbuja no suena (y nada de descodificar). Con `reach` más ancho, siempre.
       const oible = gain > 0.001 && (o.reach !== "burbuja" || d < r);
 

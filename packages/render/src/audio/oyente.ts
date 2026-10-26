@@ -122,7 +122,8 @@ function multiplicar(a: ArrayLike<number>, b: ArrayLike<number>, r: Float64Array
   }
 }
 
-const esMatriz = (m: ArrayLike<number> | null | undefined): m is ArrayLike<number> => !!m && m.length >= 16 && Number.isFinite(m[0]) && Number.isFinite(m[15]);
+// la traslación también: al salir de XR la cámara plana puede tardar un cuadro en recolocarse y traer NaN en x,y,z
+const esMatriz = (m: ArrayLike<number> | null | undefined): m is ArrayLike<number> => !!m && m.length >= 16 && Number.isFinite(m[0]) && Number.isFinite(m[15]) && Number.isFinite(m[12]) && Number.isFinite(m[13]) && Number.isFinite(m[14]);
 
 export function crearOyente(h: Hechuras): Oyente {
   const xr = h.xr;
@@ -144,7 +145,8 @@ export function crearOyente(h: Hechuras): Oyente {
   let ex = NaN, ey = NaN, ez = NaN, efx = NaN, efy = NaN, efz = NaN, eux = NaN, euy = NaN, euz = NaN;
 
   /** Saca posición, delantero y arriba de una matriz de mundo, normalizando (lo mismo que `decompose`, sin reservar). */
-  function leerMatriz(m: ArrayLike<number>): void {
+  function leerMatriz(m: ArrayLike<number>): boolean {
+    if (!Number.isFinite(m[12] + m[13] + m[14] + m[4] + m[5] + m[6] + m[8] + m[9] + m[10])) return false; // pose rota: se queda la anterior
     p.x = m[12]; p.y = m[13]; p.z = m[14];
     // la cámara mira a −z y tiene +y arriba (convenio de three.js y de WebXR)
     let fx = -m[8], fy = -m[9], fz = -m[10];
@@ -154,6 +156,7 @@ export function crearOyente(h: Hechuras): Oyente {
     n = Math.hypot(ux, uy, uz);
     if (n > 1e-8) { ux /= n; uy /= n; uz /= n; } else { ux = 0; uy = 1; uz = 0; }
     p.fx = fx; p.fy = fy; p.fz = fz; p.ux = ux; p.uy = uy; p.uz = uz;
+    return true;
   }
 
   /** La pose del visor, CENTRADA ENTRE LOS DOS OJOS, en `pose4`. `false` si el navegador no la dio todavía. */
@@ -222,14 +225,13 @@ export function crearOyente(h: Hechuras): Oyente {
         if (!poseDelVisor()) return;
         // la pose viene en el espacio de referencia; el rig (el padre de la cámara) la lleva al mundo
         const base = cam?.parent?.matrixWorld?.elements;
-        if (esMatriz(base)) { multiplicar(base, pose4, mundo); leerMatriz(mundo); }
-        else leerMatriz(pose4);
+        if (esMatriz(base)) { multiplicar(base, pose4, mundo); if (!leerMatriz(mundo)) return; }
+        else if (!leerMatriz(pose4)) return;
         p.fuente = "visor";
       } else if (cam) {
         cam.updateMatrixWorld();                                  // la cámara puede no colgar de la escena
         const m = cam.matrixWorld?.elements;
-        if (!esMatriz(m)) return;
-        leerMatriz(m);
+        if (!esMatriz(m) || !leerMatriz(m)) return;
         p.fuente = "camara";
       } else return;
       escribir();
