@@ -7,7 +7,7 @@ import { dados as decl, CARAS, DADOS_MAX } from "./feature.ts";
 
 export { CARAS, DADOS_MAX };
 export type Tirada = { quien: number; sitio: string; n: number; dados: string; valores: number[]; mod: number; total: number; oculta: boolean; texto: string; mia: boolean; cuando: number };
-export type Torre = { id: string; nombre: string; x: number; y: number; z: number; radio: number; dados: string; ultima: string };
+export type Torre = { id: string; nombre: string; x: number; y: number; z: number; radio: number; dados: string; ultima: string; bandejaDx?: number; bandejaDz?: number; bandejaAlto?: number; bandejaAncho?: number; bandejaFondo?: number };
 export type Que = "tirada" | "torres" | "aviso";
 type Res = { ok: true } | { ok: false; why: string };
 const SIN: Res = { ok: false, why: "la función dados no está en este servidor" };

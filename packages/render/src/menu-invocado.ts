@@ -12,7 +12,7 @@ import type { Panel } from "./manos.ts";
 import {
   MENU, LIENZO, SECCIONES, ETIQUETAS, ICONOS, CABECERA, CONTENIDO, LISTA, ID_CERRAR, ID_SALIR, cajaCerrar, cajaSalir, cajasLista,
   zonaDe, idBoton, seccionDeId, colocarMenu, demasiadoLejos, filasCaben, rectFila, botonesFila, cajasPaginas, paginar, anguloGrados,
-  type Seccion, type Vista, type Rect,
+  VISTAS_SUELTAS, type Seccion, type Vista, type Rect,
 } from "./menu-vr.ts";
 import { TEXTO, disposicion, elegirLineas, textoDeMensaje, LINEAS_POR_MENSAJE, type MensajeVR } from "./menu-chat.ts";
 import { COLOR, FUENTE, fondoPanel, icono, boton, chip, recortar, envolverPx, rectRedondo, type PathsIcono, type EstiloBoton } from "./vr-pintura.ts";
@@ -306,7 +306,7 @@ export function createMenuInvocado(h: { scene: THREE.Object3D; salir: () => void
     if (b) { try { b.accion(); } catch (e) { console.warn("[menu-vr]", e); } pintar(true); }
   }
   function ir(v: Vista): void {
-    if (v !== "avisos" && proveedor.desactivadas().has(v)) return;
+    if (!VISTAS_SUELTAS.includes(v) && proveedor.desactivadas().has(v)) return;
     vista = v; salirPideHasta = 0;
     try { proveedor.alAbrir?.(v); } catch { /* the page's hook must not break the menu */ }
     if (abierto) pintar(true);

@@ -6,6 +6,11 @@
 //     "entorno": { "niebla": { "cerca": 8, "lejos": 60 } }, "narracion": "Huele a vino especiado.",
 //     "ambiente": "ambiente-numinia", "ambiente_ganancia": 0.1 }
 //
+// Its map (the tabletop): `"mapa": { "obra": "<sha256>.png", "titulo": "La cripta", "hueco": "El mapa de la mesa" }` puts that picture (already
+// uploaded to the server, png/jpg/webp) into a hole of the world (a picture a builder turned into a frame: objetos `hueco`) the moment the
+// scene is put; `"obra": ""` empties the hole (its card comes back). `hueco` is the hole's id or exact name; without it, the zone's only hole.
+// A scene without `mapa` leaves the map as it is. Nothing else is touched: the hole is the builder's piece, the scene only fills it.
+//
 // Its sound: `ambiente` is the id of a looping file of the sound catalogue that replaces the world's own bed while the scene
 // is on (`""` = that scene is silent); a scene without it gives the world's own bed back. `ambiente_ganancia` is its volume (×0…4).
 //
@@ -21,8 +26,12 @@ export const ESQUEMA_ESCENA = "numinia-engine/escena@1";
 export const ENTORNO_JSON_MAX = 512;
 const ID = /^[a-z0-9][a-z0-9-]{0,31}$/;
 const ID_SONIDO = /^[a-z0-9][a-z0-9_-]{0,31}$/;
+const OBRA = /^([0-9a-f]{64})\.(png|jpg|webp)$/;
+const HUECO_MAX = 64, TITULO_MAX = NOMBRE_MAX;
 
-export type Escena = { id: string; nombre: string; preset: string; entorno: string; narracion: string; casa: boolean; ambiente: string; ganancia: number };
+/** A scene's map: the work to put in a hole (`modelo`/`ext` empty = empty the hole). `hueco` empty = the zone's only hole. */
+export type MapaEscena = { hueco: string; modelo: string; ext: string; titulo: string };
+export type Escena = { id: string; nombre: string; preset: string; entorno: string; narracion: string; casa: boolean; ambiente: string; ganancia: number; mapa?: MapaEscena };
 /* `ambiente`: "" = the world's own bed, "-" = silence, else a catalogue id; `ganancia`: -1 = the default volume (see feature.ts). */
 
 const bytes = (s: string) => new TextEncoder().encode(s).length;
@@ -73,11 +82,31 @@ export function leerEscena(fichero: string, texto: string): Result<Escena> {
     else if (j.ambiente === undefined) issues.push({ path: "escena.ambiente_ganancia", message: 'solo vale junto a "ambiente" (el id del sonido al que sube o baja)' });
     else ganancia = Math.round(g * 1000) / 1000;
   }
-  if (preset === "" && entorno === "") issues.push({ path: "escena", message: "una escena necesita un \"preset\" o un \"entorno\" (o los dos)" });
+  let mapa: MapaEscena | undefined;
+  if (j.mapa !== undefined) {
+    const m = j.mapa;
+    if (typeof m !== "object" || m === null || Array.isArray(m)) issues.push({ path: "escena.mapa", message: 'un objeto: { "obra": "<sha256>.png", "titulo": "La cripta" } ("obra": "" vacía el hueco)' });
+    else {
+      const o = m as Record<string, unknown>;
+      for (const k of Object.keys(o)) if (!["obra", "titulo", "hueco"].includes(k)) issues.push({ path: `escena.mapa.${k}`, message: 'campo desconocido (hay: obra, titulo, hueco)' });
+      const obra = o.obra;
+      const ok = typeof obra === "string" && (obra === "" || OBRA.test(obra));
+      if (!ok) issues.push({ path: "escena.mapa.obra", message: 'la imagen del mapa, ya subida al servidor: "<64 hex del sha256>.png" (o .jpg, .webp); "" para vaciar el hueco' });
+      const titulo = o.titulo === undefined ? "" : o.titulo;
+      if (typeof titulo !== "string" || bytes(titulo.trim()) > TITULO_MAX) issues.push({ path: "escena.mapa.titulo", message: `el título de la obra, hasta ${TITULO_MAX} bytes (o quítalo)` });
+      const hueco = o.hueco === undefined ? "" : o.hueco;
+      if (typeof hueco !== "string" || bytes(hueco.trim()) > HUECO_MAX) issues.push({ path: "escena.mapa.hueco", message: `el id o el nombre exacto del hueco, hasta ${HUECO_MAX} bytes (o quítalo: vale el único hueco de la zona)` });
+      if (ok && typeof titulo === "string" && typeof hueco === "string") {
+        const mm = typeof obra === "string" ? OBRA.exec(obra) : null;
+        mapa = { hueco: hueco.trim(), modelo: mm ? mm[1] : "", ext: mm ? mm[2] : "", titulo: titulo.trim() };
+      }
+    }
+  }
+  if (preset === "" && entorno === "" && !mapa) issues.push({ path: "escena", message: "una escena necesita un \"preset\" o un \"entorno\" (o los dos; o solo un \"mapa\")" });
   const narracion = j.narracion === undefined ? "" : j.narracion;
   if (typeof narracion !== "string" || bytes(narracion.trim()) > NARRACION_MAX) issues.push({ path: "escena.narracion", message: `una línea de hasta ${NARRACION_MAX} bytes (o quítala)` });
   if (issues.length) return { ok: false, issues };
-  return { ok: true, value: { id: id!, nombre, preset: String(preset), entorno, narracion: String(narracion).trim(), casa: false, ambiente, ganancia } };
+  return { ok: true, value: { id: id!, nombre, preset: String(preset), entorno, narracion: String(narracion).trim(), casa: false, ambiente, ganancia, ...(mapa ? { mapa } : {}) } };
 }
 
 /** The house presets as scenes anyone directing can put in any world (`/escena noche`). */

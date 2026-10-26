@@ -23,6 +23,9 @@ export type OpcionesHuecos = {
   rellenar(id: string, file: File): Promise<void>; // soltar.ts: prepare, upload, objetos.rellenar
   decir(texto: string): void;                      // soltar.ts' status line (role=status)
   panel: HTMLElement | null;                       // the object card's slot (constructor.ts ranuraFicha): the «Hueco» row
+  /** MIS-222: inside a headset there is no file picker: `activo()` says so and `elegir(id)` opens the VR menu's «Obra» view for that
+   * hole (xr-menu.ts), where an image already on the server is picked. Absent = the picker, always (a phone, a computer). */
+  vr?: { activo(): boolean; elegir(id: string): void };
 };
 
 /** How close a hole is offered (metres on the ground) and how far above or below your eyes it may hang. */
@@ -48,6 +51,7 @@ export function montarHuecos(o: OpcionesHuecos) {
   const abrir = (id: string): Res => {
     if (!c.estado.puede) return { ok: false, why: "no puedes construir aquí" };
     if (!deId(id)) return { ok: false, why: `«${id}» no es un hueco` };
+    if (o.vr?.activo()) { o.vr.elegir(id); return { ok: true }; } // in VR: the pictures already uploaded, not a picker
     destino = id;
     entrada.click();
     return { ok: true };
@@ -101,5 +105,7 @@ export function montarHuecos(o: OpcionesHuecos) {
   };
   c.escuchar((que) => { if (que === "seleccion" || que === "estado" || que === "permiso") refrescar(); });
   refrescar();
-  return { cerca, pinchar, abrir, huecos: () => c.huecos() };
+  /** Is this thing (by its key) a hole that you may fill? For the VR ray: it can aim at it. */
+  const llenable = (key: string): boolean => c.estado.puede && !!deId(key);
+  return { cerca, pinchar, abrir, llenable, huecos: () => c.huecos() };
 }

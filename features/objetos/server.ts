@@ -278,6 +278,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     const colision: Colision = m.colision === "malla" ? "malla" : m.colision === "caja" || m.solido === true ? "caja" : "ninguna";
     const solido = colision !== "ninguna";
     if (solido && o.tipo === "sonido") return void rechazar(from, "Una esfera de sonido no puede ser sólida: es una zona por la que se pasa.");
+    if (solido && o.tipo === "trazo") return void rechazar(from, "Un trazo no puede ser sólido: es pintura en el aire, no choca.");
     if (colision === "malla" && o.tipo !== "modelo") return void rechazar(from, "Solo un modelo 3D (.glb) choca con su malla: una imagen, un vídeo o un sonido pueden ser caja o nada.");
     if (solido) {
       const c: Caja = [m.bx0, m.by0, m.bz0, m.bx1, m.by1, m.bz1].map((v) => q(v, PASO.pos)) as Caja;
@@ -318,22 +319,47 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     hecho(from, id, "hueco");
   });
 
+  /** The one way a work gets into a hole (a builder's `rellenar` and a scene's `mapa` both come here). Returns the new entry, or why not. */
+  const llenado = (o: Msg, id: string, modeloIn: unknown, extIn: unknown, nombreIn: unknown): { ok: true; nuevo: Msg } | { ok: false; motivo: string } => {
+    const modelo = String(modeloIn), ext = String(extIn).toLowerCase(), nombre = String(nombreIn ?? "").trim();
+    if (!EXTENSIONES.imagen.includes(ext)) return { ok: false, motivo: `En un hueco va una imagen ${EXTENSIONES.imagen.map((e) => `.${e}`).join(", ")}; .${ext} no vale.` };
+    if (!api.activo(modelo, ext)) return { ok: false, motivo: `Esa imagen .${ext} no se ha subido a este servidor.` };
+    const px = api.medidas(modelo, ext);
+    if (!px) return { ok: false, motivo: "No sé leer cuántos píxeles mide esa imagen: vuelve a guardarla como .png o .jpg." };
+    if (px.ancho > HUECO_PX_MAX || px.alto > HUECO_PX_MAX) return { ok: false, motivo: `La imagen mide ${px.ancho} × ${px.alto} px; en un hueco caben hasta ${HUECO_PX_MAX} px por lado.` };
+    const s = encajar(Number(o.huecoAncho), Number(o.huecoAlto), px.ancho, px.alto);
+    if (s < ESCALA_MIN) return { ok: false, motivo: `La imagen (${px.ancho} × ${px.alto} px) es demasiado alargada para este marco: quedaría de menos de ${Math.round(ESCALA_MIN * 100)} cm.` };
+    return { ok: true, nuevo: conCaja(id, { ...o, modelo, ext, sx: s, sy: s, sz: s, huecoLleno: true, ...(nombre ? { nombre, decorado: false } : {}) }) };
+  };
   api.on("rellenar", (from, m) => {
     if (!puede(from)) return;
     const o = objeto(from, m.id), id = String(m.id);
     if (!o) return;
     if (!esHueco(o)) return void noEsHueco(from, o, id);
-    const modelo = String(m.modelo), ext = String(m.ext).toLowerCase(), nombre = String(m.nombre ?? "").trim();
-    if (!EXTENSIONES.imagen.includes(ext)) return void rechazar(from, `En un hueco va una imagen ${EXTENSIONES.imagen.map((e) => `.${e}`).join(", ")}; .${ext} no vale.`);
-    if (!api.activo(modelo, ext)) return void rechazar(from, `Esa imagen .${ext} no se ha subido a este servidor.`);
-    const px = api.medidas(modelo, ext);
-    if (!px) return void rechazar(from, "No sé leer cuántos píxeles mide esa imagen: vuelve a guardarla como .png o .jpg.");
-    if (px.ancho > HUECO_PX_MAX || px.alto > HUECO_PX_MAX) return void rechazar(from, `La imagen mide ${px.ancho} × ${px.alto} px; en un hueco caben hasta ${HUECO_PX_MAX} px por lado.`);
-    const s = encajar(Number(o.huecoAncho), Number(o.huecoAlto), px.ancho, px.alto);
-    if (s < ESCALA_MIN) return void rechazar(from, `La imagen (${px.ancho} × ${px.alto} px) es demasiado alargada para este marco: quedaría de menos de ${Math.round(ESCALA_MIN * 100)} cm.`);
+    const r = llenado(o, id, m.modelo, m.ext, m.nombre);
+    if (!r.ok) return void rechazar(from, r.motivo);
     apuntar(from, { id, antes: o });
-    api.state.set(id, conCaja(id, { ...o, modelo, ext, sx: s, sy: s, sz: s, huecoLleno: true, ...(nombre ? { nombre, decorado: false } : {}) }));
+    api.state.set(id, r.nuevo);
     hecho(from, id, "rellenar");
+  });
+  // Lote 8 (mesa): a Director's scene brings a map for the table. The world's own file asked for it (the director already checked who may
+  // direct), so no builder permission is read — the same as the cable's `muestra` — but it is the same piece a builder uses (`llenado`/vaciar), only
+  // into a hole a builder made, and it touches nothing else. `hueco` = id or exact name; empty = the zone's only hole. No undo step: nobody built it.
+  api.listen("director", "mapa", (m) => {
+    const ref = String(m.hueco ?? "").trim();
+    const huecos = api.state.keys().filter((k) => esHueco(api.state.get(k)));
+    const id = ref ? (api.state.get(ref) && esHueco(api.state.get(ref)) ? ref : huecos.find((k) => String(api.state.get(k)?.nombre ?? "") === ref)) : huecos.length === 1 ? huecos[0] : undefined;
+    const o = id ? api.state.get(id) : undefined;
+    if (!id || !o) { api.log(`[objetos] la escena trae un mapa y ${ref ? `no hay hueco «${ref.slice(0, 60)}»` : huecos.length === 0 ? "no hay ningún hueco" : `hay ${huecos.length} huecos (la escena dice cuál con "hueco")`}`); return true; }
+    if (!m.modelo) { // "obra": "" → empty it
+      const v = api.store.get(`v:${id}`) as Cartel | undefined;
+      if (v && o.huecoLleno === true) api.state.set(id, conCaja(id, { ...o, modelo: v.modelo, ext: v.ext, sx: v.sx, sy: v.sy, sz: v.sz, nombre: v.nombre, decorado: v.decorado, huecoLleno: false }));
+      return true;
+    }
+    const r = llenado(o, id, m.modelo, m.ext, m.titulo);
+    if (!r.ok) { api.log(`[objetos] el mapa de la escena no se pone en «${id}»: ${r.motivo}`); return true; }
+    api.state.set(id, r.nuevo);
+    return true;
   });
 
   api.on("vaciar", (from, m) => {

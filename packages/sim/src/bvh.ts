@@ -242,3 +242,12 @@ export function rayBvh(b: Bvh, ox: number, oy: number, oz: number, dx: number, d
     tri: hitTri,
   };
 }
+
+/** Two meshes in one tree (a world with a `malla` GLB AND naturaleza): the triangles of both, rebuilt. null + null = null. */
+export function combinarMallas(a: Bvh | null, b: Bvh | null): Bvh | null {
+  if (!a || a.count === 0) return b && b.count ? b : null;
+  if (!b || b.count === 0) return a;
+  const tris = new Int32Array(a.tris.length + b.tris.length);
+  tris.set(a.tris, 0); tris.set(b.tris, a.tris.length);
+  return buildBvh(tris);
+}

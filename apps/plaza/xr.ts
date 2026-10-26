@@ -34,7 +34,10 @@ const partir = (k: string): [string, string] => { const i = k.indexOf(":"); retu
 /** J4 in VR: things with a link (apps/plaza/enlaces.ts): the ray can point at them and the trigger asks, in a panel, before opening. */
 type EnlacesVR = { tiene(key: string): boolean; url(key: string): string | null; abrir(url: string): void };
 
-export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; interaccion: Interaccion; enlaces?: EnlacesVR }) {
+/** MIS-222: holes you may fill (apps/plaza/huecos.ts): the ray can aim at one and the trigger opens the VR menu's «Obra» view. */
+type HuecosVR = { llenable(key: string): boolean; pinchar(key: string): boolean };
+
+export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; interaccion: Interaccion; enlaces?: EnlacesVR; huecos?: HuecosVR }) {
   const { view, misiones, session } = o;
   const pendiente = new Map<string, Lado>(); // quest thing -> the hand that reached for it (until the server answers)
   const enMano = new Map<string, Lado | "yo">(); // what is drawn where
@@ -44,7 +47,7 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
   const hayAlcance = !!session.features.reachable && !!session.selfPosition; // a session without the reach list (a stub): as before
   view.manos.reglas({
     agarrable: (k) => { const [f, key] = partir(k); return f === "misiones" && misiones.ofrece(f, key); },
-    apuntable: (k) => { const [f, key] = partir(k); return ((f === "pnj" || (f === "misiones" && misiones.ofrece(f, key))) && (!hayAlcance || alAlcance(f, key))) || (f === "" && !k.includes(":") && !!o.enlaces?.tiene(k)); }, // reach limits NPCs/quest things; a picture link is not limited by it
+    apuntable: (k) => { const [f, key] = partir(k); return ((f === "pnj" || (f === "misiones" && misiones.ofrece(f, key))) && (!hayAlcance || alAlcance(f, key))) || (f === "" && !k.includes(":") && (!!o.enlaces?.tiene(k) || !!o.huecos?.llenable(k))); }, // reach limits NPCs/quest things; a picture link (or a hole you may fill) is not limited by it
   });
   // J4 VR: window.confirm cannot show inside an immersive session → the link asks in the dialogue panel; only the person's choice opens it
   let enlacePendiente: string | null = null;
@@ -58,6 +61,7 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
       pendiente.set(cosa, e.lado);
       if (!decir(misiones.usar(cosa)).ok) pendiente.delete(cosa);
     } else if (e.tipo === "apuntar") {
+      if (!e.key.includes(":") && o.huecos?.pinchar(e.key)) return; // MIS-222: a hole: the menu opens on the images to put in it
       const u = o.enlaces?.url(e.key);
       if (u && !e.key.includes(":")) { enlacePendiente = u; view.vr.dialogo({ nombre: "Enlace", texto: `¿Abrir en una pestaña nueva? ${u}`, opciones: ["Abrir", "Ahora no"] }); return; }
       const [f, key] = partir(e.key);

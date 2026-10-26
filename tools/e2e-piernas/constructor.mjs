@@ -98,9 +98,24 @@ async function pierna(engine) {
     await a.locator("#buscar-biblioteca").fill(""); await a.locator("#buscar-biblioteca").blur();
     paso("Añadir: una sola biblioteca, buscador y Subir", lib.n > 0 && new Set(lib.ids).size === lib.n && lib.bloques === 1 && lib.subir && filtradas === "farolillo", { ...lib, filtradas });
     if (process.env.SHOTS === "1") await a.screenshot({ path: `e2e-cajon-anadir-${engine}.png` });
-    // 2. «arrastra al mundo»: drag the library's Bloque out of the drawer onto the ground 3 m ahead and let go there
+    // 2. «arrastra al mundo»: drag the library's Bloque out of the drawer onto the ground in front of the avatar (a point the drawer does not cover) and let go there
     const n0 = await a.evaluate(() => globalThis.__numinia.session.features.stateOf("objetos").size);
-    const suelo = await a.evaluate(() => { const n = globalThis.__numinia, me = n.session.selfPosition(1); return { w: [me.x, 0, me.z - 3], s: n.view.editor.pantalla(me.x, 0, me.z - 3) }; });
+    // the drop point: ahead of the avatar on the ground, at a screen point the open drawer does NOT cover. The drawer (a panel under the
+    // top dock) now sits over the middle of the screen, where 3 m straight ahead projects, so a release there lands on the drawer's own
+    // button and the drag is cancelled (the page only places on the canvas): look for a ground point near that one whose pixel is the canvas.
+    const suelo = await a.evaluate(() => {
+      const n = globalThis.__numinia, me = n.session.selfPosition(1), lienzo = n.view.renderer.domElement;
+      const cand = [];
+      for (let dx = -8; dx <= 8; dx++) for (let dz = -8; dz <= 8; dz++) if (Math.hypot(dx, dz) >= 2.5) cand.push([dx, dz]);
+      cand.sort((p, q) => Math.hypot(...p) - Math.hypot(...q) || p[0] - q[0]); // the nearest ground the drawer leaves free
+      for (const [dx, dz] of cand) {
+        const w = [me.x + dx, 0, me.z + dz], s = n.view.editor.pantalla(...w);
+        if (!s || s.x < 60 || s.y < 80 || s.x > innerWidth - 20 || s.y > innerHeight - 20) continue;
+        if (document.elementFromPoint(s.x, s.y) === lienzo && document.elementFromPoint(s.x - 30, s.y) === lienzo) return { w, s };
+      }
+      return null;
+    });
+    if (!suelo) paso("un punto del suelo que el cajón no tape", false, { vp: await a.evaluate(() => [innerWidth, innerHeight]) });
     const pieza = await a.locator('#cajon-anadir [data-pieza="bloque"]').boundingBox();
     await a.mouse.move(pieza.x + pieza.width / 2, pieza.y + pieza.height / 2);
     await a.mouse.down();

@@ -32,11 +32,16 @@ export const dados = defineFeature({
   level: "base",
   describe: "Tirar dados que tira el servidor: pides una tirada («2d6+1», «d20», hasta 10 dados de 2, 3, 4, 6, 8, 10, 12, 20 o 100 caras, con un más o menos), el servidor saca cada dado con azar del sistema, numera la tirada y da los mismos valores a todos los que están cerca. Una torre de dados es una cosa del mundo («E: tirar los dados», con sus dados de siempre) y enseña su última tirada a quien llega después. Una tirada puede ser oculta (el Director tras su pantalla): los demás ven que tiró, nunca qué sacó.",
   state: {
-    describe: "Una torre de dados por clave: nombre, dónde (x, z; y = altura del suelo, m), desde cuánto se tira (radio, m), los dados que tira si no dices otros (dados) y su última tirada a la vista (ultima: «Ana · 2d6+1 → 4 3 +1 = 8»; vacía si aún no ha tirado nadie, y oculta si fue en secreto).",
+    describe: "Una torre de dados por clave: nombre, dónde (x, z; y = altura del suelo, m), desde cuánto se tira (radio, m), los dados que tira si no dices otros (dados), la bandeja donde caen los dados en 3D (bandejaDx/Dz/Alto = dónde está respecto a la torre; bandejaAncho/Fondo = su tamaño, m) y su última tirada a la vista (ultima: «Ana · 2d6+1 → 4 3 +1 = 8»; vacía si aún no ha tirado nadie, y oculta si fue en secreto).",
     fields: {
       nombre: { kind: "text", maxBytes: 60 }, x: X, y: Y, z: X,
       radio: { kind: "fixed", min: 1, max: 16, step: 0.1, default: 2.5 },
       dados: EXPR,
+      // lote 8 (mesa, 3D dice): where the dice land — the tray's centre is (x + bandejaDx, y + bandejaAlto, z + bandejaDz), its size along the world's X and Z.
+      // A tower that says nothing has a small patch on the ground at its own place; the picture is the page's, the roll is still the server's.
+      bandejaDx: { kind: "fixed", min: -8, max: 8, step: 0.01, default: 0 }, bandejaDz: { kind: "fixed", min: -8, max: 8, step: 0.01, default: 0 },
+      bandejaAlto: { kind: "fixed", min: 0, max: 10, step: 0.01, default: 0 },
+      bandejaAncho: { kind: "fixed", min: 0.2, max: 4, step: 0.01, default: 0.8 }, bandejaFondo: { kind: "fixed", min: 0.2, max: 4, step: 0.01, default: 0.6 },
       ultima: { kind: "text", maxBytes: 120 },
     },
     card: { role: "lugar", name: "{nombre}", description: "Torre de dados: tira el servidor, todos ven lo mismo", at: ["x", "z"], actions: ["tirar"], interact: { intent: "tirar", prompt: "tirar los dados", radius: "radio", key: "sitio" } },

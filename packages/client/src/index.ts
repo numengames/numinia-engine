@@ -2,9 +2,11 @@
 // Own avatar: predicted with the SAME sim step the server runs, reconciled exactly on each snapshot.
 // Others: drawn slightly in the past, interpolated between snapshots.
 import { fxToFloat } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, PISO_SIN_SUELO, TICK_HZ } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, combinarMallas, PISO_SIN_SUELO, TICK_HZ } from "../../sim/src/index.ts";
 import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
 import { crearSueloTerreno } from "./suelo-terreno.ts";
+import type { ConstruirMallaCliente } from "./malla-glb.ts"; // type only: the .glb reader (and its decoder) is the PAGE's chunk, never the AI bridge's
+import type { Bvh } from "../../sim/src/index.ts";
 import type { Body, SimState } from "../../sim/src/index.ts";
 import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeLatido, encodeReport, encodeIdentityRequest, encodePase, decodeIdentity, decodeCondiciones, decodeLeyendo, encodePedirCondiciones, encodeAceptar, seqNewer, codificarVozSubida, leerVozBajada } from "../../net/src/index.ts";
 import type { CondicionesMensaje, Transport, Welcome } from "../../net/src/index.ts";
@@ -74,6 +76,27 @@ export class ClientSession {
   private terreno: TerrenoMalla | null = null; // N5: the hills of naturaleza.json, built from the same alturaEn as the server's mesh
   private suelo: ReturnType<typeof crearSueloTerreno> | null = null; // the ground the view measures «in the air» and «buried» against (null = flat world)
   private terrenoMod: typeof import("../../sim/src/terreno-malla.ts") | null = null;
+  // M6 h9: the world's GLB mesh (colision: "malla"), built from the same files as the server's, so the replay in `reconcile` stands on it
+  private mallaGlb: Bvh | null = null;
+  private mallaHuella = "";
+  private mallaBuilding = false;
+  private mallaReintentar = false;
+  private readonly construirGlb?: ConstruirMallaCliente;
+  /** The GLB mesh and the terrain are ONE tree for the local sim, like `Instance.aplicarMalla`. */
+  private aplicarMalla(): void { setMesh(this.local, combinarMallas(this.mallaGlb, this.terreno?.bvh ?? null), this.terreno ? PISO_SIN_SUELO : 0); }
+  /** M6 h9: follows the shared state's `malla` things; rebuilds off the tick (async: a fetch and a parse) only when what the mesh is made of changed. */
+  private sincronizarMalla(): void {
+    if (!this.construirGlb || this.mallaBuilding) return; // one build in flight; `finally` looks again if the state moved on
+    const entradas: [string, Record<string, unknown>][] = [];
+    for (const e of this.features.allState() as Iterable<[string, Record<string, unknown>]>) if (e[1] && typeof e[1] === "object" && e[1].colision === "malla") entradas.push(e);
+    let huella = ""; for (const [k, v] of entradas) huella += `${k}\u0000${JSON.stringify(v)}\u0001`;
+    if (huella === this.mallaHuella && !this.mallaReintentar) return;
+    this.mallaHuella = huella; this.mallaReintentar = false; this.mallaBuilding = true;
+    void this.construirGlb(entradas)
+      .then((r) => { this.mallaGlb = r.mesh; this.mallaReintentar = r.falta; this.aplicarMalla(); })
+      .catch(() => { this.mallaReintentar = true; })
+      .finally(() => { this.mallaBuilding = false; const r = this.mallaReintentar; this.mallaReintentar = false; this.sincronizarMalla(); this.mallaReintentar = this.mallaReintentar || r; });
+  }
   /** N5: follows the shared state's «naturaleza:mundo» like the server does (same function, same numbers → same triangles), so the
    * prediction walks over the same hills. The terrain code (noise, mesh) is a separate chunk of the page, asked for only the first time
    * a world says it has nature: a world without naturaleza.json never downloads it and its flat path is untouched. */
@@ -87,7 +110,7 @@ export class ClientSession {
     if (clave === (this.terreno?.clave ?? null)) return;
     this.terreno = m ? M.terrenoMalla(m) : null;
     this.suelo = this.terreno ? crearSueloTerreno(this.local, this.terreno.bvh) : null;
-    setMesh(this.local, this.terreno?.bvh ?? null, this.terreno ? PISO_SIN_SUELO : 0);
+    this.aplicarMalla();
     if (this.terreno) { // the body that was standing at the flat ground height now stands on the hill
       const b = getBody(this.local, 0), g = groundHeight(b.x, b.z, this.local, this.terreno.hmax * 65536 + 65536);
       if (b.y < g) { this.setLocal({ ...b, y: g, vy: 0 }); this.prev = this.cur; }
@@ -99,8 +122,9 @@ export class ClientSession {
   private readonly keeper?: GuestKeeper;
   private pase: string | null; // H3b: numinia.com's world pass, sent once (before IDENTITY) and then forgotten
 
-  constructor(t: Transport, opts: { features?: readonly ClientPart[]; view?: ViewHooks; identity?: GuestKeeper; pase?: string | null } = {}) {
+  constructor(t: Transport, opts: { features?: readonly ClientPart[]; view?: ViewHooks; identity?: GuestKeeper; pase?: string | null; construirGlb?: ConstruirMallaCliente } = {}) {
     this.t = t;
+    this.construirGlb = opts.construirGlb;
     this.keeper = opts.identity;
     this.pase = opts.pase ?? null;
     this.local = createSim(1, 0);
@@ -118,7 +142,7 @@ export class ClientSession {
     this.pending.push({ seq: this.seq, mx, mz, buttons });
     if (this.pending.length > 64) this.pending.shift();
     this.prev = this.cur;
-    if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.local, solidsFrom(this.features.allState())); this.sincronizarTerreno(); } // U10: the same walls as the server; N5: and the same hills
+    if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.local, solidsFrom(this.features.allState())); this.sincronizarTerreno(); this.sincronizarMalla(); } // U10: the same walls as the server; N5: and the same hills
     step(this.local, new Int32Array([0, mx, mz, buttons]));
     this.cur = getBody(this.local, 0);
   }
@@ -261,6 +285,9 @@ export class ClientSession {
       speed: Math.hypot(fxToFloat(c.x - p.x), fxToFloat(c.z - p.z)) * TICK_HZ, grounded: c.y <= groundHeight(c.x, c.z, this.local, c.y), // N1b: on a solid too
     };
   }
+
+  /** H2: is your avatar flying now (the server's mode, carried on the snapshot and predicted here)? The page reads it to turn a held Space into «climb». */
+  volando(): boolean { return this.cur.vuela === 1; }
 
   /** N1b: the solid boxes your prediction walks against (Q16.16, [x0 y0 z0 x1 y1 z1] each; the same as the server's).
    * The page hands them to the camera so it does not go through walls. A new array each time they change. */

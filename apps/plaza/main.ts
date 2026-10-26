@@ -1,7 +1,8 @@
 // The PP1 page: one plaza, your capsule, everyone else's, and the determinism probe.
 import { version as versionPaquete } from "../../package.json"; // only this field reaches the page (docs/VERSIONES.md)
 import { hex } from "../../packages/core/src/index.ts";
-import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX, BTN_JUMP, BTN_RUN, BTN_BAJAR } from "../../packages/sim/src/index.ts";
+import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX, BTN_JUMP, BTN_RUN } from "../../packages/sim/src/index.ts";
+import { botonesDeVuelo } from "./vuelo-teclas.ts";
 import { CIERRE_LLENO, CIERRE_SILENCIO, LATIDO_MS, webSocketClient } from "../../packages/net/src/index.ts";
 import { BARRIDO_MS, VigiaServidor } from "../../packages/client/src/vigia-servidor.ts"; // t_9cb3f636: the page notices the server went silent
 import { montarAjustes, leerAjuste } from "./menu-ajustes.ts"; // N2: settings menu + capabilities
@@ -173,6 +174,7 @@ const session = new ClientSession(transport, {
   features: funciones,
   pase: tomarPaseDeLaDireccion(location, history), // H3b: #pass=<token> from numinia.com, out of the address bar at once, sent once connected
   identity: { load: () => localStorage.getItem(GUARDA), save: (t) => localStorage.setItem(GUARDA, t) },
+  construirGlb: async (entradas) => { const m = await import("../../packages/client/src/malla-glb.ts"); return m.construirMallaCliente(entradas, m.lectorColision(activos, (u) => tienda.leer(u), (...a) => fetch(...a))); }, // M6 h9: the page builds the GLB collision mesh too (own chunk, only a world with a `malla` thing asks for it); H13: always from the WHOLE model, through the hash store, never a lod1/lod2 file
   view: {
     label: (e, text, ms) => view.label(e === session.entity ? "self" : e, text, ms),
     bounce: (e, ms) => view.bounce(e === session.entity ? "self" : e, ms),
@@ -320,7 +322,8 @@ const soltar = montarSoltar({ session, view, puede: () => constructor.estado.pue
 // ---- H10: your avatar — one of the house's or your own .vrm (everyone, not only builders); saved with your identity ----
 avatarUI = montarAvatar({ session, catalogo: catalogoAvatares, delMundo: avataresDelMundo(activos, estado?.avatares), origen: activos, billete: () => localStorage.getItem(GUARDA) });
 // ---- U12: holes — click one (or E near it) and choose your picture: it goes up and the server fits it into the frame ----
-const huecos = montarHuecos({ constructor, view, rellenar: soltar.rellenar, decir: (t) => soltar.decir(t), panel: constructorUI.ranuraFicha });
+let elegirObraVR: (id: string) => void = () => {}; // MIS-222: the VR menu's «Obra» view (below, once the menu exists)
+const huecos = montarHuecos({ constructor, view, rellenar: soltar.rellenar, decir: (t) => soltar.decir(t), panel: constructorUI.ranuraFicha, vr: { activo: () => view.vr.active, elegir: (id) => elegirObraVR(id) } });
 // ---- J4: a thing may carry a link (set in the inspector); a click on it opens it in a new tab, after confirming ----
 const enlaces = montarEnlaces({ constructor, view, construyendo: () => construyendo(view) });
 const gemelos = montarGemelos({ constructor, session, view, enlaces, abrible: enlaceAbrible }); // H6: «Imágenes del mundo», read by the screen reader; `__numinia.gemelos.lista()` for agents
@@ -340,7 +343,7 @@ montarEntorno(ambiente, elementos, view, interruptorNaturaleza, constructorUI.ca
 // H7: the world's settings (title, picture, default avatar, people limit): the form below the switches (only who may), and the title in the tab follows the server
 montarFichaMundo({ ajustes: ajustesMundo, padre: constructorUI.cajon("entorno"), avatares: catalogoAvatares?.modelos.map((m) => ({ id: m.id, nombre: m.nombre })) ?? [] });
 montarBurbuja({ burbujas, cartel: document.getElementById("burbuja-cartel")! }); // burbujas v1: the small label while you are inside a bubble
-montarDados({ dados, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) }); // dados v1: the dice card everyone near sees, the dice buttons beside a tower
+montarDados({ dados, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), vista: view.dados }); // dados v1: the dice card everyone near sees, the dice buttons beside a tower
 const contadoresPagina = montarContadores({ contadores, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) }); // D-044: the counters' panel (the sign in the world is the feature's own label)
 montarDirector({ dj: dirigir, ambiente, view }); // N6: the Game Director (who may direct: STD-052 manage-rituals): scenes, narrator, summons
 // ---- N16: «Gente» (L): go next to someone connected now; the light of every trip near you (none on tier D) ----
@@ -436,7 +439,7 @@ const compartir = montarPantalla({
 const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k) && dardos.ofrece(f, k) && cerradurasPagina.ofrece(f, k) && lucha.ofrece(f, k), ocupado: () => !!misiones.dialogo(), locales: (x, z, y) => [...asiento.cerca(), ...huecos.cerca(x, z, y), ...cerradurasPagina.cerca(x, z), ...videoMandos.cerca(x, z), ...llamarIA.cerca()], pinchar: (key) => huecos.pinchar(key) || enlaces.pinchar(key),
   persona: (x, y) => { const q = view.pickPerson(x, y); return q !== null && gente.tarjeta(q); } }); // ux2-gente: a click on someone = their card
 misiones.alCambiar(() => interaccion.mirar()); // a conversation opens or a step changes: the prompt follows at once
-const xr = montarXR({ session, view, misiones, interaccion, enlaces }); // J4: + the ray points at things with a link and the trigger asks before opening // J10: hands in VR take, point and answer; what you took is in your hand
+const xr = montarXR({ session, view, misiones, interaccion, enlaces, huecos }); // J4: + the ray points at things with a link and the trigger asks before opening // J10: hands in VR take, point and answer; what you took is in your hand
 const condicionesXR = montarCondicionesXR({ condiciones, vr: view.vr as never, mundo: () => nombreDelMundo, soportado: () => vrDisponible }); // condiciones/c4
 montarDialogo(misiones, document.getElementById("dialogo")!, view);
 montarFlecha({ misiones }); // T3: idle costs nothing; with a step that points at a button it follows the button
@@ -599,7 +602,7 @@ function readButtons(): number {
   if (view.vr.active) { if (Math.hypot(...view.vr.axes()) >= RUN_EDGE) b |= BTN_RUN; return b; } // in VR only the headset's stick runs
   const alBorde = touch && Math.hypot(touch.dx, touch.dy) >= RUN_EDGE;
   if (keys.has("ShiftLeft") || keys.has("ShiftRight") || alBorde) b |= BTN_RUN;
-  if (keys.has("ControlLeft") || keys.has("ControlRight")) b |= BTN_BAJAR; // H2: while flying Ctrl descends (on foot the simulation ignores it); the server decides who flies
+  b |= botonesDeVuelo(keys, session.volando() && !rueda.abierta()); // H2: while flying a held Space climbs and a held Ctrl descends (on foot Space jumps once per press, above); the server decides who flies
   return b;
 }
 
@@ -843,9 +846,11 @@ const ciudad = montarCiudad({ mundo: mundoPlaza, boton: document.getElementById(
   const n = (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia;
   const menuVR = montarMenuVR({ vr: view.vr, n: () => n, ciudadUrl: ciudad.url, puedeConstruir: () => constructor.estado.puede, construirVR: constructorVR,
     nombre: () => session.who?.nombre ?? "Invitado",
+    obra: { hueco: (id) => constructor.huecos().find((h) => h.id === id) ?? null, imagenes: () => constructor.imagenes(), poner: soltar.rellenarYa },
     // the same line «Tú» shows on the computer (avatar · world · how long), never the guest's raw id
     linea: () => lineaDeTu({ avatar: miAvatar()?.nombre, mundo: nombreDelMundo, ms: informe.bienvenidaMs > 0 ? performance.now() - informe.bienvenidaMs : 0 }),
     retrato: () => { const id = miAvatar()?.id ?? idAvatarDe(avatarUI?.eleccion("yo"), estado?.avatar); return id ? `/retratos/${id}-cuerpo.webp` : null; } });
+  elegirObraVR = menuVR.elegirObra;
   Object.assign(n, { menuVR });
 }
 
