@@ -23,6 +23,7 @@ import { montarConstructor } from "./constructor.ts";
 import { montarReaccionClic } from "./reaccion-clic.ts"; // lote 5: a click on a moñoni makes it hop
 import { sonar as sonarLocalPlaza } from "./sonar.ts";
 import { montarSoltar } from "./soltar.ts";
+import { montarPintar } from "./pintar.ts"; // J18b story 4 (first slice): paint a stroke from code — `__numinia.pintar.empezar / punto / soltar / cancelar`; the VR brush calls it next
 import { montarAvatar } from "./avatar.ts"; // H10: your avatar — house or uploaded .vrm, for every visitor
 import { montarHuecos } from "./huecos.ts";
 import { montarFlecha } from "./flecha.ts"; // T3: the arrow that points at the button of the current mission step
@@ -76,6 +77,7 @@ import { viajar } from "../../features/teletransporte/client.ts";
 import { llamarPagina } from "../../features/llamar/client.ts"; // ia-llamar S11: how each AI is called and the intent behind «Hablar con ella» / E
 import { montarLlamarIA } from "./llamar-ia.ts"; // ia-llamar S11: the notice and the box of «Hablar con ella», and the prompt «E: hablar con…»
 import { burbujaPagina } from "../../features/burbuja/client.ts"; // ia-llamar S9: the shape of each AI's action bubble and the «entras» that flashes it
+import { ojosDe } from "../../features/ia/ojos.ts"; // t_5096d6f4: the eyes of an AI by the size of its model
 import { iaPagina } from "../../features/ia/client.ts"; // ia-visible S3: the public card of each AI (state, who answers, what it may do)
 import { asiento, interruptor as interruptorAsiento } from "../../features/asiento/client.ts"; // asiento v1: sitting down for real
 import { burbujas, interruptor as interruptorBurbujas } from "../../features/burbujas/client.ts"; // burbujas v1: voice bubbles
@@ -252,7 +254,7 @@ view.fijarRelojMundo(() => session.relojServidorMs());
 
 // ia-visible S4: an AI's plate is always on, green, with an «IA» chip (and a moon asleep); the server's public card says who is one and its state.
 // Nothing is made in a world without AIs: this only fires when an entry appears, changes or goes.
-iaPagina.alCambiar((quien, ficha) => view.ia(quien === session.entity ? "self" : quien, ficha ? ficha.estado : null));
+iaPagina.alCambiar((quien, ficha) => view.ia(quien === session.entity ? "self" : quien, ficha ? ficha.estado : null, ficha ? { color: ojosDe(ficha.tamano).color, forma: ojosDe(ficha.tamano).forma } : null));
 
 // ia-llamar S9: the action bubble of each AI, drawn with the shape, radius and visibility the server publishes (nothing is made in a world without AIs);
 // «entras» (YOU crossed its edge) makes it flash for a moment. Who is inside is the server's: the page only draws.
@@ -315,6 +317,7 @@ const constructorUI = montarConstructor(constructor, view, document.getElementBy
 const panelConstruir = document.getElementById("panel-construir")!;
 const reaccionClic = montarReaccionClic({ view, objetos: () => constructor.lista(), construyendo: () => !panelConstruir.hidden, sonar: (id) => { sonarLocalPlaza(id, { gain: 0.3 }, 150); } });
 // ---- H9: drop your own .glb on the world (or «Añadir › Subir» in the builder's dock): uploaded by sha256, placed for everyone ----
+const pintar = montarPintar({ session, puede: () => constructor.estado.puede, origen: activos, billete: () => localStorage.getItem(GUARDA), decir: (t) => soltar.decir(t) });
 const soltar = montarSoltar({ session, view, puede: () => constructor.estado.puede, origen: activos, billete: () => localStorage.getItem(GUARDA) });
 // ---- H10: your avatar — one of the house's or your own .vrm (everyone, not only builders); saved with your identity ----
 avatarUI = montarAvatar({ session, catalogo: catalogoAvatares, delMundo: avataresDelMundo(activos, estado?.avatares), origen: activos, billete: () => localStorage.getItem(GUARDA) });
@@ -859,7 +862,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { gemelos, ajustesMundo, session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones, medidorVivo: medidorUI };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { pintar, gemelos, ajustesMundo, session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones, medidorVivo: medidorUI };
 
 // ---- t_5cff4f06: back to the city — hidden unless this world's mundo.ajustes.json sets ciudadUrl; ux2-barra: an entry
 // of the bar's «Menú» (O), no longer a corner button ----

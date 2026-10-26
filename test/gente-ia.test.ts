@@ -3,9 +3,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cuentaGente, sinMarca, respondeValor, fichaIA, subIA, textos, IDIOMAS } from "../apps/plaza/gente-ia.ts";
 import { es } from "../apps/plaza/gente-ia-es.ts";
+import { ojosDe } from "../features/ia/ojos.ts";
 import type { IAPublica } from "../features/ia/feature.ts";
 
-const ACTIVA: IAPublica = { estado: "activa", responde: { comunidad: "La Torre", nombre: "Ana", cartera: "0x12…ab" }, puede: { construir: true }, atenta: false };
+const ACTIVA: IAPublica = { estado: "activa", responde: { comunidad: "La Torre", nombre: "Ana", cartera: "0x12…ab" }, puede: { construir: true }, atenta: false, tamano: "desconocido" };
 
 test("gente-ia: the count says people and AIs, singular for one, and leaves the AIs out when there are none", () => {
   assert.equal(cuentaGente(5, 2), "5 personas · 2 IAs");
@@ -30,15 +31,16 @@ test("gente-ia: who answers is the community and the name, or the short wallet w
   assert.equal(respondeValor(ACTIVA), "La Torre · Ana");
   assert.equal(respondeValor({ ...ACTIVA, responde: { comunidad: "La Torre", cartera: "0x12…ab" } }), "La Torre · 0x12…ab");
   assert.equal(respondeValor({ ...ACTIVA, responde: { comunidad: "La Torre" } }), "La Torre");
-  assert.equal(respondeValor({ estado: "activa", puede: { construir: false }, atenta: false }), "no consta");
+  assert.equal(respondeValor({ estado: "activa", puede: { construir: false }, atenta: false, tamano: "desconocido" }), "no consta");
 });
 
 test("gente-ia: the card model — name without the mark, the state, who answers, whether it builds", () => {
   assert.deepEqual(fichaIA("Hermes · IA", ACTIVA), {
     nombre: "Hermes", marca: "IA", estado: "activa", estadoTexto: "Activa",
     respondeEtiqueta: "Responde por ella", respondeValor: "La Torre · Ana", construye: true, construyeTexto: "Puede construir",
+    ojos: { etiqueta: "Ojos", tamano: "desconocido", nombre: "Tamaño sin determinar", glifo: "▬", color: "#999999", texto: ojosDe("desconocido").texto },
   });
-  const dormida = fichaIA("Bea · IA", { estado: "dormida", puede: { construir: false }, atenta: false });
+  const dormida = fichaIA("Bea · IA", { estado: "dormida", puede: { construir: false }, atenta: false, tamano: "desconocido" });
   assert.equal(dormida.estadoTexto, "Dormida");
   assert.equal(dormida.construyeTexto, "No puede construir");
   assert.equal(dormida.respondeValor, "no consta");

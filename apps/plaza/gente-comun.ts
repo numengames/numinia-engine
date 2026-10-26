@@ -39,6 +39,15 @@ export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial
   const e: HTMLElementTagNameMap[K] = Object.assign(document.createElement(tag), props); e.append(...hijos); return e;
 };
 /** The light on an AI's card: a dot and «Escuchando ahora» / «No escucha ahora» (S16's words; the server's `atenta`). */
+/** t_5096d6f4: «Ojos  ✦ Modelo grande» — the glyph (the eye shape of the avatar) on a dark chip in the step's colour, the size in words, and with `explicar` the sentence that says what the eyes mean. Never the model's name. */
+export const ojosEl = (o: { etiqueta: string; nombre: string; glifo: string; color: string; texto: string; tamano: string }, explicar = false): HTMLParagraphElement => {
+  const glifo = el("span", { className: "ojo-glifo", textContent: o.glifo });
+  glifo.style.color = o.color; glifo.setAttribute("aria-hidden", "true");
+  const p = el("p", { className: "ia-dato ojos", title: o.texto }, el("span", { className: "k", textContent: o.etiqueta }), glifo, el("b", { textContent: o.nombre }));
+  p.dataset.tamano = o.tamano;
+  if (explicar) p.append(el("small", { className: "ojos-texto", textContent: o.texto }));
+  return p;
+};
 export const luzEl = (luz: { escucha: boolean; texto: string }): HTMLParagraphElement =>
   el("p", { className: `ia-dato luz${luz.escucha ? " escucha" : ""}` }, el("span", { className: "punto" }), el("b", { textContent: luz.texto }));
 /** A button with a house icon and a text (the icon is a constant; the text a text node). */
