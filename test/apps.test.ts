@@ -309,7 +309,8 @@ test("M19: the server lists the apps at GET /apps and serves their files at /a/<
     const j: any = await r.json();
     assert.equal(j.schema, "numinia-engine/apps@1");
     assert.deepEqual(j.apps.map((a: any) => a.id), ["bloque-giratorio"]);
-    assert.equal(j.apps[0].script.ejecuta, false);
+    assert.equal(j.apps[0].script.ejecuta, true, "M20: the server runs the script in its sandbox now");
+    assert.equal(j.apps[0].script.estado, "viva");
     assert.equal(j.rechazadas[0].id, "rota");
     assert.match(j.rechazadas[0].problemas.join(), /rota\/app\.json#/);
     const g = await fetch(`${base}${j.apps[0].activos[0].url}`);

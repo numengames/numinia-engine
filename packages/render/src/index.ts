@@ -83,7 +83,7 @@ import { crearQuietos } from "./fundir-quietos.ts";
 import { hornearEscena } from "./hornear.ts";
 import type { Fundido } from "./fundir.ts";
 import type { Parte } from "./lotes.ts";
-import { INSTANCIAR_DESDE, INSTANCIAR_DESDE_VR, instanciarDesde, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
+import { INSTANCIAR_DESDE, INSTANCIAR_DESDE_VR, instanciarDesde, lejosDeNiebla, tapadoPorNiebla, esGrupoDeFuncion } from "./dibujo-politica.ts";
 import { crearTeletransporte } from "./teletransporte.ts";
 import { crearPrecompilador, calentarOcultos } from "./precompilar.ts";
 export { INSTANCIAR_DESDE, INSTANCIAR_DESDE_VR, instanciarDesde, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
@@ -366,12 +366,15 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       if (graboso3d) { graboso3d.mostrar(si); return; }
       if (!si) return;
       grabosoCarga ??= import("./graboso.ts").then((m) => {
-        graboso3d = m.crearGraboso({ world, posicion: () => (selfXZ ? grabosoPos.set(selfXZ.x, selfXZ.y ?? 0, selfXZ.z) : null), yaw: () => cam.yaw() });
+        graboso3d = m.crearGraboso({ world, posicion: () => (selfXZ ? grabosoPos.set(selfXZ.x, selfXZ.y ?? 0, selfXZ.z) : null), yaw: () => cam.yaw(),
+          modelo: async (sha) => (await (await getTools()).load(assetUrl(sha))).scene as THREE.Object3D }); // MIS-247: the fine head, by its content
         graboso3d.mostrar(grabosoQuiere.fuera); graboso3d.grabando(grabosoQuiere.grabando);
       }).catch((e) => console.warn(`[graboso] no se pudo cargar: ${(e as Error)?.message ?? e}`));
     },
     grabando(si: boolean): void { grabosoQuiere.grabando = si; graboso3d?.grabando(si); },
     visible(): boolean { return graboso3d?.visible() ?? false; },
+    /** MIS-247: which head is on («fina» = the GLB, «sencilla» = the fallback; «ninguna» = the relic's code has not loaded yet). */
+    cabeza(): "fina" | "sencilla" | "ninguna" { return graboso3d?.cabeza() ?? "ninguna"; },
   };
   const ancestros = crearSalon({ world, camara: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera), luz: () => LUCES_FUEGO[entorno.nivel] > 0 }); // ancestros v1: the hall and the hologram of the tribute to Asimov (ancestros.ts)
   function dropLabel(t: Target): void {
@@ -737,9 +740,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   /** U10: an image, a video or a sphere of sound instead of a .glb (medios.ts). */
   function cargarMedio(key: string, s: Slot, cerca = true): void {
     const t = s.want, url = assetUrl(t.model).replace(/\.glb$/, `.${t.ext ?? "glb"}`), model = s.model;
-    if (t.kind === "trazo") { s.failed = true; return; } // J18b: a brush stroke is stored (story 1) but not drawn yet (story 3): never open it as a sound
     if ((t.kind === "video" || t.kind === "sonido") && !sePuedeReproducir(t.ext ?? "")) { s.failed = true; console.warn(`[medios] este navegador no reproduce .${t.ext}`); return; }
-    const p = t.kind === "imagen" ? cargarImagen(url) : t.kind === "video" ? cargarVideo(url, () => verOcultos) : Promise.resolve(cargarSonido(url, () => verOcultos));
+    const p = t.kind === "trazo" ? import("./trazo.ts").then((m) => m.cargarTrazo(url)) /* lazy: nothing downloaded until a world has a stroke */ : t.kind === "imagen" ? cargarImagen(url) : t.kind === "video" ? cargarVideo(url, () => verOcultos) : Promise.resolve(cargarSonido(url, () => verOcultos));
     loading++; if (cerca) cercaCargando++;
     p.then((m) => {
       const now = things.get(key);
@@ -860,6 +862,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     for (let i = 0; i < objs.length; i++) { objs[i].updateWorldMatrix(false, false); matricesTmp[i] = objs[i].matrixWorld; } // world never moves
     return matricesTmp;
   };
+  const esferasFunciones = new WeakMap<THREE.Object3D, { cuadro: number; c: THREE.Vector3 | null; r: number }>(), cajaTmp = new THREE.Box3(), sizeTmp = new THREE.Vector3();
+  let cuadroEsferas = 0;
   function antesDelCuadro(): void {
     const lejos = lejosDeNiebla(scene.fog as unknown as Parameters<typeof lejosDeNiebla>[0]);
     (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera).getWorldPosition(ojo);
@@ -921,6 +925,21 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     for (const r of avs.raices()) if (r.visible && tapa(r, 2)) { ocultar(r); niebla++; }
     for (const k of enLuz) { const r = avs.raiz(k === "self" ? "yo" : k); if (r?.visible) ocultar(r); }
     for (const r of tags.values()) if (r.s.visible && tapa(r.s, 3)) { ocultar(r.s); niebla++; }
+    // t_43143556: the world's own feature groups (fishing spot, dartboard, effect elements, the Ancestors' pieces) are not
+    // things: they never went through the fog cut above, and a Quest looking down a long world drew every one of them
+    // (a pond 110 m away cost 6 calls under a fog that ends at 60). Same rule, the group's bounding sphere (re-measured every
+    // 60 frames: a rod's line or a dart in flight grows it).
+    for (const c of world.children) {
+      if (!c.visible || !esGrupoDeFuncion(c.name)) continue;
+      let e = esferasFunciones.get(c);
+      if (!e || cuadroEsferas - e.cuadro >= 60) {
+        const caja = cajaTmp.setFromObject(c);
+        e = { cuadro: cuadroEsferas, c: caja.isEmpty() ? null : caja.getCenter(new THREE.Vector3()), r: caja.isEmpty() ? 0 : caja.getSize(sizeTmp).length() / 2 };
+        esferasFunciones.set(c, e);
+      }
+      if (e.c && tapadoPorNiebla(e.c.x - ojo.x, e.c.y - ojo.y, e.c.z - ojo.z, e.r, lejos)) { ocultar(c); niebla++; }
+    }
+    cuadroEsferas++;
     hitosMalla.antes();
     lotes.raiz.visible = true; fijados.raiz.visible = true;
     dibujoUltimo = { lejos, niebla, instanciadas, lotes: nLotes };

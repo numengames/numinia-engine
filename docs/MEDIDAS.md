@@ -257,6 +257,52 @@ Cifras anteriores, con su versión: 434,9 kB en 10 ficheros (18-10, `5362797`), 
 ficheros): 342 kB (15-10, solo los .js del arranque de entonces), 423,3 kB (18-10, diseño M6: sin html ni css, gzip por defecto de
 Vite). Desde hoy manda esta sección.
 
+### Medida del 26-10-2026 por trozo (MIS-253, `resto/motor-b` sobre `origin/main` `2ea4b64f`)
+
+`npm run tamano` dio **666,0 kB gz** antes de tocar nada (665.966 bytes, 28 ficheros: la página ha crecido de 451,5 a 666 kB desde el 18-10, sobre todo
+`index` 103→222 kB: cada pieza nueva de la plaza entra en la entrada) y **661,7 kB** después (661.726 bytes, el mismo método). Sigue bajo el tope de 1 MB y sobre la meta de 300 kB. `npm run tamano:trozos` (`tools/tamano-trozos.mjs`) construye en una carpeta
+aparte e imprime **todos** los trozos (arranque o perezoso, gz -9) y, con `--modulos=N`, los N módulos de fuente más grandes dentro de cada trozo de
+arranque (bytes ya minificados: dicen de dónde viene el peso, no cuánto comprime).
+
+Qué se cortó: el **trozo de VR** (`xr-menu` + `constructor-xr` + `condiciones-xr`, 9,3 kB gz) ya no baja en un ordenador o un móvil sin
+gafas: `main.ts` lo pide solo cuando `view.vrSupported()` dice que sí; `__numinia.menuVR` y `.constructorVR` aparecen cuando llega.
+
+Arranque tras el corte (suma de ficheros JS: 638,1 kB gz; los 12 mayores):
+
+| Trozo | gz -9 |
+|---|---|
+| `index.js` | 196,6 kB |
+| `three.tsl.js` | 190,7 kB |
+| `src.js` | 76,9 kB |
+| `three.core.js` | 69,1 kB |
+| `gente-ia.js` | 16,1 kB |
+| `paneles.js` | 13,2 kB |
+| `src.js` | 10,7 kB |
+| `escribiendo.js` | 9,8 kB |
+| `inventario.js` | 5,0 kB |
+| `voces.js` | 4,2 kB |
+| `client.js` | 4,0 kB |
+| `dardos.js` | 3,9 kB |
+
+Perezosos más grandes (no entran en la cifra): 
+
+| Trozo | gz -9 |
+|---|---|
+| `avatares-vrm.js` | 65,8 kB |
+| `meshoptimizer.js` | 51,8 kB |
+| `KTX2Loader.js` | 23,9 kB |
+| `terreno.js` | 15,3 kB |
+| `fauna.js` | 14,8 kB |
+| `arboles.js` | 13,2 kB |
+| `GLTFLoader.js` | 12,9 kB |
+| `pesca.js` | 8,7 kB |
+
+Lo que queda por cortar, de mayor a menor, leído con `--modulos` en `index` (222 kB gz; 58 kB de fuente solo `constructor.ts`): el **grupo del
+constructor** (`constructor.ts` 58 k, `entorno.ts` 27 k, `cable.ts` 20 k, `foto.ts` 19 k: unos 30 kB gz, solo lo usa quien construye; hoy cuelgan de
+`constructorUI.cajon(…)` y se leen desde `main.ts` al construirse, así que cortarlo es una refactorización, no un `import()`), `condiciones.ts` (32 k de
+fuente; solo con la puerta de normas encendida, pero `ar-elegir.ts` y 19 pruebas de extremo a extremo lo leen en `__numinia.condiciones`), `voz.ts` y
+`rueda.ts`. `three.tsl` (190,7 kB) y `three.core` (69,1 kB) no se pueden partir: es `three.webgpu.js` entero.
+
 ## Pruebas unitarias: cuántas y cuánto tardan
 
 La cuenta no se copia aquí: la imprime `npm run gates` en cada pasada (fila «pruebas unitarias», sacada de la línea `ℹ pass N`
@@ -316,3 +362,52 @@ Plaza de 200 copias del modelo de 3.668 triángulos a 100–420 m (`COPIAS=200`)
 dio 100 llamadas y 539.983 triángulos. **No hay cifra «antes» fiable de llamadas y triángulos de esa plaza**: el cuadro leído por el
 GPU por software salió a 0 en el motor sin tarjeta (la lectura varía con el cuadro y con la posición, de 100 a 333 llamadas en
 el mismo mundo). Lo medido de verdad es el peso de cada nivel (arriba); las llamadas no bajan con el nivel, bajan los triángulos.
+
+## Cómo acaban las conexiones, y el INPUT con la pestaña de fondo (MIS-233, 26-10-2026)
+
+Falta que cerraba la nota de biblioteca del 16-10 («medir cuántas desconexiones sin despedida tenemos»): el servidor solo contaba `cerradas`, sin decir
+cómo. Ahora `/metrics` trae `cierres` y `/metrics.prom` trae `numinia_connections_closed_total{motivo=…}` con siete motivos por código de cierre
+(`limpio` 1000/1001, `sin_codigo` 1005, **`sin_despedida` 1006** = el socket murió sin trama de cierre, **`silencio` 4005** = lo cortó el servidor porque el
+latido se paró, `expulsado`, `protocolo`, `otro`; suman `cerradas`). **Sin despedida = `sin_despedida` + `silencio`.** Una página cortada por silencio
+acaba en el navegador como 1006 (no contesta la trama de cierre); el servidor la apunta aparte para no contarla dos veces. Prueba: `test/cierres.test.ts`
+(WebSocket real: 2 limpios, 1 muerto, 1 congelado cortado, 1 que sigue; las cuentas suman).
+
+Medida con pestañas reales (`tools/medir-cierres.mjs`, un Chromium sin cabeza, servidor propio con datos vacíos, 26-10 ~12:40 UTC, PC compartido):
+
+| Qué le pasa a la pestaña | Cierre contado | Tarda en notarlo el servidor |
+|---|---|---|
+| se cierra (`page.close`) | `limpio` | 0,26 s |
+| navega a otra página | `limpio` | 0,34 s |
+| se queda sin red (CDP `offline`, el socket no se cierra) | `silencio` | **16,4 s** (el tope es `SILENCIO_MS` = 15 s + el muestreo) |
+| congelada (`Page.setWebLifecycleState frozen`) | nada en 18 s | **no concluyente**: el Chromium sin cabeza no paró sus temporizadores, el latido siguió |
+| se cae el proceso de la pestaña (`Page.crash`) | **no medido**: cuelga la conexión CDP del Chromium sin cabeza | — |
+
+Lo que NO se ha medido, y no se puede aquí: cuántas desconexiones sin despedida hay en los **mundos reales** (esto es una prueba en banco; con `cierres` en
+producción la cifra sale de `numinia_connections_closed_total` en Grafana, ratio `sin_despedida+silencio` sobre el total).
+
+**INPUT con la pestaña de fondo.** Con la tecla W pulsada, la página mandó (5 s por ventana): visible **86 INPUT** (17/s), luego «minimizada» **98** y de nuevo
+visible **100** (20/s), más 12 latidos por ventana (tipo 16: un temporizador de 400 ms que lleva `oculta`, `apps/plaza/main.ts:733`). Pero el Chromium sin cabeza
+**no cambió `document.visibilityState`** al minimizar (siguió `visible`), así que esa fila **no es una pestaña oculta**: no mide nada de fondo. Lo que sí dice el
+código: el INPUT se manda dentro del bucle de dibujo (`view.loop` → `session.tick`), que el navegador **para** en una pestaña oculta (el móvil, además, la
+congela); el latido va por `setInterval`, que sí sigue (a 1 Hz como mucho) y por eso el servidor admite 150 s de silencio a quien dijo `oculta`
+(`SILENCIO_OCULTA_MS`) y 15 s al resto. Medirlo de verdad pide un Chromium con ventana o un móvil (`chrome://inspect`, lote de móviles). Pendiente.
+
+## Lo que la niebla tapa, también en las piezas de función: la Torre de los Alquimistas entera (t_43143556)
+
+El corte por niebla de N12 solo miraba las cosas, las personas y los rótulos. Los grupos que dibujan las funciones
+del mundo (`pesca:`, `dardos:`, `elemento:`, `ancestros:`) se seguían dibujando a 110 m con una niebla que acaba en 60.
+Ahora entran en el mismo corte con su esfera englobante (re-medida cada 60 cuadros: la línea de la caña o un dardo en
+vuelo la agrandan). La luz de la sala de los Ancestros no se oculta nunca (ocultar una luz recompila todos los materiales).
+Medida en la muestra de la Torre (mundo `muestra-torre`, niebla 60 m, GL por software, planta B = sin sombras, el
+punto más caro: de pie en el porche de la Torre mirando al este, con todo el mundo delante):
+
+| vista | antes | después |
+|---|---|---|
+| Quest simulada (nivel B), llamadas | 88 | 55 |
+| PC (nivel A, con sombras), llamadas | 112 | 77 |
+| llegada, Quest | 40 | 20 |
+| junto al Ayuntamiento, Quest | 65 | 49 |
+
+Con casco emulado (IWER Meta Quest 3 sobre la misma página, `?medidor`): los 12 rumbos del porche dan como peor caso
+125 llamadas en total = 62 por ojo (`ojos: 2` en el censo); tope de la plantilla B: 150 por ojo (`limits.json`), objetivo de la
+tarjeta: 80. `muestra-torre/medir.mjs` y `medir-vr.mjs` lo repiten.

@@ -114,6 +114,8 @@ export type Metrics = {
   respuestaTickMs: { p50: number; p99: number; peor: number };
   proceso: RuntimeWindow;
   conexiones: { aceptadas: number; cerradas: number; rechazadasLlenas: number };
+  /** MIS-233: HOW each closed connection ended (their sum is `conexiones.cerradas`); see `motivoDeCierre`. */
+  cierres: Cierres;
   bytesEnviados: number;
   tickSumaS: number;
   entorno: Entorno;
@@ -132,11 +134,30 @@ export type Metrics = {
 const r2 = (x: number) => Math.round(x * 100) / 100;
 const r3 = (x: number) => Math.round(x * 1000) / 1000; // features cost microseconds: one more decimal
 
+/** MIS-233: how a WebSocket ended, by its close code. `limpio` 1000/1001 (the page said goodbye: closed the tab, navigated, `close()`);
+ * `sin_codigo` 1005 (a close frame with no code: a goodbye, but nobody knows why); `sin_despedida` 1006 (no close frame at all: the network
+ * died, the phone slept, the page crashed or was killed); `silencio` 4005 (the server cut a page that sends heartbeats and went quiet:
+ * frozen or lost, with no goodbye either); `expulsado` 4003 (the world's roles took it out); `protocolo` (1002-1004, 1007-1015: a page or
+ * a bot that broke the rules, an oversized frame 1009 included); `otro`. Goodbye-less = `sin_despedida` + `silencio`. */
+export const MOTIVOS_CIERRE = ["limpio", "sin_codigo", "sin_despedida", "silencio", "expulsado", "protocolo", "otro"] as const;
+export type MotivoCierre = (typeof MOTIVOS_CIERRE)[number];
+export type Cierres = Record<MotivoCierre, number>;
+export const cierresVacios = (): Cierres => ({ limpio: 0, sin_codigo: 0, sin_despedida: 0, silencio: 0, expulsado: 0, protocolo: 0, otro: 0 });
+export function motivoDeCierre(code: number): MotivoCierre {
+  if (code === 1000 || code === 1001) return "limpio";
+  if (code === 1005) return "sin_codigo";
+  if (code === 1006) return "sin_despedida";
+  if (code === 4005) return "silencio";
+  if (code === 4003) return "expulsado";
+  if ((code >= 1002 && code <= 1004) || (code >= 1007 && code <= 1015)) return "protocolo";
+  return "otro";
+}
+
 export function buildMetrics(o: {
   version: string; uptimeMs: number; tick: number; tickHz: number; people: number; capacity: number;
   ticks: TickWindow; bytes: ByteWindow; lagMs: number; mem: { rss: number; heapUsed: number };
   lags: TickWindow; responses: TickWindow; runtime: RuntimeWindow; entorno: Entorno;
-  counts: { aceptadas: number; cerradas: number; rechazadasLlenas: number }; bytesTotal: number; tickSumMs: number;
+  counts: { aceptadas: number; cerradas: number; rechazadasLlenas: number }; cierres?: Cierres; bytesTotal: number; tickSumMs: number;
   coste?: CosteTick; erroresDe?: ReadonlyMap<string, number>; piezasStats?: { received: number; dropped: number; bad: number; errors: number };
 }): Metrics {
   const t = o.ticks.summary(), l = o.lags.summary(), q = o.responses.summary();
@@ -159,6 +180,7 @@ export function buildMetrics(o: {
     respuestaTickMs: trio(q),
     proceso: o.runtime,
     conexiones: { ...o.counts },
+    cierres: { ...(o.cierres ?? cierresVacios()) },
     bytesEnviados: o.bytesTotal,
     tickSumaS: r2(o.tickSumMs) / 1000,
     entorno: o.entorno,
@@ -186,7 +208,7 @@ function piezasDe(c: CosteTick | undefined, errores: ReadonlyMap<string, number>
 }
 
 /** The histograms and counters /metrics.prom adds to the JSON numbers (B2). */
-export type Histogramas = { coste?: CosteTick; gc?: Record<string, Histograma>; erroresDe?: ReadonlyMap<string, number> };
+export type Histogramas = { coste?: CosteTick; gc?: Record<string, Histograma>; erroresDe?: ReadonlyMap<string, number>; guiones?: readonly [string, string, number][] };
 
 /** Content type of each exposition format. Default: Prometheus text 0.0.4; a scraper that sends
  * `Accept: application/openmetrics-text` gets OpenMetrics 1.0.0 (same samples, counter families without `_total`, `# EOF`). */
@@ -221,6 +243,8 @@ export function toPrometheus(m: Metrics, h: Histogramas = {}, openMetrics = fals
   add("numinia_players", "gauge", "Connections in the instance now: people and AI agents.", [["", m.conectados]]);
   add("numinia_connections_total", "counter", "WebSocket connections by outcome.", [
     ['{result="accepted"}', m.conexiones.aceptadas], ['{result="closed"}', m.conexiones.cerradas], ['{result="rejected_full"}', m.conexiones.rechazadasLlenas]]);
+  add("numinia_connections_closed_total", "counter", "Closed connections by how they ended (MIS-233): clean = a close frame with 1000/1001; no_goodbye = 1006, the socket died with no close frame (network, crashed or killed page); silence = the server cut a page whose heartbeat stopped (4005).",
+    MOTIVOS_CIERRE.map((k) => [`{motivo="${k}"}`, m.cierres[k]] as [string, number]));
   add("numinia_ticks_total", "counter", "Simulation ticks run since start.", [["", m.tick]]);
   add("numinia_tick_duration_seconds_total", "counter", "Time spent inside ticks, summed.", [["", m.tickSumaS]]);
   for (const [k, v] of [["p50", m.tickMs.p50], ["p99", m.tickMs.p99], ["max", m.tickMs.peor]] as const)
@@ -250,6 +274,7 @@ export function toPrometheus(m: Metrics, h: Histogramas = {}, openMetrics = fals
     ['{result="accepted"}', m.piezasTotales.intents], ['{result="dropped"}', m.piezasTotales.descartados], ['{result="bad"}', m.piezasTotales.malos]]);
   const errs = [...(h.erroresDe ?? [])].sort((a, b) => a[0].localeCompare(b[0]));
   add("numinia_feature_errors_total", "counter", "Errors thrown by a feature's code since start (all hooks).", errs.map(([f, n]) => [`{feature="${esc(f)}"}`, n] as [string, number]));
+  if (h.guiones?.length) add("numinia_guion_cortes_total", "counter", "World scripts (apps' main.ts) cut or failed since start, by app and reason: cpu (over its time budget), memoria (over its heap), error (it threw).", h.guiones.map(([app, motivo, n]) => [`{app="${esc(app)}",motivo="${motivo}"}`, n] as [string, number]));
   if (h.coste) {
     hist("numinia_tick_seconds", "Tick duration (all of Instance.tick), since start.", [[{}, h.coste.tick]]);
     hist("numinia_tick_phase_seconds", "Duration of each phase of the tick, since start.", h.coste.fases.map((f) => [{ phase: f.nombre }, f.hist]));

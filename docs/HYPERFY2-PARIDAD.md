@@ -136,7 +136,7 @@ por capacidad, con lo que Hyperfy2 tiene, lo que tenemos hoy y la fila de `docs/
 | Capacidad | Hyperfy2 | Nosotros hoy | Estado | Fila |
 |---|---|---|---|---|
 | Unidad de contenido | `.hyp` (cabecera + JSON + ficheros) | decidida (carpeta de texto → paquete glTF `NUM_app`), sin construir | ✘ | M19 |
-| Cargar código sin reiniciar | el script de cada app se carga en marcha | las funciones J7 van compiladas con el motor | ✘ | M19 + M20 |
+| Cargar código sin reiniciar | el script de cada app se carga en marcha | el `main.ts` de cada app se recarga en caliente en su caja SES (administración; M20); las funciones J7 siguen compiladas con el motor | ◐ | M19 + M20 |
 | Código en las dos partes | el mismo fichero en servidor y cliente, en compartimentos SES | función J7 con mitad servidor y mitad cliente | ✔ | hecho |
 | API del mundo | `add remove attach on off emit getTime getTimestamp chat getPlayer getPlayers createLayerMask raycast overlapSphere get set open load` | intentos, eventos, estado, rutas, `store`, `who` | ◐ | M20 |
 | API de la app | `on off send sendTo emit create control configure`, `state`, `props`, `keepActive` | por función, no por objeto | ◐ | M20 |

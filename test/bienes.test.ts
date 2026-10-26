@@ -116,10 +116,11 @@ function mundo(o: { storage?: FileStorage; secreto?: string | null; confianza?: 
     activo: (sha) => (o.modelos ?? [MODELO]).includes(sha) });
   const paginas: { t: ReturnType<Instance["join"]> }[] = [];
   let n = 0;
-  const abrir = (k?: Keeper, guarda?: { load(): string | null; save(t: string): void }) => {
+  const abrir = (k?: Keeper, guarda?: { load(): string | null; save(t: string): void }, falla = 0) => {
     const t = inst.join(n++), mc = crearMisionesCliente(), bc = crearBienesCliente({ guarda: guarda ?? null }), oidos: string[] = [];
     const lleva = new Map<number, string>(); // N18: what this page draws on each avatar
-    const s = new ClientSession(t, { features: [...mc.parts, ...bc.parts], ...(k ? { identity: k } : {}), view: { label() {}, bounce() {}, tag() {}, place() {}, lleva: (e, p) => { if (p) lleva.set(e, `${p.donde}:${p.model.slice(0, 4)}`); else lleva.delete(e); } } });
+    let faltan = falla; // a page whose hooks still throw (its session is not built yet) for the first `falla` calls
+    const s = new ClientSession(t, { features: [...mc.parts, ...bc.parts], ...(k ? { identity: k } : {}), view: { label() {}, bounce() {}, tag() {}, place() {}, lleva: (e, p) => { if (faltan > 0) { faltan--; throw new Error("session is not defined yet"); } if (p) lleva.set(e, `${p.donde}:${p.model.slice(0, 4)}`); else lleva.delete(e); } } });
     s.features.tap((f, ev) => { if (f === "bienes") oidos.push(ev); });
     const p = { s, t, m: mc.misiones, b: bc.bienes, oidos, lleva };
     paginas.push(p);
@@ -366,4 +367,14 @@ test("N18 trust file: confianza@1 read leniently; a bad key is reported, never t
   // the example world ships the file, empty: trusting is the world's decision
   const f = JSON.parse(readFileSync(fileURLToPath(new URL("../aventuras/ejemplo/bienes/confianza.json", import.meta.url)), "utf8"));
   assert.equal(f.formato, "confianza@1"); assert.deepEqual(f.emisores, []);
+});
+
+test("N18 wear, late guest: someone who joins after you put something on sees it on you, even if its page was not ready for the first call", async () => {
+  const W = mundo({ storage: new FileStorage(nuevaCarpeta("bienes-llevar-tarde")) });
+  const a = W.abrir(keeper()); W.pump(3);
+  W.abrirCofre(a);
+  assert.ok(a.b.llevar(a.b.lista()[0].id, "mano").ok); W.pump(3);
+  const tarde = W.abrir(undefined, undefined, 1); W.pump(3); // joins late; its first lleva() throws
+  await new Promise((r) => setTimeout(r, 350));
+  assert.equal(tarde.lleva.get(a.s.entity), "mano:bbbb", "the late guest draws the Seed in A's hand");
 });

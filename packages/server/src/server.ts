@@ -21,7 +21,7 @@ import { construirMalla } from "./colision-mundo.ts";
 import { CIERRE_LLENO, CIERRE_SILENCIO, FUNCIONES_DE_ENLACE, MSG, PASE_MAX, WS_FRAME_MAX, esVisitaDeEnlace } from "../../net/src/index.ts";
 import type { Transport } from "../../net/src/index.ts";
 import type { HttpReply, ServerPart } from "../../feature/src/index.ts";
-import { buildMetrics, ByteWindow, CosteTick, OPENMETRICS, PROM_TEXT, quiereOpenMetrics, TickWindow, toPrometheus } from "./metrics.ts";
+import { buildMetrics, ByteWindow, CosteTick, cierresVacios, motivoDeCierre, OPENMETRICS, PROM_TEXT, quiereOpenMetrics, TickWindow, toPrometheus } from "./metrics.ts";
 import { entorno, Runtime } from "./runtime.ts";
 import { KEEP_DAYS, Sesiones } from "./sesiones.ts";
 import { FileStorage } from "./datos.ts";
@@ -50,7 +50,10 @@ import type { Who } from "../../instance/src/index.ts";
 import { crearHabitantesGestion } from "./habitantes.ts";
 import { crearHabitantesHttp } from "./habitantes-http.ts";
 import { crearFuncionesHttp } from "./funciones-http.ts";
-import { leerApps, listaDeApps } from "./apps.ts"; // M19: the world's apps/ folder, read and validated (nothing runs)
+import { leerApps, listaDeApps } from "./apps.ts"; // M19: the world's apps/ folder, read and validated
+import { crearEjecutorApps } from "./apps-ejecutar.ts"; // M20: each app's main.ts runs in the SES sandbox (CPU and memory caps, hot reload)
+import type { EjecutorApps } from "./apps-ejecutar.ts";
+import { crearAppsHttp } from "./apps-http.ts"; // M20: the admin door that edits and reloads a script
 import { MODELO_POR_DEFECTO } from "../../agent/src/cerebro.ts";
 import { crearPuerta } from "./puerta.ts";
 import { ColaOptimizar } from "./optimizar-cola.ts";
@@ -77,7 +80,8 @@ export type ServerOptions = {
   subidas?: string | null;       // H1/H9: folder of uploaded files named <sha256>.<ext>; default null (= no uploads)
   subir?: { topesMB?: Partial<Record<string, number>>; totalMB?: number }; // H9: smaller caps (tests); default ficheros.ts
   optimizar?: boolean;           // N22: lighter copies of uploaded .glb in the background (optimizar-cola.ts); default MOTOR_OPTIMIZAR !== "no"
-  apps?: string | null;          // M19: the world's apps/ folder (one folder per app: app.json, main.ts, assets/); default null = none. Read once at start; GET /apps lists them; their files join /a/
+  apps?: string | null;          // M19: the world's apps/ folder (one folder per app: app.json, main.ts, assets/); default null = none. Read at start; GET /apps lists them; their files join /a/; each main.ts runs in the SES sandbox (M20)
+  vigilarApps?: boolean;         // M20: reload an app's script when its main.ts changes on disk; default true
   aventura?: string | null;      // J5: the adventure's folder (quests, people, things as text files); default null = none
   agentes?: string;              // P4: the secret that signs AI inhabitants' tickets (env MOTOR_AGENTES_SECRET); none or short = no inhabitants
   dominios?: readonly string[];  // ADR-080: the world's public names an outside agent signs (env MOTOR_DOMINIO, commas); none = the host each connection asks for
@@ -114,6 +118,8 @@ export type RunningServer = {
   metrics(): Metrics;
   /** N22: the queue that makes the uploads' lighter copies (tests wait on it). */
   optimizar: ColaOptimizar;
+  /** M20: the apps' scripts (their state, a handler call, a reload). */
+  apps: EjecutorApps;
   close(): Promise<void>;
 };
 
@@ -224,11 +230,13 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const funciones = o.features?.length ? [...o.features, roles.part, ...(puertaActiva || normasConInterruptor ? [puertaCondiciones.part] : [])] : o.features; // the gate keeps what people accepted in a feature of its own, only when it is on; no features (bare tests) = the pre-J7 wire
   const puede = (who: Who | null, accion: string) => roles.puede(who, accion);
   const activos = new Activos(o.biblioteca === undefined ? BIBLIOTECA : o.biblioteca, o.subidas ?? null, log);
-  // M19: the apps (read once; a bad app is left out and the log says where and why; main.ts is stored, never run: M20 runs scripts)
+  // M19: the apps (a bad app is left out and the log says where and why); M20: each good app's main.ts runs in the SES sandbox below
   const apps = leerApps(o.apps ?? null);
   for (const r of apps.rechazadas) for (const i of r.issues) log(`[apps] no se carga «${r.id}»: ${i.path}: ${i.message}`);
   for (const a of apps.apps) activos.agregar(join(a.carpeta, "assets"));
-  if (o.apps && (apps.apps.length || apps.rechazadas.length)) log(`[apps] ${apps.apps.length} cargada${apps.apps.length === 1 ? "" : "s"}${apps.rechazadas.length ? `, ${apps.rechazadas.length} rechazada${apps.rechazadas.length === 1 ? "" : "s"}` : ""} (${o.apps}); sus scripts se guardan, no se ejecutan`);
+  if (o.apps && (apps.apps.length || apps.rechazadas.length)) log(`[apps] ${apps.apps.length} cargada${apps.apps.length === 1 ? "" : "s"}${apps.rechazadas.length ? `, ${apps.rechazadas.length} rechazada${apps.rechazadas.length === 1 ? "" : "s"}` : ""} (${o.apps})`);
+  const ejecutor = crearEjecutorApps({ apps: apps.apps, log, vigilar: o.vigilarApps });
+  const scriptsListos = ejecutor.arrancar().catch((e) => log(`[apps] los scripts no arrancaron: ${(e as Error).message}`)); // M20: the worlds listens once the scripts are up (a script that fails to start is reported, never blocks)
   const optimizar = new ColaOptimizar(activos, log, o.optimizar ?? process.env.MOTOR_OPTIMIZAR !== "no"); // N22
   const hashes = new CacheHashes(archivoHashes(o.subidas ?? null)); // M16: the sha256 of every file the manifest lists, kept while the file does not change
   // E3: the world's own avatars (entorno/avatares.json → files in datos/activos/, checked now with the same VRM reader the uploads use); none = nothing told, the world as always
@@ -292,6 +300,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const runtime = new Runtime(), env = entorno();
   const coste = new CosteTick(FASES_TICK, 200); // B2: where each tick's time goes (phases, features)
   const counts = { aceptadas: 0, cerradas: 0, rechazadasLlenas: 0 };
+  const cierres = cierresVacios(), cortadosPorSilencio = new Set<number>(); // MIS-233: how each connection ended (a page we cut for silence never answers our close frame: it ends as 1006, so it is remembered here)
   const tickMs = 1000 / TICK_HZ;
   let n = 0, lagMs = 0, start = 0, stopped = false, tickSumMs = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -299,7 +308,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const metrics = () => buildMetrics({
     version, uptimeMs: performance.now() - born, tick: inst.sim.tick, tickHz: TICK_HZ, people: inst.conns.length,
     capacity: aforo(), ticks, bytes, lagMs, mem: process.memoryUsage(),
-    lags, responses, runtime: runtime.window(), entorno: env, counts, bytesTotal: bytesOut, tickSumMs,
+    lags, responses, runtime: runtime.window(), entorno: env, counts, cierres, bytesTotal: bytesOut, tickSumMs,
     coste, erroresDe: inst.features.erroresDe, piezasStats: inst.features.stats,
   });
 
@@ -316,6 +325,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const agentesHttp = crearAgentesHttp({ pase: cfgPase.pase, agentes: () => roles.agentes, log });
   const habitantesHttp = crearHabitantesHttp({ pase: cfgPase.pase, habitantes: () => hab, log });
   const funcionesHttp = crearFuncionesHttp({ pase: cfgPase.pase, enlace: () => enlaceFunciones, log });
+  const appsHttp = crearAppsHttp({ pase: cfgPase.pase, admin: o.admin ?? process.env.MOTOR_ADMIN, ejecutor: () => ejecutor, log });
   const http: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
     const [path, qs = ""] = (req.url ?? "/").split("?");
     const method = req.method ?? "GET";
@@ -365,7 +375,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     if (method === "GET" && path === "/metrics.prom") { // B2: OpenMetrics 1.0 when the scraper asks for it, Prometheus text 0.0.4 otherwise
       const om = quiereOpenMetrics(req.headers.accept);
       res.writeHead(200, { "content-type": om ? OPENMETRICS : PROM_TEXT, "cache-control": "no-store", vary: "Accept" });
-      return void res.end(toPrometheus(metrics(), { coste, gc: runtime.gcHist, erroresDe: inst.features.erroresDe }, om));
+      return void res.end(toPrometheus(metrics(), { coste, gc: runtime.gcHist, erroresDe: inst.features.erroresDe, guiones: ejecutor.cortes() }, om));
     }
     if ((method === "GET" || method === "HEAD") && path === "/manifiesto.json") { // M16: the zone's files, each with its sha256, size and class (manifiesto.ts)
       const cosas: Cosa[] = [];
@@ -379,7 +389,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     if ((method === "PUT" || method === "OPTIONS") && path.startsWith("/a/")) return subidas.atender(method, path, req, res); // H9: uploads
     if (agentesHttp.atender(method, path, req, res)) return; // ADR-080: numinia.com's panel manages the outside agents (pass-authenticated)
     if (habitantesHttp.atender(method, path, req, res)) return; // the panel manages this world's own AI inhabitants (pass-authenticated)
-    if (method === "GET" && /^\/apps\/?$/.test(path)) return json(res, 200, listaDeApps(apps)); // M19: what the world's apps are (properties, events, card, files); read-only, no disk paths
+    if (appsHttp.atender(method, path, req, res)) return; // M20: an admin edits/reloads an app's script (pass or administration code)
+    if (method === "GET" && /^\/apps\/?$/.test(path)) return json(res, 200, listaDeApps(apps, ejecutor.estado())); // M19: what the world's apps are (properties, events, card, files); read-only, no disk paths
     if (funcionesHttp.atender(method, path, req, res)) return; // e1: the panel switches the world's functions (normas, dardos, pesca) (pass-authenticated)
     if (copia.atender(method, path, req, res)) return; // the world as a zip
     if (pagina?.servir(method, path, req, res)) return; // C1: the page (index.html, assets/) when the engine serves it
@@ -412,13 +423,13 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     const entity = inst.connect(wsTransport(ws), undefined, req.headers.host, esVisitaDeEnlace(req.url) ? FUNCIONES_DE_ENLACE : undefined); // ADR-080: the host an outside agent signs
     sockets.set(entity, ws);
     sesiones.abrir(entity);
-    ws.on("close", (code) => { counts.cerradas++; sockets.delete(entity); sesiones.cerrar(entity, { cierre: code }); inst.disconnect(entity); });
+    ws.on("close", (code) => { counts.cerradas++; cierres[cortadosPorSilencio.delete(entity) ? "silencio" : motivoDeCierre(code)]++; sockets.delete(entity); sesiones.cerrar(entity, { cierre: code }); inst.disconnect(entity); });
     ws.on("error", () => ws.terminate());
   });
 
   // t_9cb3f636: a page that sends heartbeats and then goes quiet has lost its connection without closing it: drop it now (its avatar
   // leaves for everyone) instead of waiting minutes for the network. Pages without heartbeats (AIs, bots, old pages) are never judged.
-  const vigia = setInterval(() => { for (const e of inst.expirarSilencio(o.silencioMs)) { const ws = sockets.get(e); if (ws) { try { ws.close(CIERRE_SILENCIO, "sin latido"); } catch { /* gone */ } setTimeout(() => ws.terminate(), 1000).unref(); } } }, 250);
+  const vigia = setInterval(() => { for (const e of inst.expirarSilencio(o.silencioMs)) { const ws = sockets.get(e); if (ws) { cortadosPorSilencio.add(e); try { ws.close(CIERRE_SILENCIO, "sin latido"); } catch { /* gone */ } setTimeout(() => ws.terminate(), 1000).unref(); } } }, 250);
   vigia.unref?.();
 
   // fixed-rate loop: schedule against the start time so timer drift never accumulates
@@ -442,13 +453,13 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   stats.unref();
   // stop the world for good (before a swap of datos/): no tick, nobody connected, no new connections, all written
   apagar = async () => {
-    stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); clearInterval(vigia); fuenteCondiciones.parar();
+    stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); clearInterval(vigia); fuenteCondiciones.parar(); ejecutor.parar();
     for (const c of wss.clients) c.terminate();
     wss.close(); http.close(); http.closeIdleConnections();
     await Promise.all([sesiones.vaciar(), datos?.flush(), optimizar.parar()]);
   };
 
-  return primeraFuente.then(() => new Promise<RunningServer>((ok, ko) => {
+  return Promise.all([primeraFuente, scriptsListos]).then(() => new Promise<RunningServer>((ok, ko) => {
     http.once("error", ko);
     http.listen(o.port, o.host, () => {
       const addr = http.address();
@@ -459,9 +470,9 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
       log(`[instancia] ws://${o.host}:${port} · 20 Hz · huella de referencia ${hex(refHash)} (${REFERENCE.ticks} ticks, ${refMs} ms) · /health /metrics /sesiones · versión ${version}`);
       if (sesiones.dir) log(`[sesiones] cómo entra cada jugador: ${sesiones.dir}/sesiones-<día UTC>.jsonl (${KEEP_DAYS} días; npm run sesiones)`);
       ok({
-        port, inst, sesiones, datos, fingerprint: hex(refHash), metrics, optimizar,
+        port, inst, sesiones, datos, fingerprint: hex(refHash), metrics, optimizar, apps: ejecutor,
         close: () => new Promise<void>((done) => {
-          stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); clearInterval(vigia); fuenteCondiciones.parar(); runtime.close();
+          stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); clearInterval(vigia); fuenteCondiciones.parar(); runtime.close(); ejecutor.parar();
           for (const c of wss.clients) c.terminate();
           wss.close(); http.close(() => void Promise.all([sesiones.vaciar(), datos?.flush(), optimizar.parar()]).then(() => done()));
         }),

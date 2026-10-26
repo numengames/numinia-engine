@@ -1,0 +1,9 @@
+graboso-cabeza.glb — la cabeza fina del Graboso (la reliquia que graba, M18b).
+
+Obra propia del motor Numinia, dedicada al dominio público: CC0 1.0 Universal
+(https://creativecommons.org/publicdomain/zero/1.0/). Sin texturas, sin modelos ni imágenes de terceros.
+
+Se hace con `node tools/hacer-graboso.mjs` (siempre los mismos bytes; el sha256 que la página pide está en
+packages/render/src/graboso.ts, MODELO_SHA, y test/graboso-modelo.test.ts comprueba que es el del fichero).
+1.784 triángulos, un material, tres nodos: `concha` (la nube), `rasgos` (ojos, nariz, sonrisa, antena) y `piloto`
+(la luz roja que late al grabar). La cara mira hacia -z.
