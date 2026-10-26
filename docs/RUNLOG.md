@@ -1727,3 +1727,8 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Números: `test/portada.test.ts` 5 en verde; `npm run gates` en verde (2497 pruebas); pierna lenta `tools/e2e-piernas/portada.mjs` en verde (JPEG 1280×720, 267 kB, de una foto PNG de 2,3 MB). Versión 0.69.0 (menor: algo nuevo que no rompe nada).
 - Sin comprobar: un mundo real de la flota detrás de su Caddy (el de una instalación sin WWW_DIR sirve la página con Caddy y no lleva las etiquetas), Firefox, Safari, móvil y VR (en VR no hay botón: la foto de VR sale al volver a la página y ahí sí).
 - Siguiente: la foto lleva los rótulos con los nombres de quien esté delante; para una portada pública convendría quitarlos al hacerla.
+
+## 2026-10-26 · MIS-265: la portada se dibuja sin los nombres de la gente · hecho
+- Qué: quien puede poner portada (dueño o administración) recibe, al hacer la foto, una segunda versión del mismo encuadre dibujada sin rótulos de nombre ni bocadillos (`nombres.sinRotulos`, que los apaga durante el dibujo y los devuelve como estaban). «Usar de portada» sube esa versión; guardar, compartir y copiar siguen usando la foto normal. Quien no puede poner portada no paga el segundo dibujo.
+- Números: pierna lenta `tools/e2e-piernas/portada.mjs` comprueba que la versión sin nombres existe y que dentro de `sinRotulos` no hay rótulos dibujados. Versión 0.69.1 (arreglo).
+- Sin comprobar: mundo real de la flota detrás de Caddy, Firefox, Safari y móvil.

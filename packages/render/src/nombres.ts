@@ -214,6 +214,12 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
     bubbles(): { target: Target; text: string; drawn: boolean }[] {
       return [...bubbles].map(([target, b]) => ({ target, text: b.text, drawn: b.mesh.visible }));
     },
+    /** MIS-265: runs `f` (a picture being drawn) with every name plate and speech bubble hidden, then puts them back as they were. */
+    sinRotulos<T>(f: () => T): T {
+      const antes = [...tags.values(), ...bubbles.values()].map((p) => [p, p.mesh.visible] as const);
+      for (const [p] of antes) p.mesh.visible = false;
+      try { return f(); } finally { for (const [p, v] of antes) p.mesh.visible = v; }
+    },
     /** A bubble is alive: the power policy must keep drawing until it goes. */
     busy(): boolean { return bubbles.size > 0; },
   };

@@ -1333,6 +1333,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     hablando(clave: string | null): void { if (hablando !== clave) { hablando = clave; rotulosPendiente = true; } },
     /** J3: names and bubbles the page holds, and whether each is drawn now (for checks). */
     nameTags() { return nombres.nameTags(); },
+    /** MIS-265: runs `f` with the people's name plates and bubbles hidden (a picture for a public cover carries nobody's name). */
+    sinRotulos<T>(f: () => T): T { return nombres.sinRotulos(f); },
     /** ia-visible S4: this avatar is an AI (`activa`|`dormida`) or no longer (`null`): its plate is always on, green, with an «IA» chip (and a moon asleep). */
     ia(t: Target, estado: "activa" | "dormida" | null): void { nombres.ia(t, estado); aros.poner(t, estado); burbujas.dormida(t, estado === "dormida"); rotulosPendiente = true; },
     /** ia-visible S5 (for checks): who has a ring, whether it is drawn, and how much the rings share (one geometry, one material per state). */

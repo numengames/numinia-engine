@@ -27,6 +27,8 @@ type Vista = {
   vr: { active: boolean }; ar: { state: string };
   /** MIS-222: one picture of what the headset sees (packages/render/src/foto-xr.ts); rejects outside XR or when no frame comes. */
   fotoVR?: { sacar(): Promise<HTMLCanvasElement> };
+  /** MIS-265: runs the function with name plates and speech bubbles hidden (packages/render nombres.sinRotulos). */
+  sinRotulos?<T>(f: () => T): T;
   cam: { modo(m?: "juego" | "construir" | "foto"): string; desplazar(d: number, a: number, h?: number): void; mirarHacia(yaw: number, pitch?: number): void; yaw(): number;
     estado(): { pivote: Punto; yaw: number; pitch: number; distancia: number } };
   waypoint?(x: number, z: number, text: string): number;
@@ -59,6 +61,7 @@ export function montarFoto(o: FotoOpts) {
   const { view } = o;
   const lienzo = view.renderer.domElement;
   let activo = false, filtroId = "natural", conMarco = false, hecha: { blob: Blob; url: string; nombre: string; ancho: number; alto: number; enlace: string } | null = null;
+  let sinNombres: Blob | null = null; // MIS-265: the same picture drawn without name plates, kept only for who may set a cover
   let deVR = false, estabaEnVR = false; // the picture on hand was taken inside VR and has not been shown yet / VR was on a moment ago
   let mundo = () => document.title || "Mundo";
 
@@ -170,7 +173,7 @@ export function montarFoto(o: FotoOpts) {
     o.decir("Fuera del modo foto.");
   }
   function volverAEncuadrar(): void { panel.hidden = true; raiz.classList.remove("con-foto"); pintarMarco(); soltarHecha(); bDisparar.focus({ preventScroll: true }); }
-  function soltarHecha(): void { if (hecha) URL.revokeObjectURL(hecha.url); hecha = null; deVR = false; img.removeAttribute("src"); campoEnlace.hidden = true; }
+  function soltarHecha(): void { if (hecha) URL.revokeObjectURL(hecha.url); hecha = null; sinNombres = null; deVR = false; img.removeAttribute("src"); campoEnlace.hidden = true; }
 
   // ---- the picture: drawn again at up to 2× right now, read from the canvas in the same task (WebGL2 and WebGPU
   // both keep the frame until the task ends), then filtered and framed on a 2D canvas ----
@@ -266,7 +269,11 @@ export function montarFoto(o: FotoOpts) {
       if (!document.documentElement.classList.contains("menos-movimiento")) { destello.classList.remove("ya"); void destello.offsetWidth; destello.classList.add("ya"); }
       const c = capturar();
       await componer(c, filtro(filtroId));
+      // MIS-265: a cover is public, so whoever may set one gets a second drawing of the frame with no names over the people
+      let cSin: HTMLCanvasElement | null = null;
+      if (o.portada?.puede() && view.sinRotulos) { cSin = view.sinRotulos(capturar); await componer(cSin, filtro(filtroId)); }
       await guardarHecha(c, enlace());
+      if (cSin) sinNombres = await new Promise<Blob | null>((ok) => cSin!.toBlob(ok, "image/png"));
       mostrarHecha();
       return resultado(c);
     } catch (e) {
@@ -304,7 +311,7 @@ export function montarFoto(o: FotoOpts) {
   async function usarDePortada(): Promise<{ ok: true; bytes: number } | { ok: false; why: string }> {
     if (!hecha) return { ok: false, why: "aún no hay foto" };
     if (!o.portada?.puede()) return { ok: false, why: "solo quien cuida el mundo puede cambiar su portada" };
-    const bmp = await createImageBitmap(hecha.blob);
+    const bmp = await createImageBitmap(sinNombres ?? hecha.blob); // no names when the world could draw it so
     const m = medidaPortada(bmp.width, bmp.height), c = document.createElement("canvas");
     c.width = m.ancho; c.height = m.alto;
     const ctx = c.getContext("2d")!;
@@ -401,6 +408,7 @@ export function montarFoto(o: FotoOpts) {
     filtros: () => FILTROS.map((f) => ({ id: f.id, nombre: f.nombre })),
     enlace,
     /** The last picture (for checks and agents): size, bytes, file name, link; null until one is made. */
+    portadaSinNombres: () => sinNombres !== null,
     ultima: () => (hecha ? { ancho: hecha.ancho, alto: hecha.alto, bytes: hecha.blob.size, nombre: hecha.nombre, enlace: hecha.enlace } : null),
     /** The last picture's bytes as a data URL (checks read its pixels). */
     datos: async () => (hecha ? await new Promise<string>((ok) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.readAsDataURL(hecha!.blob); }) : null),

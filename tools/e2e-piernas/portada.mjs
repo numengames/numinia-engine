@@ -72,6 +72,13 @@ try {
   await a.evaluate(() => globalThis.__numinia.foto.abrir());
   await sleep(600);
   out.foto = await a.evaluate(async () => globalThis.__numinia.foto.disparar());
+  // the cover is drawn with no name plates, and the plates come back after (the guest's name is on, forced here)
+  out.sinNombres = await a.evaluate(() => {
+    const n = globalThis.__numinia, v = n.view, nombre = (v.nameTags?.() ?? []);
+    const dibujadas = () => (v.nameTags?.() ?? []).filter((t) => t.drawn).length;
+    let dentro = -1; v.sinRotulos(() => { dentro = dibujadas(); });
+    return { lista: nombre.length, dentro, portadaSinNombres: n.foto.portadaSinNombres() };
+  });
   const boton = a.locator("#foto .foto-portada");
   out.botonVisible = await boton.isVisible();
   if (SHOTS) await a.screenshot({ path: `${SHOTS}/portada-1-boton.png` });
@@ -91,7 +98,7 @@ try {
   if (SHOTS) writeFileSync(`${SHOTS}/portada-3-imagen.jpg`, bytes);
 
   ok = errors.length === 0 && out.antes === null && out.invitado.ok && out.invitado.boton === false
-    && out.foto.ok && out.botonVisible && /portada del mundo/.test(out.estado)
+    && out.foto.ok && out.sinNombres.portadaSinNombres && out.sinNombres.dentro === 0 && out.botonVisible && /portada del mundo/.test(out.estado)
     && /^[0-9a-f]{64}\.jpg$/.test(out.ficha.portada ?? "") && out.ficha.nombre === "Plaza de prueba" && out.ficha.notas === "no se toca"
     && out.ajustesB === out.ficha.portada && out.despues === `https://plaza.numinia.com/a/${out.ficha.portada}`
     && out.imagen.status === 200 && out.imagen.jpeg && Math.max(out.medida.w, out.medida.h) <= 1600 && out.medida.w > 0;
