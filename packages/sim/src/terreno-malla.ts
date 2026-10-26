@@ -103,11 +103,4 @@ export function terrenoMalla(m: TerrenoMundo): TerrenoMalla {
 export const SUELO_BAJO_TERRENO_M = 8;
 export const sueloMinimoTerreno = (hmin: number): number => Math.floor(hmin) - SUELO_BAJO_TERRENO_M;
 
-/** Two meshes in one tree (a world with a `malla` GLB AND naturaleza): the triangles of both, rebuilt. null + null = null. */
-export function combinarMallas(a: Bvh | null, b: Bvh | null): Bvh | null {
-  if (!a || a.count === 0) return b && b.count ? b : null;
-  if (!b || b.count === 0) return a;
-  const tris = new Int32Array(a.tris.length + b.tris.length);
-  tris.set(a.tris, 0); tris.set(b.tris, a.tris.length);
-  return buildBvh(tris);
-}
+export { combinarMallas } from "./bvh.ts"; // moved to bvh.ts so a page can join meshes without the terrain code

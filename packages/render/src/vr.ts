@@ -680,7 +680,7 @@ export function createVR(h: VRHooks) {
       nota.visible = !!session;
     },
     /** For checks: the dialogue's answer under the ray or the stick, the note shown, where the answer n sits in the world. */
-    estadoPaneles() { return { dialogo: !!dialogo && dialogoMalla.visible, encima, nota: nota.visible ? notaTexto : "", panel: panel.visible, panelTexto: panelText }; },
+    estadoPaneles() { return { dialogo: !!dialogo && dialogoMalla.visible, encima, nota: nota.visible ? notaTexto : "", panel: panel.visible, panelTexto: panelText, /** MIS-200: the VR extras (hands, watch, panels) are on screen: false from entering until the first calm frames (or the 6 s ceiling). Checks that move a hand wait for it. */ extras: mostrado }; },
     filaMundo(n: number): { x: number; y: number; z: number } | null {
       if (!dialogo || !dialogoMalla.visible || n < 1 || n > dialogo.opciones.length) return null;
       const w = 1.15, hgt = (w * 680) / 1024, py = FILA0 + (n - 1) * FILA_H + (FILA_H - 8) / 2;

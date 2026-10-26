@@ -20,7 +20,24 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLEl
   const e = Object.assign(document.createElement(tag), props); e.append(...hijos); return e;
 };
 
-export function montarDados(o: { dados: Dados; yo: () => { x: number; z: number } | null }): { cerca(): Torre | null } {
+/** The tray a tower's dice land in, in world metres (features/dados: the tower's own place plus its bandeja* fields; the defaults are a patch of ground). */
+export function bandejaDe(t: Pick<Torre, "x" | "y" | "z" | "bandejaDx" | "bandejaDz" | "bandejaAlto" | "bandejaAncho" | "bandejaFondo">): { x: number; y: number; z: number; ancho: number; fondo: number } {
+  const cm = (v: number) => Math.round(v * 100) / 100; // the wire's fixed point arrives as 0.4000000000000004: both pages work from the same clean numbers
+  return { x: cm(t.x + (t.bandejaDx ?? 0)), y: cm(t.y + (t.bandejaAlto ?? 0)), z: cm(t.z + (t.bandejaDz ?? 0)), ancho: cm(t.bandejaAncho ?? 0.8), fondo: cm(t.bandejaFondo ?? 0.6) };
+}
+/** The face count of a roll's dice from its expression («3d6» → 6, «1d20» → 20). */
+export const carasDe = (expresion: string): number => Number(/d(\d+)/i.exec(expresion)?.[1] ?? 0);
+
+/** What the 3D view is told for a roll heard at a tower: null when there is nothing to draw (no tower named, a hidden roll without values). Pure. */
+export function aTirada3D(t: Pick<Tirada, "n" | "sitio" | "dados" | "valores">, torres: readonly Torre[]): Parameters<VistaDados["tirar"]>[0] | null {
+  const torre = t.sitio ? torres.find((x) => x.id === t.sitio) : undefined;
+  if (!torre || !t.valores.length) return null;
+  return { n: t.n, sitio: t.sitio, caras: carasDe(t.dados), valores: t.valores, bandeja: bandejaDe(torre) };
+}
+
+/** `vista`: the 3D dice (packages/render dados-vista): a roll heard at a tower falls into its tray. Absent = only the card, the label and the line. */
+export type VistaDados = { tirar(t: { n: number; sitio: string; caras: number; valores: readonly number[]; bandeja: { x: number; y: number; z: number; ancho: number; fondo: number } }): boolean };
+export function montarDados(o: { dados: Dados; yo: () => { x: number; z: number } | null; vista?: VistaDados }): { cerca(): Torre | null } {
   const { dados, yo } = o;
   const carta = el("div", { id: "dados-carta" });
   carta.setAttribute("aria-hidden", "true"); // the announcement says it in words
@@ -35,6 +52,9 @@ export function montarDados(o: { dados: Dados; yo: () => { x: number; z: number 
     const lectura = / — (.+)$/.exec(t.texto)?.[1]; // a pool of d6: the house reading (éxito normal, fracaso…)
     const pie = t.oculta && !t.valores.length ? "en secreto" : lectura ? lectura[0].toUpperCase() + lectura.slice(1) : `${t.mod ? `${t.mod > 0 ? "+" : ""}${t.mod} · ` : ""}total ${t.total}`;
     carta.replaceChildren(el("p", { className: "quien", textContent: t.texto.split(" tira ")[0] + ` · ${t.dados} · tirada ${t.n}` }), fila, el("p", { className: "total", textContent: pie }));
+    // the same roll, falling into the tower's tray (story 1: d6 and d20, on a PC; a hidden roll has no values and draws nothing)
+    const en3D = o.vista ? aTirada3D(t, dados.torres()) : null;
+    if (o.vista && en3D) o.vista.tirar(en3D);
     carta.classList.remove("visible"); void carta.offsetWidth; carta.classList.add("visible", "cae");
     clearTimeout(quitar);
     quitar = window.setTimeout(() => carta.classList.remove("visible", "cae"), CARTA_MS);

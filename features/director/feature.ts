@@ -62,6 +62,7 @@ export const director = defineFeature({
     rechazado: { describe: "Lo que pediste como director no se hizo, y por qué.", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
     // server-scope events (never reach a page): the environment applies a scene's look; the chat answers an order
     aplicar: { describe: "Para el entorno (solo en el servidor): poner el aspecto de una escena sobre el entorno del mundo. preset = uno de la casa o vacío; entorno = entorno@1 parcial en JSON, o vacío.", fields: { preset: { kind: "text", maxBytes: 16 }, entorno: { kind: "text", maxBytes: 512 } }, announce: "silent" },
+    mapa: { describe: "Para los objetos (solo en el servidor): la escena puesta trae una obra para el hueco del mapa de la mesa. hueco = id o nombre exacto del hueco (vacío = el único hueco de la zona); modelo/ext = la imagen subida (vacío = vaciar el hueco, vuelve su cartel).", fields: { hueco: { kind: "text", maxBytes: 64 }, modelo: { kind: "text", maxBytes: 64 }, ext: { kind: "text", maxBytes: 4 }, titulo: NOMBRE }, announce: "silent" },
     aviso: { describe: "Para el chat (solo en el servidor): la respuesta a una orden /escena, /escenas, /narrar o /convocar, solo para quien la escribió.", fields: { quien: { kind: "int", min: 0, max: 1_000_000 }, texto: { kind: "text", maxBytes: 300 } }, announce: "silent" },
   },
 });

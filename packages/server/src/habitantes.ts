@@ -22,7 +22,11 @@ export type OpcionesHabitantes = {
   log?: (l: string) => void;
 };
 
-export type MotivoHabitante = "invalido" | "conflicto" | "no-hay" | "servidor";
+export type MotivoHabitante = "invalido" | "conflicto" | "no-hay" | "servidor" | "sin-permiso";
+/** The escalón from which an inhabitant BUILDS (formato.ts ESCALONES: 4 = «y construye»). */
+export const ESCALON_CONSTRUYE = 4;
+/** Who asks for it, as far as building goes (t_6c1f98aa, H3): `puedeConstruir` = the pass is an owner's or holds «build-in-worlds». */
+export type QuienPide = { puedeConstruir: boolean };
 export type ResultadoHabitante =
   | { ok: true; texto: string; habitante?: { id: string; nombre: string; escalon: number } }
   | { ok: false; motivo: MotivoHabitante; texto: string };
@@ -47,9 +51,15 @@ export function crearHabitantesGestion(o: OpcionesHabitantes) {
   const vista = (h: Habitante): { id: string; nombre: string; escalon: number } => ({ id: h.id, nombre: h.nombre, escalon: h.escalon });
 
   /** Write a new inhabitant's whole file (habitante@1) and read the list again; told to `recargar` once it loads. */
-  const anadir = (cuerpo: unknown): ResultadoHabitante => {
+  const anadir = (cuerpo: unknown, quien?: QuienPide): ResultadoHabitante => {
     const r = validarHabitante(cuerpo, "habitante");
     if (!r.ok) return { ok: false, motivo: "invalido", texto: r.issues.map((i) => `${i.path.split(".").slice(1).join(".") || i.path}: ${i.message}`).join("; ") };
+    // t_6c1f98aa (H3): building needs a role. An inhabitant of escalón 4 builds, so only a pass that may build itself can create one;
+    // a caller that says nothing about who asks (`quien` absent) cannot (fail closed). Decided here, after the file is valid, before any write.
+    if (r.value.escalon >= ESCALON_CONSTRUYE && quien?.puedeConstruir !== true) {
+      log(`[habitantes] «${r.value.id}» (escalón ${r.value.escalon}) rechazado: quien lo pide no puede construir en este mundo`);
+      return { ok: false, motivo: "sin-permiso", texto: `Un habitante de escalón ${ESCALON_CONSTRUYE} construye, y tu pase no deja construir en este mundo (falta el permiso «build-in-worlds»): pide uno de escalón 0 o 2, o que te lo asignen con ese rol.` };
+    }
     const id = r.value.id;
     const f = fichero(id);
     if (!f || !o.aventura) return { ok: false, motivo: "servidor", texto: "Este mundo no tiene carpeta de aventura donde guardar habitantes." };

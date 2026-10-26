@@ -200,6 +200,24 @@ export function montarSoltar(o: OpcionesSoltar) {
     return cola;
   };
 
+  /** MIS-222: an image ALREADY on the server (its sha256 + extension) into a hole, with nothing to upload — the headset's way, where
+   * there is no file picker (apps/plaza/obra-vr.ts). The server still checks the file is there, measures it and fits it. */
+  const rellenarYa = (id: string, sha: string, ext: string, nombre: string): Promise<{ ok: boolean; texto: string }> => {
+    const hecho = cola.then(async () => {
+      if (!o.puede()) { decir("No puedes construir aquí."); return { ok: false, texto: "no puedes construir aquí" }; }
+      decir(`Encajando «${nombre}» en el hueco…`, true);
+      const desde = o.session.features.stats.events;
+      const s = o.session.features.send("objetos", "rellenar", { id, modelo: sha, ext, nombre });
+      if (!s.ok) { decir(`No se pudo: ${s.why}.`); return { ok: false, texto: s.why }; }
+      const r = await respuesta(desde, "rellenar");
+      if (!r.ok) { decir(`No se pudo poner «${nombre}»: ${r.texto.replace(/\.$/, "")}.`); return { ok: false, texto: r.texto }; }
+      cuenta.huecos++; decir(`Colgada en el hueco: «${nombre}».`);
+      return { ok: true, texto: "" };
+    });
+    cola = hecho.then(() => undefined, () => undefined);
+    return hecho;
+  };
+
   // ---- drag and drop over the whole page ----
   const conFicheros = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
   let esconder: ReturnType<typeof setTimeout> | undefined;
@@ -227,5 +245,5 @@ export function montarSoltar(o: OpcionesSoltar) {
   document.body.append(entrada);
   /** Open the file picker (call it inside a click or a key press: browsers refuse a picker otherwise). */
   const elegir = () => { if (o.puede()) entrada.click(); };
-  return { cuenta, subir: varios, rellenar, decir, elegir };
+  return { cuenta, subir: varios, rellenar, rellenarYa, decir, elegir };
 }

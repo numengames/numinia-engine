@@ -16,7 +16,8 @@ const dir = process.argv[2] ?? "aventuras/ejemplo";
 const leer = lectorAventura(dir, (l) => console.log(l));
 const subidas = join(dirname(dir.replace(/\/+$/, "")), "datos", "activos"); // a world folder: <mundo>/aventura next to <mundo>/datos/activos
 let activos: Activos | null = null; // indexed only if a sequence shows a model (the library is hashed on the way)
-const r = cargarAventura({ misiones: leer("misiones"), pnj: leer("pnj"), cosas: leer("cosas"), secuencias: leer("secuencias") }, { modelo: (sha) => (activos ??= new Activos(BIBLIOTECA, existsSync(subidas) ? subidas : null)).buscar(sha, "glb") !== null });
+const objetos = leerCatalogo(leer("objetos")); // Y3: the weapons and relics the adventure defines (objeto@1); a `coge` step may hand one over
+const r = cargarAventura({ misiones: leer("misiones"), pnj: leer("pnj"), cosas: leer("cosas"), secuencias: leer("secuencias") }, { objetos: new Set(objetos.objetos.keys()), modelo: (sha) => (activos ??= new Activos(BIBLIOTECA, existsSync(subidas) ? subidas : null)).buscar(sha, "glb") !== null });
 const a = r.aventura;
 console.log(`${dir}: ${a.misiones.size} misiones (${[...a.misiones.keys()].join(", ") || "-"}), ${a.pnjs.size} personas (${[...a.pnjs.keys()].join(", ") || "-"}), ${a.cosas.size} cosas (${[...a.cosas.keys()].join(", ") || "-"})`);
 if (a.secuencias.size) console.log(`  ${a.secuencias.size} secuencias (${[...a.secuencias.values()].map((s) => `${s.id}, ${s.duracion} s`).join("; ")})`);
@@ -29,7 +30,6 @@ const malas = escenas.flatMap(({ f, r }) => (r.ok ? [] : r.issues.map((i) => `es
 if (escenas.length) console.log(`  ${escenas.length} escenas para quien dirige (${escenas.flatMap(({ r }) => (r.ok ? [r.value.id] : [])).join(", ") || "-"})`);
 const fi = leerFicha(dir); // ADR-074: what the world is called (aventura/ficha.json)
 console.log(fi.ficha ? `  ficha: «${fi.ficha.nombre}»${fi.ficha.portada ? `, portada ${fi.ficha.portada} (el servidor mira al arrancar que la tiene)` : ""}` : "  sin ficha.json (la página y /status no dicen cómo se llama el mundo)");
-const objetos = leerCatalogo(leer("objetos")); // Y3: the weapons and relics the adventure defines (objeto@1)
 if (objetos.objetos.size) console.log(`  ${objetos.objetos.size} objetos (${[...objetos.objetos.values()].map((o) => `${o.id}: ${o.tipo} de ${o.competencia}`).join(", ")})`);
 for (const a of objetos.avisos) console.log(`  aviso: objetos/${a.replace(/^.*\//, "")}`);
 const problemas = [...r.issues.map((i) => `${i.path}: ${i.message}`), ...h.problemas, ...ag.problemas, ...malas, ...fi.problemas, ...objetos.problemas.map((p) => `objetos/${p.replace(/^.*\//, "")}`)];

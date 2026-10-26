@@ -135,6 +135,10 @@ try {
   await esperar(() => document.getElementById("vr").getAttribute("aria-disabled") !== "true", null, 15000).catch(() => {}); // MIS-200 (t_9687b5fc): the entry says «Preparando…» until the world has loaded
   await ctl(() => document.getElementById("vr").click());
   await esperar(() => globalThis.__numinia.view.vr.active, null, 15000);
+  // MIS-200 (t_04ada0ed): the hands (and the panels) are only mounted once the first VR frames are calm (entrada-estable.ts: 3 frames
+  // under 1.5 × the period, 6 s ceiling). On a loaded machine that takes seconds, not the 0.9 s this leg used to wait: until then
+  // the hand's anchor sits at the rig's origin, every sample reads [0,0,0] and the swing is «lento». Wait for the page's own flag.
+  await esperar(() => globalThis.__numinia.view.vr.estadoPaneles().extras === true, null, 20000);
   await p.waitForTimeout(900);
   const yoEntrar = await yo();
   const pan = await ctl(() => globalThis.__numinia.view.vr.estadoPaneles());
