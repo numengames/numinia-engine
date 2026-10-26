@@ -210,8 +210,8 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
       for (const [k, a] of avatares) if (!quien.has(k)) { desvestir(a); avatares.delete(k); if (typeof k === "number") nivelesVoz.delete(k); }
       ocupado = cargando > 0 || [...avatares.values()].some((a) => a.copia && a.cerca && (a.estado !== "quieto" || ahora < a.fundidoHasta || (movs.has(a.clave) && movimientoOcupa(movs.get(a.clave)!, ahora, durDe))));
     },
-    /** t_3f0e5846: ask for these clips ahead (the wheel shows a ring), so the first time a move is made it does not wait for its files.
-     * Nothing is fetched at world entry (the page weight): only what the person is looking at. Asking twice costs nothing. */
+    /** t_3f0e5846: ask for these clips ahead (the move the wheel is pointing at), so the first time a move is made it does not wait for its files.
+     * Nothing is fetched at world entry (the page weight): only what the person is about to choose. Asking twice costs nothing. */
     precargar(clips: readonly string[]): void { for (const c of clips) pedirAnim(c); },
     /** J7b: play a move on this avatar (`null` stops it). False when it wears no VRM now (the caller shows a label). */
     movimiento(clave: number | "yo", mov: Movimiento | null): boolean {

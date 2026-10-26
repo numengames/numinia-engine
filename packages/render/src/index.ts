@@ -1282,7 +1282,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     avatares(): ReturnType<typeof avs.stats> { return avs.stats(); },
     /** J7b: play a move (the wheel's) on an avatar's VRM, or stop it (`null`); false = no VRM there (show a label). */
     movimiento(t: Target, mov: Movimiento | null): boolean { return avs.movimiento(t === "self" ? "yo" : t, mov); },
-    /** t_3f0e5846: fetch the clips of moves the person is about to choose (the wheel's open ring); nothing at world entry. */
+    /** t_3f0e5846: fetch the clips of the move the person is pointing at in the wheel; nothing at world entry. */
     precargarMovimientos(clips: readonly string[]): void { avs.precargar(clips); },
     /** asiento: a standing avatar faces `rumbo` (radians, atan2(dx, dz)); `undefined` = walk-driven again. */
     orientar(t: Target, rumbo: number | undefined): void { avs.orientar(t === "self" ? "yo" : t, rumbo); },
