@@ -13,7 +13,7 @@ import { crearDados } from "../features/dados/server.ts";
 import { crearCliente } from "../features/dados/client.ts";
 import { dados as decl } from "../features/dados/feature.ts";
 import { aTirada3D, bandejaDe, carasDe } from "../apps/plaza/dados.ts";
-import { planTirada, poseEn, caraArriba, girar, normalDe } from "../packages/render/src/dados-caida.ts";
+import { planTirada, poseEn, caraArriba, girar, normalDe, valorD100 } from "../packages/render/src/dados-caida.ts";
 
 const sign = signer("una-clave-de-prueba-larga");
 const keeper = (): GuestKeeper => { let t: string | null = null; return { load: () => t, save: (x) => { t = x; } }; };
@@ -69,14 +69,49 @@ test("two pages near the tower hear the same numbered roll and draw the same fli
   assert.notEqual(a.d.ultima()!.n, ta.n);
 });
 
-test("nothing to draw: a hidden roll, a roll with no tower, dice without a model", () => {
+test("nothing to draw: a roll with no tower, dice with no model", () => {
   const w = mundo(secuencia(7, 3, 9));
-  const [a, b] = w.pages;
-  assert.ok(a.d.tirar("2d6", "engranajes", true).ok); w.pump(4);
-  assert.equal(aTirada3D(b.d.ultima()!, b.d.torres()), null, "the others see THAT you rolled, never the values: no dice");
+  const [a] = w.pages;
   assert.ok(a.d.tirar("1d20", "").ok); w.pump(4);
   assert.equal(aTirada3D(a.d.ultima()!, a.d.torres()), null, "no tower, no tray");
-  assert.ok(a.d.tirar("1d100", "engranajes").ok); w.pump(4);
-  const t100 = aTirada3D(a.d.ultima()!, a.d.torres());
-  assert.ok(t100 && t100.caras === 100); assert.deepEqual(planTirada(t100), [], "d100 comes in story 3: the card and the label still say it");
+  assert.deepEqual(planTirada({ n: 1, sitio: "t", caras: 3, valores: [2], bandeja: bandejaDe(TORRE) }), [], "a d3 has no model: the card and the label still say it");
+});
+
+test("story 2: d4, d8, d10, d12 and d100 reach both pages as the same numbered roll and fall into the same places, face up", () => {
+  for (const [expr, caras, esperadas] of [["3d4", 4, 3], ["2d8", 8, 2], ["3d10", 10, 3], ["2d12", 12, 2], ["1d100", 100, 2]] as const) {
+    const w = mundo(secuencia(0.91, 0.5, 0.13, 0.7));
+    const [a, b] = w.pages;
+    assert.ok(a.d.tirar(expr, "engranajes").ok); w.pump(4);
+    const ta = a.d.ultima()!, tb = b.d.ultima()!;
+    assert.deepEqual(ta.valores, tb.valores); assert.equal(ta.n, tb.n);
+    const ea = aTirada3D(ta, a.d.torres())!, eb = aTirada3D(tb, b.d.torres())!;
+    assert.equal(ea.caras, caras); assert.deepEqual(ea, eb);
+    const pa = planTirada(ea), pb = planTirada(eb);
+    assert.equal(pa.length, esperadas, `${expr}: ${esperadas} dice drawn`);
+    for (const t of [0, 0.4, 1.1]) assert.deepEqual(pa.map((p) => poseEn(p, t)), pb.map((p) => poseEn(p, t)));
+    if (caras === 100) {
+      const [t, u] = pa.map((p) => caraArriba(10, poseEn(p, 99).q)!);
+      assert.equal(valorD100(t, u), ta.valores[0], `the two d10 read the server's ${ta.valores[0]}`);
+    } else pa.forEach((p, i) => assert.equal(caraArriba(caras, poseEn(p, 99).q), ta.valores[i], `${expr} die ${i}: face up reads ${ta.valores[i]}`));
+  }
+});
+
+test("hidden rolls: only the roller gets values to draw — the others hear THAT it was rolled, never what, and nothing for the 3D view; the tower's line keeps it secret too", () => {
+  const w = mundo(secuencia(0.37, 0.8, 0.2));
+  const [a, b] = w.pages;
+  assert.ok(a.d.tirar("1d100", "engranajes", true).ok); w.pump(4);
+  const mia = a.d.ultima()!, suya = b.d.ultima()!;
+  assert.equal(mia.oculta, true); assert.equal(suya.oculta, true);
+  assert.equal(mia.valores.length, 1, "the roller sees the value");
+  assert.deepEqual(suya.valores, [], "the others get no value at all on the wire");
+  assert.equal(suya.total, 0); assert.match(suya.texto, /en secreto/); assert.ok(!suya.texto.includes("=") && !/\b\d{1,3}\b(?!d)/.test(suya.texto.replace(/\d+d\d+/, "")), `the sentence does not give it away: «${suya.texto}»`);
+  const dibujo = aTirada3D(mia, a.d.torres());
+  assert.ok(dibujo && dibujo.caras === 100, "the roller's page has a roll to draw");
+  assert.equal(planTirada(dibujo!).length, 2, "…the two d10 of the hidden d100");
+  assert.equal(aTirada3D(suya, b.d.torres()), null, "the other page has NOTHING to hand its 3D view");
+  const torreB = b.d.torres().find((x) => x.id === "engranajes")!;
+  assert.ok(torreB.ultima.includes("en secreto") && !/→/.test(torreB.ultima), `the tower's line says «${torreB.ultima}»: no value`);
+  // a public roll afterwards is drawn by both again
+  assert.ok(a.d.tirar("2d6", "engranajes").ok); w.pump(4);
+  assert.ok(aTirada3D(a.d.ultima()!, a.d.torres()) && aTirada3D(b.d.ultima()!, b.d.torres()));
 });

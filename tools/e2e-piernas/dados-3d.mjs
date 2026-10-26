@@ -1,17 +1,20 @@
-// e2e leg (lote 8 mesa, t_95245cf0 story 1): 3D dice falling into a tower's tray. Starts its OWN server and page (ports
+// e2e leg (lote 8 mesa, t_95245cf0 stories 1 and 2): 3D dice falling into a tower's tray. Starts its OWN server and page (ports
 // E2E_SERVER_PORT / E2E_VITE_PORT, default 8804 / 5184) on a throwaway world with one dice tower (dados.json: 3d6, a tray
 // 0.4 m in front of it, 0.9 m up, 0.8 × 0.6 m). Two tabs (A and B) stand near it. A rolls 3d6 at the tower, then:
 //  1) both pages draw 3 dice (view.dados.contar(), read back from the real meshes), not at rest at first (they fall);
 //  2) within ~4 s all are at rest, inside the tray, above its floor, and the face UP of each reads the value the SERVER rolled
 //     (the same on A and B, and the same as the card's «valores»);
-//  3) the next roll replaces the first (still 3 dice, a new roll number) and lands face-up right again; a roll of 1d100
-//     draws nothing (no model yet: story 3) but the card still says it.
+//  3) the next roll replaces the first (still 3 dice, a new roll number) and lands face-up right again;
+//  4) story 2: 2d4, 2d8, 2d10, 2d12 each fall face up (the d4: the vertex at the top reads the value), and a 1d100 is TWO d10 (tens
+//     «00»–«90», units «0»–«9») whose faces up read the server's number together;
+//  5) a HIDDEN roll: A (the roller) sees its dice fall and lie face up, B sees none — B's old dice leave the tray, B's roll has no values.
 // Env: SHOTS=<folder> saves pictures. Prints JSON; exit 0 only when all is right. Run under the PC's browser flock.
 import { createRequire } from "node:module";
 import { existsSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { valorD100 } from "../../packages/render/src/dados-caida.ts";
 
 const REPO = new URL("../../", import.meta.url).pathname;
 const PW = process.env.PW_CORE ?? join(REPO, "node_modules/playwright-core");
@@ -59,18 +62,21 @@ try {
   const tapete = async (p, n) => { await p.waitForFunction((n) => globalThis.__numinia.dados.ultima()?.n >= n, n, { timeout: 8000 }); };
   // a watcher in each page from the start: the fall is short and the machine slow, so "were they falling?" is asked of what the page saw, not of one sample
   for (const p of [a, b]) await p.evaluate(() => { globalThis.__vigia = { vistos: 0, cayendo: 0, altoMax: 0 }; setInterval(() => { for (const v of globalThis.__numinia.view.dados.contar()) if (v.n === (globalThis.__vigia.n ?? v.n)) for (const d of v.dados) { globalThis.__vigia.vistos++; if (!d.quieto) globalThis.__vigia.cayendo++; globalThis.__vigia.altoMax = Math.max(globalThis.__vigia.altoMax, d.y); } }, 16); });
-  const comprobar = async (n, etiqueta) => {
+  const comprobar = async (n, etiqueta, cuantos = 3, caras = 6) => {
     await Promise.all([tapete(a, n), tapete(b, n)]);
     const va = await a.evaluate(() => globalThis.__numinia.dados.ultima().valores), vb = await b.evaluate(() => globalThis.__numinia.dados.ultima().valores);
     if (JSON.stringify(va) !== JSON.stringify(vb)) throw new Error(`${etiqueta}: A and B heard different values ${va} / ${vb}`);
-    await Promise.all([a, b].map((p) => p.waitForFunction((n) => { const v = globalThis.__numinia.view.dados.contar(); return v.length === 1 && v[0].n === n && v[0].dados.length === 3; }, n, { timeout: 15000 })));
+    await Promise.all([a, b].map((p) => p.waitForFunction(({ n, cuantos }) => { const v = globalThis.__numinia.view.dados.contar(); return v.length === 1 && v[0].n === n && v[0].dados.length === cuantos; }, { n, cuantos }, { timeout: 15000 })));
     const vigia = await a.evaluate(() => globalThis.__vigia);
     const cayendo = vigia.cayendo > 0 && vigia.altoMax > BANDEJA.y + 0.3;
     await Promise.all([a, b].map((p) => p.waitForFunction(() => { const v = globalThis.__numinia.view.dados.contar(); return v.length === 1 && v[0].dados.every((d) => d.quieto); }, null, { timeout: 20000 })));
     const [fa, fb] = [await dibujados(a), await dibujados(b)];
     for (const [quien, f] of [["A", fa], ["B", fb]]) {
       const d = f[0].dados;
-      if (JSON.stringify(d.map((x) => x.valor)) !== JSON.stringify(va)) throw new Error(`${etiqueta} ${quien}: drawn values ${d.map((x) => x.valor)} ≠ rolled ${va}`);
+      if (caras === 100) {
+        const [dec, uni] = [d.find((x) => x.rol === "decenas"), d.find((x) => x.rol === "unidades")];
+        if (!dec || !uni || valorD100(dec.arriba, uni.arriba) !== va[0]) throw new Error(`${etiqueta} ${quien}: the tens die reads ${dec?.arriba} and the units die ${uni?.arriba}, the server rolled ${va[0]}`);
+      } else if (JSON.stringify(d.map((x) => x.valor)) !== JSON.stringify(va)) throw new Error(`${etiqueta} ${quien}: drawn values ${d.map((x) => x.valor)} ≠ rolled ${va}`);
       d.forEach((x, i) => {
         if (x.arriba !== x.valor) throw new Error(`${etiqueta} ${quien} die ${i}: face up reads ${x.arriba}, the server rolled ${x.valor}`);
         if (!(Math.abs(x.x - BANDEJA.x) <= BANDEJA.ancho / 2 && Math.abs(x.z - BANDEJA.z) <= BANDEJA.fondo / 2 && x.y > BANDEJA.y && x.y < BANDEJA.y + 0.2)) throw new Error(`${etiqueta} ${quien} die ${i} not on the tray: ${JSON.stringify(x)}`);
@@ -95,14 +101,35 @@ try {
   if (!p2.cayendo) throw new Error("the second roll was not seen falling");
   if (SHOTS) await a.screenshot({ path: `${SHOTS}/dados-3d-2.png` });
 
-  const r3 = await a.evaluate(() => globalThis.__numinia.dados.tirar("1d100", "torre"));
-  if (!r3.ok) throw new Error(`d100 refused: ${r3.why}`);
-  await a.waitForFunction(() => globalThis.__numinia.dados.ultima()?.n >= 3, null, { timeout: 8000 });
-  await sleep(500);
-  const d100 = await dibujados(a); const t100 = await a.evaluate(() => globalThis.__numinia.dados.ultima());
-  nota("3 a d100 is told by the card, not drawn", { dibujados: d100.map((v) => [v.n, v.dados.length]), valores: t100.valores });
-  if (t100.valores.length !== 1) throw new Error("d100 not heard");
-  if (d100.some((v) => v.n === 3)) throw new Error("a d100 was drawn: it has no model yet");
+  // story 2: every other die, then the d100 as two d10
+  let n = 2;
+  for (const [expr, caras, cuantos] of [["2d4", 4, 2], ["2d8", 8, 2], ["2d10", 10, 2], ["2d12", 12, 2], ["1d100", 100, 2]]) {
+    n += 1;
+    for (const p of [a, b]) await p.evaluate(() => { globalThis.__vigia = { vistos: 0, cayendo: 0, altoMax: 0 }; });
+    const r = await a.evaluate((e) => globalThis.__numinia.dados.tirar(e, "torre"), expr);
+    if (!r.ok) throw new Error(`${expr} refused: ${r.why}`);
+    const p = await comprobar(n, `${n} ${expr} falls and lies face up (A and B)`, cuantos, caras);
+    if (!p.cayendo) throw new Error(`${expr}: not seen falling`);
+    if (SHOTS) await a.screenshot({ path: `${SHOTS}/dados-3d-${expr}.png` });
+  }
+
+  // hidden: A rolls in secret. A's page draws the dice face up; B's page draws none and the old dice leave its tray.
+  n += 1;
+  const rh = await a.evaluate(() => globalThis.__numinia.dados.tirar("2d6", "torre", true));
+  if (!rh.ok) throw new Error(`hidden roll refused: ${rh.why}`);
+  await Promise.all([a, b].map((p) => p.waitForFunction((n) => globalThis.__numinia.dados.ultima()?.n >= n, n, { timeout: 8000 })));
+  const [ha, hb] = [await a.evaluate(() => globalThis.__numinia.dados.ultima()), await b.evaluate(() => globalThis.__numinia.dados.ultima())];
+  if (!ha.oculta || ha.valores.length !== 2) throw new Error(`the roller must hear its values: ${JSON.stringify(ha)}`);
+  if (!hb.oculta || hb.valores.length !== 0) throw new Error(`B must hear that it was hidden, with no values: ${JSON.stringify(hb)}`);
+  await a.waitForFunction((n) => { const v = globalThis.__numinia.view.dados.contar(); return v.length === 1 && v[0].n === n && v[0].dados.length === 2 && v[0].dados.every((d) => d.quieto); }, n, { timeout: 20000 });
+  const dh = await dibujados(a);
+  dh[0].dados.forEach((x, i) => { if (x.arriba !== ha.valores[i]) throw new Error(`hidden die ${i}: face up reads ${x.arriba}, the roller rolled ${ha.valores[i]}`); });
+  await b.waitForFunction(() => globalThis.__numinia.view.dados.contar().length === 0, null, { timeout: 8000 });
+  await sleep(1500);
+  const db = await dibujados(b);
+  if (db.length !== 0) throw new Error(`B draws a hidden roll: ${JSON.stringify(db)}`);
+  nota("hidden roll: only the roller sees the dice", { valoresDeA: ha.valores, valoresDeB: hb.valores, dibujadosEnA: dh[0].dados.length, dibujadosEnB: db.length });
+  if (SHOTS) { await a.screenshot({ path: `${SHOTS}/dados-3d-oculta-A.png` }); await b.screenshot({ path: `${SHOTS}/dados-3d-oculta-B.png` }); }
 
   ok = errors.length === 0;
 } catch (e) {
