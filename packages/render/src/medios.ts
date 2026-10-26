@@ -182,11 +182,39 @@ export function pedirGrafo(): Promise<Grafo | null> {
 /** Solo para las pruebas: pone (o quita) el grafo sin tocar el navegador. */
 export function ponerGrafo(g: Grafo | null): void { grafoProm = Promise.resolve(g); }
 
-export async function cargarImagen(url: string): Promise<Medio> {
-  const tex = await new THREE.TextureLoader().loadAsync(url);
+/** Size a picture is redrawn at so its longest side is at most `max` px (same proportion, never enlarged); null = it fits as it is. */
+export function ladoReducido(w: number, h: number, max: number): { w: number; h: number } | null {
+  const lado = Math.max(w, h);
+  if (!(w > 0 && h > 0) || !(max >= 1) || lado <= max) return null;
+  const k = max / lado;
+  return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
+}
+
+/** A picture on a plane. `maxPx` (calidad.ts IMAGEN_PX of the device tier) caps its longest side: a bigger picture is redrawn once at
+ * that size and ONLY that copy becomes the texture (and goes to the video memory); the full decode is let go. The plane keeps the
+ * original proportion. The file on the server is untouched (content-addressed, cached a year by the browser). */
+export async function cargarImagen(url: string, maxPx = Infinity): Promise<Medio> {
+  let tex: THREE.Texture = await new THREE.TextureLoader().loadAsync(url);
   const img = tex.image as { width?: number; height?: number };
-  const m = plano(tex, img?.width && img.height ? img.width / img.height : 1);
-  return { obj: m, actualizar() {}, sonando: () => false, soltar() { tex.dispose(); (m.material as THREE.Material).dispose(); m.geometry.dispose(); } };
+  const ancho = img?.width ?? 0, alto = img?.height ?? 0;
+  let lienzo: HTMLCanvasElement | null = null;
+  const r = ladoReducido(ancho, alto, maxPx);
+  if (r && typeof document !== "undefined") {
+    try {
+      const c = document.createElement("canvas");
+      c.width = r.w; c.height = r.h;
+      const g = c.getContext("2d");
+      if (g) {
+        g.imageSmoothingQuality = "high";
+        g.drawImage(tex.image as CanvasImageSource, 0, 0, r.w, r.h);
+        tex.dispose();
+        tex = new THREE.CanvasTexture(c);
+        lienzo = c;
+      }
+    } catch { /* the page cannot redraw it: the whole picture, as before */ }
+  }
+  const m = plano(tex, ancho && alto ? ancho / alto : 1);
+  return { obj: m, actualizar() {}, sonando: () => false, soltar() { tex.dispose(); (m.material as THREE.Material).dispose(); m.geometry.dispose(); if (lienzo) { lienzo.width = 1; lienzo.height = 1; } } };
 }
 
 export async function cargarVideo(url: string, verOcultos: () => boolean = () => false, h: { trasGesto?: (fn: () => void) => void } = {}): Promise<Medio> {
