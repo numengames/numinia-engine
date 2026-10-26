@@ -4,7 +4,7 @@
 // before H10: a house avatar fixed by entity id (packages/render/src/avatares-politica.ts elegirAvatar).
 import { defineFeature } from "../../packages/feature/src/index.ts";
 
-export const TIPOS = ["casa", "subido"] as const;
+export const TIPOS = ["casa", "subido", "modelo"] as const; // «modelo» (habitante@1 apariencia): a .glb of the world, set only by the server for an AI; a person's intent never gets it (motivoElegir)
 export type Tipo = (typeof TIPOS)[number];
 /** More than the house will ever hold; the page clamps a house index to what it actually has. */
 export const MODELO_MAX = 999;
@@ -18,6 +18,7 @@ const CAMPOS = {
   modelo: { kind: "int", min: 0, max: MODELO_MAX, default: 0 },
   sha: { kind: "text", maxBytes: 64, default: "" },
   ext: { kind: "text", maxBytes: 4, default: "" },
+  escala: { kind: "fixed", min: 0.05, max: 50, step: 0.01, default: 1 },
 } as const;
 
 /** Pure: why this choice cannot be saved, or "" when its shape is fine (the server still checks `sha` is a real
@@ -34,10 +35,10 @@ export const esIA = (id: string | undefined): boolean => !!id && id.startsWith("
 export const avatar = defineFeature({
   id: "avatar",
   version: 1,
-  describe: "Tu avatar: uno de los de la casa (J1) o tu .vrm subido (H9). Se guarda con tu identidad (I1) y lo ven todos; vuelve contigo al recargar. Las IAs no eligen: llevan el robot de la casa (o el que diga su pase).",
+  describe: "Tu avatar: uno de los de la casa (J1) o tu .vrm subido (H9). Se guarda con tu identidad (I1) y lo ven todos; vuelve contigo al recargar. Las IAs no eligen: llevan el robot de la casa (o el que diga su pase, o el .glb propio de su habitante@1).",
   store: { describe: "Por identidad de invitado (`id:<id>`): la última elección — tipo (casa|subido), el índice de la casa o el sha256+extensión de tu .vrm." },
   state: {
-    describe: "Por entidad conectada (clave = su entidad; desaparece al desconectar, I1 trae la elección de vuelta al identificarse). tipo = casa|subido; modelo = índice entre los avatares de la casa; sha/ext = tu .vrm subido (H9, /a/<sha>.<ext>). Sin entrada = el mundo decide por defecto (H7). Una IA (identidad «ia-…») lleva siempre el robot de la casa o el avatar de la casa que elige su pase (bloque `ia.cuerpo`): lo decide el servidor, no ella.",
+    describe: "Por entidad conectada (clave = su entidad; desaparece al desconectar, I1 trae la elección de vuelta al identificarse). tipo = casa|subido; modelo = índice entre los avatares de la casa; sha/ext = tu .vrm subido (H9, /a/<sha>.<ext>). Sin entrada = el mundo decide por defecto (H7). Una IA (identidad «ia-…») lleva siempre el robot de la casa, el avatar de la casa que elige su pase (bloque `ia.cuerpo`) o, si es un habitante con `apariencia`, su .glb propio (tipo modelo: sha = el .glb del mundo, ext glb, escala): lo decide el servidor, no ella.",
     fields: CAMPOS,
   },
   intents: {

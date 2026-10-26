@@ -5,9 +5,9 @@
 // before it ever uploads); the server still refuses a `sha` that is not actually on this server (api.activo).
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { ServerApi } from "../../packages/feature/src/index.ts";
-import { avatar, esIA, motivoElegir, ROBOT_CASA } from "./feature.ts";
+import { avatar, esIA, motivoElegir, ROBOT_CASA, SHA256 } from "./feature.ts";
 
-type Eleccion = { tipo: string; modelo: number; sha: string; ext: string };
+type Eleccion = { tipo: string; modelo: number; sha: string; ext: string; escala?: number };
 
 function setup(api: ServerApi): void {
   const clave = (id: string) => `id:${id}`;
@@ -20,7 +20,9 @@ function setup(api: ServerApi): void {
   api.listen("roles", "ia", (m) => {
     const entity = Number(m.quien);
     if (!esIA(api.who(entity)?.id)) return false;
-    cuerpoIA(entity, Number(m.cuerpo ?? -1));
+    const sha = String(m.cuerpoSha ?? "");
+    if (SHA256.test(sha)) poner(entity, { tipo: "modelo", modelo: 0, sha, ext: "glb", escala: Number(m.cuerpoEscala) || 1 }); // habitante@1 apariencia: its own .glb, like a person of the world (pnj@1)
+    else cuerpoIA(entity, Number(m.cuerpo ?? -1));
     return true;
   });
 
