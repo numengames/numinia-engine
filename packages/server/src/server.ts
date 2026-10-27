@@ -29,7 +29,7 @@ import { Activos, BIBLIOTECA } from "./activos.ts";
 import { archivoHashes, CacheHashes, construirManifiesto, type Cosa } from "./manifiesto.ts";
 import { avataresDelMundo } from "./avatares-mundo.ts";
 import { leerMundo } from "./mundo.ts";
-import { Subidas } from "./subidas.ts";
+import { Subidas, BARRIDO_TRAZOS_MS } from "./subidas.ts";
 import { CopiaMundo } from "./mundo-zip.ts";
 import { Pagina } from "./pagina.ts";
 import { infoMotor, semverMotor } from "./version.ts";
@@ -78,7 +78,7 @@ export type ServerOptions = {
   voz?: boolean;                 // U10: whether microphones are relayed in a NEW world (stored after that; /voz); default: env MOTOR_VOZ, on unless "no"
   biblioteca?: string | null;    // H1: the house library served at /a/<sha256>.<ext>; default the repo's activos/ (null = none)
   subidas?: string | null;       // H1/H9: folder of uploaded files named <sha256>.<ext>; default null (= no uploads)
-  subir?: { topesMB?: Partial<Record<string, number>>; totalMB?: number }; // H9: smaller caps (tests); default ficheros.ts
+  subir?: { topesMB?: Partial<Record<string, number>>; totalMB?: number; trazoSinColocarMs?: number; barridoTrazosMs?: number }; // H9: smaller caps (tests); default ficheros.ts. J18b: how long an unplaced stroke file stays, and how often the server looks (tests)
   optimizar?: boolean;           // N22: lighter copies of uploaded .glb in the background (optimizar-cola.ts); default MOTOR_OPTIMIZAR !== "no"
   apps?: string | null;          // M19: the world's apps/ folder (one folder per app: app.json, main.ts, assets/); default null = none. Read at start; GET /apps lists them; their files join /a/; each main.ts runs in the SES sandbox (M20)
   vigilarApps?: boolean;         // M20: reload an app's script when its main.ts changes on disk; default true
@@ -386,6 +386,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
         res.end(method === "HEAD" ? undefined : JSON.stringify(m));
       }, (e) => json(res, 500, { error: String((e as Error)?.message ?? e) }));
     }
+    if (method === "HEAD" && path.endsWith(".trazo")) { const t = /^\/a\/([0-9a-f]{64})\.trazo$/.exec(path); if (t) subidas.tocarTrazo(t[1]); } // J18b: a page about to place this stroke
     if ((method === "GET" || method === "HEAD") && path.startsWith("/a/") && activos.servir(path, res, method === "HEAD", req.headers.range, String(req.headers["accept-encoding"] ?? ""), String(req.headers.accept ?? ""), qs)) return; // H1: files by their sha256; ?px=N a picture's copy for that size
     if ((method === "PUT" || method === "OPTIONS") && path.startsWith("/a/")) return subidas.atender(method, path, req, res); // H9: uploads
     if (agentesHttp.atender(method, path, req, res)) return; // ADR-080: numinia.com's panel manages the outside agents (pass-authenticated)
@@ -452,9 +453,17 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     log(`[instancia] tick ${m.tick} · conectados ${m.conectados} · tick p99 ${m.tickMs.p99.toFixed(2)} ms (peor ${m.tickMs.peor.toFixed(2)}) · ${m.kbitPorPersona.toFixed(1)} kbit/s por persona`);
   }, o.statsMs ?? 30000);
   stats.unref();
+  // J18b: stroke files that were uploaded and never placed (the world refused the stroke, or the page left) are removed after a few minutes
+  const barrido = setInterval(() => {
+    if (!subidas.trazosPendientes) return;
+    const puestos = new Set<string>();
+    for (const [k, v] of inst.features.allState()) if (k.startsWith("objetos:") && (v as { tipo?: string })?.tipo === "trazo") puestos.add(String((v as { modelo?: unknown }).modelo));
+    subidas.barrerTrazos(puestos, o.subir?.trazoSinColocarMs);
+  }, o.subir?.barridoTrazosMs ?? BARRIDO_TRAZOS_MS);
+  barrido.unref();
   // stop the world for good (before a swap of datos/): no tick, nobody connected, no new connections, all written
   apagar = async () => {
-    stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); clearInterval(vigia); fuenteCondiciones.parar(); ejecutor.parar();
+    stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); clearInterval(barrido); clearInterval(vigia); fuenteCondiciones.parar(); ejecutor.parar();
     for (const c of wss.clients) c.terminate();
     wss.close(); http.close(); http.closeIdleConnections();
     await Promise.all([sesiones.vaciar(), datos?.flush(), optimizar.parar()]);
@@ -473,7 +482,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
       ok({
         port, inst, sesiones, datos, fingerprint: hex(refHash), metrics, optimizar, apps: ejecutor,
         close: () => new Promise<void>((done) => {
-          stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); clearInterval(vigia); fuenteCondiciones.parar(); runtime.close(); ejecutor.parar();
+          stopped = true; clearTimeout(timer); clearInterval(sampler); clearInterval(stats); clearInterval(barrido); clearInterval(vigia); fuenteCondiciones.parar(); runtime.close(); ejecutor.parar();
           for (const c of wss.clients) c.terminate();
           wss.close(); http.close(() => void Promise.all([sesiones.vaciar(), datos?.flush(), optimizar.parar()]).then(() => done()));
         }),

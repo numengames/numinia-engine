@@ -107,7 +107,7 @@ export function motivoEnlace(valor: unknown): string {
 
 export const objetos = defineFeature({
   id: "objetos",
-  version: 8, // J18b: + tipo «trazo» and ext up to 5 bytes (the enum and the text grew: new wire layout); T1 (no bump: a server-only event, nothing on the wire or in the saved state): + event hizo; U10: + tipo/ext, oculto, volumen, solido + world box, intent ajustar; U11: + alcance, radio; H5: + grupo (additive); U12: + holes; M6: + colision (additive: solido stays); M22c: + lote (deshacer agrupado); J4: + enlace; moverCon (additive intent: one message moves a thing and its companion, no bump)
+  version: 8, // J18b: + tipo «trazo» and ext up to 5 bytes (the enum and the text grew: new wire layout); T1 (no bump: a server-only event, nothing on the wire or in the saved state): + event hizo; U10: + tipo/ext, oculto, volumen, solido + world box, intent ajustar; U11: + alcance, radio; H5: + grupo (additive); U12: + holes; M6: + colision (additive: solido stays); M22c: + lote (deshacer agrupado); J4: + enlace; J18b `cupo` + event `cabe` (additive, no bump: the page asks before it uploads a stroke); moverCon (additive intent: one message moves a thing and its companion, no bump)
   describe: "Cosas colocadas en el mundo que se quedan (un modelo 3D con su sitio, giro, escala y nombre). Quien tiene permiso de construir las coloca, mueve, duplica, fija, borra y deshace en directo; todos lo ven al momento y sobrevive a los reinicios. Un hueco es un cuadro que espera su obra: se pincha, se elige una imagen y el servidor la encaja.",
   store: { describe: "Por objeto, quién lo colocó y cuándo (`a:<id>`), su caja propia si es sólido (`c:<id>`) y, si es un hueco, el cartel al que vuelve al vaciarlo (`v:<id>`); y el contador de ids (`siguiente`). Nunca va a las páginas." },
   state: {
@@ -150,6 +150,7 @@ export const objetos = defineFeature({
     vaciar: { describe: "U12: quitar la obra de un hueco: vuelve su cartel, con su nombre.", spoken: "vaciar un hueco", fields: { id: ID } },
     reiniciar: { describe: "Restaurar el mundo: quitar todos los objetos (también los fijados) y volver a plantar lo que el mundo trae de nacimiento (en el espacio base, el logo y el moñoni). No se puede deshacer. Solo quien puede construir.", spoken: "restaurar los objetos del mundo", fields: {}, rate: { perSecond: 1, burst: 2 } },
     asentar: { describe: "B4: posar todos los objetos en el suelo que hay ahora, a la misma altura sobre él que tenían (se hace solo al cambiar el suelo; esto lo fuerza). Solo quien puede construir.", spoken: "asentar los objetos en el suelo", fields: {}, rate: { perSecond: 1, burst: 2 } },
+    cupo: { describe: "J18b: antes de subir un trazo, preguntar si cabe: el servidor contesta `cabe` o, si ya no hay sitio (tus 40 trazos, o los triángulos del mundo), `rechazado` con el porqué. No coloca nada. `puntos` = los del trazo que se iba a subir.", spoken: "preguntar si cabe un trazo", fields: { puntos: { kind: "int", min: 1, max: 600 } }, rate: { perSecond: 10, burst: 20 } },
     deshacer: { describe: "Deshacer el último cambio que hiciste en el mundo.", spoken: "deshacer", fields: {} },
     rehacer: { describe: "Volver a hacer lo último que deshiciste (hasta que hagas un cambio nuevo).", spoken: "rehacer", fields: {} },
   },
@@ -157,6 +158,7 @@ export const objetos = defineFeature({
     permiso: { describe: "Lo que puedes hacer aquí (llega al entrar y al identificarte).", fields: { construir: { kind: "bool" } }, announce: "silent" },
     hecho: { describe: "Tu cambio se hizo: el objeto que tocó (para seleccionarlo).", fields: { id: ID, accion: { kind: "enum", values: ["colocar", "mover", "girar", "duplicar", "borrar", "fijar", "nombrar", "deshacer", "rehacer", "ajustar", "hueco", "rellenar", "vaciar", "reiniciar", "asentar"] } }, announce: "silent" },
     hizo: { describe: "Solo para las funciones del servidor (alcance «server»): quién (quien = su entidad) hizo qué con qué objeto, a la vez que se le dice a él con `hecho`. Para un mover, mueve/gira/escala dicen qué cambió de verdad; para un ajustar, oculto = que el objeto quedó oculto al jugar. Ninguna página lo recibe.", fields: { quien: { kind: "int", min: 0, max: 65535 }, id: ID, accion: { kind: "enum", values: ["colocar", "mover", "girar", "duplicar", "borrar", "fijar", "nombrar", "deshacer", "rehacer", "ajustar", "hueco", "rellenar", "vaciar", "reiniciar"] }, mueve: { kind: "bool", default: false }, gira: { kind: "bool", default: false }, escala: { kind: "bool", default: false }, oculto: { kind: "bool", default: false } }, announce: "silent" },
+    cabe: { describe: "J18b: contesta a `cupo`: el trazo cabe (puedes subir su fichero y colocarlo).", fields: { puntos: { kind: "int", min: 1, max: 600 } }, announce: "silent" },
     rechazado: { describe: "Tu cambio no se hizo, y por qué.", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
   },
 });

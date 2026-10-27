@@ -71,6 +71,7 @@ test("pintar: empezar → punto → soltar uploads the file once (HEAD first), p
   const session = { features: {
     log, stats,
     send(feature: string, intent: string, msg: Record<string, unknown>) {
+      if (intent === "cupo") { setTimeout(() => { stats.events++; log.push({ feature: "objetos", event: "cabe", msg: { puntos: 5 } }); }, 2); return { ok: true as const }; } // J18b: «does it fit?» comes before the upload
       enviados.push({ feature, intent, msg });
       setTimeout(() => { stats.events++; log.push(rechazar ? { feature: "objetos", event: "rechazado", msg: { motivo: rechazar } } : { feature: "objetos", event: "hecho", msg: { accion: "colocar", id: 7 } }); }, 5);
       return { ok: true as const };

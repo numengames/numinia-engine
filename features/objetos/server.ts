@@ -130,9 +130,9 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
   /** J18b story 6: the brush's caps, decided here (a page that skips its own checks gets nowhere). A stroke costs `points × 16` triangles; one person
    * holds at most TRAZOS.porConstructor live strokes (counted by who signed them, so deleting or undoing one gives the place back), and the whole world
    * at most TRAZOS.triangulosMundo. A stroke whose file is gone counts as a full one. `modelo` is the sha256 of the .trazo being placed or copied. */
-  const trazoCabe = (from: number, modelo: string) => {
+  const trazoCabe = (from: number, puntos: number) => {
     const mio = api.who(from)?.id ?? null;
-    let suyos = 0, triangulos = (api.trazoPuntos(modelo) ?? TRAZOS.puntosMax) * TRAZOS.triangulosPorPunto;
+    let suyos = 0, triangulos = puntos * TRAZOS.triangulosPorPunto;
     for (const k of api.state.keys()) {
       const o = api.state.get(k);
       if (!o || o.tipo !== "trazo") continue;
@@ -193,7 +193,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     if (!EXTENSIONES[tipo].includes(ext)) return void rechazar(from, `Un ${tipo} es un fichero ${EXTENSIONES[tipo].map((e) => `.${e}`).join(", ")}; .${ext} no vale.`);
     if (!(tipo === "modelo" && enBiblioteca.has(modelo)) && !api.activo(modelo, ext)) return void rechazar(from, tipo === "modelo" ? "Ese modelo no está en la biblioteca ni se ha subido a este servidor." : `Ese fichero .${ext} no se ha subido a este servidor.`);
     if (sinNombre(from, nombre, decorado)) return;
-    if (tipo === "trazo" && !trazoCabe(from, modelo)) return;
+    if (tipo === "trazo" && !trazoCabe(from, api.trazoPuntos(modelo) ?? TRAZOS.puntosMax)) return;
     const id = nuevoId();
     guardar(id, {
       modelo, x: q(m.x, PASO.pos), y: q(m.y, PASO.pos), z: q(m.z, PASO.pos), rx: 0, ry: girado(Number(m.ry)), rz: 0,
@@ -256,7 +256,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     if (!puede(from) || !caben(from)) return;
     const o = objeto(from, m.id);
     if (!o) return;
-    if (o.tipo === "trazo" && !trazoCabe(from, String(o.modelo))) return;
+    if (o.tipo === "trazo" && !trazoCabe(from, api.trazoPuntos(String(o.modelo)) ?? TRAZOS.puntosMax)) return;
     const id = nuevoId(), c = api.store.get(`c:${String(m.id)}`), v = api.store.get(`v:${String(m.id)}`);
     if (c) api.store.set(`c:${id}`, c);
     if (v) api.store.set(`v:${id}`, v); // U12: a copied hole keeps its card
@@ -277,6 +277,14 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     plantar(alRestaurar);
     api.log(`[objetos] restaurado por la entidad ${from}: ${n} quitados, ${alRestaurar.length} sembrados`);
     hecho(from, "", "reiniciar");
+  });
+
+  // J18b: «does a stroke of this many points fit?» — asked by the page BEFORE it uploads the file, so a refused stroke leaves nothing in /a/.
+  // Same rule as `colocar` (trazoCabe); the answer is only a courtesy, `colocar` still decides.
+  api.on("cupo", (from, m) => {
+    if (!puede(from)) return;
+    const puntos = Math.max(1, Math.min(TRAZOS.puntosMax, Math.round(Number(m.puntos)) || TRAZOS.puntosMax));
+    if (trazoCabe(from, puntos)) api.emit("cabe", { puntos }, { to: from });
   });
 
   api.on("borrar", (from, m) => {

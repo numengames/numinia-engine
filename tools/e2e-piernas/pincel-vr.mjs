@@ -9,10 +9,11 @@
 // (`view.objects().loaded` goes up, `failed` stays 0) and its picture must show the stroke's colour where the stroke is (a pixel test on the
 // canvas: not the same picture without it). Then A deletes it and B's picture goes back. No upload of a broken stroke is drawn (failed, never thrown).
 // STORY 6 (the server's caps): at the end A (who deleted its strokes) paints 40 through the code door, the controller's 41st is refused with «Tienes 40 trazos: borra o deshaz alguno» (a note in the headset,
-// a count in the brush's state), B sees exactly 40, and deleting one gives the place back.
+// a count in the brush's state), B sees exactly 40, and deleting one gives the place back. The refused 41st leaves NO new file in the server's /a/ folder
+// (the page asks `cupo` before it uploads; datos/activos is listed before and after).
 // Env: SHOTS=<folder> saves pictures; E2E_SERVER_PORT / E2E_VITE_PORT. Exit 0 only when all is right.
 import { createRequire } from "node:module";
-import { existsSync, mkdtempSync, cpSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, cpSync, rmSync, readdirSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
@@ -279,13 +280,22 @@ try {
   await a.bringToFront();
   await a.evaluate(() => { const n = globalThis.__numinia, v = n.view.vr, o = v.nota; globalThis.__notas = []; v.nota = (t) => { globalThis.__notas.push(String(t)); return o?.call(v, t); }; n.pintarVR.entrar(); });
   await a.waitForTimeout(400);
-  const antesTope = await vivo();
+  const trazosEnDisco = () => readdirSync(join(tmp, "datos", "activos")).filter((f) => f.endsWith(".trazo")).sort();
+  // a stroke nobody has painted before (its file name is new: the controller's lines can repeat an earlier shape, whose file is already there), through the code door
+  const unico = (k) => a.evaluate(async (c) => { const n = globalThis.__numinia; n.pintar.empezar({ color: 4, grosor: 0.021 }); for (let i = 0; i < 6; i++) n.pintar.punto({ x: c.x + i * (0.0173 + c.k * 0.0011), y: c.y + i * 0.0071 * c.k, z: c.z, presion: 0.5 }); return n.pintar.soltar(); }, { k, x: yo.x, y: 1.6, z: yo.z });
+  const discoAntes = trazosEnDisco(); out.ficherosAntesDelCuarentaYUno = discoAntes.length;
+  const nuevoRechazado = await unico(1); out.nuevoRechazado = { r: nuevoRechazado, ficheros: trazosEnDisco().length };
+  checks.nuevoRechazadoNoDejaFichero = nuevoRechazado.ok === false && /Tienes 40 trazos/.test(nuevoRechazado.why) && trazosEnDisco().join() === discoAntes.join();
+  const antesTope = await vivo(); // after the code-door try: the controller's 41st must raise the count of refusals by one
   await trazar({ x: yo.x, y: 1.3, z: yo.z - 2.5 }); // the 41st, with the controller
   await esperarA(() => globalThis.__numinia.pintarVR.estado().pintar.rechazados >= 1, null, 15000).catch(() => {});
   const trasTope = await vivo(); out.trasTope = { pintar: trasTope.est.pintar, notas: await a.evaluate(() => globalThis.__notas) };
   checks.cuarentaYUnoSeRechaza = trasTope.est.pintar.rechazados === antesTope.est.pintar.rechazados + 1 && /Tienes 40 trazos: borra o deshaz alguno/.test(trasTope.est.pintar.ultimo);
   checks.laNotaLlegaAlVisor = out.trasTope.notas.some((t) => /No se pudo pintar: Tienes 40 trazos/.test(t));
   checks.sigueSiendoCuarenta = (await trazosDe(a)).length === 40 && (await trazosDe(b)).length === 40;
+  await a.waitForTimeout(500);
+  const discoTras = trazosEnDisco(); out.ficherosTrasElCuarentaYUno = discoTras.length;
+  checks.elRechazadoDelMandoNoDejaFichero = discoTras.join() === discoAntes.join();
   checks.sinFantasmaTrasRechazo = (await a.waitForTimeout(1500), (await vivo()).fantasmas === 0);
   // deleting one gives the place back: the next stroke is saved
   await a.evaluate((id) => globalThis.__numinia.constructor.borrarId(id), (await trazosDe(a))[0]);
@@ -297,6 +307,12 @@ try {
   checks.borrarDevuelveElSitio = devuelto.est.pintar.trazos === guardadosAntes + 1 && devuelto.est.pintar.rechazados === trasTope.est.pintar.rechazados;
   await b.waitForTimeout(500);
   out.cuarentaOtraVezEnB = (await trazosDe(b)).length; checks.bVeCuarentaOtraVez = out.cuarentaOtraVezEnB === 40;
+  // control: the check above can see a file when there is one. Make room, paint another new stroke: it is accepted and adds exactly one file
+  await a.evaluate((id) => globalThis.__numinia.constructor.borrarId(id), (await trazosDe(a))[0]);
+  await b.waitForFunction(() => [...globalThis.__numinia.session.features.stateOf("objetos")].filter(([, v]) => v.kind === "trazo" || v.tipo === "trazo").length === 39, null, { timeout: 15000 }).catch(() => {});
+  const discoControl = trazosEnDisco(), aceptado = await unico(2);
+  out.control = { r: aceptado, antes: discoControl.length, despues: trazosEnDisco().length };
+  checks.unTrazoNuevoAceptadoSiDejaFichero = aceptado.ok === true && trazosEnDisco().length === discoControl.length + 1;
   if (SHOTS) await b.screenshot({ path: `${SHOTS}/pincel-vr-tope-b.png` });
   await a.evaluate(() => globalThis.__numinia.pintarVR.salir());
   checks.sinErrores = errors.length === 0;

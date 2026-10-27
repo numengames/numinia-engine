@@ -1883,3 +1883,9 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Números: `limits.json` `strokes_per_builder` 40 y `stroke_world_triangles_server` 300000 (el cliente sigue con `stroke_world_triangles_max`; una prueba comprueba que son el mismo número).
 - Probado: `test/trazo-topes.test.ts` (6 pruebas: 41.º rechazado, otro puede pintar, deshacer devuelve el sitio, duplicar cuenta, mundo lleno con 31 trazos de 600 puntos, fichero ilegible, lectura real del fichero en un servidor); pierna `pincel-vr.mjs` ampliada (ver PR).
 - Versión 0.94.0 (0.93.0 en main).
+
+## 2026-10-27 03:35 · pintar en VR, hueco de la historia 6: un trazo rechazado ya no deja fichero en `/a/` · hecho
+- Qué: con los topes del servidor (#283) el 41.º trazo se rechazaba, pero la página lo subía antes de `colocar` y su fichero (pequeño) se quedaba en `/a/` para siempre. Ahora `pintar.ts` pregunta primero al servidor (`objetos.cupo { puntos }` → `cabe`, o `rechazado` con el porqué, la misma regla `trazoCabe` que `colocar`) y, si no cabe, no hace ni el HEAD ni el PUT. Si el servidor no contesta en 2 s (uno más viejo) la página sigue y `colocar` decide, como antes.
+- Y red de seguridad en el servidor: `Subidas.barrerTrazos` quita cada 30 s el fichero `.trazo` que se subió y no aparece en ningún objeto del mundo a los 10 minutos (`TRAZO_SIN_COLOCAR_MIN`, `limits.json` `stroke_unplaced_minutes`); pedirlo con HEAD renueva la espera, el tope total de subidas recupera el sitio y el mismo trazo se puede volver a subir. Solo los subidos desde que arrancó el servidor.
+- Probado: `test/trazo-sin-colocar.test.ts` (3 pruebas: `cupo`; la página no sube lo que no cabe y no se queda parada con un servidor mudo; el servidor quita el huérfano, deja el colocado, HEAD renueva); pierna `pincel-vr.mjs`: el 41.º no añade ningún `.trazo` a `datos/activos`.
+- Versión 0.96.0 (0.95.0 en #284).
