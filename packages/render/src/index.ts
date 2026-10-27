@@ -178,10 +178,36 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const camaraDeCompilar = (): THREE.Camera => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera);
   /** The camera a headset frame is keyed by (an ArrayCamera of two eyes, RenderObject.getDynamicCacheKey hashes `cameras.length`): stand-in for compiling its variants before a session exists. */
   const ojosFalsos = new THREE.ArrayCamera([new THREE.PerspectiveCamera(), new THREE.PerspectiveCamera()]);
+  /** renderer.compileAsync, but keyed the way a frame is drawn. Inside a headset session three leaves its XR target as the current render target, and compileAsync
+   * then builds its render objects for THAT output context while render() draws into the internal frame-buffer target: a different context, so a different key
+   * (RenderObject.getMaterialCacheKey hashes `context.id`) and the draw links everything again. With no target set, compileAsync picks the frame-buffer one too. */
+  function compilarComoSeDibuja(o: THREE.Object3D, cam: THREE.Camera): Promise<void> {
+    const rt = renderer.getRenderTarget();
+    if (rt === null) return renderer.compileAsync(o, cam, scene);
+    renderer.setRenderTarget(null);
+    try { return renderer.compileAsync(o, cam, scene); } finally { renderer.setRenderTarget(rt); } // the synchronous start has already read the context
+  }
+  /** Every program the world can draw with the scene as it is NOW (what three re-keys when the light set, the tier or the camera changes): the visible scene with nothing
+   * left out by the frustum, plus the hidden lote/pinned-cell meshes that only show while they have instances. `extra`: more roots (the headset-only stand-ins). */
+  async function compilarMundo(cam: THREE.Camera, extra: THREE.Object3D[] = []): Promise<void> {
+    const c = (o: THREE.Object3D) => compilarComoSeDibuja(o, cam);
+    // both started before either is awaited: three reads the light set (and a light born hidden is made visible only for this call) when each compile starts
+    await Promise.all([calentarOcultos([scene as never], c as never, false), calentarOcultos([lotes.raiz as never, fijados.raiz as never, ...(extra as never[])], c as never)]);
+  }
+  let pausaLuz = 0; // draws held back while the programs for a new light set link (see luzCambiada)
   function luzCambiada(): void {
     lucesAvisadas++;
     if (lucesPendiente) return; lucesPendiente = true;
-    queueMicrotask(() => { lucesPendiente = false; void renderer.compileAsync(scene, camaraDeCompilar(), scene).catch(() => {}); });
+    queueMicrotask(() => {
+      lucesPendiente = false;
+      // three keeps ONE render object per mesh, whatever the key: linking the new light set re-keys it, and a frame drawn meanwhile (still keyed by the old set or the new)
+      // flips it back and links again. So the screen keeps its last picture until the world's programs for the new set are ready (at most ESPERA_MAX_MS).
+      pausaLuz++;
+      let listo: Promise<unknown>;
+      try { listo = compilarMundo(camaraDeCompilar()); } catch { listo = Promise.resolve(); }
+      let fin = false; const soltar = () => { if (!fin) { fin = true; pausaLuz--; } };
+      void Promise.race([listo.catch(() => {}), new Promise((ok) => setTimeout(ok, ESPERA_MAX_MS))]).then(soltar);
+    });
   }
   /** The scene-wide state three keys every material by (compilaciones.ts names it on each late compile). */
   function firmaEscena(): string {
@@ -327,30 +353,45 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   void Promise.all([vrSupported(), arSupported()]).then(([v, a]) => { if (v || a) setTimeout(() => { void cargarManos().catch(() => {}); }, 3000); });
   // MIS-200: once the hands are in and the world has stopped loading, link the programs only VR draws (rig, panels, vignette, watch, hands) while hidden,
   // so the first VR frame does not compile them (200-860 ms measured). Only where a VR session can exist; nothing is drawn.
-  let vrCalentado = false; // the VR variants of the rig and the world are linked (a session started now finds them ready)
+  let vrCalentado = false; // the VR variants of the rig are linked (what only a headset draws, hidden on the desktop)
   void vrSupported().then((v) => { if (!v) return; setTimeout(async () => {
     try { await cargarManos(); } catch { /* no hands: the rest still warms */ }
     for (let i = 0; i < 60 && (loading > 0 || precompilar.pendientes() > 0); i++) await new Promise((ok) => setTimeout(ok, 500));
-    try { // a VR frame is drawn with an ArrayCamera of two eyes, which three keys apart from the desktop camera (see precompilar.ts)
-      // t_159e18d2: with the scene state of a headset session (tier B: no environment light, shadows stopped, baked sky): entering VR changes that state
-      // and used to relink every lit material of the world inside the first stereo frames. compileAsync builds the shaders AFTER its first await, so the
-      // state has to hold until the whole warm-up has settled (comoEnVR waits for the promise).
-      const compilarXR = (o: THREE.Object3D) => renderer.compileAsync(o, ojosFalsos, scene);
-      await entorno.comoEnVR(async () => {
-        await vr.calentar(compilarXR);
-        await calentarOcultos([scene as never], compilarXR as never, false); // the world as the two eyes will draw it (nothing forced visible)
-        // what only a headset draws as instances (copies from INSTANCIAR_DESDE_VR on, the pillars, the pinned cells): their meshes do not exist or are hidden now
-        const modelos = new Set<string>(), standIns = new THREE.Group();
-        for (const t of things.values()) {
-          if (!t.partes || t.mixer || t.model.startsWith("~") || modelos.has(t.model) || copiasDe(t.model) < INSTANCIAR_DESDE_VR) continue;
-          modelos.add(t.model);
-          for (const q of t.partes) { const im = new THREE.InstancedMesh(q.geo, q.mat, 1); im.castShadow = q.sombra && !q.sinSombra; im.receiveShadow = !q.sinSombra; if (q.sinSombra) im.userData.sinSombra = true; standIns.add(im); }
-        }
-        await calentarOcultos([standIns as never, lotes.raiz as never, fijados.raiz as never], compilarXR as never);
-      });
-    } catch { /* best effort */ }
+    // a VR frame is drawn with an ArrayCamera of two eyes, which three keys apart from the desktop camera (see precompilar.ts). Only what the desktop never
+    // draws is warmed here (the rig, panels, hands: nothing else reuses their render objects). The WORLD is not: three shares one render object between the
+    // desktop draw and a compile with the same output context, so a stereo/tier-B variant of the world made now would be overwritten by the next desktop
+    // frame (and the desktop's own relinked): the world is linked once the session exists, behind the entry veil (calentarEntrada).
+    try { await vr.calentar((o) => renderer.compileAsync(o, ojosFalsos, scene)); } catch { /* best effort */ }
     vrCalentado = true;
   }, 3500); });
+  /** t_159e18d2: entering VR changes what every lit material is keyed by (tier B: no environment light, shadows stopped, baked sky, a headset's stereo camera,
+   * the fire lights), so the world's programs relink. Done in a drawn frame that is a stall of up to a second inside the headset; done here, under a black veil
+   * the headset keeps drawing (head tracking never stops), it is a short wait instead. The veil lifts when the world's VR variants are linked (or after VELO_MAX_MS). */
+  const VELO_MAX_MS = 4000;
+  const escenaVelo = new THREE.Scene(); escenaVelo.background = new THREE.Color(0x000000);
+  let velo: { lanzado: boolean; t0: number; ms: number | null } | null = null, ultimoVelo: { ms: number; agotado: boolean } | null = null;
+  try { renderer.xr.addEventListener?.("sessionstart", () => { velo = { lanzado: false, t0: performance.now(), ms: null }; }); renderer.xr.addEventListener?.("sessionend", () => { velo = null; }); } catch { /* no events: no veil */ }
+  /** What only a headset draws as instances (copies from INSTANCIAR_DESDE_VR on, the pillars, the pinned cells): their meshes do not exist or are hidden on the desktop. */
+  function instanciasSoloVR(): THREE.Group {
+    const modelos = new Set<string>(), standIns = new THREE.Group();
+    for (const t of things.values()) {
+      if (!t.partes || t.mixer || t.model.startsWith("~") || modelos.has(t.model) || copiasDe(t.model) < INSTANCIAR_DESDE_VR) continue;
+      modelos.add(t.model);
+      for (const q of t.partes) { const im = new THREE.InstancedMesh(q.geo, q.mat, 1); im.castShadow = q.sombra && !q.sinSombra; im.receiveShadow = !q.sinSombra; if (q.sinSombra) im.userData.sinSombra = true; standIns.add(im); }
+    }
+    return standIns;
+  }
+  async function calentarEntrada(): Promise<void> {
+    await vr.calentar((o) => compilarComoSeDibuja(o, renderer.xr.getCamera()));
+    await compilarMundo(renderer.xr.getCamera(), [instanciasSoloVR()]);
+  }
+  function iniciarVelo(v: NonNullable<typeof velo>): void {
+    v.lanzado = true;
+    let fin = false;
+    const levantar = (agotado: boolean) => { if (fin) return; fin = true; v.ms = Math.round(performance.now() - v.t0); ultimoVelo = { ms: v.ms, agotado }; if (velo === v) velo = null; };
+    const tope = setTimeout(() => levantar(true), VELO_MAX_MS);
+    void calentarEntrada().catch(() => {}).then(() => { clearTimeout(tope); levantar(false); });
+  }
   const cenital = crearCenital(renderer, scene, world, backend); // J5: the zone from above (big map) and its footprints
   let selfXZ: { x: number; z: number; y?: number } | null = null;
   // J1: you and the nearest players as VRM humanoids (avatares.ts); the capsules above stay as their anchors
@@ -702,18 +743,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       }
     });
   }
-  const precompilar = crearPrecompilador({ compilar: (g) => {
-    const o = g as unknown as THREE.Object3D;
-    subirTexturas(o);
-    const normal = renderer.compileAsync(o, camaraDeCompilar(), scene); // in a headset the frame is stereo: the stereo camera is the one that keys it
-    // t_159e18d2: a model that arrives after the loading screen while a headset COULD be presented also gets its VR variant now (the warm-up of the
-    // world ran once, earlier): entering VR must not link it inside a frame. Before the loading screen comes down the one warm-up covers everything.
-    if (xrPosible && !renderer.xr.isPresenting && compiles.estado().cargaLista) return normal.then(() => entorno.comoEnVR(() => renderer.compileAsync(o, ojosFalsos, scene))); // one after the other: the VR state holds while its shaders are built, the normal ones must not be built inside it
-    return normal;
-  }, grupo: () => new THREE.Group() as never, paralelo: () => paralelo });
+  const precompilar = crearPrecompilador({ compilar: (g) => { subirTexturas(g as unknown as THREE.Object3D); return compilarComoSeDibuja(g as unknown as THREE.Object3D, camaraDeCompilar()); }, grupo: () => new THREE.Group() as never, paralelo: () => paralelo }); // in a headset the frame is stereo: the stereo camera keys it
   /** t_159e18d2: the world's own feature groups (fishing spot, effect elements, the Ancestors' hologram and panels) are not things: nothing prepared their
    * programs, so each piece linked inside the first frame that drew it (the hologram, the water, the rod: 18 late links measured). A group that gained
-   * pieces is hidden for the few frames its programs take to link (compileAsync, this tier's state and, where a headset could come, the VR one), then shown. */
+   * pieces is hidden for the few frames its programs take to link (compileAsync), then shown. */
   const piezasDeGrupo = new WeakMap<THREE.Object3D, number>();
   function vigilarGrupo(c: THREE.Object3D): void {
     let n = 0; c.traverse(() => { n++; });
@@ -725,8 +758,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     const listo: Promise<unknown>[] = [];
     try {
       subirTexturas(c);
-      const normal = renderer.compileAsync(c, camaraDeCompilar(), scene);
-      listo.push(xrPosible && !renderer.xr.isPresenting ? normal.then(() => entorno.comoEnVR(() => renderer.compileAsync(c, ojosFalsos, scene))) : normal);
+      listo.push(compilarComoSeDibuja(c, camaraDeCompilar()));
     } catch { /* a lost device: show it anyway */ }
     for (const [x] of sinCulling) x.frustumCulled = true;
     const mostrar = () => { if (piezasDeGrupo.get(c) !== undefined) c.visible = true; };
@@ -1132,6 +1164,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     if (camaras.length) { censoUltimo = censoDeEscena(scene, camaras, union ?? undefined); censoUltimo.resto = renderer.info.render.drawCalls - censoUltimo.llamadas; }
   }
   function dibujarCuadro(): void {
+    // t_159e18d2: the entry veil (see calentarEntrada): the headset keeps getting frames while the world's programs link
+    if (velo && renderer.xr.isPresenting) { if (!velo.lanzado) iniciarVelo(velo); renderer.render(escenaVelo, camera); return; }
+    if (pausaLuz > 0 && compiles.estado().cargaLista) return; // a new light set is linking (luzCambiada): the screen keeps its last picture
     antesDelCuadro();
     try { if (ppVivo && pp && !renderer.xr.isPresenting) pp.dibujar(); else renderer.render(scene, camera); if (censoPedido) tomarCenso(); if (espejoXR?.activo()) espejoXR.cuadro(performance.now()); if (fotoXR?.pendiente()) fotoXR.cuadro(); } finally { despuesDelCuadro(); }
   }
@@ -1451,9 +1486,11 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     shaders() { return precompilar.estado(); },
     /** t_159e18d2: has the VR warm-up finished (the programs a headset session draws were linked while hidden)? false where no VR exists. */
     vrCalentado(): boolean { return vrCalentado; },
+    /** t_159e18d2: the entry veil — `activo` while it is up, `ultimo` how long the last one took (ms) and whether it hit VELO_MAX_MS instead of finishing. */
+    veloVR() { return { activo: velo !== null, ultimo: ultimoVelo }; },
     /** t_159e18d2: shader pipelines linked inside a drawn frame instead of through compileAsync (compilaciones.ts): `tardias` counts those after
      * the loading screen came down (must stay 0 while walking), with the last few named in `recientes`. */
-    compiles() { return { ...compiles.estado(), lucesAvisadas }; },
+    compiles() { const luces: string[] = []; scene.traverseVisible((o) => { if ((o as THREE.Light).isLight) luces.push(`${o.name || o.type}${(o as THREE.Light).intensity ? "" : ":0"}`); }); return { ...compiles.estado(), lucesAvisadas, luces }; },
     /** The loading screen came down: from here a pipeline linked by a draw counts as late. */
     cargaOculta(): void { compiles.cargaLista(); },
     /** Zero the late counters (a check starts a walk). */

@@ -55,19 +55,24 @@ try {
   const t1 = Date.now();
   await p.waitForFunction(() => globalThis.__numinia.view.compiles().cargaLista, null, { timeout: 180000, polling: 500 }).catch(() => {});
   nota("loading screen down", { ms: Date.now() - t1, compiles: await p.evaluate(() => { const c = globalThis.__numinia.view.compiles(); return { previas: c.previas, antes: c.antesDelPrimerCuadro, bajoLaCarga: c.bajoLaCarga, tardias: c.tardias, recientes: c.recientes.map((r) => `${r.objeto} | ${r.material} | ${r.firma}`) }; }), shaders: await p.evaluate(() => globalThis.__numinia.view.shaders()) });
-  // a player takes seconds to put the headset on: let the VR warm-up (hands, then the rig and the world with the stereo camera in the tier-B state) finish first
+  // a player takes seconds to put the headset on: let the hidden rig/hands warm-up finish first (the world's VR variants are linked behind the entry veil)
   const tw = Date.now();
   const calentado = await p.waitForFunction(() => globalThis.__numinia.view.vrCalentado(), null, { timeout: 120000, polling: 500 }).then(() => true, () => false);
-  nota("VR warm-up", { terminado: calentado, ms: Date.now() - tw, compiles: await p.evaluate(() => { const c = globalThis.__numinia.view.compiles(); return { previas: c.previas, tardias: c.tardias, recientes: c.recientes.map((r) => `${r.objeto} | ${r.material} | ${r.firma}`) }; }) });
+  nota("VR rig warm-up", { luces: await p.evaluate(() => globalThis.__numinia.view.compiles().luces), terminado: calentado, ms: Date.now() - tw, compiles: await p.evaluate(() => { const c = globalThis.__numinia.view.compiles(); return { previas: c.previas, tardias: c.tardias, recientes: c.recientes.map((r) => `${r.objeto} | ${r.material} | ${r.firma}`) }; }) });
   await p.evaluate(() => document.getElementById("vr").click());
   const enVR = await p.waitForFunction(() => globalThis.__numinia.view.vr.active, null, { timeout: 60000 }).then(() => true, () => false);
   nota("enters VR", { enVR });
   if (!enVR) throw new Error("did not enter VR");
+  // the entry veil (view.veloVR): the world's programs link while the headset draws black; what counts as a late compile is what a drawn frame links AFTER it lifts
+  const tv = Date.now();
+  await p.waitForFunction(() => { const v = globalThis.__numinia.view.veloVR(); return !v.activo && v.ultimo; }, null, { timeout: 60000, polling: 100 }).catch(() => {});
+  const velo = await p.evaluate(() => globalThis.__numinia.view.veloVR().ultimo);
+  const enElVelo = await p.evaluate(() => { const c = globalThis.__numinia.view.compiles(); globalThis.__numinia.view.reiniciarCompiles(); return c.tardias; }); // the veil's own black frames (the output pass) link here, unseen
+  nota("entry veil", { velo, esperaMs: Date.now() - tv, tardiasEnElVelo: enElVelo, luces: await p.evaluate(() => globalThis.__numinia.view.compiles().luces) });
   await p.waitForFunction(() => globalThis.__numinia.view.manos.estado().izq?.tipo === "mando", null, { timeout: 20000 }).catch(() => {});
-  // let the VR warm-up (3.5 s after the hands, then compileAsync of the rig and the world with the two-eye camera) finish
   await p.waitForFunction(() => globalThis.__numinia.view.shaders().enCola === 0 && !globalThis.__numinia.view.cargando(), null, { timeout: 120000, polling: 500 }).catch(() => {});
   await p.waitForTimeout(Number(process.env.CALENTAR_MS ?? 25000));
-  const antes = await p.evaluate(() => { const c = globalThis.__numinia.view.compiles(); globalThis.__numinia.view.reiniciarCompiles(); return { previas: c.previas, antes: c.antesDelPrimerCuadro, bajoLaCarga: c.bajoLaCarga, tardiasAlEntrarEnVR: c.tardias, recientes: c.recientes }; });
+  const antes = await p.evaluate(() => { const c = globalThis.__numinia.view.compiles(); globalThis.__numinia.view.reiniciarCompiles(); return { luces: c.luces, previas: c.previas, antes: c.antesDelPrimerCuadro, bajoLaCarga: c.bajoLaCarga, tardiasAlEntrarEnVR: c.tardias, recientes: c.recientes }; });
   nota("VR settled, late counter zeroed", antes);
 
   const yo = () => p.evaluate(() => globalThis.__numinia.session.selfPosition(1));
