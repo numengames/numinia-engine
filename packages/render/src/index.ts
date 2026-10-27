@@ -189,10 +189,11 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   }
   /** Every program the world can draw with the scene as it is NOW (what three re-keys when the light set, the tier or the camera changes): the visible scene with nothing
    * left out by the frustum, plus the hidden lote/pinned-cell meshes that only show while they have instances. `extra`: more roots (the headset-only stand-ins). */
+  let ocultosDelMundo: () => THREE.Object3D[] = () => []; // more roots that are hidden until their moment and must be linked for the new state too (the name plates), set where they live
   async function compilarMundo(cam: THREE.Camera, extra: THREE.Object3D[] = []): Promise<void> {
     const c = (o: THREE.Object3D) => compilarComoSeDibuja(o, cam);
     // both started before either is awaited: three reads the light set (and a light born hidden is made visible only for this call) when each compile starts
-    await Promise.all([calentarOcultos([scene as never], c as never, false), calentarOcultos([lotes.raiz as never, fijados.raiz as never, ...(extra as never[])], c as never)]);
+    await Promise.all([calentarOcultos([scene as never], c as never, false), calentarOcultos([lotes.raiz as never, fijados.raiz as never, ...(extra as never[]), ...(ocultosDelMundo() as never[])], c as never)]);
   }
   let pausaLuz = 0; // draws held back while the programs for a new light set link (see luzCambiada)
   function luzCambiada(): void {
@@ -545,7 +546,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     const alto = ROT_NOMBRE * ROT_M;
     for (const [k, r] of tags) {
       const d = Math.hypot(r.x - ojoC.x, r.y - ojoC.y, r.z - ojoC.z);
-      r.s.visible = nombreVisible({ todos: verTodos && d <= NOMBRE_VISIBLE_M, mirado: mirado === `t:${k}`, habla: hablando === k }); // (a «!» / «✓» mark does not keep the plate on: the story asks for the one you look at and who speaks)
+      const quiere = nombreVisible({ todos: verTodos && d <= NOMBRE_VISIBLE_M, mirado: mirado === `t:${k}`, habla: hablando === k }); // (a «!» / «✓» mark does not keep the plate on: the story asks for the one you look at and who speaks)
+      if (quiere && r.listo === 0) enlazarRotulo(r); // its program links off the frame; the plate shows when it is done (a few frames)
+      r.s.visible = quiere && r.listo === 2;
       if (!r.s.visible) continue;
       const e = escalaAcotada(1, alto, d, NOMBRE_GRADOS_MAX); // whole plate (mark, trade) shrinks with its name line
       r.s.scale.set(ROT_ANCHO * ROT_M * e, r.s.userData.alto * e, 1);
@@ -747,22 +750,24 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   /** t_159e18d2: the world's own feature groups (fishing spot, effect elements, the Ancestors' hologram and panels) are not things: nothing prepared their
    * programs, so each piece linked inside the first frame that drew it (the hologram, the water, the rod: 18 late links measured). A group that gained
    * pieces is hidden for the few frames its programs take to link (compileAsync), then shown. */
-  const piezasDeGrupo = new WeakMap<THREE.Object3D, number>();
+  const piezasVistas = new WeakSet<THREE.Object3D>();
   function vigilarGrupo(c: THREE.Object3D): void {
-    let n = 0; c.traverse(() => { n++; });
-    if (piezasDeGrupo.get(c) === n) return;
-    piezasDeGrupo.set(c, n);
-    c.visible = false;
-    const sinCulling: [THREE.Object3D, boolean][] = [];
-    c.traverse((x) => { if (x.frustumCulled) { sinCulling.push([x, true]); x.frustumCulled = false; } }); // what is behind the camera must be linked too
-    const listo: Promise<unknown>[] = [];
-    try {
-      subirTexturas(c);
-      listo.push(compilarComoSeDibuja(c, camaraDeCompilar()));
-    } catch { /* a lost device: show it anyway */ }
-    for (const [x] of sinCulling) x.frustumCulled = true;
-    const mostrar = () => { if (piezasDeGrupo.get(c) !== undefined) c.visible = true; };
-    void Promise.race([Promise.all(listo.map((p) => Promise.resolve(p).catch(() => {}))), new Promise((ok) => setTimeout(ok, ESPERA_MAX_MS))]).then(mostrar);
+    const nuevas = new Set<THREE.Object3D>();
+    c.traverse((x) => { if (!piezasVistas.has(x)) { piezasVistas.add(x); nuevas.add(x); } });
+    if (!nuevas.size) return;
+    // only the pieces that are new (a dart in flight, a rod's line, the hologram of a hall that just arrived) wait; the rest of the group keeps drawing
+    for (const raiz of nuevas) {
+      if (raiz.parent && nuevas.has(raiz.parent)) continue;
+      const estaba = raiz.visible;
+      let listo: Promise<unknown> = Promise.resolve();
+      try { // compileAsync projects only visible objects: calentarOcultos shows the piece for the call (and gives it no culling), then puts it back
+        subirTexturas(raiz);
+        listo = calentarOcultos([raiz as never], ((o: THREE.Object3D) => compilarComoSeDibuja(o, camaraDeCompilar())) as never);
+      } catch { /* a lost device: show it anyway */ }
+      if (estaba) raiz.visible = false;
+      const mostrar = () => { if (estaba && raiz.parent) raiz.visible = true; };
+      void Promise.race([listo.catch(() => {}), new Promise((ok) => setTimeout(ok, ESPERA_MAX_MS))]).then(mostrar);
+    }
   }
   const instanciasPreparadas = new Set<string>();
   let xrPosible = false; // a headset can present here: its lotes start at INSTANCIAR_DESDE_VR, so those programs are warmed too
@@ -939,11 +944,20 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // U14 (4): a label may carry a second, smaller line under the name (a person's trade) and a mark above it («!» in a
   // warm colour: something for you now; «✓» in green: done). Its canvas is drawn again only when its text or mark
   // changes — a new position just moves it — so standing still costs nothing (tagDraws() counts the canvases drawn).
-  type Rotulo = { s: THREE.Sprite; firma: string; x: number; y: number; z: number; marca: boolean };
+  type Rotulo = { s: THREE.Sprite; firma: string; x: number; y: number; z: number; marca: boolean; /** t_159e18d2: 0 = its pipeline was never asked for, 1 = linking (compileAsync), 2 = linked: a plate is shown only once linked, so no draw ever links one */ listo: 0 | 1 | 2 };
   type DatosRotulo = { text: string; x: number; y: number; z: number; sub?: string; mark?: "!" | "✓" | "" };
   const tags = new Map<string, Rotulo>();
   let tagDibujos = 0;
   const ROT_ANCHO = 512, ROT_NOMBRE = 96, ROT_SUB = 48, ROT_MARCA = 160, ROT_M = 2.9 / 512; // px (the name line as before); metres per px
+  /** t_159e18d2: a name plate is born hidden and has its own material, so its first draw linked a program (a new plate: 3-50 ms inside the frame). Link it now, keyed as a
+   * frame draws it (compileAsync); `listo` flips when done (or after ESPERA_MAX_MS) and updateRotulos shows it. Other plates' programs are reused: this is a cheap call. */
+  function enlazarRotulo(r: Rotulo): void {
+    r.listo = 1;
+    let p: Promise<unknown> = Promise.resolve();
+    try { r.s.material.map && renderer.initTexture(r.s.material.map); p = calentarOcultos([r.s as never], ((o: THREE.Object3D) => compilarComoSeDibuja(o, camaraDeCompilar())) as never); } catch { /* a lost device: show it anyway */ }
+    void Promise.race([p.catch(() => {}), new Promise((ok) => setTimeout(ok, ESPERA_MAX_MS))]).then(() => { if (r.listo === 1) { r.listo = 2; rotulosPendiente = true; } });
+  }
+  ocultosDelMundo = () => { const o: THREE.Object3D[] = []; for (const r of tags.values()) if (r.listo !== 0) o.push(r.s); return o; }; // a light change re-keys the plates asked for already
   function dropTag(key: string): void {
     const r = tags.get(key);
     if (!r) return;
@@ -1363,7 +1377,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
       s.name = `nombre:${key}`; s.center.set(0.5, 0); s.userData.alto = c.height * ROT_M; s.scale.set(ROT_ANCHO * ROT_M, c.height * ROT_M, 1); s.position.set(t.x, y, t.z); s.renderOrder = 10;
       s.visible = false; // U22: shown by updateRotulos (looked at, speaking, marked, or «todos»)
-      world.add(s); tags.set(key, { s, firma, x: t.x, y: t.y, z: t.z, marca: !!t.mark });
+      world.add(s); tags.set(key, { s, firma, x: t.x, y: t.y, z: t.z, marca: !!t.mark, listo: 0 });
     },
     /** J5: names over things alive right now (for checks). */
     tagCount(): number { return tags.size; },
