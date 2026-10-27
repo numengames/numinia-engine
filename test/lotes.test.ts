@@ -31,3 +31,14 @@ test("a copy that moves is picked up in the next frame, and a lone copy draws no
   assert.equal(malla.visible, false);
   assert.deepEqual(lotes.estado(), { lotes: 0, copias: 0, mallas: 0, escrituras: 2 });
 });
+
+test("t_159e18d2: a lote mesh is born receiving shadows (so the marking pass a second later does not change its shader key), unless the part opts out", () => {
+  const lotes = crearLotes(new THREE.Group());
+  const p: Parte[] = [{ geo: new THREE.BoxGeometry(1, 1, 1), mat: new THREE.MeshStandardMaterial(), sombra: true }, { geo: new THREE.BoxGeometry(1, 1, 1), mat: new THREE.MeshStandardMaterial(), sombra: false, sinSombra: true }];
+  lotes.empezar(); lotes.dibujar("x|", p, "", [en(0), en(3)]); lotes.terminar();
+  const [a, b] = lotes.raiz.children as THREE.InstancedMesh[];
+  assert.equal(a.receiveShadow, true);
+  assert.equal(a.castShadow, true);
+  assert.equal(b.receiveShadow, false);
+  assert.equal(b.castShadow, false);
+});

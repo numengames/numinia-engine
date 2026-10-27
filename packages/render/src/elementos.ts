@@ -141,7 +141,10 @@ export function crearElementos(h: { renderer: THREE.WebGPURenderer; scene: THREE
       }
       // fire lights: the nearest fires get the tier's lights (made once, on the first fire)
       const max = LUCES_FUEGO[entorno.nivel];
-      if (fuegos.length && luces.length < max) { while (luces.length < max) { const l = new THREE.PointLight(0xff8a3a, 0, 14, 2); l.castShadow = false; h.scene.add(l); luces.push(l); } h.luzCambiada?.(); }
+      // t_159e18d2: made as soon as the world HAS a fire (not when the first one comes into view): the light count keys every lit material, so a light born
+      // mid-walk (or mid-entry to VR, where the tier brings its own pool) relinked the whole world inside a drawn frame
+      let hayFuego = fuegos.length > 0; if (!hayFuego) for (const u of todos.values()) if (u.fuego) { hayFuego = true; break; }
+      if (hayFuego && luces.length < max) { while (luces.length < max) { const l = new THREE.PointLight(0xff8a3a, 0, 14, 2); l.castShadow = false; h.scene.add(l); luces.push(l); } h.luzCambiada?.(); }
       fuegos.sort((a, b) => a[0] - b[0]);
       const quedan = luces.slice(0, max);
       for (const [, u] of fuegos) luzPara(u, quedan);
