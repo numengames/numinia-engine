@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: 2026 Numen Games S.L.
+# SPDX-License-Identifier: MIT
+#
+# gates: on every pull request to main, run the engine's gates, its benchmark
+# and its size check on the PR's tree, and compare them by RATIO against main
+# (BACKLOG row X6: "CI regression against a baseline", like Bevy's
+# --save-baseline or Godot's a_div_b). The workflow fails if `npm run gates`
+# fails, or if the PR makes the p50 tick or the gzipped page size more than
+# 10 % worse than main.
+#
+# Run the same locally with `node tools/ci-gates.mjs`.
+#
+# The job is named `build`: the one required check, by the same name in every
+# Numen Games repository (STD-015).
+#
+# Security: actions pinned by commit, no secrets read, checkout without
+# persisted credentials, read-only token.
+name: gates
+
+on:
+  pull_request:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the ratio needs origin/main to compare against
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: gates + bench + size, ratio against main
+        run: node tools/ci-gates.mjs
