@@ -1894,3 +1894,8 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Y red de seguridad en el servidor: `Subidas.barrerTrazos` quita cada 30 s el fichero `.trazo` que se subió y no aparece en ningún objeto del mundo a los 10 minutos (`TRAZO_SIN_COLOCAR_MIN`, `limits.json` `stroke_unplaced_minutes`); pedirlo con HEAD renueva la espera, el tope total de subidas recupera el sitio y el mismo trazo se puede volver a subir. Solo los subidos desde que arrancó el servidor.
 - Probado: `test/trazo-sin-colocar.test.ts` (3 pruebas: `cupo`; la página no sube lo que no cabe y no se queda parada con un servidor mudo; el servidor quita el huérfano, deja el colocado, HEAD renueva); pierna `pincel-vr.mjs`: el 41.º no añade ningún `.trazo` a `datos/activos`.
 - Versión 0.96.0 (0.95.0 en #284).
+
+## 2026-10-27 13:30 · cada PR dice su misión: plantilla de PR del motor · hecho
+- Qué (Pablo, 2026-10-27): desde ya cada PR lleva su misión (`Mission: MIS-123`) o la etiqueta `Mission: jazz`. El motor no tenía plantilla de PR; ahora `.github/PULL_REQUEST_TEMPLATE.md` pide esa línea, el tamaño y el número de versión movido.
+- Números: sin código ni pruebas tocadas; solo plantilla, versión y este diario.
+- Versión 0.96.1 (0.96.0 en main).

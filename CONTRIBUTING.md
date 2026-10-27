@@ -29,9 +29,11 @@ issues and pull requests, and the same review applies to everyone, people and AI
    [`docs/VERSIONES.md`](docs/VERSIONES.md): every pull request moves exactly one of major, minor or patch, and says
    in its body which and why.
 5. Add an entry to `docs/RUNLOG.md` (format at the top of that file).
-6. Open a pull request with an English title that says what changed, and a body that says why, how you checked it
+6. Put a line `Mission: MIS-<number>` (or `Mission: jazz`, work with no mission card) on its own line in the PR body; the PR
+   template asks for it.
+7. Open a pull request with an English title that says what changed, and a body that says why, how you checked it
    and what you did not check.
-7. A maintainer reviews and merges. Nobody merges their own pull request.
+8. A maintainer reviews and merges. Nobody merges their own pull request.
 
 ## Ground rules
 
