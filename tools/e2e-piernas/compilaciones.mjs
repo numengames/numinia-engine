@@ -3,7 +3,7 @@
 // shaders linked mid-play (leaving the Ayuntamiento 0.80 s). Here an emulated Quest 3 (IWER) enters VR in a world, waits for the loading
 // screen to come down, zeroes the counter of compilaciones.ts (`view.compiles()`: pipelines linked by a DRAW, not through compileAsync)
 // and walks a route — by default the house plaza; with MUNDO_COPIA=<world folder> the route of RUTA (JSON [[x,z],...]) into and out of it.
-// Passes only when no pipeline was linked inside a frame after the loading screen — including the ones of entering VR itself. Prints the numbers (and the last late ones, named).
+// Ends with every name plate in range switched on. Passes only when no pipeline was linked inside a frame after the loading screen — including the ones of entering VR itself. Prints the numbers (and the last late ones, named).
 // Own server and page (E2E_SERVER_PORT / E2E_VITE_PORT, default 8921 / 5321) on a throwaway copy of the world; nothing else is touched.
 // Env: CHROME, MUNDO_COPIA, RUTA, MIDE=1 (print and exit 0 whatever the count: for measuring before a fix), SHOTS.
 import { createRequire } from "node:module";
@@ -92,6 +92,9 @@ try {
     pasos.push({ a: [x, z], llegoA: d <= 1.5, d: Math.round(d * 10) / 10, s: Math.round((Date.now() - tt) / 100) / 10, ...c });
   }
   out.ruta_pasos = pasos;
+  // every name plate in range switched on («todos», what Alt / the touch button do): each is a hidden sprite with its own material, and showing it must not link a program
+  const rotulos = await p.evaluate(async () => { const v = globalThis.__numinia.view; v.verNombres(true); await new Promise((r) => setTimeout(r, 6000)); return v.tagCount(); });
+  nota("name plates shown", { rotulos });
   const fin = await p.evaluate(() => globalThis.__numinia.view.compiles());
   out.final = fin;
   nota("walk done", { tardias: fin.tardias, tardiasMs: fin.tardiasMs });
