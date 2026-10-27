@@ -105,6 +105,7 @@ sitio, giro, escala y nombre. Medido por `test/objetos.test.ts`.
 | Deshacer | los 50 últimos cambios de cada constructor; un arrastre de menos de 1 s cuenta como uno |
 | Ficheros | `GET /a/<sha256>.glb`, caché de un año; se bajan 4 a la vez, el más cercano primero |
 | Animación | la primera del modelo, en bucle, solo a menos de 40 m (móvil frío) |
+| Trazos pintados en VR (J18b) | hasta 40 vivos por persona (contados por quien los firmó; borrar o deshacer devuelve el sitio) y 300.000 triángulos de trazos por mundo (puntos × 16 por trazo: 31 trazos llenos); el servidor lo decide al colocar o duplicar, leyendo los puntos del fichero. Un trazo: 600 puntos, 32 kB, 9.600 triángulos como mucho. Medido por `test/trazo-topes.test.ts` y `tools/e2e-piernas/pincel-vr.mjs` |
 
 ## Subir tus ficheros (H9, paridad con Hyperfy2)
 
