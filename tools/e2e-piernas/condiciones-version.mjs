@@ -82,7 +82,17 @@ const abrir = async (ctx, url) => {
 };
 const recargar = async (p) => { await p.reload(); await p.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 40000 }); };
 const pos = (p) => p.evaluate(() => { const s = globalThis.__numinia.session.selfPosition(0); return { x: s.x, y: s.y, z: s.z }; });
-const caminar = async (p, ms = 1500) => { const p0 = await pos(p); await p.keyboard.down("KeyW"); await sleep(ms); await p.keyboard.up("KeyW"); await sleep(400); const p1 = await pos(p); return Math.hypot(p1.x - p0.x, p1.z - p0.z); };
+// the loading screen waits for the whole world (0.59.0) and a phone takes its time under swiftshader: walk only once the world is in
+const mundoListo = (p) => p.waitForFunction(() => (globalThis.__numinia.carga?.estado ?? "listo") === "listo", null, { timeout: 60000 });
+// hold W until the body has gone 1.2 m (a fixed wall-clock time walks less when the machine is loaded: the step is capped per frame), at most 12 s;
+// `meta` 0 = hold it for exactly `ms` (the check that someone must NOT move)
+const caminar = async (p, ms = 1500, meta = 1.2) => {
+  await mundoListo(p); const p0 = await pos(p); let d = 0;
+  await p.keyboard.down("KeyW");
+  for (let t = 0; t < (meta ? Math.max(ms, 12000) : ms) && (!meta || d < meta); t += 200) { await sleep(200); const q = await pos(p); d = Math.hypot(q.x - p0.x, q.z - p0.z); }
+  await p.keyboard.up("KeyW"); await sleep(400);
+  const p1 = await pos(p); return Math.hypot(p1.x - p0.x, p1.z - p0.z);
+};
 const foto = async (p, nombre) => { if (SHOTS) await p.screenshot({ path: join(SHOTS, `${nombre}.png`) }); };
 const pulsar = async (p, id) => { await p.locator(`#${id}`).click(); await sleep(250); };
 const hayBurbuja = (p) => p.evaluate(() => !!document.getElementById("condiciones"));
@@ -138,7 +148,7 @@ try {
     verifica(/Acepto la versión 1\.1 de las normas de Numen Games/.test(v.cajaTexto), `A ${g.n}: casilla «${v.cajaTexto}»`);
     verifica(v.botones.some((b) => b.id === "condiciones-aceptar" && b.off), "A: «Acepto y entro» espera a la casilla");
     verifica(!v.desborda, `A ${g.n}: nada desborda`);
-    const quieto = await caminar(p, 1200); verifica(quieto < 0.05, `A ${g.n}: sigue dentro de la pompa (${quieto})`);
+    const quieto = await caminar(p, 1200, 0); verifica(quieto < 0.05, `A ${g.n}: sigue dentro de la pompa (${quieto})`);
     await foto(p, `${g.n}-A1-han-cambiado`);
     await p.locator("#condiciones-ver-todo").click(); await sleep(250);
     const texto = await ver(p); verifica(/Los viernes\. De 18:00/.test(texto.cambios.map((c) => c.texto).join(" ")), "A: «Ver todo el texto» enseña el texto de lo cambiado");

@@ -22,7 +22,8 @@ const open = async (ctx) => {
   const p = await ctx.newPage();
   p.on("pageerror", (e) => errors.push(String(e)));
   await p.goto(BASE);
-  await p.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
+  // the loading screen (#carga) covers the view until the whole world is in (0.59.0): wait for it to go, or the wheel and the fingers land on it
+  await p.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0 && (globalThis.__numinia.carga?.estado ?? "listo") === "listo" && !!document.getElementById("carga")?.hidden, null, { timeout: 60000 });
   return p;
 };
 const W = 480, H = 300, cx = W / 2, cy = 185; // the mouse row: clear of the HUD, the full-screen button and the help line
