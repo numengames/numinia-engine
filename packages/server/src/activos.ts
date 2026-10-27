@@ -161,6 +161,9 @@ export class Activos {
     } catch { return null; }
   }
 
+  /** J18b: forget what trazoPuntos remembered about a stroke whose file was removed. */
+  olvidarTrazo(hash: string): void { this.puntosVistos.delete(hash); }
+
   /** Answer GET /a/<sha256>.<ext> (HEAD: the same headers, no body — H9: a page asks before uploading). Returns
    * false when the path is not an asset path at all. */
   servir(path: string, res: ServerResponse, head = false, range?: string, acepta?: string, accept?: string, qs = ""): boolean {

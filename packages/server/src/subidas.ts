@@ -11,13 +11,17 @@
 //     never served (only <64 hex>.<kind> names are) and never sent to pages.
 // GET and HEAD /a/<sha256>.<ext> are activos.ts (the page asks HEAD first and skips the upload when it is there).
 import { createHash, randomBytes } from "node:crypto";
-import { mkdirSync, readdirSync, statSync } from "node:fs";
+import { mkdirSync, readdirSync, statSync, unlinkSync } from "node:fs";
 import { appendFile, rename, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { comprobarFichero, motivo, SUBIDAS_TOTAL_MB, TIPOS, TOPES_MB } from "../../net/src/ficheros.ts";
 import type { Activos } from "./activos.ts";
 
+/** J18b: how long a stroke file that was uploaded and never placed stays in /a/ before the server removes it (limits.json `stroke_unplaced_minutes`). */
+export const TRAZO_SIN_COLOCAR_MIN = 10;
+/** J18b: how often the server looks for such files. */
+export const BARRIDO_TRAZOS_MS = 30_000;
 /** Uploads being received at the same time (memory: each one is held whole until checked). */
 export const SUBIDAS_A_LA_VEZ = 4;
 export const NOMBRE_FICHERO_MAX = 120;
@@ -48,6 +52,9 @@ export class Subidas {
   private readonly o: OpcionesSubidas;
   private readonly log: (l: string) => void;
   private enCurso = 0;
+  /** J18b: stroke files uploaded since the server started and not yet seen in the world (hash → when it came, or was last asked for). A stroke the
+   *  world refuses (or that is never placed) is removed by `barrerTrazos` after `TRAZO_SIN_COLOCAR_MIN`; one that is placed leaves this list for good. */
+  private readonly trazosSinColocar = new Map<string, number>();
   private total = 0; // bytes already uploaded (the house library does not count)
 
   constructor(o: OpcionesSubidas) {
@@ -108,13 +115,37 @@ export class Subidas {
     });
   }
 
+  /** J18b: a page asked (HEAD) whether this stroke file is here and is about to place it: it is not abandoned yet. */
+  tocarTrazo(hash: string): void { if (this.trazosSinColocar.has(hash)) this.trazosSinColocar.set(hash, Date.now()); }
+  /** J18b: how many uploaded strokes wait to be placed. */
+  get trazosPendientes(): number { return this.trazosSinColocar.size; }
+  /** J18b: remove the stroke files that came in and were never placed (the world refused them, or the page went away between the upload and
+   *  `colocar`). `colocados` = the hashes of the strokes standing in the world now: those are kept and forgotten here. Only files uploaded since this
+   *  server started are candidates; a stroke that was placed and deleted before a sweep saw it is gone too once it ages (its undo then finds no file).
+   *  Returns the hashes removed. */
+  barrerTrazos(colocados: ReadonlySet<string>, esperaMs = TRAZO_SIN_COLOCAR_MIN * 60_000, ahora = Date.now()): string[] {
+    const quitados: string[] = [];
+    if (!this.dir) return quitados;
+    for (const [hash, cuando] of [...this.trazosSinColocar]) {
+      if (colocados.has(hash)) { this.trazosSinColocar.delete(hash); continue; }
+      if (ahora - cuando < esperaMs) continue;
+      this.trazosSinColocar.delete(hash);
+      const ruta = join(this.dir, `${hash}.trazo`);
+      try { const tam = statSync(ruta).size; unlinkSync(ruta); this.total = Math.max(0, this.total - tam); }
+      catch { continue; } // already gone
+      this.o.activos.olvidarTrazo(hash); quitados.push(hash);
+      this.log(`[subidas] quito el trazo ${hash.slice(0, 12)}…: se subió y no se colocó en ${Math.round(esperaMs / 60_000)} min`);
+    }
+    return quitados;
+  }
+
   private readonly escribiendo = new Set<string>();
   private async guardar(hash: string, tipo: string, bytes: Buffer, real: string, who: Quien, fichero: string): Promise<[number, Record<string, unknown>]> {
     if (real !== hash) return [422, { error: `Los bytes no son los de ${hash.slice(0, 12)}…: su sha256 es ${real.slice(0, 12)}… (¿se cortó la subida?).` }];
     const ok = comprobarFichero(tipo, bytes);
     if (!ok.ok) return [422, { error: `El fichero no vale: ${motivo(ok.issues)}.`, issues: ok.issues }];
     const nombre = `${hash}.${tipo}`, hecho = { sha256: hash, tipo, bytes: bytes.length, url: `/a/${nombre}` };
-    if (this.o.activos.buscar(hash, tipo) || this.escribiendo.has(nombre)) { this.stats.repetidas++; return [200, { ...hecho, nuevo: false }]; }
+    if (this.o.activos.buscar(hash, tipo) || this.escribiendo.has(nombre)) { this.stats.repetidas++; if (tipo === "trazo" && this.trazosSinColocar.has(hash)) this.trazosSinColocar.set(hash, Date.now()); return [200, { ...hecho, nuevo: false }]; }
     if (this.total + bytes.length > this.totalMax) return [507, { error: `El servidor ya no tiene sitio para más subidas (tope de ${this.totalMax / MB} MB entre todas).` }];
     const dir = this.dir!, tmp = join(dir, `.subiendo-${randomBytes(6).toString("hex")}`);
     this.total += bytes.length; this.escribiendo.add(nombre); // reserved before writing: two at once never pass the total
@@ -128,6 +159,7 @@ export class Subidas {
       return [500, { error: "El servidor no pudo guardar el fichero; avisa a quien lo administra." }];
     } finally { this.escribiendo.delete(nombre); }
     this.stats.guardadas++; this.stats.bytes += bytes.length;
+    if (tipo === "trazo") this.trazosSinColocar.set(hash, Date.now());
     const linea = { cuando: new Date().toISOString(), sha256: hash, tipo, bytes: bytes.length, quien: who.id, nombre: who.nombre, fichero };
     await appendFile(join(dir, "subidas.jsonl"), JSON.stringify(linea) + "\n").catch((e) => this.log(`[subidas] no puedo apuntar quién subió ${hash}.${tipo}: ${String((e as Error)?.message ?? e)}`));
     this.log(`[subidas] ${who.nombre} subió ${hash.slice(0, 12)}….${tipo} (${bytes.length} bytes)`);

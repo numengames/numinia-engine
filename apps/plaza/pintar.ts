@@ -36,18 +36,20 @@ export function montarPintar(o: OpcionesPintar) {
   const cuenta = { trazos: 0, rechazados: 0, ultimo: "" };
   const no = (why: string): Res => { cuenta.rechazados++; cuenta.ultimo = why; decir(`No se pudo pintar: ${why}.`); return { ok: false, why }; };
 
-  /** Wait for the server's answer to colocar: objetos.hecho (with the id) or objetos.rechazado (with why). */
-  const respuesta = (desde: number) => new Promise<{ ok: boolean; texto: string }>((ok) => {
+  /** Wait for the server's answer to one of our intents: `cabe` / `hecho colocar` = ok, `rechazado` = no (with why). `espera` ms at most. */
+  const respuesta = (desde: number, buscado: "colocar" | "cabe", espera = 8000) => new Promise<{ ok: boolean; texto: string; callado?: boolean }>((ok) => {
     const t0 = performance.now();
     const mirar = () => {
       const fe = o.session.features, nuevos = fe.stats.events - desde;
-      const e = nuevos > 0 ? fe.log.slice(-Math.min(nuevos, fe.log.length)).find((x) => x.feature === "objetos" && (x.event === "rechazado" || (x.event === "hecho" && x.msg.accion === "colocar"))) : undefined;
-      if (e) return ok({ ok: e.event === "hecho", texto: String(e.msg.motivo ?? e.msg.id ?? "") });
-      if (performance.now() - t0 > 8000) return ok({ ok: false, texto: "el servidor no contestó" });
+      const e = nuevos > 0 ? fe.log.slice(-Math.min(nuevos, fe.log.length)).find((x) => x.feature === "objetos" && (x.event === "rechazado" || (buscado === "cabe" ? x.event === "cabe" : x.event === "hecho" && x.msg.accion === "colocar"))) : undefined;
+      if (e) return ok({ ok: e.event !== "rechazado", texto: String(e.msg.motivo ?? e.msg.id ?? "") });
+      if (performance.now() - t0 > espera) return ok({ ok: false, texto: "el servidor no contestó", callado: true });
       setTimeout(mirar, 100);
     };
     mirar();
   });
+  /** How long the page waits for «does it fit?» before it goes on anyway (an older server does not know the question; `colocar` decides in the end). */
+  const ESPERA_CUPO_MS = 2000;
 
   /** Upload (once) and place one finished stroke. */
   async function enviar(p: Pincel): Promise<Res> {
@@ -55,6 +57,9 @@ export function montarPintar(o: OpcionesPintar) {
     if (!hecho) return no("el trazo es demasiado corto, demasiado grande o pesa más que el tope");
     const billete = o.billete();
     if (!billete) return no("aún no sé quién eres; espera un segundo y vuelve a probar");
+    // J18b story 6 (gap of #283): ask the server whether the stroke fits BEFORE the file goes up: a refused stroke leaves nothing in /a/.
+    const antes = o.session.features.stats.events, p0 = o.session.features.send("objetos", "cupo", { puntos: hecho.puntos });
+    if (p0.ok) { const c = await respuesta(antes, "cabe", ESPERA_CUPO_MS); if (!c.ok && !c.callado) return no(c.texto.replace(/\.$/, "")); }
     const bytes = new TextEncoder().encode(hecho.fichero), sha = await huella(bytes), url = `${o.origen}/a/${sha}.trazo`;
     const ya = await f(url, { method: "HEAD", cache: "no-store" }).then((r) => r.status === 200, () => false);
     if (!ya) {
@@ -64,7 +69,7 @@ export function montarPintar(o: OpcionesPintar) {
     const desde = o.session.features.stats.events;
     const s = o.session.features.send("objetos", "colocar", { modelo: sha, x: hecho.centro.x, y: hecho.centro.y, z: hecho.centro.z, ry: 0, nombre: "", decorado: true, tipo: "trazo", ext: "trazo" });
     if (!s.ok) return no(s.why);
-    const r = await respuesta(desde);
+    const r = await respuesta(desde, "colocar");
     if (!r.ok) return no(r.texto.replace(/\.$/, ""));
     cuenta.trazos++; cuenta.ultimo = `colocado ${sha.slice(0, 8)} (${hecho.puntos} puntos)`;
     return { ok: true };
