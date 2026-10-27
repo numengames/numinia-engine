@@ -30,7 +30,7 @@ type Ctl = {
   alCambiar(fn: (que: "libro" | "dialogo" | "nota") => void): unknown;
   alSecuencia?(fn: (s: { tipo: string; texto?: string; sonido?: string }) => void): unknown; // U14 (5)
 };
-type Lugar = { beacon(x: number, z: number, text: string, ms: number): void; vr?: { active: boolean } };
+type Lugar = { beacon(x: number, z: number, text: string, ms: number): void; rayoDestello?(): void; vr?: { active: boolean } };
 /** Hear every event the server sends this page (main.ts: session.features.tap): the book wants «aceptada» and «avance». */
 type Oir = (fn: (feature: string, event: string, msg: Record<string, unknown>) => void) => void;
 
@@ -370,6 +370,7 @@ export function montarLibro(c: Ctl, o: {
     if (msg.texto) partes.push(el("p", String(msg.texto), "solo-lector"));
     b.replaceChildren(...partes);
     b.classList.add("visible");
+    o.view.rayoDestello?.(); // MIS-229: the beam still standing swells once
     o.nota.hidden = true;
     bannerHasta = performance.now() + BANNER_MS;
   };
