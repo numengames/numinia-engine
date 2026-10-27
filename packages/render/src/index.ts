@@ -52,6 +52,8 @@ import { createAros } from "./aros.ts"; // ia-visible S5: a green ring on the fl
 import { arosMax } from "./ia-marca.ts";
 import { createOjosIA } from "./ojos-ia.ts"; // t_5096d6f4: the eyes of an AI say the size of its model (one mesh per near AI, shared geometry and material)
 import { ojosMax } from "./ojos-ia-forma.ts";
+import { crearRayo, relojDelRayo, type Rayo } from "./rayo.ts"; // MIS-229: the beam of a beacon, special (motes, pulse, breathing ring, swell); tier D keeps the plain column
+import { rayoEspecial } from "./rayo-politica.ts";
 import { createOrbesIA } from "./orbe-ia.ts"; // t_466efdb8: the «thinking» orb over an AI that was called and has not answered (one instanced quad for all, none on tier D)
 import { orbesMax } from "./orbe-ia-forma.ts";
 import { createBurbujas } from "./burbujas.ts"; // ia-llamar S9: the action bubble of every AI (4 shapes; pooled, shared geometry and materials, capped)
@@ -500,7 +502,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   };
 
   // beacons (R1): a column of light with a text at a world point; expires on its own
-  const beacons: { group: THREE.Group; until: number }[] = [];
+  const beacons: { group: THREE.Group; until: number; rayo?: Rayo }[] = [];
+  let rayoQuieto = false; // «menos movimiento»: the beams stand on one still pose and never swell
   const beaconGeo = new THREE.CylinderGeometry(0.6, 0.6, 40, 16, 1, true);
   const beaconMat = new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
   function dropBeacon(b: { group: THREE.Group }): void {
@@ -508,13 +511,15 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     for (const ch of b.group.children) { const m = (ch as THREE.Mesh).material as THREE.MeshBasicMaterial; if (m !== beaconMat) { m.map?.dispose(); m.dispose(); } }
   }
   // J5: waypoints («Marcar destino» on the map): the same column, kept until dropped; busy() ignores them (cool phones)
-  const waypoints = new Map<number, { group: THREE.Group; until: number }>();
+  const waypoints = new Map<number, { group: THREE.Group; until: number; rayo?: Rayo }>();
   let waypointSeq = 0;
   function updateDecorations(now: number): void {
-    for (const w of waypoints.values()) w.group.children[1].quaternion.copy(camera.quaternion);
+    relojDelRayo(now, rayoQuieto);
+    const verRayo = (b: { group: THREE.Group; rayo?: Rayo }) => b.rayo?.actualizar(now, selfXZ ? Math.hypot(selfXZ.x - b.group.position.x, selfXZ.z - b.group.position.z) : null, rayoQuieto);
+    for (const w of waypoints.values()) { w.group.children[1].quaternion.copy(camera.quaternion); verRayo(w); }
     for (let i = beacons.length - 1; i >= 0; i--) {
       const b = beacons[i];
-      if (now > b.until) { dropBeacon(b); beacons.splice(i, 1); } else b.group.children[1].quaternion.copy(camera.quaternion);
+      if (now > b.until) { dropBeacon(b); beacons.splice(i, 1); } else { b.group.children[1].quaternion.copy(camera.quaternion); verRayo(b); }
     }
     for (const [t, d] of labels) {
       const m = meshOf(t);
@@ -1340,7 +1345,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** A column of light with a text at a world point for `ms` milliseconds. */
     beacon(x: number, z: number, text: string, ms: number): void {
       const group = new THREE.Group();
-      const col = new THREE.Mesh(beaconGeo, beaconMat); col.position.y = 20;
+      const rayo = rayoEspecial(entorno.nivel) ? crearRayo(entorno.nivel) : undefined; // MIS-229: tier D keeps the plain column
+      const col = rayo ? rayo.malla : new THREE.Mesh(beaconGeo, beaconMat); if (!rayo) col.position.y = 20;
       const c = document.createElement("canvas"); c.width = 256; c.height = 64;
       const g = c.getContext("2d")!;
       g.fillStyle = "rgba(20,30,40,0.85)"; g.fillRect(0, 0, 256, 64);
@@ -1348,10 +1354,16 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       g.fillText(text.slice(0, 22), 128, 34);
       const tag = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
       tag.position.y = 4.3; tag.renderOrder = 10; // U14 (4): over a person's label with its trade and mark (its top: ~3.7 m)
-      group.add(col, tag); group.position.set(x, 0, z);
+      group.add(col, tag); if (rayo) group.add(rayo.motas); group.position.set(x, 0, z); // children[1] stays the tag
       world.add(group);
-      beacons.push({ group, until: performance.now() + ms });
+      beacons.push({ group, until: performance.now() + ms, rayo });
     },
+    /** MIS-229: «menos movimiento» — the beams stand on one still pose (no motes rising, no breathing, no swell). */
+    rayoQuieto(si: boolean): void { rayoQuieto = si; },
+    /** MIS-229: every beam alive swells once, softly (a mission completed). Nothing while «menos movimiento» is on or on tier D. */
+    rayoDestello(): void { if (rayoQuieto) return; const t = performance.now(); for (const b of [...beacons, ...waypoints.values()]) b.rayo?.destellar(t); },
+    /** MIS-229 (for checks): each live beam's look, its swell and closeness, how many motes it draws. */
+    rayos(): { especial: boolean; destello: number; cerca: number; motas: number }[] { return [...beacons, ...waypoints.values()].map((b) => ({ especial: !!b.rayo, ...(b.rayo?.estado() ?? { destello: 0, cerca: 0, motas: 0 }) })); },
     /** Beacons alive right now (for checks). */
     beaconCount(): number { return beacons.length + waypoints.size; },
     /** H9: the point of the ground (y = 0) under a point of the screen (CSS pixels, like a drop's clientX/Y), or null
