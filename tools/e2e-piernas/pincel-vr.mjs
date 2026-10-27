@@ -8,6 +8,8 @@
 // brush will do) and places it as an `objetos` thing of kind «trazo» in front of tab B's avatar; B must download the file, build the tube
 // (`view.objects().loaded` goes up, `failed` stays 0) and its picture must show the stroke's colour where the stroke is (a pixel test on the
 // canvas: not the same picture without it). Then A deletes it and B's picture goes back. No upload of a broken stroke is drawn (failed, never thrown).
+// STORY 6 (the server's caps): at the end A (who deleted its strokes) paints 40 through the code door, the controller's 41st is refused with «Tienes 40 trazos: borra o deshaz alguno» (a note in the headset,
+// a count in the brush's state), B sees exactly 40, and deleting one gives the place back.
 // Env: SHOTS=<folder> saves pictures; E2E_SERVER_PORT / E2E_VITE_PORT. Exit 0 only when all is right.
 import { createRequire } from "node:module";
 import { existsSync, mkdtempSync, cpSync, rmSync } from "node:fs";
@@ -254,6 +256,49 @@ try {
   await b.waitForTimeout(600);
   const px2 = await pixeles(b); out.pixelesSinTrazos = px2;
   checks.ambarVuelve = px2.ambar < px0.ambar + 30;
+
+  // 7. STORY 6, THE SERVER'S CAP: one person holds 40 live strokes. A has none left now; 40 go through the code door (pintar.ts: same PUT + colocar as the controller),
+  //    then the controller's 41st is refused WITH the reason (a note in the headset, a count in the brush's state), B sees exactly 40, and deleting one gives the place back
+  await a.bringToFront();
+  const trazosDe = (pg) => pg.evaluate(() => [...globalThis.__numinia.session.features.stateOf("objetos")].filter(([, v]) => v.kind === "trazo" || v.tipo === "trazo").map(([id]) => id));
+  out.antesDelTope = (await trazosDe(a)).length; checks.sinTrazosAntesDelTope = out.antesDelTope === 0;
+  const llenado = await a.evaluate(async (c) => {
+    const n = globalThis.__numinia; let ok = 0; const mal = [];
+    for (let i = 0; i < c.n; i++) {
+      n.pintar.empezar({ color: 3, grosor: 0.02 });
+      for (let k = 0; k < 4; k++) n.pintar.punto({ x: c.x + i * 0.06 + k * 0.03, y: c.y, z: c.z, presion: 0.5 });
+      const r = await n.pintar.soltar(); if (r.ok) ok++; else mal.push(r.why);
+      await new Promise((r) => setTimeout(r, 300)); // an intent is 4 a second: the brush cannot go faster than this anyway
+    }
+    return { ok, mal };
+  }, { n: 40, x: yo.x - 1.2, y: 1.0, z: yo.z + 1.5 });
+  out.llenado = llenado; checks.cuarentaCaben = llenado.ok === 40 && llenado.mal.length === 0;
+  await b.bringToFront();
+  await b.waitForFunction(() => [...globalThis.__numinia.session.features.stateOf("objetos")].filter(([, v]) => v.kind === "trazo" || v.tipo === "trazo").length >= 40, null, { timeout: 20000 }).catch(() => {});
+  out.cuarentaEnB = (await trazosDe(b)).length; checks.bVeCuarenta = out.cuarentaEnB === 40;
+  await a.bringToFront();
+  await a.evaluate(() => { const n = globalThis.__numinia, v = n.view.vr, o = v.nota; globalThis.__notas = []; v.nota = (t) => { globalThis.__notas.push(String(t)); return o?.call(v, t); }; n.pintarVR.entrar(); });
+  await a.waitForTimeout(400);
+  const antesTope = await vivo();
+  await trazar({ x: yo.x, y: 1.3, z: yo.z - 2.5 }); // the 41st, with the controller
+  await esperarA(() => globalThis.__numinia.pintarVR.estado().pintar.rechazados >= 1, null, 15000).catch(() => {});
+  const trasTope = await vivo(); out.trasTope = { pintar: trasTope.est.pintar, notas: await a.evaluate(() => globalThis.__notas) };
+  checks.cuarentaYUnoSeRechaza = trasTope.est.pintar.rechazados === antesTope.est.pintar.rechazados + 1 && /Tienes 40 trazos: borra o deshaz alguno/.test(trasTope.est.pintar.ultimo);
+  checks.laNotaLlegaAlVisor = out.trasTope.notas.some((t) => /No se pudo pintar: Tienes 40 trazos/.test(t));
+  checks.sigueSiendoCuarenta = (await trazosDe(a)).length === 40 && (await trazosDe(b)).length === 40;
+  checks.sinFantasmaTrasRechazo = (await a.waitForTimeout(1500), (await vivo()).fantasmas === 0);
+  // deleting one gives the place back: the next stroke is saved
+  await a.evaluate((id) => globalThis.__numinia.constructor.borrarId(id), (await trazosDe(a))[0]);
+  await b.waitForFunction(() => [...globalThis.__numinia.session.features.stateOf("objetos")].filter(([, v]) => v.kind === "trazo" || v.tipo === "trazo").length === 39, null, { timeout: 15000 }).catch(() => {});
+  const guardadosAntes = trasTope.est.pintar.trazos;
+  await trazar({ x: yo.x, y: 1.3, z: yo.z + 2.5 });
+  await esperarA((n) => globalThis.__numinia.pintarVR.estado().pintar.trazos >= n + 1, guardadosAntes, 15000).catch(() => {});
+  const devuelto = await vivo(); out.tras_borrar_uno = devuelto.est.pintar;
+  checks.borrarDevuelveElSitio = devuelto.est.pintar.trazos === guardadosAntes + 1 && devuelto.est.pintar.rechazados === trasTope.est.pintar.rechazados;
+  await b.waitForTimeout(500);
+  out.cuarentaOtraVezEnB = (await trazosDe(b)).length; checks.bVeCuarentaOtraVez = out.cuarentaOtraVezEnB === 40;
+  if (SHOTS) await b.screenshot({ path: `${SHOTS}/pincel-vr-tope-b.png` });
+  await a.evaluate(() => globalThis.__numinia.pintarVR.salir());
   checks.sinErrores = errors.length === 0;
   out.errors = errors;
   ok = Object.values(checks).every(Boolean);

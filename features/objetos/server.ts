@@ -8,7 +8,7 @@
 // a pinned hole too: it stays where it is, only its picture changes.
 import { serverPart, transformarPuntos } from "../../packages/feature/src/index.ts";
 import type { Msg } from "../../packages/feature/src/index.ts";
-import { objetos, PASO, OBJETOS_MAX, DESHACER_MAX, TIPOS, EXTENSIONES, HUECO_MIN_M, HUECO_PX_MAX, ESCALA_MIN, encajar, colisionDe, motivoEnlace } from "./feature.ts";
+import { objetos, PASO, OBJETOS_MAX, DESHACER_MAX, TRAZOS, TIPOS, EXTENSIONES, HUECO_MIN_M, HUECO_PX_MAX, ESCALA_MIN, encajar, colisionDe, motivoEnlace } from "./feature.ts";
 import type { Tipo, Colision } from "./feature.ts";
 import biblioteca from "./biblioteca.json" with { type: "json" };
 import { alturaEn } from "../../packages/relieve/src/relieve.ts";
@@ -127,6 +127,22 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     return o.solido && c ? { ...o, ...cajaEnMundo(o, c) } : o;
   };
   const caben = (from: number) => api.state.keys().length < OBJETOS_MAX || rechazar(from, `Esta zona ya tiene ${OBJETOS_MAX} objetos: borra alguno antes.`);
+  /** J18b story 6: the brush's caps, decided here (a page that skips its own checks gets nowhere). A stroke costs `points × 16` triangles; one person
+   * holds at most TRAZOS.porConstructor live strokes (counted by who signed them, so deleting or undoing one gives the place back), and the whole world
+   * at most TRAZOS.triangulosMundo. A stroke whose file is gone counts as a full one. `modelo` is the sha256 of the .trazo being placed or copied. */
+  const trazoCabe = (from: number, modelo: string) => {
+    const mio = api.who(from)?.id ?? null;
+    let suyos = 0, triangulos = (api.trazoPuntos(modelo) ?? TRAZOS.puntosMax) * TRAZOS.triangulosPorPunto;
+    for (const k of api.state.keys()) {
+      const o = api.state.get(k);
+      if (!o || o.tipo !== "trazo") continue;
+      triangulos += (api.trazoPuntos(String(o.modelo)) ?? TRAZOS.puntosMax) * TRAZOS.triangulosPorPunto;
+      if (((api.store.get(`a:${k}`) as Autor | undefined)?.autor ?? null) === mio) suyos++;
+    }
+    if (suyos >= TRAZOS.porConstructor) return rechazar(from, `Tienes ${TRAZOS.porConstructor} trazos: borra o deshaz alguno.`);
+    if (triangulos > TRAZOS.triangulosMundo) return rechazar(from, "El mundo ya tiene todos los trazos que caben: borra alguno.");
+    return true;
+  };
   const sinNombre = (from: number, nombre: string, decorado: boolean) => !decorado && !nombre && !rechazar(from, "Si no es decorado, necesita un nombre: es lo que oye quien usa un lector de pantalla y lo que leen los agentes.");
 
   // M6 (objetos v6): a thing saved before `colision` existed reads as `caja` when it was solid; written once so what
@@ -177,6 +193,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     if (!EXTENSIONES[tipo].includes(ext)) return void rechazar(from, `Un ${tipo} es un fichero ${EXTENSIONES[tipo].map((e) => `.${e}`).join(", ")}; .${ext} no vale.`);
     if (!(tipo === "modelo" && enBiblioteca.has(modelo)) && !api.activo(modelo, ext)) return void rechazar(from, tipo === "modelo" ? "Ese modelo no está en la biblioteca ni se ha subido a este servidor." : `Ese fichero .${ext} no se ha subido a este servidor.`);
     if (sinNombre(from, nombre, decorado)) return;
+    if (tipo === "trazo" && !trazoCabe(from, modelo)) return;
     const id = nuevoId();
     guardar(id, {
       modelo, x: q(m.x, PASO.pos), y: q(m.y, PASO.pos), z: q(m.z, PASO.pos), rx: 0, ry: girado(Number(m.ry)), rz: 0,
@@ -239,6 +256,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     if (!puede(from) || !caben(from)) return;
     const o = objeto(from, m.id);
     if (!o) return;
+    if (o.tipo === "trazo" && !trazoCabe(from, String(o.modelo))) return;
     const id = nuevoId(), c = api.store.get(`c:${String(m.id)}`), v = api.store.get(`v:${String(m.id)}`);
     if (c) api.store.set(`c:${id}`, c);
     if (v) api.store.set(`v:${id}`, v); // U12: a copied hole keeps its card
