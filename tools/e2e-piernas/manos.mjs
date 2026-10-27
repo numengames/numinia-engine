@@ -5,6 +5,9 @@
 // is drawn in that hand; then with TRACKED HANDS a pinch next to the seed sack takes it into the left hand; back at Teo
 // a pinch on his name / body and on «Aquí tienes» completes the quest and both things leave your hands. 0 page errors.
 // Needs the server + page running (tools/auto.sh e2e starts them). Env: BASE; SHOTS=<folder> saves pictures.
+// The server must run the DEFAULT world (no MOTOR_MUNDO): the NPC Teo, the watering can and the seed sack come from
+// aventuras/ejemplo (quest «manos-a-la-obra»). Against any other world (a copy of the Torre, say) the leg stops at its
+// first step with a message saying so, instead of dying later on a bare «Cannot read properties of null (reading 'x')».
 // Load-proof: the page's sim clamps a frame to 250 ms (apps/plaza/main.ts: dt = min(250, now - last)), so on a loaded
 // machine (~2 fps) a fixed WALL-clock window covers less SIM time and the avatar walks less. Every walk below therefore
 // goes on until the distance is reached or a generous timeout, and logs seconds + XR frames + fps + distance, so a failure
@@ -107,7 +110,11 @@ const entrada = (modo, lado) => (modo === "mano" ? `globalThis.__iwer.hands.${la
 const apuntar = (modo, lado, w) => ctl(([e, w]) => globalThis.__apuntar(eval(e), w), [entrada(modo, lado), w]);
 const poner = (modo, lado, w) => ctl(([e, w]) => globalThis.__poner(eval(e), w), [entrada(modo, lado), w]);
 const fila = (n) => ctl((n) => globalThis.__numinia.view.vr.filaMundo(n), n);
-const cosaEn = (k) => ctl((k) => { const c = globalThis.__numinia.session.features.cards().find((x) => x.feature === "misiones" && x.key === k); return c ? c.at : null; }, k);
+const cosaEn = async (k) => {
+  const at = await ctl((k) => { const c = globalThis.__numinia.session.features.cards().find((x) => x.feature === "misiones" && x.key === k); return c ? c.at : null; }, k);
+  if (!at) throw new Error(`no «${k}» card in this world (quest manos-a-la-obra comes from aventuras/ejemplo: run the server without MOTOR_MUNDO)`);
+  return at;
+};
 
 let ok = false;
 try {
@@ -115,7 +122,8 @@ try {
   await esperar(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0 && !!globalThis.__numinia.session.who, null, 30000);
   await esperar(() => getComputedStyle(document.getElementById("vr")).display !== "none", null, 8000);
   // 1. walk next to Teo on the flat page, then enter VR
-  await esperar(() => globalThis.__numinia.session.features.cards().some((c) => c.feature === "pnj" && c.key === "teo"), null, 10000).catch(() => {});
+  await esperar(() => globalThis.__numinia.session.features.cards().some((c) => c.feature === "pnj" && c.key === "teo"), null, 10000)
+    .catch(() => { throw new Error("no NPC «teo» in this world: this leg needs the default world (aventuras/ejemplo), run the server without MOTOR_MUNDO"); });
   const dTeo = await caminar(-6.5, 4);
   await esperar(() => document.getElementById("vr").getAttribute("aria-disabled") !== "true", null, 15000).catch(() => {}); // MIS-200 (t_9687b5fc): the entry says «Preparando…» until the world has loaded
   await ctl(() => document.getElementById("vr").click());

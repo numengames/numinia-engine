@@ -1850,3 +1850,9 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Probado: `test/rayo-barato.test.ts` (6; el del editor falla sin el arreglo), pierna `tools/e2e-piernas/rayo-pesado.mjs` (estatua ×3.4 y robot ×10 tras un salto de 140 m: p95 ≤ 1 ms; sin el arreglo 114 y 133 ms).
 - Sin resolver: un rayo de VR que apunta a una caja grande y vacía la «toca» donde el modelo no tiene malla; el muestreo de fps real en la Quest no se ha repetido.
 - Versión 0.89.0 (0.88.0 la reclama #276).
+
+## 2026-10-27 02:20 · la pierna `manos` ya no muere con «null (reading 'x')» en un mundo que no es el de ejemplo · hecho
+- Causa: no es una regresión del motor. La pierna juega la misión «manos-a-la-obra» (Teo, regadera, semillas), que vive en `aventuras/ejemplo`, el mundo por defecto (servidor sin `MOTOR_MUNDO`). Contra una copia de la Torre (`MOTOR_MUNDO=…`) no hay Teo ni regadera: `cosaEn("regadera")` devolvía `null` y `reg.x` reventaba en el script de la pierna (Node, no la página) tras 60 s caminando hacia un Teo inexistente. Reproducido con el motor de main 0.89.0: mundo por defecto → `E2E MANOS OK`; copia de la Torre → el mismo `null (reading 'x')`. Ninguna pose de mano nula en la página: sin cambio de código del motor.
+- Arreglo (solo la pierna): `tools/e2e-piernas/manos.mjs` comprueba al empezar que Teo existe y `cosaEn` lanza un error que dice qué falta y cómo arrancar el servidor; falla en ~15 s con la causa en vez de en ~100 s con un `null`. Cabecera de la pierna con la condición.
+- Probado: mundo por defecto → manos, manos-salto, constructor-vr, pincel-vr, menu-vr (ver PR); Torre → falla con el mensaje nuevo.
+- Versión 0.92.0 (0.90.0 #276, 0.91.0 #280).
