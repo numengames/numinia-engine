@@ -43,6 +43,7 @@ export type InstanceOptions = {
   renovarPase?: (entity: number, pase: string) => string | null;
   activo?: (sha256: string, ext: string) => boolean; // H9: is /a/<sha256>.<ext> on this server (library or uploaded)? (api.activo)
   medidas?: (sha256: string, ext: string) => { ancho: number; alto: number } | null; // U12: a picture's pixels (api.medidas)
+  trazoPuntos?: (sha256: string) => number | null; // J18b: points in a stroke file (api.trazoPuntos)
   sinVoz?: boolean | (() => boolean); // U10: true = voice frames are not relayed; a function is asked at every frame (the world's /voz)
   oye?: (de: number, a: number) => boolean; // F1: may entity `a` hear entity `de`? Asked per listener and frame (a muted speaker, a personal block); none = yes
   aventura?: (carpeta: string) => { fichero: string; texto: string }[]; // J5: the adventure's text files (server/aventura.ts); none = no adventure
@@ -168,6 +169,7 @@ export class Instance {
       puede: (e, accion) => !!this.byEntity[e] && (opts.puede?.(this.byEntity[e]?.who ?? null, accion, e) ?? false),
       activo: opts.activo,
       medidas: opts.medidas,
+      trazoPuntos: opts.trazoPuntos,
       visible: (e) => this.byEntity[e]?.visible ?? [],
       aventura: opts.aventura,
       recibo: opts.recibos ? (d) => opts.recibos!.firmar(d) : undefined,

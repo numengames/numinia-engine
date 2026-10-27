@@ -1876,3 +1876,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Arreglo (solo la pierna): `tools/e2e-piernas/manos.mjs` comprueba al empezar que Teo existe y `cosaEn` lanza un error que dice qué falta y cómo arrancar el servidor; falla en ~15 s con la causa en vez de en ~100 s con un `null`. Cabecera de la pierna con la condición.
 - Probado: mundo por defecto → manos, manos-salto, constructor-vr, pincel-vr, menu-vr (ver PR); Torre → falla con el mensaje nuevo.
 - Versión 0.93.0 (0.90.0 #276, 0.91.0 #280, 0.92.0 #281).
+
+## 2026-10-27 04:00 · pintar en VR, historia 6 de 7: los topes del servidor (40 trazos por persona, 300.000 triángulos por mundo) · hecho
+- Qué: antes solo el cliente se negaba a dibujar más de 300.000 triángulos de trazos; el servidor dejaba colocar hasta los 2.000 objetos de la zona, y nadie ponía tope a lo que pintaba una persona. Ahora `colocar` y `duplicar` de un objeto `trazo` pasan por `trazoCabe` (`features/objetos/server.ts`): una persona tiene como mucho 40 trazos vivos (los cuenta por quien los firmó, así que borrar o deshacer devuelve el sitio) y el mundo como mucho 300.000 triángulos de trazos (puntos × 16 por trazo). Los puntos los lee el servidor del fichero (`api.trazoPuntos` → `Activos.trazoPuntos`, una vez por fichero), no de lo que diga la página; un fichero ilegible cuenta como uno lleno (600 puntos).
+- Qué se ve: el 41.º trazo no se guarda y el visor muestra «No se pudo pintar: Tienes 40 trazos: borra o deshaz alguno» (el mundo lleno: «El mundo ya tiene todos los trazos que caben: borra alguno»). Sin dibujos nuevos: no hay ninguna llamada de dibujo más por trazo.
+- Números: `limits.json` `strokes_per_builder` 40 y `stroke_world_triangles_server` 300000 (el cliente sigue con `stroke_world_triangles_max`; una prueba comprueba que son el mismo número).
+- Probado: `test/trazo-topes.test.ts` (6 pruebas: 41.º rechazado, otro puede pintar, deshacer devuelve el sitio, duplicar cuenta, mundo lleno con 31 trazos de 600 puntos, fichero ilegible, lectura real del fichero en un servidor); pierna `pincel-vr.mjs` ampliada (ver PR).
+- Versión 0.94.0 (0.93.0 en main).

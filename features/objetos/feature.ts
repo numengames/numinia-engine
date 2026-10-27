@@ -8,6 +8,10 @@ import type { Fields } from "../../packages/feature/src/index.ts";
 export const PASO = { pos: 0.01, grados: 0.1, escala: 0.01 } as const;
 /** Most things one zone holds (the whole list reaches whoever enters: measured in test/objetos.test.ts). */
 export const OBJETOS_MAX = 2000;
+/** J18b story 6 — what the SERVER lets a brush put in a world (objetos `colocar`/`duplicar`, features/objetos/server.ts; limits.json `strokes_per_builder` and
+ * `stroke_world_triangles_server`): live strokes per person; stroke triangles in the whole world (points × 16: 8 sides, 2 triangles a segment, flat caps);
+ * `puntosMax` is a file's most points (packages/net/src/ficheros.ts TRAZO.puntosMax; features cannot import net, a test keeps the two equal), what an unreadable file counts as. */
+export const TRAZOS = { porConstructor: 40, triangulosPorPunto: 16, triangulosMundo: 300_000, puntosMax: 600 } as const;
 /** Changes each builder can undo. */
 export const DESHACER_MAX = 50;
 

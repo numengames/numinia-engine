@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { gzip } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import type { ServerResponse } from "node:http";
-import { IMAGEN_PX_COPIAS, medidasImagen, TIPOS } from "../../net/src/ficheros.ts";
+import { IMAGEN_PX_COPIAS, medidasImagen, TIPOS, TRAZO, comprobarTrazo } from "../../net/src/ficheros.ts";
 import type { Medidas } from "../../net/src/ficheros.ts";
 export { TIPOS } from "../../net/src/ficheros.ts"; // the kinds of file (H9 shares them with the page)
 /** What /a/ serves: every uploadable kind plus .vrma (J1: the house animations) and .opus/.m4a (S6: the house
@@ -142,6 +142,23 @@ export class Activos {
     } catch { m = null; }
     this.medidasVistas.set(k, m);
     return m;
+  }
+
+  private readonly puntosVistos = new Map<string, number>();
+  /** J18b: how many points the brush stroke /a/<hash>.trazo holds, read from the file (≤ 32 kB, checked as trazo@1 when it came in; read
+   * again here, never taken from a page). Once per file. null = not here or not a valid stroke. */
+  trazoPuntos(hash: string): number | null {
+    const visto = this.puntosVistos.get(hash);
+    if (visto !== undefined) return visto;
+    const ruta = this.buscar(hash, "trazo");
+    if (!ruta) return null; // it may be uploaded later: ask again then
+    try {
+      if (statSync(ruta).size > TRAZO.bytesMax) return null;
+      const r = comprobarTrazo(new Uint8Array(readFileSync(ruta)));
+      if (!r.ok) return null;
+      this.puntosVistos.set(hash, r.value.puntos.length);
+      return r.value.puntos.length;
+    } catch { return null; }
   }
 
   /** Answer GET /a/<sha256>.<ext> (HEAD: the same headers, no body — H9: a page asks before uploading). Returns
