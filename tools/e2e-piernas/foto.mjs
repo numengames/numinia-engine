@@ -57,6 +57,8 @@ try {
   if (ENGINE === "chromium") await ctx.grantPermissions(["clipboard-read", "clipboard-write"]);
   const p = await open(ctx);
   await p.bringToFront();
+  // the minimap mounts after the first frame (0.78.0): wait for it before taking the picture of what is on screen
+  await p.waitForFunction(() => { const e = document.getElementById("minimapa"); return !!e && e.getBoundingClientRect().width > 0; }, null, { timeout: 20000 });
   const antes = await visibles(p);
   await p.mouse.click(640, 400); // focus the page (a click on the world, no drag)
   // ux2-barra: P opens the bar's «Cámara» menu with the focus on «Foto»; Enter takes the photo mode
@@ -133,6 +135,8 @@ try {
   // the link opened in a new tab: hash taken out, the place is the waypoint, the camera turns toward it
   const q = await open(ctx, enlace);
   await q.waitForFunction(() => globalThis.__numinia.foto.guia()?.estado !== "esperando", null, { timeout: 20000 });
+  // the destination is handed to the map, which lands after the first frame (0.78.0): wait for the marker
+  await q.waitForFunction(() => !!globalThis.__numinia.mapa.destino(), null, { timeout: 20000 }).catch(() => {}); // «llegar» below says what it saw
   const g = await q.evaluate(() => ({ guia: globalThis.__numinia.foto.guia(), destino: globalThis.__numinia.mapa.destino(), hash: location.hash, yo: globalThis.__numinia.session.selfPosition(1) }));
   await settle(q);
   const cq = await cam(q);
@@ -152,6 +156,9 @@ try {
       navigator.share = async (d) => { globalThis.__compartido.push({ files: (d.files ?? []).map((f) => ({ name: f.name, type: f.type, size: f.size })), url: d.url, title: d.title, text: d.text }); };
     });
     const t = await open(mctx);
+    // the phone's touch layer («…» menu, joystick) mounts after the first frame (movil.ts is imported lazily)
+    // and the loading screen fades for 0.7 s after «listo», taking the taps until it is hidden
+    await t.waitForFunction(() => !!document.getElementById("mas") && !!document.getElementById("carga")?.hidden, null, { timeout: 20000 });
     const cdp = await mctx.newCDPSession(t);
     const touch = async (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts.map(([x, y], id) => ({ x, y, id })) });
     const swipe = async (a, b, steps = 8) => { await touch("touchStart", [a]); for (let i = 1; i <= steps; i++) await touch("touchMove", [[a[0] + ((b[0] - a[0]) * i) / steps, a[1] + ((b[1] - a[1]) * i) / steps]]); await touch("touchEnd", []); };
@@ -183,7 +190,7 @@ try {
       { boton, visibles: v, giro: R(tc1.yaw - tc0.yaw), anda: R(Math.hypot(mm1.x - mm0.x, mm1.z - mm0.z), 3), joy, ultima: mu.u, compartido: comp });
     await mctx.close();
   }
-} catch (e) { checks.excepcion = { ok: false, error: String(e).split("\n").slice(0, 3).join(" | ") }; }
+} catch (e) { checks.excepcion = { ok: false, error: String(e).split("\n").slice(0, 12).join(" | ") }; }
 await browser.close();
 
 const allOk = Object.values(checks).every((c) => c.ok) && errors.length === 0 && Object.keys(checks).length >= (ENGINE === "chromium" ? 9 : 8);

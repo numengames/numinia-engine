@@ -119,7 +119,8 @@ try {
       cuerpo: g.querySelector(".gente-figura img")?.getAttribute("src") ?? null, tab: g.querySelector('[role="tab"][aria-selected="true"]')?.textContent,
       secciones: [...g.querySelectorAll(".gente-seccion")].map((x) => x.textContent), fuera: [...g.querySelectorAll(".gente-fila.fuera")].map((x) => x.textContent),
       botones: [...g.querySelectorAll(".gente-botones button, .gente-delicados button")].map((x) => x.textContent), letra: g.querySelector(".gente-letra")?.textContent,
-      filasDelicadas: new Set([...g.querySelectorAll(".gente-delicados button")].map((x) => Math.round(x.getBoundingClientRect().top))).size };
+      filasDelicadas: new Set([...g.querySelectorAll(".gente-delicados button")].map((x) => Math.round(x.getBoundingClientRect().top))).size,
+      anchos: [...g.querySelectorAll(".gente-delicados button")].map((x) => Math.round(x.getBoundingClientRect().width)), anchoInfo: Math.round(g.querySelector(".gente-info")?.getBoundingClientRect().width ?? 0), anchoPanel: Math.round(g.getBoundingClientRect().width) };
   });
   ok("ficha", ficha.nombre === nB && /^En /.test(ficha.chip ?? "") && /desde el/.test(ficha.sub ?? "") && /Astrodisco/.test(ficha.sub ?? "") && /m de ti|a tu lado/.test(ficha.ahora ?? "") && /astrodisco-cuerpo/.test(ficha.cuerpo ?? "")
     && /^Amigos · 2/.test(ficha.tab ?? "") && ficha.secciones.join("|") === "Conectados|Desconectados" && ficha.fuera.join("").startsWith(nC) && /hace/.test(ficha.fuera.join("")) && ficha.botones.join("|") === "Ir a su lado|Mensaje|Saludar|Silenciar|Bloquear|Denunciar|Quitar de amigos"
@@ -156,6 +157,8 @@ try {
   // ---- a reload keeps the friends ----
   await a.reload();
   await a.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0 && globalThis.__numinia.viajar.estado.recibido, null, { timeout: 60000 });
+  // «Gente» mounts after the first frame (0.83.0): until it lands `gente.amigos()` answers an empty list; the friends are in localStorage all along
+  await a.waitForFunction((n) => globalThis.__numinia.gente.amigos().length === n, ord.split("|").length, { timeout: 20000 }).catch(() => {});
   ok("recarga", (await a.evaluate(() => globalThis.__numinia.gente.amigos().map((x) => x.nombre).sort((x, y) => x.localeCompare(y, "es")).join("|"))) === ord, {});
 
   // ---- phone ----
@@ -172,7 +175,7 @@ try {
   await ctxM.close();
   await ctxB.close();
   await ctxA.close();
-} catch (e) { checks.excepcion = { ok: false, error: String(e).split("\n").slice(0, 3).join(" | ") }; }
+} catch (e) { checks.excepcion = { ok: false, error: String(e).split("\n").slice(0, 24).join(" | ") }; }
 await browser.close();
 
 const allOk = Object.values(checks).every((c) => c.ok) && errors.length === 0 && Object.keys(checks).length >= 14;

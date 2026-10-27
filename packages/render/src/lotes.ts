@@ -40,7 +40,10 @@ export function crearLotes(padre: THREE.Object3D) {
       const m = new THREE.InstancedMesh(p.geo, l.mats[i], cap);
       m.instanceMatrix = p.rel ? nueva() : comun;
       if (!l.matrices.includes(m.instanceMatrix)) l.matrices.push(m.instanceMatrix);
-      m.castShadow = p.sombra && !p.sinSombra; if (p.sinSombra) m.userData.sinSombra = true; m.count = 0; m.visible = false;
+      m.castShadow = p.sombra && !p.sinSombra; if (p.sinSombra) m.userData.sinSombra = true;
+      // t_159e18d2: as entorno.marcarSombras() ends up marking every mesh of the world a second later (and as precompilar prepared this model): a lote born without it
+      // links its program once as drawn and again when the marking flips receiveShadow in the middle of play
+      m.receiveShadow = !p.sinSombra; m.count = 0; m.visible = false;
       m.name = "lote"; m.userData.lote = true;
       raiz.add(m);
       return m;
