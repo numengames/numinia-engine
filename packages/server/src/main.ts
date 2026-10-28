@@ -14,6 +14,7 @@
 // (e.g. motor.ejemplo.com); unset = the host each connection asks for (fine on a PC).
 import { join } from "node:path";
 import { startServer } from "./server.ts";
+import { libroDeEntorno } from "./eventos.ts";
 import funciones from "../../../features/servidor.ts";
 import { aparicionDelMundo, conMundo, enlaceDardosDelMundo, sueloDelMundo, vueloDelMundo } from "../../../features/mundo.ts";
 import { leerMundo, escribirMundo } from "./mundo.ts";
@@ -38,6 +39,7 @@ if (c) {
 const k = claves(env, c, log);
 const datos = env.DATOS_DIR || c?.datos || ".run/datos";
 const entorno = env.MUNDO_DIR || c?.entorno || null;
+libroDeEntorno(env, datos, log); // MIS-248: the book of world facts, off unless MOTOR_EVENTOS=si (the pieces that write to it come in the next cards)
 const leerEntorno = entorno ? leerMundo(entorno) : null; // the world's entorno/ folder (entorno.json, elementos.json; H4)
 
 const srv = await startServer({
