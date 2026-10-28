@@ -79,6 +79,8 @@ export type InstanceOptions = {
    * connection that has not accepted the current norms is frozen where it arrived and its chat, voice and every feature
    * message (build, play) are ignored — see `puertaCerrada`. None, or `activa` false = the behaviour as before. */
   condiciones?: PuertaCondiciones;
+  /** MIS-248: the world's book of events (`registrar`); none = features' `api.hecho` does nothing. */
+  hecho?: (tipo: string, datos?: Record<string, unknown>) => void;
 };
 /** condiciones/c2: what the instance needs from the conditions' gate. The rules (which points, which versions) are the server's. */
 export type PuertaCondiciones = {
@@ -181,6 +183,7 @@ export class Instance {
       rayo: (e, dir, max) => this.rayo(e, dir, max),
       ordenar: (e, orden) => this.ordenar(e, orden),
       leyendoNormas: (e) => this.leyendoNormas(e),
+      hecho: opts.hecho,
       sentado: (e) => !!this.byEntity[e] && !!this.sim.world.alive[e] && getMotionExtra(this.sim, e).modo === MODO_SENTADO,
       vozBurbujas: (v) => { this.burbujas = v; },
     });

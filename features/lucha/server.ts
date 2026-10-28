@@ -63,6 +63,20 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
   const vuelven = new Map<string, number>();       // dissolved creature → tick it returns
   const vida = new Map<number, number>();          // player → life left (server memory only, L2 trozo 1)
   const caidos = new Map<number, number>();        // fallen player → tick they come back whole
+  // MIS-248: the world's book. A fight = from the first blow on a creature until it dissolves. Only a COUNT of those who hit it is
+  // kept (the set of connections lives in memory for that count and is dropped with the fight); the book gets no person.
+  const peleas = new Map<string, { desde: number; quienes: Set<number> }>();
+  const golpeo = (key: string, e: number, t: number) => {
+    let p = peleas.get(key);
+    if (!p) { p = { desde: t, quienes: new Set() }; peleas.set(key, p); }
+    if (!p.quienes.has(e)) { p.quienes.add(e); if (p.quienes.size === 1) api.hecho("combate.inicio", { especie: criaturas.get(key)!.especie, participantes: 1 }); }
+  };
+  const abatida = (key: string, t: number, arma: string) => {
+    const especie = criaturas.get(key)!.especie, p = peleas.get(key);
+    peleas.delete(key);
+    api.hecho("criatura.abatida", { especie, arma });
+    api.hecho("combate.fin", { especie, resultado: "victoria", duracion_s: p ? Math.round((t - p.desde) / HZ) : 0, participantes: p?.quienes.size ?? 1 });
+  };
 
   const donde = new Map<string, { x: number; z: number }>();   // creature → where it stands now (its home is the `criaturas` entry; only a walker ever differs)
   const golpeaDesde = new Map<string, number>();               // creature → first tick its next blow may land
@@ -103,6 +117,7 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
     const n = escalera.subir(otro, t);
     api.emit("estado", { objetivo: `p:${otro}`, estado: ESCALERA[n], de: e }, { near: { x: b.x, z: b.z }, radius: VER_M });
     if (n >= NIVEL_ALETARGADO) {                                  // «dying»: still for a while, then back on a safe spot; nothing of theirs is touched
+      api.hecho("persona.cae", {}); // MIS-248: a bare count, never who
       api.ordenar(otro, { quieto: INCAPACITADO_S });
       reaparecen.set(otro, t + INCAPACITADO_S * HZ);
     }
@@ -117,6 +132,7 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
     if (vidaDespues === 0) {
       caidos.set(e, t + REAPARICION_JUGADOR_TICKS);
       api.emit("jugadorCaido", {}, { to: e });
+      api.hecho("persona.cae", {}); // MIS-248: a bare count, never who
     }
   };
 
@@ -133,6 +149,7 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
     puedeDesde.set(e, t + ENFRIAMIENTO_TICKS);
     rng[0] = (rng[0] ^ Math.imul(t + 1, 0x9e3779b1)) >>> 0;      // mix the tick in: same inputs, same blows (replayable)
     const dano = tirarDano(rng), queda = Math.max(0, Number(v.coherencia) - dano);
+    golpeo(key, e, t);
     if (queda > 0) {
       poner(key, { ...v, coherencia: queda, modo: "alerta" });
       api.emit("golpe", { objetivo: key, de: e, dano, queda }, cerca(key));
@@ -140,6 +157,7 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
       poner(key, { ...v, coherencia: 0, modo: "disuelta", solido: false });
       api.emit("golpe", { objetivo: key, de: e, dano, queda: 0 }, cerca(key));
       api.emit("disuelta", { objetivo: key, de: e }, cerca(key));
+      abatida(key, t, "golpe");
       const s = criaturas.get(key)!.reaparicion ?? REAPARICION_S;
       if (s > 0) vuelven.set(key, t + Math.round(s * HZ));
     }
@@ -165,6 +183,7 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
     api.emit("carga", { valor: nueva }, { to: e });
     rng[0] = (rng[0] ^ Math.imul(t + 1, 0x9e3779b1)) >>> 0;        // same mix as `golpear`: same inputs, same crits (replayable)
     const critico = tirarCritico(rng), dano = h.dano * (critico ? CRITICO_X : 1), queda = Math.max(0, Number(v.coherencia) - dano);
+    golpeo(key, e, t);
     if (queda > 0) {
       poner(key, { ...v, coherencia: queda, modo: "alerta" });
       api.emit("habilidad", { objetivo: key, de: e, cual, dano, queda, critico }, cerca(key));
@@ -176,6 +195,7 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
     api.emit("habilidad", { objetivo: key, de: e, cual, dano, queda: 0, critico }, cerca(key));
     if (critico) api.emit("critico", { objetivo: key, de: e, dano }, cerca(key));
     api.emit("disuelta", { objetivo: key, de: e }, cerca(key));
+    abatida(key, t, cual);
     const s = criaturas.get(key)!.reaparicion ?? REAPARICION_S;
     if (s > 0) vuelven.set(key, t + Math.round(s * HZ));                  // a creature the ability dissolves does NOT strike back: it is gone
   });
@@ -223,6 +243,7 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
     if (vuelven.size > 0) for (const [key, en] of vuelven) {
       if (t < en) continue;
       vuelven.delete(key);
+      peleas.delete(key);
       donde.delete(key); golpeaDesde.delete(key);                   // it comes back at home
       const v = valorDe(criaturas.get(key)!);
       if (!v) continue;
