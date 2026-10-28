@@ -157,7 +157,8 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       const m = A.misiones.get(h.mision)!, s = m.pasos[h.paso];
       const texto = s.tipo === "recibe" ? corta(`Has recibido: ${A.cosas.get(s.cosa)?.nombre ?? s.cosa}`, LIM.textoPaso) : s.texto;
       otorgarPaso(e, s); // Y3: the thing you picked up brings its weapon or relic (before «completada»: it is in the Reserva when the page says it)
-      if (h.completada) conceder(e, m); // before anyone hears «completada»: the record exists when the page says it
+      M!.hecho("aventura.paso", { aventura: m.id, paso: String(h.paso) }); // MIS-248: the world's book, no person
+      if (h.completada) { M!.hecho("aventura.terminada", { aventura: m.id, resultado: "completada" }); conceder(e, m); } // before anyone hears «completada»: the record exists when the page says it
       for (const x of suyos(e)) {
         M!.emit("avance", { mision: m.id, texto }, { to: x });
         if (h.completada) M!.emit("completada", { mision: m.id, titulo: m.titulo, texto: m.textos.completada, recompensa: recompensa(m) }, { to: x });
@@ -173,6 +174,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     const r = aceptar(p, m, A, ahora());
     if (!r.ok) return r;
     guardar(e, p);
+    M!.hecho("aventura.empezada", { aventura: m.id }); // MIS-248
     for (const x of suyos(e)) M!.emit("aceptada", { mision: m.id, titulo: m.titulo, texto: m.textos.aceptada }, { to: x });
     enviarLibro(e);
     revisarLlegadas(e);
@@ -344,6 +346,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       const p = prog(e), id = String(msg.mision);
       if (!abandonar(p, id)) return rechazarM(e, "No tienes esa misión activa.");
       guardar(e, p);
+      api.hecho("aventura.abandonada", { aventura: id }); // MIS-248
       for (const x of suyos(e)) api.emit("aviso", { texto: corta(`Has dejado «${A.misiones.get(id)?.titulo ?? id}».`, 160) }, { to: x });
       enviarLibro(e);
       revisarLlegadas(e);

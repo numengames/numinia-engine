@@ -21,6 +21,7 @@ import { construirMalla } from "./colision-mundo.ts";
 import { CIERRE_LLENO, CIERRE_SILENCIO, FUNCIONES_DE_ENLACE, MSG, PASE_MAX, WS_FRAME_MAX, esVisitaDeEnlace } from "../../net/src/index.ts";
 import type { Transport } from "../../net/src/index.ts";
 import type { HttpReply, ServerPart } from "../../feature/src/index.ts";
+import type { Libro } from "./eventos.ts";
 import { buildMetrics, ByteWindow, CosteTick, cierresVacios, motivoDeCierre, OPENMETRICS, PROM_TEXT, quiereOpenMetrics, TickWindow, toPrometheus } from "./metrics.ts";
 import { entorno, Runtime } from "./runtime.ts";
 import { KEEP_DAYS, Sesiones } from "./sesiones.ts";
@@ -82,6 +83,7 @@ export type ServerOptions = {
   optimizar?: boolean;           // N22: lighter copies of uploaded .glb in the background (optimizar-cola.ts); default MOTOR_OPTIMIZAR !== "no"
   apps?: string | null;          // M19: the world's apps/ folder (one folder per app: app.json, main.ts, assets/); default null = none. Read at start; GET /apps lists them; their files join /a/; each main.ts runs in the SES sandbox (M20)
   vigilarApps?: boolean;         // M20: reload an app's script when its main.ts changes on disk; default true
+  libro?: Libro;                 // MIS-248: the book of facts; its counters are exposed in /metrics.prom (none = no such lines)
   aventura?: string | null;      // J5: the adventure's folder (quests, people, things as text files); default null = none
   agentes?: string;              // P4: the secret that signs AI inhabitants' tickets (env MOTOR_AGENTES_SECRET); none or short = no inhabitants
   dominios?: readonly string[];  // ADR-080: the world's public names an outside agent signs (env MOTOR_DOMINIO, commas); none = the host each connection asks for
@@ -271,7 +273,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const recibos = crearRecibos(secret, dominios[0]?.trim() || "local");
   if (recibos) log(`[bienes] los recibos de este mundo los firma ${recibos.emisor}`); else log("[bienes] sin MOTOR_SECRET este mundo no da bienes digitales (no tiene con qué firmar sus recibos)");
   const leerActivo = (h: string, ext: string): Uint8Array | null => { const ruta = activos.buscar(h, ext); if (!ruta) return null; try { return readFileSync(ruta); } catch { return null; } }; // M6 h8: /a/<sha256>.<ext>'s own bytes, for the world's collision mesh
-  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, renovarPase: roles.renovar, activo: (h, ext) => activos.buscar(h, ext) !== null, medidas: (h, ext) => activos.medidas(h, ext), trazoPuntos: (h) => activos.trazoPuntos(h), aventura: lector, agentes, externos: { verificar: puerta.verificar }, recibos: recibos ?? undefined, sinVoz: () => !roles.voz, oye: (de, a) => roles.oye(inst.who(de), inst.who(a)), aparicion: o.aparicion ?? null, suelo: o.suelo ?? null, vuelo: o.vuelo ?? "nadie", construirMalla: construirMalla(leerActivo), condiciones: puertaCondiciones }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz); M6 h8: malla things build the world's mesh
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, renovarPase: roles.renovar, activo: (h, ext) => activos.buscar(h, ext) !== null, medidas: (h, ext) => activos.medidas(h, ext), trazoPuntos: (h) => activos.trazoPuntos(h), aventura: lector, agentes, externos: { verificar: puerta.verificar }, recibos: recibos ?? undefined, sinVoz: () => !roles.voz, oye: (de, a) => roles.oye(inst.who(de), inst.who(a)), aparicion: o.aparicion ?? null, suelo: o.suelo ?? null, vuelo: o.vuelo ?? "nadie", construirMalla: construirMalla(leerActivo), condiciones: puertaCondiciones, hecho: o.libro ? (t, d) => { o.libro!.registrar(t, d); } : undefined }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz); M6 h8: malla things build the world's mesh
   // condiciones/w4: the community's norms arrive by themselves (copy in aventura/condiciones-comunidad.json, then a download every few minutes); whoever arrives next is offered the newest
   const fuenteCondiciones = iniciarFuente({ dir: o.aventura ?? null, base: condiciones, fuente: fuenteElegida, log, intervaloMs: o.condicionesFuenteMs, poner: (c, motivo) => { puertaCondiciones.poner(c); if (motivo === "nueva") inst.ofrecerCondiciones(); } });
   const primeraFuente = !fuenteCondiciones.activa ? Promise.resolve() : fuenteCondiciones.conCopia ? (void fuenteCondiciones.actualizar(), Promise.resolve()) : fuenteCondiciones.actualizar(ESPERA_ARRANQUE_MS).then(() => {}); // with no copy yet the first listening waits a few seconds for the first answer
@@ -376,7 +378,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     if (method === "GET" && path === "/metrics.prom") { // B2: OpenMetrics 1.0 when the scraper asks for it, Prometheus text 0.0.4 otherwise
       const om = quiereOpenMetrics(req.headers.accept);
       res.writeHead(200, { "content-type": om ? OPENMETRICS : PROM_TEXT, "cache-control": "no-store", vary: "Accept" });
-      return void res.end(toPrometheus(metrics(), { coste, gc: runtime.gcHist, erroresDe: inst.features.erroresDe, guiones: ejecutor.cortes() }, om));
+      return void res.end(toPrometheus(metrics(), { coste, gc: runtime.gcHist, erroresDe: inst.features.erroresDe, guiones: ejecutor.cortes(), libro: o.libro?.contadores }, om));
     }
     if ((method === "GET" || method === "HEAD") && path === "/manifiesto.json") { // M16: the zone's files, each with its sha256, size and class (manifiesto.ts)
       const cosas: Cosa[] = [];

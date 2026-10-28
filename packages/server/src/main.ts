@@ -14,6 +14,7 @@
 // (e.g. motor.ejemplo.com); unset = the host each connection asks for (fine on a PC).
 import { join } from "node:path";
 import { startServer } from "./server.ts";
+import { libroDeEntorno } from "./eventos.ts";
 import funciones from "../../../features/servidor.ts";
 import { aparicionDelMundo, conMundo, enlaceDardosDelMundo, sueloDelMundo, vueloDelMundo } from "../../../features/mundo.ts";
 import { leerMundo, escribirMundo } from "./mundo.ts";
@@ -38,6 +39,7 @@ if (c) {
 const k = claves(env, c, log);
 const datos = env.DATOS_DIR || c?.datos || ".run/datos";
 const entorno = env.MUNDO_DIR || c?.entorno || null;
+const libro = libroDeEntorno(env, datos, log); // MIS-248: the book of world facts, off unless MOTOR_EVENTOS=si (the pieces that write to it come in the next cards)
 const leerEntorno = entorno ? leerMundo(entorno) : null; // the world's entorno/ folder (entorno.json, elementos.json; H4)
 
 const srv = await startServer({
@@ -51,6 +53,7 @@ const srv = await startServer({
   suelo: leerEntorno ? sueloDelMundo(leerEntorno, log) : null,          // D-045: under `sueloMinimo` you come back to your last safe spot
   vuelo: leerEntorno ? vueloDelMundo(leerEntorno, log) : null,          // H2: who may fly (entorno.json `vuelo`: nadie · constructores · todos)
   sesiones: env.SESIONES_DIR || c?.sesiones || "informes/sesiones", // T1: how each player entered
+  libro,                                                              // MIS-248: counters of the book go to /metrics.prom
   datos,                                                              // S4: what features keep across restarts
   construir: env.MOTOR_CONSTRUIR === "todos" ? "todos" : "nadie",     // H1: who may build in a NEW world (then its stored roles: /construir)
   condicionesFuente: env.MOTOR_CONDICIONES_FUENTE, condicionesFuenteMs: intervaloDeEntorno(env.MOTOR_CONDICIONES_FUENTE_MIN), // condiciones/w4: where the community's norms are pulled from (https URL, else the file's `comunidad.fuente`), every N minutes (≥ 5)

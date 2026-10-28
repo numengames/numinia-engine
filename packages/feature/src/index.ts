@@ -304,6 +304,8 @@ export type ServerHost = {
   ordenar?(entity: number, orden: Orden): boolean;
   /** condiciones/c5: is this avatar inside the bubble, reading the world's norms? (none = false) */
   leyendoNormas?(entity: number): boolean;
+  /** MIS-248: write a fact into the world's book of events (evento@1; no person field exists). none = the book is off. */
+  hecho?(tipo: string, datos?: Record<string, unknown>): void;
   /** asiento: is this avatar seated (the simulation's MODO_SENTADO, which a stick or a jump ends by itself)? (none = false) */
   sentado?(entity: number): boolean;
   /** burbujas: the voice relay asks this per frame (none = no bubbles: voice by nearness only). */
@@ -436,6 +438,8 @@ export type ServerApi = {
   /** condiciones/c5: is this person still inside the bubble, reading the world's norms? Nothing may touch them while they are (the instance refuses
    * `empujar`, `quieto` and `sentar` on them already; a feature that hurts or moves people another way asks this first). Always false with the gate off. */
   leyendoNormas(entity: number): boolean;
+  /** MIS-248: tell the world's book of events that something happened (`aventura.paso`, `criatura.abatida`…). World-level facts only: the book has no field for a person and refuses one. Off (book not switched on) = nothing happens; never throws. */
+  hecho(tipo: string, datos?: Record<string, unknown>): void;
   /** asiento: is this person seated now? The simulation stands them up by itself on a stick or a jump (or a push): a feature that seats people asks this to know they left the seat. */
   sentado(entity: number): boolean;
   /** burbujas: tell the voice relay which bubble each person is in (null = none: the relay is as it always was). The relay decides, per frame, on this table; the feature keeps it up to date once per tick. */
@@ -760,6 +764,7 @@ export class ServerRuntime {
       rayo: (e, dir, max) => this.rayo(e, dir, max),
       ordenar: (e, orden) => { try { return this.host.ordenar?.(e, orden) ?? false; } catch (x) { log(`ordenar: ${String((x as Error)?.message ?? x)}`); return false; } },
       leyendoNormas: (e) => { try { return this.host.leyendoNormas?.(e) ?? false; } catch { return false; } },
+      hecho: (tipo, datos) => { try { this.host.hecho?.(tipo, datos); } catch { /* the book never breaks a feature */ } },
       sentado: (e) => { try { return this.host.sentado?.(e) ?? false; } catch { return false; } },
       vozBurbujas: (v) => { try { this.host.vozBurbujas?.(v); } catch (x) { log(`vozBurbujas: ${String((x as Error)?.message ?? x)}`); } },
       overlapSphere: (x, y, z, radio) => this.overlapSphere(x, y, z, radio),
