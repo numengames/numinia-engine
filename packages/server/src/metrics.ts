@@ -1,6 +1,7 @@
 // metrics: what the server says about itself on GET /metrics. Pure bookkeeping, no I/O, no timers.
 // Rolling windows: the last 200 tick durations (10 s at 20 Hz) and one byte sample per second (10 s).
 
+import type { Contadores } from "./eventos.ts";
 import type { Entorno, RuntimeWindow } from "./runtime.ts";
 
 // Additive fields (X3 measurement battery) keep the schema at @1: nothing that was there changed.
@@ -208,7 +209,7 @@ function piezasDe(c: CosteTick | undefined, errores: ReadonlyMap<string, number>
 }
 
 /** The histograms and counters /metrics.prom adds to the JSON numbers (B2). */
-export type Histogramas = { coste?: CosteTick; gc?: Record<string, Histograma>; erroresDe?: ReadonlyMap<string, number>; guiones?: readonly [string, string, number][] };
+export type Histogramas = { coste?: CosteTick; gc?: Record<string, Histograma>; erroresDe?: ReadonlyMap<string, number>; guiones?: readonly [string, string, number][]; libro?: Contadores | null };
 
 /** Content type of each exposition format. Default: Prometheus text 0.0.4; a scraper that sends
  * `Accept: application/openmetrics-text` gets OpenMetrics 1.0.0 (same samples, counter families without `_total`, `# EOF`). */
@@ -282,6 +283,16 @@ export function toPrometheus(m: Metrics, h: Histogramas = {}, openMetrics = fals
       [...h.coste.ganchos].map(([g, w]) => [{ feature: g.pieza, hook: g.gancho }, w.hist]));
   }
   if (h.gc) hist("nodejs_gc_duration_seconds", "Garbage collection duration by kind, since start.", Object.entries(h.gc).map(([kind, x]) => [{ kind }, x]));
+  if (h.libro) { // MIS-248 2/3: the book of facts, world-level counters only (labels: adventure id, species; capped at 50 each, rest = "otros")
+    const orden = (m: Map<string, number>) => [...m].sort((a, b) => a[0].localeCompare(b[0]));
+    add("numinia_aventuras_total", "counter", "Adventure facts in the book by adventure and state (empezada, terminada, abandonada, paso).",
+      orden(h.libro.aventuras).map(([k, n]) => { const [a, e] = k.split("\u0000"); return [`{aventura="${esc(a)}",estado="${esc(e)}"}`, n] as [string, number]; }));
+    add("numinia_combates_total", "counter", "Fights in the book by result (inicio = started; the rest is the result of a finished fight).",
+      orden(h.libro.combates).map(([k, n]) => [`{resultado="${esc(k)}"}`, n] as [string, number]));
+    add("numinia_criaturas_abatidas_total", "counter", "Creatures defeated, by species.",
+      orden(h.libro.criaturas).map(([k, n]) => [`{especie="${esc(k)}"}`, n] as [string, number]));
+    add("numinia_caidas_total", "counter", "Falls of people, counted (never who).", [["", h.libro.caidas]]);
+  }
   if (openMetrics) out.push("# EOF");
   return out.join("\n") + "\n";
 }

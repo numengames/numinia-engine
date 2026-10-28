@@ -21,6 +21,7 @@ import { construirMalla } from "./colision-mundo.ts";
 import { CIERRE_LLENO, CIERRE_SILENCIO, FUNCIONES_DE_ENLACE, MSG, PASE_MAX, WS_FRAME_MAX, esVisitaDeEnlace } from "../../net/src/index.ts";
 import type { Transport } from "../../net/src/index.ts";
 import type { HttpReply, ServerPart } from "../../feature/src/index.ts";
+import type { Libro } from "./eventos.ts";
 import { buildMetrics, ByteWindow, CosteTick, cierresVacios, motivoDeCierre, OPENMETRICS, PROM_TEXT, quiereOpenMetrics, TickWindow, toPrometheus } from "./metrics.ts";
 import { entorno, Runtime } from "./runtime.ts";
 import { KEEP_DAYS, Sesiones } from "./sesiones.ts";
@@ -82,6 +83,7 @@ export type ServerOptions = {
   optimizar?: boolean;           // N22: lighter copies of uploaded .glb in the background (optimizar-cola.ts); default MOTOR_OPTIMIZAR !== "no"
   apps?: string | null;          // M19: the world's apps/ folder (one folder per app: app.json, main.ts, assets/); default null = none. Read at start; GET /apps lists them; their files join /a/; each main.ts runs in the SES sandbox (M20)
   vigilarApps?: boolean;         // M20: reload an app's script when its main.ts changes on disk; default true
+  libro?: Libro;                 // MIS-248: the book of facts; its counters are exposed in /metrics.prom (none = no such lines)
   aventura?: string | null;      // J5: the adventure's folder (quests, people, things as text files); default null = none
   agentes?: string;              // P4: the secret that signs AI inhabitants' tickets (env MOTOR_AGENTES_SECRET); none or short = no inhabitants
   dominios?: readonly string[];  // ADR-080: the world's public names an outside agent signs (env MOTOR_DOMINIO, commas); none = the host each connection asks for
@@ -376,7 +378,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     if (method === "GET" && path === "/metrics.prom") { // B2: OpenMetrics 1.0 when the scraper asks for it, Prometheus text 0.0.4 otherwise
       const om = quiereOpenMetrics(req.headers.accept);
       res.writeHead(200, { "content-type": om ? OPENMETRICS : PROM_TEXT, "cache-control": "no-store", vary: "Accept" });
-      return void res.end(toPrometheus(metrics(), { coste, gc: runtime.gcHist, erroresDe: inst.features.erroresDe, guiones: ejecutor.cortes() }, om));
+      return void res.end(toPrometheus(metrics(), { coste, gc: runtime.gcHist, erroresDe: inst.features.erroresDe, guiones: ejecutor.cortes(), libro: o.libro?.contadores }, om));
     }
     if ((method === "GET" || method === "HEAD") && path === "/manifiesto.json") { // M16: the zone's files, each with its sha256, size and class (manifiesto.ts)
       const cosas: Cosa[] = [];

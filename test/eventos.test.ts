@@ -70,3 +70,56 @@ test("off by default; MOTOR_EVENTOS=si turns it on", () => {
   assert.equal(libroDeEntorno({ MOTOR_EVENTOS: "si" }, d).registrar("persona.cae", { zona: "a" }), true);
   assert.equal(readdirSync(d).length, 1);
 });
+
+import { toPrometheus, buildMetrics, TickWindow, ByteWindow } from "../packages/server/src/metrics.ts";
+import { ETIQUETAS_MAX } from "../packages/server/src/eventos.ts";
+
+function expo(l: ReturnType<typeof crearLibro>, om = false) {
+  const m = buildMetrics({
+    version: "t", uptimeMs: 1, tick: 1, tickHz: 20, people: 0, capacity: 1, ticks: new TickWindow(), bytes: new ByteWindow(), lagMs: 0,
+    mem: { rss: 1, heapUsed: 1 }, lags: new TickWindow(), responses: new TickWindow(),
+    runtime: { gc: { totalMs: 0 }, gcAcumulado: { ms: 0, pausas: 0 }, bucleMs: {}, bucleRealMs: {} } as never, entorno: {} as never,
+    counts: { aceptadas: 0, cerradas: 0, rechazadasLlenas: 0 }, bytesTotal: 0, tickSumMs: 0,
+  });
+  return toPrometheus(m, { libro: l.contadores }, om);
+}
+
+test("book counters appear in /metrics.prom with low-cardinality labels and no person label", () => {
+  const l = crearLibro(dir());
+  l.registrar("aventura.empezada", { aventura: "torre", participantes: 3 });
+  l.registrar("aventura.empezada", { aventura: "torre" });
+  l.registrar("aventura.terminada", { aventura: "torre", resultado: "ok" });
+  l.registrar("combate.inicio", { zona: "bosque" });
+  l.registrar("combate.fin", { zona: "bosque", resultado: "victoria" });
+  l.registrar("criatura.abatida", { especie: "lobo", zona: "bosque" });
+  l.registrar("persona.cae", { zona: "bosque" });
+  l.registrar("persona.cae", { zona: "bosque", jugador: "u1" }); // rejected: not counted
+  const t = expo(l);
+  assert.match(t, /^numinia_aventuras_total\{aventura="torre",estado="empezada"\} 2$/m);
+  assert.match(t, /^numinia_aventuras_total\{aventura="torre",estado="terminada"\} 1$/m);
+  assert.match(t, /^numinia_combates_total\{resultado="inicio"\} 1$/m);
+  assert.match(t, /^numinia_combates_total\{resultado="victoria"\} 1$/m);
+  assert.match(t, /^numinia_criaturas_abatidas_total\{especie="lobo"\} 1$/m);
+  assert.match(t, /^numinia_caidas_total 1$/m);
+  assert.match(t, /^# TYPE numinia_caidas_total counter$/m);
+  assert.doesNotMatch(t, /jugador|u1|zona=/);
+  assert.match(expo(l, true), /^# TYPE numinia_caidas counter$/m);
+});
+
+test("a label keeps at most 50 distinct values; the rest go to otros", () => {
+  const l = crearLibro(dir());
+  for (let i = 0; i < ETIQUETAS_MAX + 20; i++) { l.registrar("criatura.abatida", { especie: `e${i}` }); l.registrar("aventura.paso", { aventura: `a${i}` }); }
+  l.registrar("criatura.abatida", { especie: "e0" }); // already seen: keeps its own row
+  const t = expo(l);
+  const esp = t.split("\n").filter((x) => x.startsWith("numinia_criaturas_abatidas_total{"));
+  assert.equal(esp.length, ETIQUETAS_MAX + 1);
+  assert.ok(esp.includes('numinia_criaturas_abatidas_total{especie="otros"} 20'));
+  assert.ok(esp.includes('numinia_criaturas_abatidas_total{especie="e0"} 2'));
+  assert.equal(t.split("\n").filter((x) => x.startsWith("numinia_aventuras_total{")).length, ETIQUETAS_MAX + 1);
+});
+
+test("book off: no counters, no lines", () => {
+  const l = libroDeEntorno({}, dir());
+  assert.equal(l.contadores, null);
+  assert.doesNotMatch(expo(l), /numinia_caidas_total/);
+});
