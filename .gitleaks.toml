@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2026 Numen Games S.L.
+# SPDX-License-Identifier: MIT
+#
+# The secret scanner's configuration, read by .github/workflows/secrets.yml.
+# The default rule set stays on. No allowance names a path: each one matches
+# only a value, and only for the generic rule that guessed wrong, so the
+# specific rules (GitHub, cloud keys, private keys...) still read every file.
+#
+# First full-history scan (2026-10-29, 310 commits): 15 findings, all of the
+# generic rule, none a secret. Nine distinct values, listed exactly:
+#  - key names in limits.json ("bandwidth_per_person_k50", "lucha_bytes_tick_...",
+#    "quests_tick_ms_1000_waiting") that the rule took for the value of a key;
+#  - fixed strings in tests: "0123456789abcdef0123", "una-clave-de-prueba-larga-s6",
+#    "e2e-despertar-secreto-0123456789";
+#  - a test title, "poner/quieto/empujar/sentar".
+# A new value needs a new line here, with its reason.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Exact non-secret strings: limits.json key names, fixed test strings, a test title"
+targetRules = ["generic-api-key"]
+regexTarget = "secret"
+regexes = ['''^(0123456789abcdef0123|una-clave-de-prueba-larga-s6|e2e-despertar-secreto-0123456789|poner/quieto/empujar/sentar|bandwidth_per_person_k50|bandwidth_per_person_plaza_1000|lucha_bytes_tick_10_criaturas_estado|lucha_bytes_tick_10_criaturas_total|quests_tick_ms_1000_waiting)$''']
