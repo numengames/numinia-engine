@@ -21,7 +21,7 @@ updates:
     cooldown:
       default-days: 7
     ignore:
-      # @types/node follows the Node the engine runs on (24: engines, gates.yml, Dockerfile). A new major
+      # @types/node follows the Node the engine runs on (24: engines, gates.yml, and the Node 24.22.0 pinned in tools/build-deploy.mjs for the image). A new major
       # describes APIs this Node does not have. Minor and patch of 24 still come. Remove this entry when
       # the engine moves to a newer Node, together with that change.
       - dependency-name: "@types/node"
