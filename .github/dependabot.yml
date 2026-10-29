@@ -1,9 +1,11 @@
 # SPDX-FileCopyrightText: 2026 Numen Games S.L.
 # SPDX-License-Identifier: CC0-1.0
 #
-# Dependabot: each ecosystem sends ONE pull request with all its updates (group `all-dependencies`), so
-# there is never a pile of separate ones. Dependabot cannot group across ecosystems, so npm, github-actions
-# and docker each still open their own.
+# Dependabot: each ecosystem sends ONE pull request with all its minor and patch updates (group
+# `minor-and-patch`), and every major update comes alone, so a major that breaks the build holds back
+# only itself, not the safe updates. Dependabot cannot group across ecosystems, so npm, github-actions
+# and docker each still open their own. Same shape as numinia-web and numinia-archive.
+# (Before: one group `all-dependencies` with majors inside; its @types/node 24 -> 26 bump broke the build.)
 # Cooldown: a version is proposed only after it has been public for 7 days, so a hijacked or broken release
 # is usually flagged by others first (security updates ignore the cooldown).
 # A bump here is a proposal only: AGENTS.md rules still apply to it (free licence, exact versions) and
@@ -18,9 +20,15 @@ updates:
       prefix: "chore(deps)"
     cooldown:
       default-days: 7
+    ignore:
+      # @types/node follows the Node the engine runs on (24: engines, gates.yml, and the Node 24.22.0 pinned in tools/build-deploy.mjs for the image). A new major
+      # describes APIs this Node does not have. Minor and patch of 24 still come. Remove this entry when
+      # the engine moves to a newer Node, together with that change.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
-      all-dependencies:
-        patterns: ["*"]
+      minor-and-patch:
+        update-types: ["minor", "patch"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
@@ -30,8 +38,8 @@ updates:
     cooldown:
       default-days: 7
     groups:
-      all-dependencies:
-        patterns: ["*"]
+      minor-and-patch:
+        update-types: ["minor", "patch"]
   - package-ecosystem: docker
     directory: "/"
     schedule:
@@ -41,5 +49,5 @@ updates:
     cooldown:
       default-days: 7
     groups:
-      all-dependencies:
-        patterns: ["*"]
+      minor-and-patch:
+        update-types: ["minor", "patch"]
