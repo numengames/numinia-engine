@@ -183,7 +183,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | IA-ORG | IAs de organización (motor): una IA que pertenece a una organización de numinia.com entra con un pase `kind:"agent"` (`activa`/`dormida`) que pide cada ~8 min a `POST {NUMINIA_URL}/api/agents/pass`; el motor la cierra con 4003 si su pase caduca sin renovar, acepta un PASE a mitad de sesión (dormida = sin construir), la lista en `GET /agentes` (`organizacion: true`) y el puente `tools/mcp-mundo.ts` tiene modo organización. Hecho del lado del motor (rama `agentes/de-organizacion`); la mitad de numinia.com (till, ruta, panel «Agentes») va aparte | hecho (motor). Corte 2 (rama `agentes/token`): el puente acepta `AGENTE_TOKEN` (`ntk_…`, `Authorization: Bearer`, cuerpo `{org, agent, aud}`) en vez de la clave; 401 = final; el token nunca se imprime | sí |
 | O4 | Seguridad: billete firmado para entrar a una instancia, tope de conexiones por IP, exportar y borrar lo tuyo | pendiente | sí |
 | O3 | Observabilidad: panel y alertas sobre `/metrics` del servidor real | espera a X3 | sí |
-| M17 | Voz por cercanía (LiveKit) con tope de voces audibles, DTX y modo escenario | necesita aprobación (Pablo: cuántas voces a la vez, `docs/SABER.md` §5) | no |
+| M17 | Voz por cercanía: trozo 1 hecho (tope 8 voces + modo escenario en el relé actual); trozo 2 = LiveKit (diseño en ../mmo-browser-study/VOZ-Y-PANTALLA-COMPARTIDA.md) | pendiente | no |
 | V13 | Subtítulos del chat de voz (con quién habla y desde dónde) + texto que habla | espera a M17 | sí |
 | X1 | Probar en Quest 3 y Pico 4 | pendiente | no |
 | X2 | Probar Safari de verdad (iPhone o Mac) | pendiente | no |
@@ -982,9 +982,28 @@ por segundo; sin grabar voz; exportar y borrar lo tuyo. Lo legal (consentimiento
 Con los números del servidor real: un panel (lo mínimo: una página que lee `/metrics` por el túnel) y avisos
 cuando el p99 del tick, el steal o la memoria pasan de su umbral (`puertas.ts`).
 
-### M17 — Voz por cercanía (necesita aprobación)
-LiveKit (Apache-2.0); suscripción solo a las N voces más cercanas (N lo decide Pablo), DTX, modo escenario
-para eventos grandes (una voz para todos). Es el coste que manda a escala (`docs/SABER.md` §3.1).
+### M17 — Voz por cercanía (decidido 18-10)
+**Decisión (Pablo, 18-10): seguir.** N lo eligió Ursa = **8 voces audibles por oyente**, las del escenario aparte.
+Justificación: un grupo de mesa de 6-8 más un transeúnte; más de 4-5 voces simultáneas ya no se entienden; 8
+decodificadores Opus son baratos incluso en Quest; y el coste del SFU crece con oyentes × voces activas: a 500
+oyentes, 8 voces son ≈ 200 k paquetes/s ≈ 2,7 núcleos en el peor caso y ≈ 1 núcleo en el típico (3 voces). Pablo
+puede cambiarlo en `VOZ_TOPE` (`packages/net/src/voz.ts`) y `limits.json` (`voz_tope`).
+**Trozo 1 hecho (18-10, rama `voz/tope-y-escenario`, v0.4.0):** sobre el relé WebSocket de U10. `elegirVoces` (pura,
+net): cada oyente recibe las 8 voces más cercanas de quien ha hablado en el último segundo (visibles y a ≤ 30 m,
+empate por id); la instancia cachea el conjunto por oyente y lo recalcula cuando empieza a hablar alguien nuevo o
+cada 10 ticks (coste O(oyentes × hablantes), nunca por trama). Modo escenario: opción `escenario(entidad)` de la
+instancia, cableada a `roles.enEscenario`; la trama de quien está en el escenario llega a TODAS las páginas
+conectadas con la marca `VOZ_ESCENARIO` (bit alto del byte de códec, aditivo) y la página la reproduce sin paneo
+(«habla en el escenario»); es la excepción documentada a la regla 4 de AGENTS (una o dos voces para todos, mismo
+abanico que el chat de zona, solo para quien sube la moderación). Órdenes `/escenario <persona>` (también a ti),
+`/escenario quitar <persona>`, `/escenario nadie`, `/escenario` (lista, abierta a todos); permiso nuevo `escenario`
+= `manage-rituals` (Moderación lo tiene); solo en memoria. Pruebas: `test/voz.test.ts` 7 (3 nuevas: casos puros,
+1 oyente + 10 hablantes a 1…10 m oye exactamente 8, escenario a 100 y 200 m), `test/roles.test.ts` +1 (`/escenario`).
+Sin probar: navegador real con micrófono (no hay e2e de audio).
+**Trozo 2 — LiveKit (pendiente):** LiveKit autoalojado (Apache-2.0), sala = mundo, billete JWT HS256 emitido por el
+servidor del mundo, `autoSubscribe` apagado + suscripción a las N más cercanas calculada con `elegirVoces`, DTX y RED
+activados por defecto del SDK, escenario = pista sin paneo; cliente `livekit-client` cargado perezosamente (solo al
+encender el micrófono o al oír a alguien). Diseño: `../mmo-browser-study/VOZ-Y-PANTALLA-COMPARTIDA.md`.
 **Paridad Hyperfy2 (15-10):** Hyperfy tiene voz espacial con LiveKit y deja compartir la pantalla en una
 pantalla del mundo; lo segundo va con M18.
 

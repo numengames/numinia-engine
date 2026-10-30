@@ -16,6 +16,8 @@
 //   /solo-miembros sí|no            (manage-organization: visitors stay out)
 //   /construir todos|nadie          (manage-organization: «build-in-worlds» of @todos, so visitors and AIs build or not)
 //   /voz sí|no                      (manage-organization: the microphones are relayed or not; at once, no restart)
+//   /escenario [<persona> | quitar <persona> | nadie]   (manage-rituals, M17: whoever is on stage is heard by everyone,
+//                                   unpanned; the list is open to all; memory only — an event is live, not a setting)
 //   /agente añadir <id> <nombre…> <clave> [rol]   /agente quitar <id>   /agente   (manage-organization: the outside
 //                                   AIs this world lets in, ADR-080 — writes/deletes aventura/agentes/<id>.json; puerta.ts)
 // An AI (an inhabitant «ia-<id>» or an outside agent) is never a member nor an owner: its permissions are its role's
@@ -143,6 +145,7 @@ export function crearRoles(o: OpcionesRoles) {
   const apariciones = new Map<string, { x: number; y: number; z: number }>(); // H3c: /aparecer — guest id -> their own spawn point; stored («ap:<id>»)
   let soloMiembros = false;
   let voz = o.voz ?? true;                             // without the feature running (bare servers) the seed is the answer
+  const escenario = new Set<string>();                 // M17: person ids on stage (their voice reaches everyone). Memory only: an event is live, not a setting
   let config: Record<string, unknown> = {};            // the world's settings as stored (fields this engine does not know are kept)
   let api: ServerApi | null = null;
   let gestion: GestionAgentes | null = null;           // set when the feature starts: the one code path for /agente and the HTTP door
@@ -293,8 +296,9 @@ export function crearRoles(o: OpcionesRoles) {
       avisar(from, min ? `${p.nombre} queda en silencio ${min} min (chat y voz).` : `${p.nombre} puede volver a hablar.`);
     };
 
-    /** <persona> at the start of `resto`: the longest name of someone connected that it begins with. */
-    const persona = (from: number, resto: string): { e: number; id: string; nombre: string; resto: string } | null => {
+    /** <persona> at the start of `resto`: the longest name of someone connected that it begins with. `aMiTambien` lets the
+     * order name its author (the stage: you may put yourself on it). */
+    const persona = (from: number, resto: string, aMiTambien = false): { e: number; id: string; nombre: string; resto: string } | null => {
       const k = resto.toLowerCase();
       let mejor: { e: number; id: string; nombre: string; resto: string } | null = null;
       for (const e of a.players()) {
@@ -304,7 +308,7 @@ export function crearRoles(o: OpcionesRoles) {
         if ((k === n || k.startsWith(n + " ")) && (!mejor || n.length > mejor.nombre.length)) mejor = { e, id: w.id, nombre: w.nombre, resto: resto.slice(n.length).trim() };
       }
       if (!mejor) avisar(from, resto ? `No veo a nadie conectado que se llame así. Escribe su nombre como lo ves sobre su cabeza.` : "¿A quién? Escribe su nombre como lo ves sobre su cabeza.");
-      else if (mejor.e === from) { avisar(from, "Eso no te lo puedes hacer a ti."); return null; }
+      else if (mejor.e === from && !aMiTambien) { avisar(from, "Eso no te lo puedes hacer a ti."); return null; }
       return mejor;
     };
     /** The actor may do `accion` on `p` (permission + strictly below). Says why not. */
@@ -368,7 +372,40 @@ export function crearRoles(o: OpcionesRoles) {
         const mios = yo.dueno ? "dueño del mundo" : pase ? [...pase.roles.map((r) => r.nombre), "@todos"].join(", ") + " (de numinia.com)" : [...roles.filter((r) => m?.roles.includes(r.id)).map((r) => r.nombre), "@todos"].join(", ");
         const puedo = (Object.keys(ACCION_PERMISO) as Accion[]).filter((x) => tiene(yo, x)).map((x) => ACCION_TEXTO[x]);
         avisar(from, `Eres: ${mios}. Puedes: ${puedo.length ? puedo.join(", ") : "mirar y hablar"}. Roles de este mundo: ${roles.map((r) => r.nombre).join(", ")}${soloMiembros ? " (solo para miembros)" : ""}.`);
-        avisar(from, "Órdenes: /dar y /quitar <persona> <rol> · /silenciar <persona> [minutos] · /hablar <persona> · /echar <persona> · /vetar <persona> <motivo> · /perdonar <nombre> · /denunciar <persona> <motivo> · /denuncias · /solo-miembros sí|no · /construir todos|nadie · /voz sí|no · /agente · /dueño <código> · /nombre <nombre> · /aparecer aquí|quitar · /chat borrar");
+        avisar(from, "Órdenes: /dar y /quitar <persona> <rol> · /silenciar <persona> [minutos] · /hablar <persona> · /echar <persona> · /vetar <persona> <motivo> · /perdonar <nombre> · /denunciar <persona> <motivo> · /denuncias · /solo-miembros sí|no · /construir todos|nadie · /voz sí|no · /escenario · /agente · /dueño <código> · /nombre <nombre> · /aparecer aquí|quitar · /chat borrar");
+      },
+      // M17: the stage. Whoever is on it is heard by everyone in the world, unpanned (the instance asks `enEscenario` per
+      // frame). Only moderation (manage-rituals) puts people on and takes them off; you may put yourself. Not stored.
+      escenario: (from, resto) => {
+        const [verbo = ""] = resto.split(/\s+/), v = plano(verbo);
+        if (v === "") {
+          const quienes = [...escenario].map((id) => conectadoComo(id).map(nombre)[0] ?? `(fuera: ${id})`);
+          avisar(from, quienes.length ? `En el escenario: ${quienes.join(", ")}. Su voz la oye todo el mundo.` : "No hay nadie en el escenario: cada voz llega solo a quien está cerca.");
+          if (tiene(accesoDe(a.who(from)?.id), "escenario")) avisar(from, "Órdenes: /escenario <persona> (sube; puedes subirte tú) · /escenario quitar <persona> · /escenario nadie.");
+          return;
+        }
+        if (!tiene(accesoDe(a.who(from)?.id), "escenario")) { avisar(from, `No tienes permiso para ${ACCION_TEXTO.escenario}.`); return; }
+        const todos = (texto: string) => { for (const e of a.players()) avisar(e, texto); }; // the whole zone hears who takes the stage (same fan-out as the chat)
+        if (v === "nadie") {
+          if (!escenario.size) { avisar(from, "El escenario ya está vacío."); return; }
+          escenario.clear();
+          log(`[roles] ${a.who(from)?.id} vacía el escenario`);
+          todos(`${nombre(from)} vacía el escenario: cada voz vuelve a llegar solo a quien está cerca.`);
+          return;
+        }
+        if (v === "quitar") {
+          const p = persona(from, resto.slice(verbo.length).trim(), true); if (!p) return;
+          if (!escenario.delete(p.id)) { avisar(from, `${p.nombre} no está en el escenario.`); return; }
+          log(`[roles] ${a.who(from)?.id} baja del escenario a ${p.id}`);
+          todos(`${p.nombre} baja del escenario.`);
+          return;
+        }
+        const p = persona(from, resto, true); if (!p) return;
+        if (esIA(p.id)) { avisar(from, "Una IA no sube al escenario."); return; }
+        if (escenario.has(p.id)) { avisar(from, `${p.nombre} ya está en el escenario.`); return; }
+        escenario.add(p.id);
+        log(`[roles] ${a.who(from)?.id} sube al escenario a ${p.id}`);
+        todos(`${p.nombre} sube al escenario: su voz la oye todo el mundo.`);
       },
       "dueño": (from, resto) => {
         const w = a.who(from);
@@ -680,6 +717,8 @@ export function crearRoles(o: OpcionesRoles) {
     bloqueados: (id: string): readonly string[] => [...(bloqueos.get(id) ?? [])],
     /** ux2-gente: the reports this world keeps (for tests and /denuncias), oldest first. */
     denuncias: (): readonly Denuncia[] => (api ? ((api.store.get("denuncias") as Denuncia[] | undefined) ?? []) : []),
+    /** M17: is this person on stage (/escenario)? The instance asks it per voice frame; a stage voice reaches everyone. */
+    enEscenario: (id: string | undefined): boolean => id !== undefined && escenario.has(id),
     get todosConstruyen() { return todosConstruyen(); },
     get conectado() { return api !== null; },
     /** Outside agents (ADR-080): list/add/remove, the code behind `/agente` and the HTTP door. null until the feature has started. */
