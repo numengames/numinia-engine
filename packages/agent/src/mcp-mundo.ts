@@ -15,6 +15,8 @@
 // Worker too). `scripts/empaquetar-puente.mjs` bundles it with platform neutral; test/puente-sin-node.test.ts keeps it so.
 import { webSocketClient } from "../../net/src/index.ts";
 import type { Transport } from "../../net/src/index.ts";
+import { fillTemplate } from "../../feature/src/index.ts";
+import type { Interact, Msg } from "../../feature/src/index.ts";
 import { MARCA_IA, mundoDeUrl } from "../../instance/src/identidad.ts";
 import { Cuerpo, limpia } from "./index.ts";
 import { estadoDelPase } from "./pase-org.ts";
@@ -41,7 +43,15 @@ export const ATENTA_CADA_MS = 5000;        // «my brain is listening» goes to 
 export const REINTENTO_PASE_S = 30;         // a pass that could not be renewed: try again this often until it ends
 const HZ = 20;
 
-export type Oida = { n: number; nombre: string; texto: string; canal: "cerca" | "zona" | "aviso"; ms: number };
+export type Oida = { n: number; nombre: string; texto: string; canal: "cerca" | "zona" | "aviso" | "mundo"; ms: number };
+/** The features whose events `oir` does not repeat as «el mundo»: chat lines arrive by `alOir`, calls and the bubble by the buzón, the AI card is its own. */
+const SIN_ANUNCIO: ReadonlySet<string> = new Set(["chat", "llamar", "burbuja", "ia"]);
+/** How many of a thing's answers (a dialogue's o1…o4) `oir` lists after the line. */
+const OPCIONES_MAX = 4;
+/** A thing of the world as the AI names it in `usar` and `ir_a`: «feature/key», as «mirar» prints it. */
+const COSA_MAX = 80;
+/** A line of the channel «mundo» may be longer than a chat line: a dialogue's line (400) plus its four answers (100 each). */
+const LINEA_MUNDO_MAX = 900;
 type Conexion = Transport & { opened: Promise<void>; closed: Promise<{ code: number; reason: string }>; close(): void };
 /** Signs a fresh a2 ticket for this world (key way; llave.ts `firmarBillete` with the agent's private key). May be async (WebCrypto). */
 export type FirmarBillete = (b: { id: string; mundo: string; ahora: number }) => string | Promise<string>;
@@ -135,6 +145,7 @@ export class PuenteMundo {
       // S12: the world tells this AI's page alone about its calls and its bubble (a stray one for another entity is ignored)
       if (f === "llamar" && e === "llamada" && Number(m.ia) === c.entidad) { this.llamada = this.ahora(); this.buzon.llamada(m); }
       if (f === "burbuja" && Number(m.ia) === c.entidad) { if (e === "entraEnBurbuja") this.buzon.entra(m); else if (e === "saleDeBurbuja") this.buzon.sale(m); }
+      this.oirMundo(c, f, e, m);
     });
     void this.leerFicha();
     const vigia = setTimeout(() => {
@@ -238,9 +249,37 @@ export class PuenteMundo {
 
   private oir(nombre: string, texto: string, canal: Oida["canal"]): void {
     // an old world (no feature `llamar`) cannot say who calls: the bridge looks for its own name; a world with `llamar` decides it, once, with limits
-    if (canal !== "aviso" && this.pedirPase && !this.tiene("llamar") && this.llamaPorSuNombre(texto)) this.llamada = this.ahora();
+    if (canal !== "aviso" && canal !== "mundo" && this.pedirPase && !this.tiene("llamar") && this.llamaPorSuNombre(texto)) this.llamada = this.ahora();
     this.oidas.push({ n: this.siguiente++, nombre, texto, canal, ms: this.ahora() });
     if (this.oidas.length > OIDOS_MAX) this.oidas.shift();
+  }
+
+  /** V1 for the AI: what a person HEARS when the world's features announce an event (a person of the world speaking, «Has
+   * recibido…», a roll, «Misión completada», a refusal with its reason) goes to `oir` as the channel «mundo», worded by the
+   * event's own `announce` — the same line a screen reader gets. A dialogue's answers (o1…o4) follow the line, numbered, so
+   * `usar {cosa, opcion}` can pick one. Silent events and the ones other tools already deliver (SIN_ANUNCIO) are skipped. */
+  private oirMundo(c: Cuerpo, feature: string, evento: string, m: Msg): void {
+    if (SIN_ANUNCIO.has(feature)) return;
+    const an = c.s.features.catalog?.features.find((f) => f.id === feature)?.events.find((e) => e.name === evento)?.announce;
+    if (!an || an === "silent") return;
+    let texto = fillTemplate(an.text, m).replace(/\s+/g, " ").trim();
+    const opciones: string[] = [];
+    for (let i = 1; i <= OPCIONES_MAX; i++) { const o = m[`o${i}`]; if (typeof o === "string" && o.trim()) opciones.push(`${i}) ${o.trim()}`); }
+    if (opciones.length) texto += ` — Respuestas: ${opciones.join(" · ")}`;
+    if (texto) this.oir(feature, texto, "mundo");
+  }
+
+  /** «feature/key» as «mirar» prints a thing → the thing, its card's interact and where it is; a tool error when it is not one. */
+  private cosa(c: Cuerpo, texto: unknown): { feature: string; key: string; v: Msg; it: Interact; nombre: string; prompt: string; x: number; z: number; radio: number } {
+    const s = String(texto ?? "").trim(), i = s.indexOf("/");
+    const feature = i > 0 ? s.slice(0, i) : s, key = i > 0 ? s.slice(i + 1) : "";
+    const f = c.s.features.catalog?.features.find((x) => x.id === feature);
+    const card = f?.state?.card, it = card?.interact;
+    if (!f || !card || !it || !card.at) throw new ErrorHerramienta(`«${limpia(s)}» no es una cosa que se use de cerca: dime «función/clave» tal como la escribe «mirar» (por ejemplo pnj/alma).`);
+    const v = key ? c.s.features.stateOf(feature).get(key) : undefined;
+    if (!v) throw new ErrorHerramienta(`No veo ninguna cosa «${limpia(s)}» en el mundo ahora: «mirar» dice las que hay.`);
+    const vals = { key, ...v }, radio = typeof it.radius === "number" ? it.radius : Number(v[it.radius]);
+    return { feature, key, v, it, nombre: fillTemplate(card.name, vals).trim(), prompt: fillTemplate(it.prompt, vals), x: Number(v[card.at[0]]), z: Number(v[card.at[1]]), radio: Number.isFinite(radio) ? radio : 0 };
   }
 
   /** Does this line name me (my name without « · IA», as a word, ignoring case and accents)? Asleep, only that lets me speak. */
@@ -342,13 +381,17 @@ export class PuenteMundo {
         ejecutar: () => this.leemeIA(),
       },
       {
-        name: "mirar", description: `Lo que percibe tu cuerpo en el mundo: dónde estás, hacia dónde miras (rumbo en grados: 0° = +z, 90° = +x, 180° = −z, 270° = −x, y el vector de frente {x, z}: «delante de ti» es hacia ahí; solo cambia cuando andas con ir_a), la gente y los objetos a menos de ${ALCANCE_M} m (con su id), quién está dentro de tu burbuja (la zona que te rodea: ahí te pueden llamar), si puedes construir y qué modelos puedes colocar.`,
+        name: "mirar", description: `Lo que percibe tu cuerpo en el mundo: dónde estás, hacia dónde miras (rumbo en grados: 0° = +z, 90° = +x, 180° = −z, 270° = −x, y el vector de frente {x, z}: «delante de ti» es hacia ahí; solo cambia cuando andas con ir_a), la gente, las cosas del mundo que se usan de cerca (personas del mundo con quien hablar, cosas de misión, torres de dados, dianas, sitios de pesca, botones, puertas, asientos…: cuáles están AL ALCANCE para «usar») y los objetos colocados a menos de ${ALCANCE_M} m (con su id), quién está dentro de tu burbuja (la zona que te rodea: ahí te pueden llamar), si puedes construir y qué modelos puedes colocar.`,
         inputSchema: obj({}),
         ejecutar: async () => {
           const c = await this.dentro(), p = c.s.selfPosition(1);
           const gente = c.cercanos(ALCANCE_M);
           const objetos = [...c.s.features.stateOf("objetos")].map(([id, v]) => ({ id, v, d: Math.hypot(Number(v.x) - p.x, Number(v.z) - p.z) }))
             .filter((x) => x.d <= ALCANCE_M).sort((a, b) => a.d - b.d).slice(0, 40);
+          // V1: the things with a card (what a screen reader lists), minus the placed objects (listed above with their ids); which are in reach now
+          const alcance = new Map(c.s.features.reachable(p.x, p.z, p.y).map((r) => [`${r.feature}/${r.key}`, r]));
+          const cosas = c.cosas(ALCANCE_M).filter((x) => x.feature !== "objetos").slice(0, 40);
+          const usables = cosas.filter((x) => alcance.has(`${x.feature}/${x.key}`)).length;
           const dentroDeTuBurbuja = [...this.buzon.dentro], mira = c.rumbo();
           return [
             `Eres «${c.nombre}» (entidad ${c.entidad}) en ${this.mundo}: x ${f1(p.x)} y ${f1(p.y)} z ${f1(p.z)} (metros; y = altura, el suelo es 0). ${c.meta ? (c.meta.tipo === "ir" ? `Vas hacia x ${f1(c.meta.x)} z ${f1(c.meta.z)}.` : "Sigues a alguien.") : "Estás parado."}`,
@@ -357,11 +400,12 @@ export class PuenteMundo {
             ...(this.estado ? [this.dormida ? "Estado: dormida (baja atención). Oyes y miras, pero solo hablas si te llaman por tu nombre y no construyes." : "Estado: activa. Atenta y dispuesta a interactuar."] : []),
             `Construir: ${this.puedeConstruir && !this.dormida ? "sí" : this.dormida ? "no (estás dormida)" : "no (este mundo no te deja ahora)"}. Modelos que puedes colocar: ${this.modelos()}.`,
             ...(this.tiene("burbuja") ? [dentroDeTuBurbuja.length ? `En tu burbuja: ${dentroDeTuBurbuja.length} (sus nombres van en el material).` : "En tu burbuja: nadie."] : []),
-            `Gente a menos de ${ALCANCE_M} m: ${gente.length}; objetos: ${objetos.length}. Sus nombres van en el material:`,
+            `Gente a menos de ${ALCANCE_M} m: ${gente.length}; cosas del mundo que se usan: ${cosas.length}${cosas.length ? ` (al alcance ahora: ${usables}; las demás, acércate con ir_a {cosa})` : ""}; objetos colocados: ${objetos.length}. Sus nombres van en el material:`,
             material([
               ...(this.ficha ? [`Nombre del mundo: «${limpia(this.ficha)}»`] : []),
               ...dentroDeTuBurbuja.map(([, x]) => `- en tu burbuja «${limpia(sinMarca(x.nombre))}»${x.esIA ? " (IA)" : ""} a ${f1(x.distanciaDm / 10)} m`),
               ...gente.map((g) => `- persona «${limpia(sinMarca(g.nombre ?? `entidad ${g.entidad}`))}»${g.ia ? " (IA)" : ""} a ${f1(g.distancia)} m, en x ${f1(g.x)} z ${f1(g.z)}`),
+              ...cosas.map((x) => { const r = alcance.get(`${x.feature}/${x.key}`); return `- cosa ${limpia(`${x.feature}/${x.key}`)} · ${x.role} «${limpia(x.name)}»${x.description ? ` · ${limpia(x.description)}` : ""} · a ${f1(x.distancia)} m · x ${f1(x.at!.x)} z ${f1(x.at!.z)} · ${r ? `AL ALCANCE: «${limpia(r.prompt)}» (usar)` : "lejos para usarla"}`; }),
               ...objetos.map(({ id, v, d }) => `- objeto ${limpia(id)} · ${this.obra?.idDe(v.modelo) ?? "?"} · «${limpia(String(v.nombre ?? ""))}» · a ${f1(d)} m · x ${f1(Number(v.x))} y ${f1(Number(v.y))} z ${f1(Number(v.z))} · giro ${f1(Number(v.ry))}° · escala ${f1(Number(v.sx))}×${f1(Number(v.sy))}×${f1(Number(v.sz))}${v.fijado ? " · fijado" : ""}`),
             ]),
           ].join("\n");
@@ -381,10 +425,18 @@ export class PuenteMundo {
         },
       },
       {
-        name: "ir_a", description: `Andar hasta un punto del suelo {x, z} o hasta alguien {persona: su nombre como lo ves en mirar}, a menos de ${ALCANCE_M} m. Vuelve enseguida; mira otra vez para saber si llegaste.`,
-        inputSchema: obj({ x: num("metros"), z: num("metros"), persona: { type: "string", description: "el nombre de alguien cercano", maxLength: 60 } }),
+        name: "ir_a", description: `Andar hasta un punto del suelo {x, z}, hasta alguien {persona: su nombre como lo ves en mirar} o hasta una cosa del mundo {cosa: «función/clave» como la escribe mirar} para tenerla al alcance, a menos de ${ALCANCE_M} m. Vuelve enseguida; mira otra vez para saber si llegaste.`,
+        inputSchema: obj({ x: num("metros"), z: num("metros"), persona: { type: "string", description: "el nombre de alguien cercano", maxLength: 60 }, cosa: { type: "string", description: "una cosa del mundo, «función/clave» (p. ej. pnj/alma)", maxLength: COSA_MAX } }),
         ejecutar: async (a) => {
           const c = await this.dentro(), me = c.posicion();
+          if (typeof a.cosa === "string" && a.cosa.trim()) {
+            const k = this.cosa(c, a.cosa), d = Math.hypot(k.x - me.x, k.z - me.z);
+            if (d > ALCANCE_M) throw new ErrorHerramienta(`«${limpia(k.nombre)}» está a ${f1(d)} m: como mucho ${ALCANCE_M} m de una vez (ve antes a un punto intermedio con ir_a {x, z}).`);
+            const quedo = Math.min(1.2, Math.max(0, k.radio - 0.8)); // stop inside its reach: the body halts 0.6 m short of its point
+            const dd = Math.max(d, 0.001);
+            c.irA(k.x - ((k.x - me.x) / dd) * quedo, k.z - ((k.z - me.z) / dd) * quedo);
+            return `Voy hacia «${limpia(k.nombre)}» (está a ${f1(d)} m; se usa a menos de ${f1(k.radio)} m). Cuando llegues, «usar».`;
+          }
           if (typeof a.persona === "string" && a.persona.trim()) {
             const k = a.persona.trim().toLowerCase();
             const g = c.cercanos(ALCANCE_M).find((x) => x.nombre && sinMarca(x.nombre).toLowerCase() === k) ?? c.cercanos(ALCANCE_M).find((x) => x.nombre && sinMarca(x.nombre).toLowerCase().startsWith(k));
@@ -393,11 +445,31 @@ export class PuenteMundo {
             c.irA(g.x - ((g.x - me.x) / d) * quedo, g.z - ((g.z - me.z) / d) * quedo);
             return `Voy hacia esa persona (está a ${f1(g.distancia)} m).`;
           }
-          if (typeof a.x !== "number" || typeof a.z !== "number") throw new ErrorHerramienta("Dime {x, z} o {persona}.");
+          if (typeof a.x !== "number" || typeof a.z !== "number") throw new ErrorHerramienta("Dime {x, z}, {persona} o {cosa}.");
           const d = Math.hypot(a.x - me.x, a.z - me.z);
           if (d > ALCANCE_M) throw new ErrorHerramienta(`Ese punto está a ${f1(d)} m: como mucho ${ALCANCE_M} m de una vez.`);
           c.irA(a.x, a.z);
           return `Voy a x ${f1(a.x)} z ${f1(a.z)} (a ${f1(d)} m).`;
+        },
+      },
+      {
+        name: "usar", description: "Usar una cosa del mundo que tienes AL ALCANCE (lo dice «mirar»): hablar con una persona del mundo, coger o usar una cosa de misión, tirar los dados de una torre, pulsar un botón, abrir una puerta, sentarte, lanzar la caña, jugar a los dardos, golpear a una criatura… Es la misma tecla E de una persona: el servidor comprueba la distancia y decide. Lo que pase (lo que te dice la persona y sus respuestas, lo que recibes, la tirada, por qué no se pudo) te llega en «oir», canal «mundo». Con una persona del mundo que te ofreció respuestas, {opcion: 1–4} elige una.",
+        inputSchema: obj({ cosa: { type: "string", description: "la cosa, «función/clave» como la escribe mirar (p. ej. pnj/alma, misiones/regadera, dados/torre)", maxLength: COSA_MAX }, opcion: { type: "integer", minimum: 1, maximum: OPCIONES_MAX, description: "con una persona del mundo: la respuesta que eliges, en el orden en que «oir» las listó" } }, ["cosa"]),
+        ejecutar: async (a) => {
+          const c = await this.dentro(), k = this.cosa(c, a.cosa), me = c.s.selfPosition(1);
+          if (typeof a.opcion === "number") {
+            if (k.feature !== "pnj") throw new ErrorHerramienta("«opcion» solo vale con una persona del mundo (pnj/…) que te haya ofrecido respuestas: para lo demás, «usar» sin opción.");
+            const r = c.hacer("pnj", "elegir", { pnj: k.key, opcion: a.opcion });
+            if (!r.ok) throw new ErrorHerramienta(`No he podido elegir: ${r.why}`);
+            return `Elegida la respuesta ${a.opcion} con «${limpia(k.nombre)}». Lo que conteste te llega en «oir» (canal «mundo»).`;
+          }
+          const d = Math.hypot(k.x - me.x, k.z - me.z);
+          if (!c.s.features.reachable(me.x, me.z, me.y).some((r) => r.feature === k.feature && r.key === k.key)) {
+            throw new ErrorHerramienta(`«${limpia(k.nombre)}» está a ${f1(d)} m y se usa a menos de ${f1(k.radio)} m${d <= k.radio ? " (y a tu misma altura)" : ""}: acércate con ir_a {cosa: "${limpia(`${k.feature}/${k.key}`)}"} y vuelve a «usar».`);
+          }
+          const r = c.s.features.use(k.feature, k.key);
+          if (!r.ok) throw new ErrorHerramienta(`No he podido ${limpia(k.prompt)}: ${r.why}`);
+          return `Hecho: ${limpia(k.prompt)}. Lo que pase te llega en «oir» (canal «mundo»)${k.feature === "pnj" ? "; si te ofrece respuestas, elige una con usar {cosa, opcion}" : ""}.`;
         },
       },
       {
@@ -425,15 +497,15 @@ export class PuenteMundo {
         ejecutar: async () => { const id = await this.construir("deshacer", {}); return `Deshecho tu último cambio${id ? ` (objeto ${id})` : ""}.`; },
       },
       {
-        name: "oir", description: `Lo último que se ha dicho cerca de ti o a la zona (y lo que el mundo te contesta), desde un cursor: pasa el «cursor» de la última vez para no repetir. Guarda las últimas ${OIDOS_MAX} líneas.`,
+        name: "oir", description: `Lo último que se ha dicho cerca de ti o a la zona, lo que el mundo te contesta y lo que pasa en el mundo (canal «mundo»: lo que te dice una persona del mundo y sus respuestas numeradas, lo que recibes, una tirada, una misión que avanza, por qué algo no se pudo), desde un cursor: pasa el «cursor» de la última vez para no repetir. Guarda las últimas ${OIDOS_MAX} líneas.`,
         inputSchema: obj({ desde: { type: "integer", minimum: 0, description: "el cursor que te dio la última llamada (0 = todo)" } }),
         ejecutar: (a) => {
           const desde = typeof a.desde === "number" ? a.desde : 0, nuevas = this.oidas.filter((o) => o.n > desde);
           const cursor = this.oidas.at(-1)?.n ?? desde;
-          const canal = { cerca: "cerca", zona: "a la zona", aviso: "el mundo te contesta" } as const;
+          const canal = { cerca: "cerca", zona: "a la zona", aviso: "el mundo te contesta", mundo: "pasa en el mundo" } as const;
           return [
             `cursor: ${cursor} · ${nuevas.length ? `${nuevas.length} línea(s) nueva(s)` : "nada nuevo"}${this.final ? ` · ${this.final}` : ""}.`,
-            ...(nuevas.length ? [material(nuevas.map((o) => `- [${o.n}] ${new Date(o.ms).toISOString().slice(11, 19)} «${limpia(sinMarca(o.nombre))}» (${canal[o.canal]}): «${limpia(o.texto)}»`))] : []),
+            ...(nuevas.length ? [material(nuevas.map((o) => `- [${o.n}] ${new Date(o.ms).toISOString().slice(11, 19)} «${limpia(sinMarca(o.nombre))}» (${canal[o.canal]}): «${limpia(o.texto, o.canal === "mundo" ? LINEA_MUNDO_MAX : undefined)}»`))] : []),
           ].join("\n");
         },
       },

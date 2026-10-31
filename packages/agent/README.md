@@ -82,11 +82,12 @@ mcp_servers:
    can ask for more care or a style but never widens the AI's tools, rules or permissions (the server decides those). A world with none
    (or a broken file) gets plain prudence rules. Code: `leeme-ia.ts` here, `packages/server/src/leeme-ia.ts`; test `test/leeme-ia.test.ts`.
 
-5. **Talk to Hermes** («entra en el mundo y pon una mesa delante de mí»). Its tools: `mirar` (where it is, which way it faces — `rumbo` in degrees, 0° = +z, 90° = +x, plus a front vector —, people and
-   things within 40 m with their ids, whether it may build, the models it may place), `decir` {texto, canal cerca|zona},
-   `ir_a` {x, z} | {persona}, `colocar` {modelo, x, z, y?, giro?, escala?|escala_x/_y/_z, nombre?}, `mover` {id, …}
+5. **Talk to Hermes** («entra en el mundo y pon una mesa delante de mí»). Its tools: `mirar` (where it is, which way it faces — `rumbo` in degrees, 0° = +z, 90° = +x, plus a front vector —, people,
+   the world's things with a card within 40 m — people of the world, quest things, dice towers, buttons, doors, seats… as `feature/key`, each marked «AL ALCANCE» with its prompt or «lejos para usarla» —, placed objects with their ids, whether it may build, the models it may place), `decir` {texto, canal cerca|zona},
+   `ir_a` {x, z} | {persona} | {cosa} (walks into the thing's reach), `usar` {cosa, opcion?} (V1: the same intent a person's E key sends — talk, take, roll, press, open, sit —; the server checks the reach and decides;
+   with a person of the world, `opcion` 1–4 picks one of the answers `oir` listed), `colocar` {modelo, x, z, y?, giro?, escala?|escala_x/_y/_z, nombre?}, `mover` {id, …}
    (what it does not say stays), `borrar` {id}, `deshacer`, `oir` {desde} (the last 50 lines heard, by cursor, to follow
-   a conversation by polling), `llamadas` (the calls people made to it that it has not read: who, what, how — by its name,
+   a conversation by polling; the channel «mundo» carries what the world's features announce to a person — a dialogue line with its numbered answers, «Misión nueva…», «Has recibido…», a roll, a refusal with its reason — worded by each event's own `announce`, the line a screen reader gets), `llamadas` (the calls people made to it that it has not read: who, what, how — by its name,
    `/name`, the «Hablar con ella» button or its key phrase — and how many seconds ago; each is handed over once; last 20 of
    10 minutes) and `esperar_llamada` {segundos 1–25} (waits up to 25 s and comes back as soon as someone calls it or walks
    into its bubble; call it in a loop to stay listening; other tools keep working meanwhile). Both need a world with the

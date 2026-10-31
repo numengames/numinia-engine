@@ -73,7 +73,7 @@ test("the bridge over a real world: key from tools/agente.ts, initialize → too
     assert.match(ini.result.instructions, /LO PRIMERO: llama a «leeme_ia»/);
     hijo.stdin.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) + "\n");
     const lista = await pedir("tools/list");
-    assert.deepEqual(lista.result.tools.map((t: { name: string }) => t.name), ["leeme_ia", "mirar", "decir", "ir_a", "colocar", "mover", "borrar", "deshacer", "oir", "llamadas", "esperar_llamada", "gesto"]);
+    assert.deepEqual(lista.result.tools.map((t: { name: string }) => t.name), ["leeme_ia", "mirar", "decir", "ir_a", "usar", "colocar", "mover", "borrar", "deshacer", "oir", "llamadas", "esperar_llamada", "gesto"]);
     // t_06071dee: the world's LEEME-IA reaches the AI that comes in by the bridge: as a tool, as a resource, framed and fenced
     const leeme = await usar("leeme_ia");
     assert.equal(leeme.error, false, leeme.texto);
