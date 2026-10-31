@@ -257,7 +257,7 @@ function ordenaIds(m: number, cota: number): number[] {
 }
 
 // ---------- messages ----------
-// Byte-aligned fields are written with DataView (big-endian), which is byte-for-byte what the
+// Byte-aligned fields are written big-endian by hand (E9: encodeSnapshot) or with DataView, which is byte-for-byte what the
 // MSB-first BitWriter produces: same wire format, ~10x less work. BitWriter stays for sub-byte fields.
 // SNAPSHOT, wire format 2 (J2):
 //   type 1 · tick 4 · ack 2 · self 2 · x 4 · z 4 · y 4 · vy 4 · flags 1 (bit 0 air jump spent, bits 1-2 jump buffer, bit 3 flying: additive, an older page masks it away)
@@ -279,6 +279,16 @@ export function cuantizar(s: SimState): Cuantas {
   return cuantas;
 }
 
+/** E9: the header and the avatars are written straight into the byte array (no DataView), and the message is cut from a
+ * shared slab instead of getting an allocation of its own. */
+const SLAB = 1 << 14; // 16 kB: a slow client that holds a message pins at most this much
+let losa = new Uint8Array(SLAB), losaO = 0;
+/** One buffer slice per message cut from a shared slab (never rewritten once handed out) instead of one allocation each. */
+function trozo(n: number): Uint8Array {
+  if (n > SLAB >> 2) return new Uint8Array(n);
+  if (losaO + n > SLAB) { losa = new Uint8Array(SLAB); losaO = 0; }
+  const b = losa.subarray(losaO, losaO + n); losaO += n; return b;
+}
 /** SNAPSHOT: own state at full precision (exact reconciliation, height included), others quantized. `q` (E1, optional):
  * the table from `cuantizar` for this same state; without it, it is filled here (same values: same state). */
 export function encodeSnapshot(s: SimState, self: number, ack: number, visible: number[], q?: Cuantas, saltos?: readonly Salto[]): Uint8Array {
@@ -288,11 +298,13 @@ export function encodeSnapshot(s: SimState, self: number, ack: number, visible: 
   for (let i = 0; i < nv; i++) if (qys[visible[i]] !== ZERO_Q) high++;
   const low = nv - high;
   const nsal = saltos ? Math.min(saltos.length, SALTOS_MAX) : 0; // t_9cb3f636: the optional tail (see Salto); nothing when nobody jumped
-  const buf = new Uint8Array(SNAP_HEADER + low * 6 + high * 8 + (nsal ? 1 + nsal * 4 : 0)), dv = new DataView(buf.buffer);
-  dv.setUint8(0, MSG.SNAPSHOT); dv.setUint32(1, s.tick >>> 0); dv.setUint16(5, ack & 0xffff); dv.setUint16(7, self);
-  dv.setInt32(9, X[self]); dv.setInt32(13, Z[self]); dv.setInt32(17, Y[self]); dv.setInt32(21, s.mo.cols.vy[self]);
-  dv.setUint8(25, (s.mo.cols.air[self] & 1) | ((s.mo.cols.buf[self] & 3) << 1) | (s.mo.cols.modo[self] === MODO_VOLANDO ? 8 : 0));
-  dv.setUint16(26, low); dv.setUint16(28, high);
+  const buf = trozo(SNAP_HEADER + low * 6 + high * 8 + (nsal ? 1 + nsal * 4 : 0));
+  const T = s.tick >>> 0, a = ack & 0xffff, sx = X[self], sz = Z[self], sy = Y[self], vy = s.mo.cols.vy[self];
+  buf[0] = MSG.SNAPSHOT; buf[1] = T >>> 24; buf[2] = T >>> 16; buf[3] = T >>> 8; buf[4] = T; buf[5] = a >> 8; buf[6] = a; buf[7] = self >> 8; buf[8] = self;
+  buf[9] = sx >>> 24; buf[10] = sx >>> 16; buf[11] = sx >>> 8; buf[12] = sx; buf[13] = sz >>> 24; buf[14] = sz >>> 16; buf[15] = sz >>> 8; buf[16] = sz;
+  buf[17] = sy >>> 24; buf[18] = sy >>> 16; buf[19] = sy >>> 8; buf[20] = sy; buf[21] = vy >>> 24; buf[22] = vy >>> 16; buf[23] = vy >>> 8; buf[24] = vy;
+  buf[25] = (s.mo.cols.air[self] & 1) | ((s.mo.cols.buf[self] & 3) << 1) | (s.mo.cols.modo[self] === MODO_VOLANDO ? 8 : 0);
+  buf[26] = low >> 8; buf[27] = low; buf[28] = high >> 8; buf[29] = high;
   let o = SNAP_HEADER, h = SNAP_HEADER + low * 6;
   // big-endian 16-bit writes by hand (what DataView.setUint16 does by default), byte for byte the same
   for (let i = 0; i < nv; i++) {
@@ -300,7 +312,7 @@ export function encodeSnapshot(s: SimState, self: number, ack: number, visible: 
     if (qy === ZERO_Q) { buf[o] = id >> 8; buf[o + 1] = id; buf[o + 2] = qx >> 8; buf[o + 3] = qx; buf[o + 4] = qz >> 8; buf[o + 5] = qz; o += 6; }
     else { buf[h] = id >> 8; buf[h + 1] = id; buf[h + 2] = qx >> 8; buf[h + 3] = qx; buf[h + 4] = qz >> 8; buf[h + 5] = qz; buf[h + 6] = qy >> 8; buf[h + 7] = qy; h += 8; }
   }
-  if (nsal) { let t = h; buf[t++] = nsal; for (let i = 0; i < nsal; i++, t += 4) { dv.setUint16(t, saltos![i].id); dv.setUint16(t + 2, saltos![i].tick & 0xffff); } }
+  if (nsal) { let t = h; buf[t++] = nsal; for (let i = 0; i < nsal; i++, t += 4) { const j = saltos![i], jt = j.tick & 0xffff; buf[t] = j.id >> 8; buf[t + 1] = j.id; buf[t + 2] = jt >> 8; buf[t + 3] = jt; } }
   return buf;
 }
 /** t_9cb3f636: an avatar that was put somewhere on purpose (a teleport, a return to a safe spot) at server tick `tick` (low 16 bits).
