@@ -127,7 +127,9 @@ export const ENTITY_BITS_HIGH = ENTITY_BITS + POS_BITS; // J2: 64 bits = 8 bytes
 // Runs on the server only and decides WHAT is sent, never game state, so floats are allowed here.
 // Each viewer looks at rings of cells around it until it has enough candidates (or reaches the view
 // radius), so a dense crowd costs ~CAND_MIN candidates per viewer, not everyone.
-export type Viewer = { entity: number; priority: Float32Array | Float64Array }; // priority per entity id
+export type Viewer = { entity: number; priority: Float32Array | Float64Array; umbral?: number }; // priority per entity id;
+// umbral (E8): the k-th best priority the last time, a guess for the next selection's first pivot. It only decides the
+// ORDER of the work, never who is chosen: a viewer without it (tests, a fresh connection) gets the same people.
 export const CELL_M = 8;
 export const CELL = CELL_M * FX_ONE;
 export const GRID_SIDE = 128;  // 128 cells x 8 m = 1,024 m, wrapped (N1): x and x + 1,024 m share a cell, and the
@@ -184,37 +186,74 @@ export function selectVisible(s: SimState, grid: Grid, v: Viewer, k: number, rin
       }
     }
   }
-  if (n > k) topK(n, k);
+  if (n > k) selectK(n, k, v);
   const m = Math.min(n, k);
   for (let i = 0; i < m; i++) pr[cand[i]] = 0; // sent: back of the queue
-  const out = new Array<number>(m); // ascending id: insertion sort (m ≤ k, a few dozen)
-  for (let i = 0; i < m; i++) { const id = cand[i]; let j = i; while (j > 0 && out[j - 1] > id) { out[j] = out[j - 1]; j--; } out[j] = id; }
-  return out;
+  return ordenaIds(m, pr.length);
 }
 
-/** Move the k best (priority desc, id asc) to the front of cand/prio (in no particular order). The k best are one fixed
- * set (ids differ, so the order is total), so how they are found does not change what is sent. E1: a heap of the k
- * kept with the worst on top, instead of quickselect: most candidates lose one comparison against the top. */
-function topK(n: number, k: number): void {
+/** The k best of cand/prio to the front (in no particular order), under the total order "higher priority, then lower
+ * id": one fixed set, so how it is found never changes what is sent. E1 kept a heap of the k best; with k/n ≈ 1/5
+ * (50 of ~235 in a dense plaza) most candidates beat the heap's top and sift it, which cost more than the scan itself.
+ * E8: quickselect whose first pivot is the viewer's threshold of the previous send (`v.umbral`, 95 % of the k-th best):
+ * the crowd changes little between sends, so one pass leaves about k candidates above the guess and the exact finish
+ * works on a handful. A missing or stale guess only costs time (a full quickselect), never a different pick. */
+function selectK(n: number, k: number, v: Viewer): void {
+  const C = cand, P = prio, th = v.umbral ?? 0;
+  let st = 0;
+  for (let i = 0; i < n; i++) if (P[i] >= th) { const t = P[i]; P[i] = P[st]; P[st] = t; const u = C[i]; C[i] = C[st]; C[st] = u; st++; }
+  if (st > k) quickselect(0, st - 1, k);     // too many above the guess: finish among them
+  else if (st < k) quickselect(st, n - 1, k); // too few: the rest come from below the guess
+  let worst = P[0];
+  for (let i = 1; i < k; i++) if (P[i] < worst) worst = P[i];
+  v.umbral = worst * 0.95; // a little under the k-th: next time the first pass should keep ≥ k (p10 ≈ k in the bench)
+}
+
+/** "a ranks before b": higher priority, or the same priority and a lower id. */
+const antes = (pa: number, ca: number, pb: number, cb: number): boolean => pa > pb || (pa === pb && ca < cb);
+
+/** Quickselect over cand/prio[lo..hi] so that positions [0, k) of the whole arrays hold the k best (k is absolute:
+ * everything before `lo` is already known to be among them, everything after `hi` known not to be). Median of three as
+ * pivot, Lomuto partition; the loop ends when the pivot lands on k-1 or k, or the range is one element. */
+function quickselect(lo: number, hi: number, k: number): void {
   const C = cand, P = prio;
-  // "a worse than b": lower priority, or the same priority and a higher id
-  const down = (i: number): void => { // sift the entry at i down the min-heap of [0, k)
-    const c = C[i], p = P[i];
-    for (;;) {
-      let w = 2 * i + 1;
-      if (w >= k) break;
-      const r = w + 1;
-      if (r < k && (P[r] < P[w] || (P[r] === P[w] && C[r] > C[w]))) w = r;
-      if (!(P[w] < p || (P[w] === p && C[w] > c))) break;
-      C[i] = C[w]; P[i] = P[w]; i = w;
-    }
-    C[i] = c; P[i] = p;
-  };
-  for (let i = (k >> 1) - 1; i >= 0; i--) down(i);
-  for (let i = k; i < n; i++) {
-    const p = P[i], c = C[i];
-    if (p > P[0] || (p === P[0] && c < C[0])) { C[i] = C[0]; P[i] = P[0]; C[0] = c; P[0] = p; down(0); }
+  while (hi > lo) {
+    const mid = (lo + hi) >> 1;
+    if (antes(P[mid], C[mid], P[lo], C[lo])) { const t = P[lo]; P[lo] = P[mid]; P[mid] = t; const u = C[lo]; C[lo] = C[mid]; C[mid] = u; }
+    if (antes(P[hi], C[hi], P[lo], C[lo])) { const t = P[lo]; P[lo] = P[hi]; P[hi] = t; const u = C[lo]; C[lo] = C[hi]; C[hi] = u; }
+    if (antes(P[hi], C[hi], P[mid], C[mid])) { const t = P[mid]; P[mid] = P[hi]; P[hi] = t; const u = C[mid]; C[mid] = C[hi]; C[hi] = u; }
+    const pp = P[mid], pc = C[mid]; // the median, parked at hi while the rest is partitioned
+    { const t = P[mid]; P[mid] = P[hi]; P[hi] = t; const u = C[mid]; C[mid] = C[hi]; C[hi] = u; }
+    let st = lo;
+    for (let i = lo; i < hi; i++) if (antes(P[i], C[i], pp, pc)) { const t = P[i]; P[i] = P[st]; P[st] = t; const u = C[i]; C[i] = C[st]; C[st] = u; st++; }
+    { const t = P[st]; P[st] = P[hi]; P[hi] = t; const u = C[st]; C[st] = C[hi]; C[hi] = u; }
+    if (st === k - 1 || st === k) return;
+    if (st < k) lo = st + 1; else hi = st - 1;
   }
+}
+
+const radix = new Int32Array(65), paso = new Int32Array(1024);
+let orden = new Int32Array(1024);
+/** The m chosen ids (cand[0..m)) as a plain array in ascending id. E8: two counting passes of 6 bits when every id is
+ * below 4,096 (ids are indices into the priority table, so its length bounds them) — about a third of the insertion
+ * sort's cost for m = 50, which spent its time in mispredicted shifts; the insertion sort stays for bigger tables. */
+function ordenaIds(m: number, cota: number): number[] {
+  if (orden.length < m) { orden = new Int32Array(m); }
+  if (cota <= 4096 && m <= paso.length) {
+    radix.fill(0);
+    for (let i = 0; i < m; i++) radix[(cand[i] & 63) + 1]++;
+    for (let i = 0; i < 64; i++) radix[i + 1] += radix[i];
+    for (let i = 0; i < m; i++) paso[radix[cand[i] & 63]++] = cand[i];
+    radix.fill(0);
+    for (let i = 0; i < m; i++) radix[(paso[i] >> 6) + 1]++;
+    for (let i = 0; i < 64; i++) radix[i + 1] += radix[i];
+    for (let i = 0; i < m; i++) orden[radix[paso[i] >> 6]++] = paso[i];
+  } else {
+    for (let i = 0; i < m; i++) { const id = cand[i]; let j = i; while (j > 0 && orden[j - 1] > id) { orden[j] = orden[j - 1]; j--; } orden[j] = id; }
+  }
+  const out: number[] = [];
+  for (let i = 0; i < m; i++) out.push(orden[i]);
+  return out;
 }
 
 // ---------- messages ----------
