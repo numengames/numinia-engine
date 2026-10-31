@@ -150,4 +150,4 @@ export class Cuerpo {
 }
 
 /** Untrusted text inside <material>: one line, and nothing that could close or open the fence (AGW-004). */
-export const limpia = (t: string): string => String(t).replace(/[\u0000-\u001f\u007f]/g, " ").replace(/<\/?\s*material\s*>/gi, "[material]").replace(/[<>]/g, (c) => (c === "<" ? "‹" : "›")).slice(0, 200);
+export const limpia = (t: string, max = 200): string => String(t).replace(/[\u0000-\u001f\u007f]/g, " ").replace(/<\/?\s*material\s*>/gi, "[material]").replace(/[<>]/g, (c) => (c === "<" ? "‹" : "›")).slice(0, max);

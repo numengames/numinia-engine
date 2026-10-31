@@ -354,7 +354,12 @@ núcleo y 329 MB el servicio. **Falta:** P4b; probarlo en el VPS (X3).
 **P4b.** Su ficha V1 (que un lector y otra IA lo lean como lo que es), verbos del catálogo filtrados por escalón, permiso
 por rol cuando exista H3 (requisito para H3: `/nombre` no puede acabar en « · IA»), y una guía determinista: Alma
 explica el camino y acompaña con su árbol de diálogo, sin LLM. **Hecho cuando:** test sin pantalla: la ficha del
-habitante aparece en `cards()` de otro jugador; Alma lleva a una persona hasta el pilar dorado.
+habitante aparece en `cards()` de otro jugador; Alma lleva a una persona hasta el pilar dorado. **Trozo hecho (31-10, PR
+«agents: the bridge sees and uses the world's things»):** la IA de fuera (puente MCP, ADR-080) ya percibe las cosas con
+ficha V1 en «mirar» (`función/clave`, al alcance o lejos), anda hasta una (`ir_a {cosa}`), la usa con `usar` (el intent de
+su ficha, el mismo de la tecla E; el servidor comprueba la distancia) y oye lo que las funciones anuncian (canal «mundo» de
+`oir`: diálogo con respuestas numeradas, misión nueva, rechazo con motivo). Falta: lo mismo para el habitante con cerebro
+(`Mente`), verbos filtrados por escalón y la guía determinista de Alma.
 
 ### J0 — Lo que espera un jugador (Pablo, 14-10: "todas esas cosas las tenemos que tener previstas")
 `docs/JUGADOR.md`: catálogo de lo que cualquier jugador da por hecho en un mundo social / MMO en 2026,
