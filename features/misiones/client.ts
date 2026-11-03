@@ -3,7 +3,7 @@
 // and agents use. It only asks: the server decides every step.
 // U14 (5): it also plays the sequences the server sends this player alone (secuencia.ts) and counts down a step's wait.
 import { clientPart } from "../../packages/feature/src/index.ts";
-import type { ClientApi, ClientPart, Msg, PlacedObject } from "../../packages/feature/src/index.ts";
+import type { ClientApi, ClientPart, Msg, PlacedObject, Vida } from "../../packages/feature/src/index.ts";
 import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
 import { ACCIONES_PAGINA } from "./formato.ts";
 import biblioteca from "../objetos/biblioteca.json" with { type: "json" };
@@ -20,13 +20,17 @@ export const ALTO_NOMBRE = 2.25;
  * (`y`: the floor it stands on; 0 = the ground), still (no idle animation: phones stay cool). The avatar branch (VRM)
  * replaces this one function. U14 (4): its label carries the trade (`oficio`) as a second line and the mark the server
  * decided for you («!» / «✓», above the name). */
-export function aspectoPnj(v: Msg, marca: Marca = ""): { cuerpo: PlacedObject; nombre: { text: string; sub?: string; mark?: Marca; x: number; y: number; z: number } } {
+export function aspectoPnj(v: Msg, marca: Marca = "", vida?: Vida): { cuerpo: PlacedObject; nombre: { text: string; sub?: string; mark?: Marca; x: number; y: number; z: number } } {
   const propio = String(v.modelo ?? ""), e = Number(v.escala) * (propio ? 1 : ESCALA_ROBOT), y = Number(v.y) || 0, oficio = String(v.oficio ?? "");
   return {
-    cuerpo: { model: propio || ROBOT, x: Number(v.x), y, z: Number(v.z), rx: 0, ry: Number(v.giro), rz: 0, sx: e, sy: e, sz: e, animate: false },
+    cuerpo: { model: propio || ROBOT, x: Number(v.x), y, z: Number(v.z), rx: 0, ry: Number(v.giro), rz: 0, sx: e, sy: e, sz: e, animate: false, ...(vida ? { vida } : {}) },
     nombre: { text: String(v.nombre), ...(oficio ? { sub: oficio } : {}), ...(marca ? { mark: marca } : {}), x: Number(v.x), y: y + ALTO_NOMBRE * Number(v.escala), z: Number(v.z) },
   };
 }
+/** P2: how a person lives on this page, from its state: it breathes unless `reposo` is false, turns toward you within its `radio` unless `mira`
+ * is false (`mira: 0` = never), keeps facing you while you talk (`atiende`), and walks to a new place when the world moved it (`camina`). */
+export const vidaPnj = (id: string, v: Msg, atiende = false, camina = false): Vida =>
+  ({ id, reposo: v.reposo !== false, mira: v.mira === false ? 0 : Number(v.radio) || 0, ...(atiende ? { atiende: true } : {}), ...(camina ? { camina: true } : {}) });
 /** How a quest thing looks: its model, or the house block (a small crate); at its height (y) and in its colour. U14 (6):
  * `usada` = this player has used it (usadasDe): then its used look (cosa@1 apariencia.usada — the chest open), if any. */
 export const aspectoCosa = (v: Msg, usada = false): PlacedObject & { color?: string } => {
@@ -96,13 +100,25 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
   // first sequence arrives (a page that never sees one never fetches it); what arrives meanwhile waits, in order. ----
   const oyentesSec = new Set<(s: SucesoSecuencia) => void>();
   const conPose = (v: Msg, pose: Pose | null): Msg => (pose ? { ...v, x: pose.x, y: pose.y, z: pose.z, giro: pose.giro } : v);
+  // P2: where THIS player finds a person who has `posiciones` (event `sitio`; the shared state keeps its own place). Kept when the person
+  // leaves the state (you walked away) because the server says it once, not again when you come back.
+  const sitios = new Map<string, { x: number; z: number; y: number; giro: number }>();
+  let atendiendo = ""; // the person whose conversation is open: it keeps facing you
+  const colocado = (key: string, v: Msg): Msg => { const t = sitios.get(key); return t ? { ...v, x: t.x, z: t.z, y: t.y, giro: t.giro } : v; };
+  /** Draw (or move) a person and its label where this player finds it; `camina`: it was moved just now, so it walks there. */
+  const dibujarPnj = (a: ClientApi, key: string, v: Msg, camina = false, rotulo = true): void => {
+    const pose = rep?.poseDe(key) ?? null, w = conPose(colocado(key, v), pose); // U14 (5): a sequence playing keeps it where it has it (and it does not turn: the sequence owns its body)
+    const look = aspectoPnj(w, marcaDe("pnj", key), pose ? undefined : vidaPnj(key, v, atendiendo === key, camina));
+    a.view.place?.(`pnj:${key}`, look.cuerpo);
+    if (rotulo) a.view.tag?.(`pnj:${key}`, look.nombre);
+  };
   const escenario: Escenario = {
     reloj,
-    persona: (pnj) => { const v = P?.state.get(pnj); return v ? { x: Number(v.x), y: Number(v.y) || 0, z: Number(v.z), giro: Number(v.giro) || 0, escala: Number(v.escala) || 1 } : null; },
+    persona: (pnj) => { const v0 = P?.state.get(pnj), v = v0 && colocado(pnj, v0); return v ? { x: Number(v.x), y: Number(v.y) || 0, z: Number(v.z), giro: Number(v.giro) || 0, escala: Number(v.escala) || 1 } : null; },
     moverPersona: (pnj, pose) => {
       const v = P?.state.get(pnj);
       if (!v || !P) return; // not drawn on this page (any more): nothing to move, nothing to put back
-      const look = aspectoPnj(conPose(v, pose), marcaDe("pnj", pnj));
+      const look = aspectoPnj(conPose(colocado(pnj, v), pose), marcaDe("pnj", pnj), pose ? undefined : vidaPnj(pnj, v, atendiendo === pnj)); // the sequence ended (no pose): alive again
       P.view.place?.(`pnj:${pnj}`, look.cuerpo);
       P.view.tag?.(`pnj:${pnj}`, look.nombre);
     },
@@ -132,7 +148,7 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
   let marcaP = new Map<string, Marca>(), marcaC = new Set<string>();
   const conRotulo = new Set<string>(); // the quest things that have a label now
   const marcaDe = (feature: string, key: string): Marca => (feature === "pnj" ? marcaP.get(key) ?? "" : feature === "misiones" && marcaC.has(key) ? "!" : "");
-  const rotularPnj = (key: string) => { const v = P?.state.get(key); if (v) P!.view.tag?.(`pnj:${key}`, aspectoPnj(conPose(v, rep?.poseDe(key) ?? null), marcaDe("pnj", key)).nombre); }; // U14 (5): where a sequence has it
+  const rotularPnj = (key: string) => { const v = P?.state.get(key); if (v) P!.view.tag?.(`pnj:${key}`, aspectoPnj(conPose(colocado(key, v), rep?.poseDe(key) ?? null), marcaDe("pnj", key)).nombre); }; // U14 (5): where a sequence has it
   const rotularCosa = (key: string) => {
     const v = M?.state.get(key), si = !!v && marcaC.has(key);
     if (si) { conRotulo.add(key); M!.view.tag?.(`misiones:${key}`, etiquetaCosa(v!)); }
@@ -193,7 +209,7 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     hablar: (pnj: string): Res => P?.send("hablar", { pnj }) ?? sin("la página aún no ha arrancado"),
     /** Choose answer n (1-4) of the open conversation. */
     elegir: (n: number): Res => (dialogo && P ? (n >= 1 && n <= dialogo.opciones.length ? P.send("elegir", { pnj: dialogo.pnj, opcion: n }) : sin(`no hay respuesta ${n}`)) : sin("no hay ninguna conversación abierta")),
-    adios: (): Res => { if (!dialogo || !P) return sin("no hay ninguna conversación abierta"); const r = P.send("adios", { pnj: dialogo.pnj }); dialogo = null; avisar("dialogo"); return r; },
+    adios: (): Res => { if (!dialogo || !P) return sin("no hay ninguna conversación abierta"); const r = P.send("adios", { pnj: dialogo.pnj }); dialogo = null; avisar("dialogo"); atiende(P, ""); return r; },
     aceptar: (mision: string): Res => M?.send("aceptar", { mision }) ?? sin("la página aún no ha arrancado"),
     abandonar: (mision: string): Res => M?.send("abandonar", { mision }) ?? sin("la página aún no ha arrancado"),
     seguir: (mision: string): Res => M?.send("seguir", { mision }) ?? sin("la página aún no ha arrancado"),
@@ -241,19 +257,32 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     alCambiar: (fn: (que: "libro" | "dialogo" | "nota") => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
 
+  /** P2: the person you are talking to keeps facing you (and turns back when the conversation ends). */
+  const atiende = (a: ClientApi, pnj: string): void => {
+    const antes = atendiendo; atendiendo = pnj;
+    for (const k of new Set([antes, pnj])) { const v = k && a.state.get(k); if (v) dibujarPnj(a, k, v, false, false); } // its body only: the label has not changed
+  };
+
   const pnjPart = clientPart(pnjDecl, (a) => {
     P = a;
     a.state.onChange((key, v) => {
       if (!v) { a.view.place?.(`pnj:${key}`, null); a.view.tag?.(`pnj:${key}`, null); return; }
-      const look = aspectoPnj(conPose(v, rep?.poseDe(key) ?? null), marcaDe("pnj", key)); // U14 (5): a sequence playing keeps it where it has it
-      a.view.place?.(`pnj:${key}`, look.cuerpo);
-      a.view.tag?.(`pnj:${key}`, look.nombre);
+      dibujarPnj(a, key, v);
+    });
+    a.on("sitio", (m) => { // P2: where I find this person now; it walks there if I was looking at it
+      const key = String(m.pnj), antes = sitios.get(key), t = { x: Number(m.x), z: Number(m.z), y: Number(m.y) || 0, giro: Number(m.giro) || 0 };
+      if (antes && antes.x === t.x && antes.z === t.z && antes.y === t.y && antes.giro === t.giro) return;
+      sitios.set(key, t);
+      a.lugar(key, { x: t.x, z: t.z, y: t.y }); // the range checks, «E: hablar» and the map use it from now on
+      const v = a.state.get(key);
+      if (v) dibujarPnj(a, key, v, antes !== undefined);
     });
     a.on("dialogo", (m) => {
       dialogo = { pnj: String(m.pnj), nombre: String(m.nombre), oficio: String(a.state.get(String(m.pnj))?.oficio ?? ""), texto: String(m.texto), opciones: [m.o1, m.o2, m.o3, m.o4].map(String).filter(Boolean) };
       avisar("dialogo");
+      atiende(a, dialogo.pnj);
     });
-    a.on("fin", (m) => { if (dialogo?.pnj === String(m.pnj)) { dialogo = null; avisar("dialogo"); } });
+    a.on("fin", (m) => { if (dialogo?.pnj === String(m.pnj)) { dialogo = null; avisar("dialogo"); } if (atendiendo === String(m.pnj)) atiende(a, ""); });
     a.on("rechazado", (m) => { estado.ultimoRechazo = String(m.motivo); avisar("dialogo"); nota(String(m.motivo)); });
   });
 
