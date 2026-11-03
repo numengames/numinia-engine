@@ -20,11 +20,11 @@ import { audio } from "../../packages/render/src/audio/nucleo.ts"; // S1: one au
 
 type Res = { ok: true } | { ok: false; why: string };
 type Paso = { n: number; texto: string; hecho: boolean; donde: string; tipo?: string; espera?: number; listoEn?: number };
-type Mision = { id: string; titulo: string; descripcion: string; estado: "activa" | "hecha"; paso: number; pasos: number; seguida: boolean; recompensa: string; lista: Paso[] };
+type Mision = { id: string; titulo: string; descripcion: string; estado: "activa" | "hecha"; paso: number; pasos: number; seguida: boolean; recompensa: string; lista: Paso[]; pistas?: false };
 type Objetivo = { mision: string; paso: number; nombre: string; texto: string; x: number; z: number; seguida: boolean };
 type Grupo = { nombre: string; hechos: number; total: number };
 type Ctl = {
-  libro(): Mision[]; objetivos(): Objetivo[]; seguir(id: string): Res; abandonar(id: string): Res; estado: { nota: string };
+  libro(): Mision[]; objetivos(): Objetivo[]; senalados?(): Objetivo[]; seguir(id: string): Res; abandonar(id: string): Res; estado: { nota: string }; // P3: senalados = the objectives that point (a quest with pistas:false has none)
   resumen(): { seguida: { mision: string; grupo: Grupo | null } | null };
   dialogo(): unknown;
   alCambiar(fn: (que: "libro" | "dialogo" | "nota") => void): unknown;
@@ -250,6 +250,7 @@ export function montarLibro(c: Ctl, o: {
   /** U14 (6): the «Misión completada» banner (a polite live region, always in the page, empty when idle). */
   banner?: HTMLElement;
 }) {
+  const senalados = () => (c.senalados ?? c.objetivos)();
   const balizar = (ob: Objetivo | undefined) => { if (ob) o.view.beacon(ob.x, ob.z, ob.nombre, BALIZA_MS); };
   const tactil = esTactil();
   // the head stays (its close button keeps its focus across repaints); the body is drawn again on every change
@@ -272,7 +273,7 @@ export function montarLibro(c: Ctl, o: {
       for (const s of m.lista) ol.append(filaPaso(s, estadoPaso(m, s, ahoras)));
       const seguir = el("button", m.seguida ? "Dejar de seguir" : "Seguir");
       seguir.type = "button";
-      seguir.addEventListener("click", () => { c.seguir(m.seguida ? "" : m.id); if (!m.seguida) balizar(c.objetivos().find((x) => x.mision === m.id)); });
+      seguir.addEventListener("click", () => { c.seguir(m.seguida ? "" : m.id); if (!m.seguida) balizar(senalados().find((x) => x.mision === m.id)); });
       const dejar = el("button", "Abandonar");
       dejar.type = "button";
       dejar.addEventListener("click", () => c.abandonar(m.id));
@@ -318,7 +319,7 @@ export function montarLibro(c: Ctl, o: {
   // arrives in several messages, so an empty moment in between does not count as a change)
   let marcado = "";
   const revisarBaliza = () => {
-    const ob = c.objetivos().find((x) => x.seguida), firma = ob ? `${ob.mision}:${ob.paso}` : "";
+    const ob = senalados().find((x) => x.seguida), firma = ob ? `${ob.mision}:${ob.paso}` : "";
     if (firma && firma !== marcado) { balizar(ob); marcado = firma; }
   };
   let notaHasta = 0;
@@ -333,7 +334,15 @@ export function montarLibro(c: Ctl, o: {
   // it for screen readers). Inside a grupo: «★ Título · Piezas reunidas 1/3 · Bianca, a 12 m al norte» (the nearest of
   // its steps to do, by the short name: «Bianca, la tejedora» → «Bianca», so the line stays short).
   const linea = () => {
-    const obs = c.objetivos().filter((x) => x.seguida), m = obs[0] && c.libro().find((x) => x.id === obs[0].mision), yo = o.here();
+    const sinPistas = c.libro().find((x) => x.seguida && x.estado === "activa" && x.pistas === false);
+    if (sinPistas) { // P3: it points at nothing — only the group and its counter (or the step), never a place or the nearest target
+      const gr = c.resumen().seguida?.grupo, s = sinPistas.lista.find((x) => x.n === sinPistas.paso);
+      const t = gr ? `★ ${gr.nombre} ${gr.hechos}/${gr.total}` : `★ ${sinPistas.titulo} (${sinPistas.paso + 1}/${sinPistas.pasos})${s ? `: ${s.texto}` : ""}`;
+      if (o.linea.textContent !== t) o.linea.textContent = t;
+      o.linea.hidden = false;
+      return;
+    }
+    const obs = senalados().filter((x) => x.seguida), m = obs[0] && c.libro().find((x) => x.id === obs[0].mision), yo = o.here();
     const g = m && c.resumen().seguida?.grupo;
     let t = "";
     if (m && g) {
@@ -384,6 +393,10 @@ export function montarLibro(c: Ctl, o: {
       // a step done is silent (it is frequent): only the milestones sound (received, delivered, completed: avisoDeEvento)
     }
     if (event === "completada") mostrarCompletada(msg);
+    if (event === "abrirLibro" && o.panel.hidden && !o.view.vr?.active) { // P3: a pick-up asked for it (the notebook): same as when a quest is accepted — it takes no focus, and never in VR
+      abrir(true, false);
+      anunciar(tactil ? "El libro de misiones se ha abierto." : "El libro de misiones se ha abierto: J lo cierra.");
+    }
   });
   // U14 (5): a sequence's lines are read aloud (the note itself is hidden from screen readers) and its sounds play
   c.alSecuencia?.((s) => {

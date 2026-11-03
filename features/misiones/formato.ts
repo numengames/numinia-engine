@@ -11,6 +11,10 @@
 // Steps in any order (U14): consecutive steps with the same `grupo` form a block done in any order; `recibe` = a person
 // gives you a thing; `entrega` may name several things (`cosas`). All optional: files without them read as before.
 // A person may say its trade (pnj@1 `oficio`, U14 (4)): a second, smaller line under the name.
+// Inspection pieces (P3, all optional): a cosa may carry a `dialogo` (the same tree as a person's: you inspect it, it opens
+// a conversation panel, an `avanzar_paso` option completes a `usa`/`coge` step); a dialogue whose LAST entrada has a `si`
+// cannot be opened outside that phase; mision@1 `pistas: false` hides every pointer (marks, map, arrow, nearest target);
+// any step may carry `antes` (the notice for trying it too early); a `coge` step may carry `abreLibro`.
 // The recipe for authors (people or LLMs) is docs/EXTENDER.md «Misiones y PNJ». Every check returns Result with paths
 // that say how to fix each problem; nothing here throws, touches the network or the world.
 import type { Issue, Result } from "../../packages/core/src/index.ts";
@@ -40,7 +44,7 @@ export type VozPnj = (typeof VOCES_PNJ)[number];
 export const LIM = {
   id: 32, titulo: 80, descripcion: 300, textoPaso: 160, lugar: 60, nombre: 60, descripcionCosa: 140, linea: 400, opcion: 100,
   aviso: 40, textoMision: 200, pasos: 16, opciones: 4, nodos: 64, entradas: 16, recompensas: 8, requisitos: 16,
-  grupo: 40, cosasEntrega: 8,
+  grupo: 40, cosasEntrega: 8, antes: 80, // P3: a step's `antes` notice
   oficio: 40, marcas: 256, // U14 (4): a person's trade (pnj@1 `oficio`); each id list of the `marcas` event (≈ 25 short ids)
 } as const;
 export const MUNDO = 2000; // metres: the furthest a person, a thing or a place can be (the wire's range)
@@ -51,14 +55,15 @@ export type Estado = (typeof ESTADOS)[number];
 /** Any step may carry `grupo` (1–40 bytes): CONSECUTIVE steps with the same grupo form a block done in any order (the
  * quest moves past it when all are done); the grupo also names the counter the player sees («Piezas reunidas 1/3»).
  * U14 (5), optional too: `secuencia` = the id of a secuencia@1 played for that player when the step is done; `espera` =
- * seconds (1–60) before it can be done, counted from when it became the step to do (in a grupo: from the block's start). */
-type PasoBase = { id: string; texto: string; grupo?: string; secuencia?: string; espera?: number; senala?: string };
+ * seconds (1–60) before it can be done, counted from when it became the step to do (in a grupo: from the block's start).
+ * P3, optional: `antes` (1–80 bytes) = the notice the player gets when they try this step while an earlier one is not done. */
+type PasoBase = { id: string; texto: string; grupo?: string; secuencia?: string; espera?: number; senala?: string; antes?: string };
 export type Paso = PasoBase & (
   | { tipo: "llega_a"; x: number; z: number; radio: number; lugar: string; y?: number } // y (optional, metres): the floor to reach it from
   | { tipo: "habla_con"; pnj: string }
   | { tipo: "recibe"; pnj: string; cosa: string } // the person gives you the thing: it goes to what you carry (`tiene`)
   | { tipo: "usa"; cosa: string }
-  | { tipo: "coge"; cosa: string; otorga?: string } // otorga (optional, Y3): the id of an objeto@1 of the adventure that picking it up hands over (inventario `otorga`)
+  | { tipo: "coge"; cosa: string; otorga?: string; abreLibro?: true } // otorga (optional, Y3): the id of an objeto@1 of the adventure that picking it up hands over (inventario `otorga`); abreLibro (optional, P3): the page opens the mission book when it is done
   | { tipo: "entrega"; cosa: string; pnj: string } // one thing, as written…
   | { tipo: "entrega"; cosas: string[]; pnj: string } // …or several at once (1–8); cosasDe() reads either
   | { tipo: "hace"; accion: AccionHace; modelo?: string; disparador?: string } // T1: the builder does something (modelo = a library id, only with coloca; disparador = a cable's id, only with the cable actions)
@@ -76,9 +81,11 @@ export const LICENCIA = /^[A-Za-z0-9][A-Za-z0-9.+-]{0,39}$/;
 /** Y1: a Semilla del Conocimiento as a quest reward (lore 06: five colours, 1-5 prestige points). Goes to the inventory. */
 export const COLORES_SEMILLA = ["verde", "azul", "plateada", "dorada", "roja"] as const;
 export type ColorSemilla = (typeof COLORES_SEMILLA)[number];
+/** `pistas: false` (P3; present only when the file says so, absent = true): this quest points at nothing — no «!»/«✓» from it,
+ * no star or beacon on the map, no arrow, and the top line shows only its name and counter, never the nearest target. */
 export type Mision = {
   formato: "mision@1"; id: string; titulo: string; descripcion: string; requisitos: { misiones: string[] }; pasos: Paso[];
-  recompensas: Recompensa[]; textos: { aceptada: string; completada: string }; repetible: boolean;
+  recompensas: Recompensa[]; textos: { aceptada: string; completada: string }; repetible: boolean; pistas?: false;
 };
 /** True when every listed fact holds for this player. `paso` and `tiene` only with estado "activa"; `paso` = that step is
  * to do now (inside a grupo: one of the block's steps not done yet). */
@@ -87,19 +94,25 @@ export type Accion = { tipo: "dar_mision" | "avanzar_paso" | "entregar"; mision:
 export type Opcion = { texto: string; si: Condicion[]; ir?: string; accion?: Accion };
 export type Nodo = { texto: string; opciones: Opcion[] };
 export type Apariencia = { modelo: string; escala: number };
+/** A deterministic conversation: which node opens (the first `entrada` whose `si` holds) and the nodes. A person's or, P3, a
+ * thing's. When the LAST entrada also has a `si` and none holds, it cannot be opened (the person says nothing now; the thing
+ * is not offered): see `nodoInicial` in maquina.ts. */
+export type Dialogo = { entradas: { si: Condicion[]; nodo: string }[]; nodos: Record<string, Nodo> };
 /** A person's `posicion.y` (optional, absolute metres, 0–30: the floor of a tower it stands on; 0 when absent). `sinY` is set when the file gave none: it stands on the ground whatever its height.
  * `oficio` (optional, 1–40 bytes; "" when absent): their trade («Carpintero»), a smaller line under the name (U14 (4)).
  * `voz` (optional, one of VOCES_PNJ; "" when absent = chosen from the id, always the same): how they sound when you
  * start and stop talking to them. */
 export type Pnj = {
   formato: "pnj@1"; id: string; nombre: string; oficio: string; voz: VozPnj | ""; descripcion: string; apariencia: Apariencia; posicion: { x: number; z: number; y: number }; sinY?: true;
-  giro: number; radio: number; dialogo: { entradas: { si: Condicion[]; nodo: string }[]; nodos: Record<string, Nodo> };
+  giro: number; radio: number; dialogo: Dialogo;
 };
 /** A thing's `posicion.y` (optional, absolute metres: a thing on a table or held up at chest height, reachable
  * with a hand in VR) and `apariencia.color` (optional «#rrggbb»: the house block in a colour, so two things differ).
  * `apariencia.usada` (optional, U14 (6)): how it looks for a player once THEY did the step that uses it (`usa`/`coge`)
- * in a quest they have or finished — the open chest; absent when the file does not say it. */
-export type Cosa = { formato: "cosa@1"; id: string; nombre: string; descripcion: string; apariencia: Apariencia & { color: string; usada?: Apariencia }; posicion: { x: number; z: number; y: number }; sinY?: true; radio: number; aviso: string };
+ * in a quest they have or finished — the open chest; absent when the file does not say it.
+ * `dialogo` (optional, P3): what you inspect opens this conversation (title = the thing's name); `aviso` is then the «E:»
+ * prompt whenever an entrada holds for you («inspeccionar la mancha»). Absent = a thing you only take or use, as always. */
+export type Cosa = { formato: "cosa@1"; id: string; nombre: string; descripcion: string; apariencia: Apariencia & { color: string; usada?: Apariencia }; posicion: { x: number; z: number; y: number }; sinY?: true; radio: number; aviso: string; dialogo?: Dialogo };
 export type Fichero = { fichero: string; texto: string };
 export type Aventura = {
   misiones: Map<string, Mision>; pnjs: Map<string, Pnj>; cosas: Map<string, Cosa>;
@@ -191,7 +204,7 @@ function paso(v: unknown, path: string, is: Issue[]): Paso {
   const o = objeto(v, path, is) ?? {};
   const tipo = TIPOS_PASO.includes(o.tipo as TipoPaso) ? (o.tipo as TipoPaso) : (is.push({ path: en(path, "tipo"), message: `uno de: ${TIPOS_PASO.join(", ")}` }), "llega_a" as const);
   const base = { id: id(o.id, en(path, "id"), is), texto: texto(o.texto, en(path, "texto"), LIM.textoPaso, is) };
-  const permite = (...k: string[]) => campos(o, ["id", "tipo", "texto", ...k, "grupo", "secuencia", "espera", "senala"], path, is); // any step may have these
+  const permite = (...k: string[]) => campos(o, ["id", "tipo", "texto", ...k, "grupo", "secuencia", "espera", "senala", "antes"], path, is); // any step may have these
   let p: Paso;
   if (tipo === "llega_a") {
     permite("x", "z", "radio", "lugar", "y");
@@ -203,9 +216,13 @@ function paso(v: unknown, path: string, is: Issue[]): Paso {
   else if (tipo === "entrega") { permite("cosa", "cosas", "pnj"); p = entrega(o, base, path, is); }
   else if (tipo === "hace") { permite("accion", "modelo", "disparador"); p = hace(o, base, path, is); }
   else if (tipo === "coge") { // Y3: a `coge` may hand over a weapon or relic the adventure defines (objeto@1); cargarAventura checks the id exists
-    permite("cosa", "otorga");
+    permite("cosa", "otorga", "abreLibro");
     const c: Extract<Paso, { tipo: "coge" }> = { ...base, tipo, cosa: id(o.cosa, en(path, "cosa"), is) };
     if (o.otorga !== undefined) c.otorga = id(o.otorga, en(path, "otorga"), is);
+    if (o.abreLibro !== undefined) { // P3: the page opens the mission book when this pick-up is done
+      if (o.abreLibro === true) c.abreLibro = true;
+      else if (o.abreLibro !== false) is.push({ path: en(path, "abreLibro"), message: "true (al coger la cosa, la página abre el libro de misiones) o quítalo" });
+    }
     p = c;
   } else { permite("cosa"); p = { ...base, tipo, cosa: id(o.cosa, en(path, "cosa"), is) }; }
   if (o.senala !== undefined) { // T1: the id of the page's button the arrow will point at (any step); only checked and carried here
@@ -215,6 +232,7 @@ function paso(v: unknown, path: string, is: Issue[]): Paso {
   if (o.grupo !== undefined) p.grupo = texto(o.grupo, en(path, "grupo"), LIM.grupo, is);
   if (o.secuencia !== undefined) p.secuencia = id(o.secuencia, en(path, "secuencia"), is); // U14 (5): played for you when done
   if (o.espera !== undefined) p.espera = numero(o.espera, en(path, "espera"), 1, ESPERA_MAX, is); // U14 (5): seconds before it can be done
+  if (o.antes !== undefined) p.antes = texto(o.antes, en(path, "antes"), LIM.antes, is); // P3: the notice for trying it too early
   return p;
 }
 /** hace: `accion` (one of ACCIONES_HACE); `modelo` (a library id) only with coloca; `disparador` (a cable id) only with the cable actions. */
@@ -255,12 +273,19 @@ function gruposSeguidos(pasos: Paso[], is: Issue[]): void {
   });
 }
 
+/** P3: `antes` is the notice for a step that is still locked behind an earlier one; the steps of the FIRST block are never locked. */
+function antesInutil(pasos: Paso[], is: Issue[]): void {
+  let fin = 1;
+  if (pasos[0]?.grupo) while (fin < pasos.length && pasos[fin].grupo === pasos[0].grupo) fin++;
+  pasos.slice(0, fin).forEach((p, i) => { if (p.antes !== undefined) is.push({ path: en(en("pasos", i), "antes"), message: "este paso es de los primeros: nunca está bloqueado detrás de otro, así que nunca saldría el aviso; quita «antes» o ponlo en un paso que venga después" }); });
+}
+
 /** One quest file, on its own (references to people, things and other quests are checked by cargarAventura). */
 export function leerMision(v: unknown): Result<Mision> {
   const is: Issue[] = [];
   const o = objeto(v, "", is);
   if (!o) return resultado(is, null as never);
-  campos(o, ["formato", "id", "titulo", "descripcion", "requisitos", "pasos", "recompensas", "textos", "repetible", "notas"], "", is);
+  campos(o, ["formato", "id", "titulo", "descripcion", "requisitos", "pasos", "recompensas", "textos", "repetible", "pistas", "notas"], "", is);
   formato(o, FORMATOS.mision, is);
   const req = objeto(o.requisitos, "requisitos", is, true);
   if (req) campos(req, ["misiones"], "requisitos", is);
@@ -268,6 +293,7 @@ export function leerMision(v: unknown): Result<Mision> {
   const vistos = new Set<string>();
   pasos.forEach((p, i) => { if (p.id && vistos.has(p.id)) is.push({ path: en(en("pasos", i), "id"), message: `«${p.id}» ya es otro paso: cada paso, un id distinto` }); vistos.add(p.id); });
   gruposSeguidos(pasos, is);
+  antesInutil(pasos, is);
   const recompensas = lista(o.recompensas, "recompensas", 0, LIM.recompensas, is, true).map((r, i) => {
     const p = en("recompensas", i), ro = objeto(r, p, is) ?? {};
     if (ro.tipo === "objeto") return objetoRecompensa(ro, p, is);
@@ -286,11 +312,12 @@ export function leerMision(v: unknown): Result<Mision> {
   const tx = objeto(o.textos, "textos", is, true) ?? {};
   campos(tx, ["aceptada", "completada"], "textos", is);
   if (o.repetible !== undefined && typeof o.repetible !== "boolean") is.push({ path: "repetible", message: "true o false" });
+  if (o.pistas !== undefined && typeof o.pistas !== "boolean") is.push({ path: "pistas", message: "true (lo de siempre: marcas, mapa y flecha señalan) o false (esta misión no señala nada: ni «!», ni mapa, ni flecha, ni el objetivo más cercano)" });
   if (o.notas !== undefined && typeof o.notas !== "string") is.push({ path: "notas", message: "un texto para quien escribe (no se muestra)" });
   return resultado(is, {
     formato: FORMATOS.mision, id: id(o.id, "id", is), titulo: texto(o.titulo, "titulo", LIM.titulo, is), descripcion: texto(o.descripcion, "descripcion", LIM.descripcion, is),
     requisitos: { misiones: lista(req?.misiones, "requisitos.misiones", 0, LIM.requisitos, is, true).map((m, i) => id(m, `requisitos.misiones[${i}]`, is)) },
-    pasos, recompensas, repetible: o.repetible === true,
+    pasos, recompensas, repetible: o.repetible === true, ...(o.pistas === false ? { pistas: false as const } : {}),
     textos: { aceptada: texto(tx.aceptada, "textos.aceptada", LIM.textoMision, is, true), completada: texto(tx.completada, "textos.completada", LIM.textoMision, is, true) },
   });
 }
@@ -409,32 +436,29 @@ export function leerSecuencia(v: unknown): Result<Secuencia> {
 }
 
 // ---------- pnj@1 ----------
-function accion(v: unknown, path: string, is: Issue[]): Accion | undefined {
+/** `cosa`: the tree belongs to a thing (P3), which neither gives quests nor takes deliveries: only `avanzar_paso` and `despedir`. */
+function accion(v: unknown, path: string, is: Issue[], cosa = false): Accion | undefined {
   if (v === undefined) return undefined;
   const o = objeto(v, path, is) ?? {};
   campos(o, ["tipo", "mision"], path, is);
   if (o.tipo === "despedir") return { tipo: "despedir" };
+  if (cosa && (o.tipo === "dar_mision" || o.tipo === "entregar")) { is.push({ path: en(path, "tipo"), message: `una cosa no da misiones ni recibe entregas (eso lo hace una persona): aquí solo vale \"avanzar_paso\" (cuenta el paso que usa o coge esta cosa) o \"despedir\"` }); return undefined; }
   if (o.tipo === "dar_mision" || o.tipo === "avanzar_paso" || o.tipo === "entregar") return { tipo: o.tipo, mision: id(o.mision, en(path, "mision"), is) };
-  is.push({ path: en(path, "tipo"), message: `uno de: ${ACCIONES.join(", ")}` });
+  is.push({ path: en(path, "tipo"), message: `uno de: ${(cosa ? ["avanzar_paso", "despedir"] : ACCIONES).join(", ")}` });
   return undefined;
 }
 
-/** One person's file, on its own. The LAST entrada has no `si`: it is what the person says when nothing else applies. */
-export function leerPnj(v: unknown): Result<Pnj> {
-  const is: Issue[] = [];
-  const o = objeto(v, "", is);
-  if (!o) return resultado(is, null as never);
-  campos(o, ["formato", "id", "nombre", "oficio", "voz", "descripcion", "apariencia", "posicion", "giro", "radio", "dialogo", "notas"], "", is);
-  formato(o, FORMATOS.pnj, is);
-  const voz: VozPnj | "" = o.voz === undefined ? "" : VOCES_PNJ.includes(o.voz as VozPnj) ? (o.voz as VozPnj) : (is.push({ path: "voz", message: `una de: ${VOCES_PNJ.join(", ")} (sin «voz», una elegida por su id)` }), "");
-  const d = objeto(o.dialogo, "dialogo", is) ?? {};
-  campos(d, ["entradas", "nodos"], "dialogo", is);
-  const nodosO = objeto(d.nodos, "dialogo.nodos", is) ?? {};
+/** A conversation tree (pnj@1 and, P3, cosa@1 `dialogo`). The FIRST entrada whose `si` holds opens. The last one may have no `si`
+ * (what is said when nothing else applies, always valid) or one (then outside that phase it cannot be opened at all). */
+function leerDialogo(v: unknown, path: string, is: Issue[], cosa = false): Dialogo {
+  const d = objeto(v, path, is) ?? {};
+  campos(d, ["entradas", "nodos"], path, is);
+  const nodosO = objeto(d.nodos, `${path}.nodos`, is) ?? {};
   const nodos: Record<string, Nodo> = {};
   const nombresNodos = Object.keys(nodosO);
-  if (nombresNodos.length < 1 || nombresNodos.length > LIM.nodos) is.push({ path: "dialogo.nodos", message: `de 1 a ${LIM.nodos} nodos, cada uno con su nombre` });
+  if (nombresNodos.length < 1 || nombresNodos.length > LIM.nodos) is.push({ path: `${path}.nodos`, message: `de 1 a ${LIM.nodos} nodos, cada uno con su nombre` });
   for (const k of nombresNodos) {
-    const p = `dialogo.nodos.${k}`;
+    const p = `${path}.nodos.${k}`;
     if (!ID.test(k)) is.push({ path: p, message: "el nombre de un nodo: minúsculas, cifras y guiones" });
     const n = objeto(nodosO[k], p, is) ?? {};
     campos(n, ["texto", "opciones"], p, is);
@@ -443,24 +467,36 @@ export function leerPnj(v: unknown): Result<Pnj> {
       campos(oo, ["texto", "si", "ir", "accion"], po, is);
       const op: Opcion = { texto: texto(oo.texto, `${po}.texto`, LIM.opcion, is), si: condiciones(oo.si, `${po}.si`, is) };
       if (oo.ir !== undefined) { op.ir = id(oo.ir, `${po}.ir`, is); if (op.ir && !(op.ir in nodosO)) is.push({ path: `${po}.ir`, message: `no hay ningún nodo «${op.ir}» (hay: ${nombresNodos.join(", ")})` }); }
-      const ac = accion(oo.accion, `${po}.accion`, is);
+      const ac = accion(oo.accion, `${po}.accion`, is, cosa);
       if (ac) op.accion = ac;
       return op;
     });
     nodos[k] = { texto: texto(n.texto, `${p}.texto`, LIM.linea, is), opciones };
   }
-  const entradas = lista(d.entradas, "dialogo.entradas", 1, LIM.entradas, is).map((x, i) => {
-    const p = `dialogo.entradas[${i}]`, eo = objeto(x, p, is) ?? {};
+  const entradas = lista(d.entradas, `${path}.entradas`, 1, LIM.entradas, is).map((x, i) => {
+    const p = `${path}.entradas[${i}]`, eo = objeto(x, p, is) ?? {};
     campos(eo, ["si", "nodo"], p, is);
     const nodo = id(eo.nodo, `${p}.nodo`, is);
     if (nodo && !(nodo in nodosO)) is.push({ path: `${p}.nodo`, message: `no hay ningún nodo «${nodo}» (hay: ${nombresNodos.join(", ")})` });
     return { si: condiciones(eo.si, `${p}.si`, is), nodo };
   });
-  if (entradas.length && entradas[entradas.length - 1].si.length) is.push({ path: `dialogo.entradas[${entradas.length - 1}].si`, message: "la última entrada no lleva «si»: es lo que dice cuando nada más se cumple" });
+  return { entradas, nodos };
+}
+
+/** One person's file, on its own. The LAST entrada usually has no `si`: it is what the person says when nothing else applies. If
+ * it has one (P3), the person has nothing to say outside that phase: no «E» offered and the server refuses the talk. */
+export function leerPnj(v: unknown): Result<Pnj> {
+  const is: Issue[] = [];
+  const o = objeto(v, "", is);
+  if (!o) return resultado(is, null as never);
+  campos(o, ["formato", "id", "nombre", "oficio", "voz", "descripcion", "apariencia", "posicion", "giro", "radio", "dialogo", "notas"], "", is);
+  formato(o, FORMATOS.pnj, is);
+  const voz: VozPnj | "" = o.voz === undefined ? "" : VOCES_PNJ.includes(o.voz as VozPnj) ? (o.voz as VozPnj) : (is.push({ path: "voz", message: `una de: ${VOCES_PNJ.join(", ")} (sin «voz», una elegida por su id)` }), "");
+  const dialogo = leerDialogo(o.dialogo, "dialogo", is);
   return resultado(is, {
     formato: FORMATOS.pnj, id: id(o.id, "id", is), nombre: texto(o.nombre, "nombre", LIM.nombre, is), oficio: texto(o.oficio, "oficio", LIM.oficio, is, true), voz, descripcion: texto(o.descripcion, "descripcion", LIM.descripcionCosa, is, true),
     apariencia: apariencia(o.apariencia, "apariencia", is), posicion: { ...posicion(o.posicion, "posicion", is, ["y"]), y: altura(o.posicion, is, ALTURA_MAX) }, ...sinY(o.posicion), giro: numero(o.giro, "giro", -180, 180, is, 0),
-    radio: numero(o.radio, "radio", 1, 8, is, 3), dialogo: { entradas, nodos },
+    radio: numero(o.radio, "radio", 1, 8, is, 3), dialogo,
   });
 }
 
@@ -470,7 +506,7 @@ export function leerCosa(v: unknown): Result<Cosa> {
   const is: Issue[] = [];
   const o = objeto(v, "", is);
   if (!o) return resultado(is, null as never);
-  campos(o, ["formato", "id", "nombre", "descripcion", "apariencia", "posicion", "radio", "aviso", "notas"], "", is);
+  campos(o, ["formato", "id", "nombre", "descripcion", "apariencia", "posicion", "radio", "aviso", "dialogo", "notas"], "", is);
   formato(o, FORMATOS.cosa, is);
   const ap = apariencia(o.apariencia, "apariencia", is, ["color", "usada"]), usada = usadaDe(o.apariencia, ap.escala, is);
   return resultado(is, {
@@ -478,6 +514,7 @@ export function leerCosa(v: unknown): Result<Cosa> {
     apariencia: { ...ap, color: color(o.apariencia, is), ...(usada ? { usada } : {}) },
     posicion: { ...posicion(o.posicion, "posicion", is, ["y"]), y: altura(o.posicion, is, ALTURA_MAX) }, ...sinY(o.posicion), radio: numero(o.radio, "radio", 1, 8, is, 2),
     aviso: texto(o.aviso, "aviso", LIM.aviso, is),
+    ...(o.dialogo !== undefined ? { dialogo: leerDialogo(o.dialogo, "dialogo", is, true) } : {}), // P3: what you inspect opens this conversation
   });
 }
 /** `{ sinY: true }` when a position gave no `y` (it then stands on the ground); nothing otherwise. */
@@ -513,6 +550,34 @@ function usadaDe(v: unknown, escala: number, is: Issue[]): Apariencia | undefine
 
 // ---------- the whole adventure: each file, then the references between them ----------
 const conFichero = (f: string, is: Issue[]) => is.map((i) => ({ path: i.path ? `${f}: ${i.path}` : f, message: i.message }));
+
+/** P3: does some option of this thing's conversation advance that quest (the way a `usa` step on it is done)? */
+const avanzaDeCosa = (c: Cosa, mision: string): boolean =>
+  !!c.dialogo && Object.values(c.dialogo.nodos).some((nodo) => nodo.opciones.some((op) => op.accion?.tipo === "avanzar_paso" && op.accion.mision === mision));
+
+/** A conversation (a person's, or, P3, a thing's) against the quests and things that exist: every condition names a real quest,
+ * step and thing; every action a real quest. `dueño` = the person's or thing's id: an avanzar_paso needs a step that is
+ * said to that person (habla_con, recibe) or uses that thing (usa); an entregar, a step that delivers to that person. */
+function revisaDialogo(d: Dialogo, base: string, dueño: string, cosa: boolean, misiones: Map<string, Mision>, cosas: Map<string, Cosa>, is: Issue[], hay: (m: Map<string, unknown>) => string): void {
+  const revisa = (cs: Condicion[], at: string) => cs.forEach((c, i) => {
+    const m = misiones.get(c.mision), p = cs.length > 1 ? `${at}[${i}]` : at;
+    if (!m) { is.push({ path: `${p}.mision`, message: `no hay ninguna misión «${c.mision}» (hay: ${hay(misiones)})` }); return; }
+    if (c.paso && !m.pasos.some((s) => s.id === c.paso)) is.push({ path: `${p}.paso`, message: `la misión «${m.id}» no tiene ningún paso «${c.paso}» (tiene: ${m.pasos.map((s) => s.id).join(", ")})` });
+    if (c.tiene && !cosas.has(c.tiene)) is.push({ path: `${p}.tiene`, message: `no hay ninguna cosa «${c.tiene}»` });
+  });
+  d.entradas.forEach((e, i) => revisa(e.si, `${base}.entradas[${i}].si`));
+  for (const [k, nodo] of Object.entries(d.nodos)) nodo.opciones.forEach((op, i) => {
+    const at = `${base}.nodos.${k}.opciones[${i}]`;
+    revisa(op.si, `${at}.si`);
+    const ac = op.accion;
+    if (!ac || ac.tipo === "despedir") return;
+    const m = misiones.get(ac.mision);
+    if (!m) return void is.push({ path: `${at}.accion.mision`, message: `no hay ninguna misión «${ac.mision}» (hay: ${hay(misiones)})` });
+    if (ac.tipo === "avanzar_paso" && cosa && !m.pasos.some((s) => s.tipo === "usa" && s.cosa === dueño)) is.push({ path: `${at}.accion`, message: `la misión «${m.id}» no tiene ningún paso usa con «${dueño}» (una opción de una cosa solo cuenta el paso que la usa)` });
+    if (ac.tipo === "avanzar_paso" && !cosa && !m.pasos.some((s) => (s.tipo === "habla_con" || s.tipo === "recibe") && s.pnj === dueño)) is.push({ path: `${at}.accion`, message: `la misión «${m.id}» no tiene ningún paso habla_con ni recibe con «${dueño}»` });
+    if (ac.tipo === "entregar" && !m.pasos.some((s) => s.tipo === "entrega" && s.pnj === dueño)) is.push({ path: `${at}.accion`, message: `la misión «${m.id}» no tiene ningún paso entrega a «${dueño}»` });
+  });
+}
 
 /** Load an adventure from its files. What has problems is left out (and said, with its file and path); the rest loads.
  * U14 (5): `secuencias` (secuencia@1, optional) and `o.modelo`, when the caller can tell whether this server has a .glb
@@ -566,30 +631,22 @@ export function cargarAventura(f: { misiones: Fichero[]; pnj: Fichero[]; cosas: 
           if (!cosas.has(c)) is.push({ path: donde, message: `no hay ninguna cosa «${c}» (hay: ${hay(cosas)})` });
           else if (p.tipo === "entrega" && !m.pasos.slice(0, i).some((q) => (q.tipo === "coge" || q.tipo === "recibe") && q.cosa === c)) is.push({ path: donde, message: `para entregar «${c}» antes hay que tenerla: pon delante un paso coge (la coge) o recibe (alguien se la da) con esa cosa` });
         });
+        if (p.tipo === "usa" && cosas.get(p.cosa)?.dialogo && !avanzaDeCosa(cosas.get(p.cosa)!, m.id)) is.push({ path: `${at}.cosa`, message: `«${p.cosa}» se inspecciona (tiene diálogo) y un paso usa se cumple con una opción {"accion": {"tipo": "avanzar_paso", "mision": "${m.id}"}} de ese diálogo: añádala a algún nodo de cosas/${p.cosa}.json` });
         if (p.tipo === "coge" && p.otorga !== undefined && o.objetos && !o.objetos.has(p.otorga)) is.push({ path: `${at}.otorga`, message: `la aventura no define ningún objeto «${p.otorga}» (hay: ${[...o.objetos].join(", ") || "ninguno"}; van en objetos/<id>.json, formato objeto@1, y tienen que ser válidos)` });
         if (p.secuencia && !secuencias.has(p.secuencia)) is.push({ path: `${at}.secuencia`, message: `no hay ninguna secuencia «${p.secuencia}» (hay: ${hay(secuencias)}; van en secuencias/<id>.json)` });
       });
       if (is.length) { issues.push(...conFichero(`misiones/${m.id}`, is)); misiones.delete(m.id); cae = true; }
     }
+    for (const c of [...cosas.values()]) { // P3: a thing's conversation is checked like a person's, with the actions a thing can have
+      if (!c.dialogo) continue;
+      const is: Issue[] = [];
+      if (pnjs.has(c.id)) is.push({ path: "id", message: `«${c.id}» ya es una persona: la cosa con diálogo y la persona no pueden llamarse igual (hablan por el mismo canal)` });
+      revisaDialogo(c.dialogo, "dialogo", c.id, true, misiones, cosas, is, hay);
+      if (is.length) { issues.push(...conFichero(`cosas/${c.id}`, is)); cosas.delete(c.id); cae = true; }
+    }
     for (const n of [...pnjs.values()]) {
       const is: Issue[] = [];
-      const revisa = (cs: Condicion[], at: string) => cs.forEach((c, i) => {
-        const m = misiones.get(c.mision), p = cs.length > 1 ? `${at}[${i}]` : at;
-        if (!m) { is.push({ path: `${p}.mision`, message: `no hay ninguna misión «${c.mision}» (hay: ${hay(misiones)})` }); return; }
-        if (c.paso && !m.pasos.some((s) => s.id === c.paso)) is.push({ path: `${p}.paso`, message: `la misión «${m.id}» no tiene ningún paso «${c.paso}» (tiene: ${m.pasos.map((s) => s.id).join(", ")})` });
-        if (c.tiene && !cosas.has(c.tiene)) is.push({ path: `${p}.tiene`, message: `no hay ninguna cosa «${c.tiene}»` });
-      });
-      n.dialogo.entradas.forEach((e, i) => revisa(e.si, `dialogo.entradas[${i}].si`));
-      for (const [k, nodo] of Object.entries(n.dialogo.nodos)) nodo.opciones.forEach((op, i) => {
-        const at = `dialogo.nodos.${k}.opciones[${i}]`;
-        revisa(op.si, `${at}.si`);
-        const ac = op.accion;
-        if (!ac || ac.tipo === "despedir") return;
-        const m = misiones.get(ac.mision);
-        if (!m) return void is.push({ path: `${at}.accion.mision`, message: `no hay ninguna misión «${ac.mision}» (hay: ${hay(misiones)})` });
-        if (ac.tipo === "avanzar_paso" && !m.pasos.some((s) => (s.tipo === "habla_con" || s.tipo === "recibe") && s.pnj === n.id)) is.push({ path: `${at}.accion`, message: `la misión «${m.id}» no tiene ningún paso habla_con ni recibe con «${n.id}»` });
-        if (ac.tipo === "entregar" && !m.pasos.some((s) => s.tipo === "entrega" && s.pnj === n.id)) is.push({ path: `${at}.accion`, message: `la misión «${m.id}» no tiene ningún paso entrega a «${n.id}»` });
-      });
+      revisaDialogo(n.dialogo, "dialogo", n.id, false, misiones, cosas, is, hay);
       if (is.length) { issues.push(...conFichero(`pnj/${n.id}`, is)); pnjs.delete(n.id); cae = true; }
     }
     if (!cae) break;

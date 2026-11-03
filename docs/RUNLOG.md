@@ -1917,3 +1917,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Opus 4.5 (sesión de Pablo).
 - Commit: rama `rend/e8-seleccion-umbral`, PR al tren.
 - Siguiente (del mismo perfil, por orden): `encodeSnapshot` 7,7 % (ya un escrito por persona; mirar si el DataView se puede cambiar por escrituras directas en Uint8Array), el barrido (1,7 µs/espectador: la división real `1/(1+d²·0,01)` y las cinco tablas tipadas con comprobación de límites), y las dos poblaciones del Bot (decode/encodeInput, 7 %, solo cuentan en el banco, no en producción). Versión 0.100.0 → 0.100.1 (parche: nada nuevo para quien usa el motor; era 0.99.1 antes de que #295 entrara).
+
+## 2026-11-03 13:40 · P3 cosas que se inspeccionan, misiones sin pistas, aviso «antes», libro al coger · hecho
+- Qué: cuatro piezas del motor para aventuras de formación (R-1, la primera: la escena del crimen de la Guardia Civil). `cosa@1.dialogo`: la cosa se inspecciona («E: inspeccionar la mancha») y abre el mismo panel que una persona; un paso `usa` sobre ella se cumple con su respuesta `avanzar_paso` (las irrelevantes se abren igual y nunca cuentan). Última entrada con `si` (en personas y cosas): fuera de su fase no sale «E» y el servidor rechaza la charla. `mision@1.pistas: false`: sin «!»/«✓», estrella, baliza, flecha ni objetivo más cercano. Paso `antes`: aviso corto, como mucho cada 5 s por paso, si se intenta antes de tiempo. Paso `coge` con `abreLibro: true`: la página abre el libro.
+- Números: `test/misiones-inspeccion.test.ts` nuevo (10 pruebas: formatos, máquina y todo sobre el enchufe real); misiones sube a v9 (estado `dialogo`, `callan` en `marcas`, `pistas` en `mision`, evento `abrirLibro`). Sin los campos nuevos el formato, el estado y los textos no cambian.
+- Consumo: sin medir · Sonnet 5.5.
+- Versión 0.101.0 (0.100.1 en main).
+- Siguiente: la aventura de la escena del crimen sobre estas piezas.
