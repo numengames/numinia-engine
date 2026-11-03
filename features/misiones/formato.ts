@@ -45,9 +45,11 @@ export const LIM = {
   id: 32, titulo: 80, descripcion: 300, textoPaso: 160, lugar: 60, nombre: 60, descripcionCosa: 140, linea: 400, opcion: 100,
   aviso: 40, textoMision: 200, pasos: 16, opciones: 4, nodos: 64, entradas: 16, recompensas: 8, requisitos: 16,
   grupo: 40, cosasEntrega: 8, antes: 80, // P3: a step's `antes` notice
+  lugares: 8, // P2: pnj@1 `posiciones`
   oficio: 40, marcas: 256, // U14 (4): a person's trade (pnj@1 `oficio`); each id list of the `marcas` event (≈ 25 short ids)
 } as const;
 export const MUNDO = 2000; // metres: the furthest a person, a thing or a place can be (the wire's range)
+export const LUGAR_LEJOS_M = 30; // P2: how far from its `posicion` a person may stand (the page hears of it while you are within STATE_RADIUS_M of that)
 export const ALTURA_MAX = 30; // metres: the highest floor a person (pnj@1 posicion.y) or a place to reach (llega_a y) can be on
 
 export type TipoPaso = (typeof TIPOS_PASO)[number];
@@ -105,7 +107,16 @@ export type Dialogo = { entradas: { si: Condicion[]; nodo: string }[]; nodos: Re
 export type Pnj = {
   formato: "pnj@1"; id: string; nombre: string; oficio: string; voz: VozPnj | ""; descripcion: string; apariencia: Apariencia; posicion: { x: number; z: number; y: number }; sinY?: true;
   giro: number; radio: number; dialogo: Dialogo;
+  /** P2: breathes and shifts its weight on the page (false = stands still as before). */
+  reposo: boolean;
+  /** P2: turns its body toward the player who comes within `radio` (false = keeps its `giro`). */
+  mira: boolean;
+  /** P2: where it stands for a player, by that player's quests (the first whose `si` holds); none → `posicion` and `giro`. */
+  posiciones: Lugar[];
 };
+/** One entry of pnj@1 `posiciones`: where the person stands for the player whose quests meet `si` (empty = always), and the yaw it
+ * keeps there (`giro`: absent = the person's own). `sinY` as for `posicion`. */
+export type Lugar = { si: Condicion[]; posicion: { x: number; z: number; y: number }; sinY?: true; giro?: number };
 /** A thing's `posicion.y` (optional, absolute metres: a thing on a table or held up at chest height, reachable
  * with a hand in VR) and `apariencia.color` (optional «#rrggbb»: the house block in a colour, so two things differ).
  * `apariencia.usada` (optional, U14 (6)): how it looks for a player once THEY did the step that uses it (`usa`/`coge`)
@@ -489,14 +500,26 @@ export function leerPnj(v: unknown): Result<Pnj> {
   const is: Issue[] = [];
   const o = objeto(v, "", is);
   if (!o) return resultado(is, null as never);
-  campos(o, ["formato", "id", "nombre", "oficio", "voz", "descripcion", "apariencia", "posicion", "giro", "radio", "dialogo", "notas"], "", is);
+  campos(o, ["formato", "id", "nombre", "oficio", "voz", "descripcion", "apariencia", "posicion", "giro", "radio", "reposo", "mira", "posiciones", "dialogo", "notas"], "", is);
   formato(o, FORMATOS.pnj, is);
   const voz: VozPnj | "" = o.voz === undefined ? "" : VOCES_PNJ.includes(o.voz as VozPnj) ? (o.voz as VozPnj) : (is.push({ path: "voz", message: `una de: ${VOCES_PNJ.join(", ")} (sin «voz», una elegida por su id)` }), "");
   const dialogo = leerDialogo(o.dialogo, "dialogo", is);
+  const base = { ...posicion(o.posicion, "posicion", is, ["y"]), y: altura(o.posicion, is, ALTURA_MAX) };
+  const posiciones = lista(o.posiciones, "posiciones", 1, LIM.lugares, is, true).map((x, i): Lugar => {
+    const p = `posiciones[${i}]`, lo = objeto(x, p, is) ?? {};
+    campos(lo, ["si", "posicion", "giro"], p, is);
+    const pos = { ...posicion(lo.posicion, `${p}.posicion`, is, ["y"]), y: altura(lo.posicion, is, ALTURA_MAX, `${p}.posicion.y`) };
+    if (lo.posicion !== undefined && Math.hypot(pos.x - base.x, pos.z - base.z) > LUGAR_LEJOS_M) is.push({ path: `${p}.posicion`, message: `a ${LUGAR_LEJOS_M} m o menos de su «posicion» (la página sabe de una persona solo mientras estás cerca de ella)` });
+    const out: Lugar = { si: condiciones(lo.si, `${p}.si`, is), posicion: pos, ...sinY(lo.posicion) };
+    if (lo.giro !== undefined) out.giro = numero(lo.giro, `${p}.giro`, -180, 180, is);
+    return out;
+  });
+  posiciones.forEach((l, i) => { if (!l.si.length && i < posiciones.length - 1) is.push({ path: `posiciones[${i}].si`, message: "una entrada sin «si» vale siempre: solo puede ser la última (las de después nunca se verían)" }); });
   return resultado(is, {
     formato: FORMATOS.pnj, id: id(o.id, "id", is), nombre: texto(o.nombre, "nombre", LIM.nombre, is), oficio: texto(o.oficio, "oficio", LIM.oficio, is, true), voz, descripcion: texto(o.descripcion, "descripcion", LIM.descripcionCosa, is, true),
-    apariencia: apariencia(o.apariencia, "apariencia", is), posicion: { ...posicion(o.posicion, "posicion", is, ["y"]), y: altura(o.posicion, is, ALTURA_MAX) }, ...sinY(o.posicion), giro: numero(o.giro, "giro", -180, 180, is, 0),
+    apariencia: apariencia(o.apariencia, "apariencia", is), posicion: base, ...sinY(o.posicion), giro: numero(o.giro, "giro", -180, 180, is, 0),
     radio: numero(o.radio, "radio", 1, 8, is, 3), dialogo,
+    reposo: booleano(o.reposo, "reposo", is), mira: booleano(o.mira, "mira", is), posiciones,
   });
 }
 
@@ -521,9 +544,15 @@ export function leerCosa(v: unknown): Result<Cosa> {
 const sinY = (v: unknown): { sinY?: true } => (typeof v === "object" && v !== null && (v as Record<string, unknown>).y === undefined ? { sinY: true } : {});
 /** `posicion.y` of a person (pnj@1) or a thing (cosa@1): absolute metres, 0–ALTURA_MAX (a hand's height, a
  * table, or the floor of a tower); 0 when absent. Both formats share the cap. */
-function altura(v: unknown, is: Issue[], max = ALTURA_MAX): number {
+function altura(v: unknown, is: Issue[], max = ALTURA_MAX, path = "posicion.y"): number {
   const o = typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
-  return o.y === undefined ? 0 : numero(o.y, "posicion.y", 0, max, is, 0);
+  return o.y === undefined ? 0 : numero(o.y, path, 0, max, is, 0);
+}
+/** An optional switch that is on unless the file says false (P2: pnj@1 `reposo` and `mira`). */
+function booleano(v: unknown, path: string, is: Issue[]): boolean {
+  if (v === undefined) return true;
+  if (typeof v !== "boolean") { is.push({ path, message: "true o false (sin él, true)" }); return true; }
+  return v;
 }
 const COLOR = /^#[0-9a-f]{6}$/i;
 /** cosa@1 `apariencia.color`: «#rrggbb» or nothing (the model's own colours). */
@@ -647,6 +676,13 @@ export function cargarAventura(f: { misiones: Fichero[]; pnj: Fichero[]; cosas: 
     for (const n of [...pnjs.values()]) {
       const is: Issue[] = [];
       revisaDialogo(n.dialogo, "dialogo", n.id, false, misiones, cosas, is, hay);
+      const revisa = (cs: Condicion[], at: string) => cs.forEach((c, i) => {
+        const m = misiones.get(c.mision), p = cs.length > 1 ? `${at}[${i}]` : at;
+        if (!m) { is.push({ path: `${p}.mision`, message: `no hay ninguna misión «${c.mision}» (hay: ${hay(misiones)})` }); return; }
+        if (c.paso && !m.pasos.some((s) => s.id === c.paso)) is.push({ path: `${p}.paso`, message: `la misión «${m.id}» no tiene ningún paso «${c.paso}» (tiene: ${m.pasos.map((s) => s.id).join(", ")})` });
+        if (c.tiene && !cosas.has(c.tiene)) is.push({ path: `${p}.tiene`, message: `no hay ninguna cosa «${c.tiene}»` });
+      });
+      n.posiciones.forEach((l, i) => revisa(l.si, `posiciones[${i}].si`)); // P2: where it stands, by quests
       if (is.length) { issues.push(...conFichero(`pnj/${n.id}`, is)); pnjs.delete(n.id); cae = true; }
     }
     if (!cae) break;

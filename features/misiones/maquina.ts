@@ -6,7 +6,7 @@
 // («!») and the server says «Todavía no» when someone tries.
 import { alAlcanceEnAltura } from "../../packages/feature/src/index.ts";
 import { cosasDe, LIM, shaDeBiblioteca } from "./formato.ts";
-import type { Aventura, Condicion, Dialogo, Mision, Nodo, Opcion, Paso } from "./formato.ts";
+import type { Aventura, Condicion, Dialogo, Lugar, Mision, Nodo, Opcion, Paso, Pnj } from "./formato.ts";
 
 /** An active quest: the index of the step it is on (the first of its block), the things it carries (taken or given,
  * for `entrega`) and the ids of the steps already done inside the current block (`grupo`; empty outside blocks).
@@ -129,6 +129,13 @@ export function cumple(p: Progreso, cs: Condicion[], a: Aventura): boolean {
     if (c.estado === "disponible") return disponible(p, m);
     return !act && !p.hechas.includes(c.mision);
   });
+}
+
+/** P2: where this person stands for this player: the first `posiciones` entry whose conditions hold, or null (= its own `posicion` and
+ * `giro`, which is all a person without `posiciones` ever has). Pure: a function of the player's progress alone. */
+export function lugarDe(n: Pnj, p: Progreso, a: Aventura): Lugar | null {
+  for (const l of n.posiciones) if (cumple(p, l.si, a)) return l;
+  return null;
 }
 
 /** The node a person (or, P3, a thing) opens with for this player: the first entrada whose conditions hold. The last one
@@ -280,9 +287,9 @@ export function seguir(p: Progreso, id: string): boolean {
 }
 
 /** Where a step points, for the map, the beacon and the HUD: a place, a person or a thing (and its id). */
-export function objetivo(s: Paso, a: Aventura): { x: number; z: number; nombre: string; que: string } {
+export function objetivo(s: Paso, a: Aventura, p?: Progreso): { x: number; z: number; nombre: string; que: string } {
   if (s.tipo === "llega_a") return { x: s.x, z: s.z, nombre: s.lugar, que: "" };
-  if (s.tipo === "habla_con" || s.tipo === "recibe" || s.tipo === "entrega") { const n = a.pnjs.get(s.pnj); return { x: n?.posicion.x ?? 0, z: n?.posicion.z ?? 0, nombre: n?.nombre ?? s.pnj, que: s.pnj }; }
+  if (s.tipo === "habla_con" || s.tipo === "recibe" || s.tipo === "entrega") { const n = a.pnjs.get(s.pnj), l = n && p && n.posiciones.length ? lugarDe(n, p, a) : null; return { x: l?.posicion.x ?? n?.posicion.x ?? 0, z: l?.posicion.z ?? n?.posicion.z ?? 0, nombre: n?.nombre ?? s.pnj, que: s.pnj }; } // P2: where THIS player finds the person
   if (s.tipo === "hace") return { x: 0, z: 0, nombre: "", que: "" }; // T1: no place to point at (the page's `senala` is the arrow's target)
   const c = a.cosas.get(s.cosa);
   return { x: c?.posicion.x ?? 0, z: c?.posicion.z ?? 0, nombre: c?.nombre ?? s.cosa, que: s.cosa };
