@@ -108,6 +108,8 @@ export type { Calidad, Nivel } from "./calidad.ts";
 import { decidirLOD } from "./lod-politica.ts";
 import { personaEn, type Proyectada } from "./gente-politica.ts";
 import { REACCION_MS, reaccionDe } from "./reaccion.ts"; // lote 5: the hop of a clicked thing
+import { GIRO_HACIA_S, GIRO_VUELTA_S, LEJOS_REPOSO_M, caminaPaso, envuelve, esClipReposo, faseDe, giraHacia, noto, nuevoReposo, reposoDe, rumboHacia, vaACaminar } from "./vida.ts"; // P2: people who live
+import type { Fase, Giro, Reposo, Vida } from "./vida.ts";
 export { decidirLOD, LOD_LEJOS_M, LOD_HISTERESIS_M } from "./lod-politica.ts";
 export type { EstadoLOD } from "./lod-politica.ts";
 
@@ -127,7 +129,9 @@ export type Thing = { model: string; x: number; y: number; z: number; rx: number
   /** N22 (optional): part of the room (pinned or backdrop), downloaded first (carga-orden.ts). */
   sala?: boolean;
   /** MIS-222 t_e41c0a12 (optional): the builder pinned it (fijado): it never moves, so its parts are merged by material with the other pinned things (fijados.ts). */
-  fijo?: boolean };
+  fijo?: boolean;
+  /** P2 (optional): a person who lives on this page: breathes, turns toward you, walks when put elsewhere (vida.ts). */
+  vida?: Vida };
 /** J10: where a thing you carry goes: a hand in XR («izq»/«der»), or beside you on a flat screen («yo»). */
 export type Llevar = "izq" | "der" | "yo";
 /** J10: the biggest side of a thing held in a hand (m). */
@@ -570,7 +574,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // the nearest first, never more than LOADS_AT_ONCE downloads at a time ----
   type Gltf = { scene: THREE.Object3D; animations: THREE.AnimationClip[] };
   type Pieza = { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean; sinSombra?: boolean };
-  type Slot = { group: THREE.Group; want: Thing; model: string; loaded: boolean; failed: boolean; mixer?: THREE.AnimationMixer; medio?: Medio; color?: string; horneado?: boolean;
+  /** P2: what a living person carries between frames (all written in place: no allocation per frame). `ca`: how far its drawn place still is from `want` (it is walking); `clip`: the model's own idle clip plays instead of the procedural one. */
+  type EstadoVida = { fase: Fase; giro: Giro; rep: Reposo; ca: { dx: number; dz: number }; clip: boolean; anda: boolean };
+  type Slot = { vida?: EstadoVida; group: THREE.Group; want: Thing; model: string; loaded: boolean; failed: boolean; mixer?: THREE.AnimationMixer; medio?: Medio; color?: string; horneado?: boolean;
     /** N12: the baked parts (copies of one model share them: a lote draws them), and a sphere round the group's origin that holds the model (m, before scale). */
     partes?: Parte[]; radio?: number;
     /** J14: a baked figure's two LODs (cerca = its baked parts, lejos = one piece) */
@@ -791,6 +797,52 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     s.group.scale.set(w.sx, w.sy, w.sz);
     if (!s.medio && s.want.kind !== "sonido" && s.want.kind !== "video") s.group.visible = !w.hidden || verOcultos; // D-041: a hidden model is not drawn while playing (medios.ts does it for sound and video)
   }
+  // ---- P2: people who live. The group is moved on top of where `want` puts it (as reaccion.ts does), so the state, the ranges and the
+  // names never see it: breathing and a weight shift (vida.ts), the body turned toward the player who comes near, a short walk when the
+  // world puts the person somewhere else for you. Nothing here allocates per frame; farther than LEJOS_REPOSO_M (or behind the camera)
+  // the idle stands still. ----
+  const nuevaVida = (t: Thing): EstadoVida => ({ fase: faseDe(t.vida!.id), giro: { yaw: t.ry, vel: 0 }, rep: nuevoReposo(), ca: { dx: 0, dz: 0 }, clip: false, anda: false });
+  /** A thing was (re)placed: keep, start or end its life; a changed place is walked when it asks to and the move is short. */
+  function vivirPlace(s: Slot, antes: Thing, t: Thing): void {
+    if (!t.vida) { if (s.vida) { s.vida = undefined; placeGroup(s); } return; }
+    const v = (s.vida ??= nuevaVida(t));
+    const mx = antes.x - t.x, mz = antes.z - t.z;
+    if (mx === 0 && mz === 0 && antes.y === t.y) return;
+    if (t.vida.camina && s.loaded && vaACaminar(Math.hypot(v.ca.dx + mx, v.ca.dz + mz))) { v.ca.dx += mx; v.ca.dz += mz; }
+    else { v.ca.dx = 0; v.ca.dz = 0; v.giro.yaw = t.ry; v.giro.vel = 0; } // moved without walking (a sequence, a builder): it is simply there
+  }
+  const camFwd = new THREE.Vector3();
+  let vivosCerca = false;
+  /** Is this thing in front of the camera (or are we in XR, where the head moves freely: then yes)? A cheap stand-in for «on screen». */
+  const vivosDelante = (s: Slot): boolean => renderer.xr.isPresenting || !selfXZ || ((s.want.x - camera.position.x) * camFwd.x + (s.want.z - camera.position.z) * camFwd.z > -3 * Math.max(0.5, s.radio ?? 1));
+  /** One living person for one frame. `hop`: its clicked hop is running (reaccion.ts owns its height and scale this frame). */
+  function vivir(k: string, s: Slot, dt: number, ahora: number, d2: number, delante: boolean): void {
+    const v = s.vida!, w = s.want, vd = w.vida!;
+    if (llevados.has(k) || editor.retiene(k, w) || s.failed) return;
+    const anda = v.ca.dx !== 0 || v.ca.dz !== 0;
+    const nota = !!selfXZ && noto(d2, vd.mira, vd.atiende);
+    const cerca = d2 <= LEJOS_REPOSO_M * LEJOS_REPOSO_M && delante;
+    // where the body points: toward where it is walking, else toward you if you are near (or it is talking to you), else its own yaw
+    let objetivo = w.ry, suave = GIRO_VUELTA_S;
+    if (anda) { objetivo = Math.atan2(-v.ca.dx, -v.ca.dz) * 57.29577951308232; suave = GIRO_HACIA_S; }
+    else if (nota && selfXZ) { objetivo = rumboHacia(w.x, w.z, selfXZ.x, selfXZ.z, w.ry); suave = GIRO_HACIA_S; }
+    const girando = Math.abs(envuelve(v.giro.yaw - objetivo)) > 0.05 || Math.abs(v.giro.vel) > 0.05;
+    const respira = vd.reposo && !v.clip && cerca;
+    if (!anda && !v.anda && !girando && !respira) return;
+    if (girando || anda) giraHacia(v.giro, objetivo, suave, dt);
+    if (anda) caminaPaso(v.ca, dt);
+    const caminaba = v.anda; v.anda = anda;
+    const r = v.rep;
+    if (respira) reposoDe(v.fase, ahora / 1000, r); else { r.alto = 1; r.ancho = 1; r.inclina = 0; r.giro = 0; }
+    const g = s.group;
+    g.rotation.set(w.rx * RAD, (v.giro.yaw + r.giro) * RAD, (w.rz + r.inclina) * RAD, "YXZ");
+    if (!reacciones.has(k)) {
+      g.position.set(w.x + v.ca.dx, w.y + (anda ? 0.015 * Math.abs(Math.sin(ahora * 0.008)) : 0), w.z + v.ca.dz); // a little bounce in the step
+      g.scale.set(w.sx * r.ancho, w.sy * r.alto, w.sz * r.ancho);
+    }
+    if (anda || girando || respira) vivosCerca = true;
+    if (caminaba && !anda) g.position.set(w.x, w.y, w.z);
+  }
   // N22: the room first (pinned/backdrop things: the hall you stand in), then the nearest; what is far (LEJOS_M) waits
   // until nothing near is still downloading, so it never takes the phone's bandwidth from what you see (carga-orden.ts)
   let cercaCargando = 0, pumpPedido = false;
@@ -825,9 +877,11 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       file.then(({ g, clone, merge }) => {
         const now = things.get(best);
         if (!now || now.model !== model || (now.loaded && !now.mejorando) || now.preparando || now.nivel !== nivel) return; // removed or changed while it downloaded
-        const quieto = !now.want.animate ? hornear(clave, g.scene, merge) : null;
+        const clipVida = now.want.vida?.reposo ? g.animations.find((a) => esClipReposo(a.name)) : undefined; // P2: the model has an idle of its own: play that one
+        const anima = now.want.animate || !!clipVida;
+        const quieto = !anima ? hornear(clave, g.scene, merge) : null;
         let copy: THREE.Object3D;
-        const fu = !quieto && now.want.animate ? fundido(model, g, clone) : null;
+        const fu = !quieto && anima ? fundido(model, g, clone) : null;
         const qu = !quieto && !fu ? quietoDe(clave, g.scene, g.animations) : null;
         // J14: a thing painted a custom colour keeps its baked parts (pintar() cannot tint a merged,
         // vertex-coloured piece); anything else gets both LODs and starts at whichever distance picks.
@@ -855,11 +909,15 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
           // J14's LODs are set only now: actualizarLOD() must not show the copy before its shaders are ready
           if (quieto) { now.piezaCerca = quieto; now.piezaLejos = pieza ?? undefined; now.lod = lod; }
           now.horneado = !!quieto; now.partes = partes;
-          now.radio = radioDe(copy) * (now.want.animate ? 1.5 : 1); // an animation may reach out of its rest pose
+          now.radio = radioDe(copy) * (anima ? 1.5 : 1); // an animation may reach out of its rest pose
           if (now.mejorando) { now.group.clear(); now.mejorando = false; } // H13: the whole model replaces the level it was showing, in the same frame
-          if (!now.want.animate) congelarMatrices(copy); // a still model never recomposes its node matrices again (congelar.ts: measured in tools/medir-recorrido.mjs)
+          if (!anima) congelarMatrices(copy); // a still model never recomposes its node matrices again (congelar.ts: measured in tools/medir-recorrido.mjs)
           now.group.add(copy);
-          if (now.want.animate && g.animations.length) { now.mixer = new THREE.AnimationMixer(copy); now.mixer.clipAction((fu ? fu.clips : g.animations)[0]).play(); }
+          if (anima && g.animations.length) {
+            const clips = fu ? fu.clips : g.animations;
+            now.mixer = new THREE.AnimationMixer(copy); now.mixer.clipAction((clipVida && clips.find((c) => c.name === clipVida.name)) || clips[0]).play();
+            if (clipVida && !now.want.animate && now.vida) now.vida.clip = true;
+          }
           now.loaded = true; now.color = undefined; pintar(now);
           if (llevados.has(best) && now.group.parent !== world) { const d = llevados.get(best)!; soltarLlevado(best); llevados.set(best, d); } // re-fit in the hand
         });
@@ -905,7 +963,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     if (hay) pumpPronto();
   }
   function updateThings(dt: number): void {
-    animatingNear = false; mediosSonando = false;
+    animatingNear = false; mediosSonando = false; vivosCerca = false;
+    camera.getWorldDirection(camFwd);
     ajustarImagenes();
     if (reacciones.size) { // lote 5: a clicked thing hops on top of where its state puts it, and goes back exactly there when it ends
       const t = performance.now();
@@ -931,6 +990,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       if (s.nivel && s.loaded && !s.mejorando && debeMejorar(selfXZ ? Math.sqrt(distance2(s)) : null, s.nivel)) { s.mejorando = true; s.nivel = undefined; waiting.add(k); pumpPronto(); } // H13: you came near: load the whole model
       if (s.medio) { s.medio.actualizar(s.group, oido, { hidden: !!s.want.hidden, volume: s.want.volume ?? 1, reach: s.want.reach ?? "burbuja", radius: s.want.radius ?? 8, ...(s.want.bus ? { bus: s.want.bus } : {}) }); if (s.want.kind === "video" && s.medio.sonando()) mediosSonando = true; }
       if (s.horneado) actualizarLOD(s); // J14: far baked figures drop to one piece (one draw call)
+      if (s.vida && s.loaded) vivir(k, s, dt, performance.now(), distance2(s), vivosDelante(s));
       if (!s.mixer) continue;
       if (distance2(s) <= r2) { s.mixer.update(dt); animatingNear = true; }
     }
@@ -1460,12 +1520,14 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       if (!s) {
         const group = new THREE.Group(); group.name = `objeto:${key}`; world.add(group);
         const ns: Slot = { group, want: t, model: fichero(t), loaded: false, failed: false };
+        if (t.vida) ns.vida = nuevaVida(t);
         things.set(key, ns); placeGroup(ns); waiting.add(key); pumpPronto(); return;
       }
-      s.want = t; if (!editor.retiene(key, t) && !llevados.has(key)) placeGroup(s);
+      const antes = s.want; s.want = t; if (!editor.retiene(key, t) && !llevados.has(key)) placeGroup(s);
+      vivirPlace(s, antes, t);
       pintar(s);
-      if (s.model !== fichero(t) || (s.horneado && t.animate)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.partes = undefined; s.radio = undefined; s.horneado = false; s.piezaCerca = undefined; s.piezaLejos = undefined; s.lod = undefined; s.preparando = undefined; s.nivel = undefined; s.mejorando = false; s.sinNivel = false; s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpPronto(); } // a baked copy cannot move: load it whole
-      else if (!t.animate && s.mixer) { s.mixer.stopAllAction(); s.mixer = undefined; }
+      if (s.model !== fichero(t) || (s.horneado && t.animate)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.partes = undefined; s.radio = undefined; s.horneado = false; s.piezaCerca = undefined; s.piezaLejos = undefined; s.lod = undefined; if (s.vida) s.vida.clip = false; s.preparando = undefined; s.nivel = undefined; s.mejorando = false; s.sinNivel = false; s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpPronto(); } // a baked copy cannot move: load it whole
+      else if (!t.animate && s.mixer && !s.vida?.clip) { s.mixer.stopAllAction(); s.mixer = undefined; }
     },
     /** Lote 5: the little hop of a clicked thing (reaccion.ts) for each key given; the keys not placed are ignored. Local: nothing is sent. */
     reaccionar(keys: readonly string[]): number { const t = performance.now(); let n = 0; for (const k of keys) if (things.has(k) && !k.startsWith("~")) { reacciones.set(k, t); n++; } return n; },
@@ -1473,6 +1535,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     dibujadoDe(key: string): { x: number; y: number; z: number; sx: number; sy: number } | null { const g = things.get(key)?.group; return g ? { x: g.position.x, y: g.position.y, z: g.position.z, sx: g.scale.x, sy: g.scale.y } : null; },
     /** For checks: the things hopping right now. */
     reaccionando(): string[] { return [...reacciones.keys()]; },
+    /** For checks (P2): how a living person is drawn right now — its yaw (degrees), the idle's scale and lean, and how far it still has to walk. */
+    vivoDe(key: string): { yaw: number; alto: number; inclina: number; camina: number; clip: boolean } | null { const v = things.get(key)?.vida; return v ? { yaw: v.giro.yaw, alto: v.rep.alto, inclina: v.rep.inclina, camina: Math.hypot(v.ca.dx, v.ca.dz), clip: v.clip } : null; },
     /** H1: things placed, how many have their model drawn, and how many failed to load (for checks). `~` keys = the page's previews, not counted. */
     objects(): { placed: number; loaded: number; failed: number } {
       let placed = 0, loaded = 0, failed = 0;
@@ -1605,7 +1669,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
     /** MIS-200 (t_9687b5fc): the world still loads models or shaders: the entry buttons wait (the same gate as the VR entry, not busy()). */
     cargando(): boolean { return loading > 0 || precompilar.pendientes() > 0; },
-    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || reacciones.size > 0 || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || ojosIA.busy() || orbesIA.busy() || burbujas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || dados3d.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ); },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || vivosCerca || reacciones.size > 0 || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || ojosIA.busy() || orbesIA.busy() || burbujas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || dados3d.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); power.paron(2); }, // B4: the next frames pay the resize
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */

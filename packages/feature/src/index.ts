@@ -1044,7 +1044,15 @@ export type PlacedObject = { model: string; x: number; y: number; z: number; rx:
   /** N22 (optional): part of the room (pinned or backdrop: the hall you stand in), downloaded before anything else. */
   sala?: boolean;
   /** t_e41c0a12: pinned (fijado) — the renderer may merge it with the other pinned things by material. */
-  fijo?: boolean };
+  fijo?: boolean;
+  /** P2 (optional): a person who lives — see `Vida`. Local to this page; nothing is sent. */
+  vida?: Vida };
+/** P2: how a placed person is alive on this page (the render does the frames; the feature only says what it wants). `id` seeds its
+ * own phase (never in sync with the next); `reposo`: breathes and shifts its weight (or plays the model's idle clip); `mira`: turns its
+ * body toward you when you are within this many metres (0 = never; the yaw it was placed with is where it goes back to); `atiende`:
+ * keeps facing you whatever the distance (a conversation is open); `camina`: if this placement moves it a short way (≤ 10 m), it walks
+ * there at ≤ 1.4 m/s instead of popping. */
+export type Vida = { id: string; reposo: boolean; mira: number; atiende?: boolean; camina?: boolean };
 export const NO_VIEW: ViewHooks = { label() {}, bounce() {} };
 /** An event as a person hears and reads it (V1). `at` in metres; `who` = the entity it is about. */
 export type Announcement = { feature: string; event: string; text: string; sound: Sound; importance: Importance; at?: { x: number; z: number }; who?: number };
@@ -1071,6 +1079,9 @@ export type ClientApi = {
   action(a: Omit<Action, "feature">): void;
   self(): number;
   readonly view: ViewHooks;
+  /** P2: where THIS player finds one of your state's entries (a person who stands elsewhere for them): `reachable()`, `cards()` and the
+   * map use it instead of the entry's own x, z (and y, when given) until you pass `null`. The state itself is shared and stays as it was. */
+  lugar(key: string, p: { x: number; z: number; y?: number } | null): void;
 };
 export type ClientPart = { feature: Feature; side: "client"; setup: (api: ClientApi) => void };
 export const clientPart = (feature: Feature, setup: (api: ClientApi) => void): ClientPart => ({ feature, side: "client", setup });
@@ -1092,6 +1103,7 @@ export class ClientRuntime {
   /** U10: every shared-state entry of every feature, as [key, value] (keys prefixed by the feature id). */
   *allState(): Generator<[string, Msg]> { for (const [f, t] of this.mirror) for (const [k, v] of t) yield [`${f}:${k}`, v]; }
   private readonly acts: Action[] = [];
+  private readonly lugares = new Map<string, { x: number; z: number; y?: number }>(); // P2: `<feature>:<key>` → where this player finds it
   private byIndex: CatalogEntry[] = [];
   private readonly taps: ((feature: string, event: string, msg: Msg) => void)[] = [];
 
@@ -1127,11 +1139,19 @@ export class ClientRuntime {
       }),
       action: (a) => { this.acts.push({ ...a, feature: id }); },
       self: () => host.self(),
+      lugar: (key, p) => this.ponerLugar(id, key, p),
       get view() { return host.view ?? NO_VIEW; }, // read on each use: the page may attach its view later
     };
   }
 
   actions(): readonly Action[] { return this.acts; }
+
+  private ponerLugar(feature: string, key: string, p: { x: number; z: number; y?: number } | null): void {
+    const k = `${feature}:${key}`, antes = this.lugares.get(k);
+    if (!p ? !antes : antes && antes.x === p.x && antes.z === p.z && antes.y === p.y) return;
+    if (p) this.lugares.set(k, { x: p.x, z: p.z, ...(p.y === undefined ? {} : { y: p.y }) }); else this.lugares.delete(k);
+    this.stateVersion++; // the map's cards are rebuilt
+  }
 
   /** P4: hear every event of every feature the server runs, without a client part (agents read the catalog, not code). */
   tap(fn: (feature: string, event: string, msg: Msg) => void): void { this.taps.push(fn); }
@@ -1148,7 +1168,8 @@ export class ClientRuntime {
         if (!name) continue; // H1: no name = decorative (like alt=""): not listed for screen readers nor agents
         const card: CardView = { feature: f.id, key, role: c.role, name, importance: c.importance ?? 1, actions: c.actions ?? [] };
         if (c.description) card.description = fillTemplate(c.description, vals);
-        if (c.at) card.at = { x: Number(v[c.at[0]]), z: Number(v[c.at[1]]) };
+        const L = this.lugares.size ? this.lugares.get(`${f.id}:${key}`) : undefined; // P2
+        if (c.at) card.at = L ? { x: L.x, z: L.z } : { x: Number(v[c.at[0]]), z: Number(v[c.at[1]]) };
         out.push(card);
       }
     }
@@ -1167,8 +1188,9 @@ export class ClientRuntime {
       if (!c || !it || !c.at) continue;
       for (const [key, v] of this.mirror.get(f.id) ?? []) {
         const r = typeof it.radius === "number" ? it.radius : Number(v[it.radius]);
-        const d = Math.hypot(Number(v[c.at[0]]) - x, Number(v[c.at[1]]) - z);
-        if (!(r > 0 && d <= r) || (y !== undefined && !alAlcanceEnAltura(y, v.y))) continue; // J4: a thing whose radius field is 0 is not offered (e.g. carried)
+        const L = this.lugares.size ? this.lugares.get(`${f.id}:${key}`) : undefined; // P2: where THIS player finds it
+        const d = L ? Math.hypot(L.x - x, L.z - z) : Math.hypot(Number(v[c.at[0]]) - x, Number(v[c.at[1]]) - z);
+        if (!(r > 0 && d <= r) || (y !== undefined && !alAlcanceEnAltura(y, L?.y ?? v.y))) continue; // J4: a thing whose radius field is 0 is not offered (e.g. carried)
         const vals = { key, ...v };
         out.push({ feature: f.id, key, intent: it.intent, prompt: fillTemplate(it.prompt, vals), name: fillTemplate(c.name, vals).trim(), distance: d, ...(it.hold ? { hold: it.hold } : {}) });
       }

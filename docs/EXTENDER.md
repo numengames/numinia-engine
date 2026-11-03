@@ -705,6 +705,31 @@ paso. La insignia queda en su ficha (I) y en su libro.
   siempre la misma, pero puede no pegarle; dila si importa. Las tomas son CC0 (`features/sonido/catalogo.json`,
   `pnj-saludo-<voz>` y `pnj-despedida-<voz>`); una voz nueva entra por la biblioteca de sonido y por `VOCES_PNJ`
   (`features/misiones/formato.ts`).
+- **Personas vivas (P2)** — una persona no es una estatua; se nota en tu página, sin que escribas nada:
+  - **Reposo.** Respira (hasta un 1,5 % más alta, cada 3,5–5 s) y cambia el peso de pie (hasta 2° de lado, cada 6–9 s),
+    cada una con su propio compás sacado de su `id` (nunca van a la vez). Si su modelo trae una animación que se llame
+    `idle`, `reposo` o `respira`, suena esa en vez del movimiento de la casa. Más lejos de 25 m, o a tu espalda, se queda
+    quieta. `"reposo": false` la deja quieta del todo.
+  - **Se vuelve hacia ti.** Cuando estás a menos de su `radio` + 1 m, el cuerpo gira hacia ti en medio segundo con un giro
+    suave (solo el cuerpo; la cámara no se toca, ni en gafas) y mientras hablas con ella te sigue mirando; al alejarte
+    vuelve a su `giro` en un segundo. `"mira": false` la deja mirando siempre a su `giro`.
+  - **Sitio por fase.** `posiciones` (1–8) dice dónde está **para quien cumple cada `si`** (la misma gramática que
+    `dialogo.entradas[].si`: una condición o una lista); vale la primera que se cumple *para ese jugador*, y si ninguna,
+    su `posicion` y su `giro`. `giro` es opcional (sin él, el de la persona); `posicion.y`, como arriba. Una entrada sin
+    `si` vale siempre: solo puede ser la última. Cada `posicion` a 30 m o menos de la de la persona (la página solo sabe
+    de ella cerca). El servidor decide y se lo dice a cada jugador por su canal (evento `sitio`, solo a él y a sus
+    pestañas, al entrar y cuando cambia): dos jugadores en fases distintas ven a la misma persona en sitios distintos, «E:
+    hablar con…», el alcance del servidor, el mapa y la baliza usan **el sitio de ese jugador**, y la marca «!» la lleva
+    sobre su cabeza allí. Si cambia de sitio mientras la miras, **camina** hasta él a 1,4 m/s (hasta 10 m; si es más lejos
+    o no la tenías delante, aparece ya allí). Un mundo sin `posiciones` no manda ningún `sitio`.
+  ```json
+  { "formato": "pnj@1", "id": "sanitario", "nombre": "Sanitario", "posicion": { "x": 4, "z": 6 }, "giro": 180, "radio": 3,
+    "posiciones": [
+      { "si": { "mision": "inspeccion", "estado": "hecha" }, "posicion": { "x": 12, "z": 6 }, "giro": -90 },
+      { "si": { "mision": "inspeccion", "estado": "activa", "paso": "datos" }, "posicion": { "x": 8, "z": 4 } } ],
+    "reposo": true, "mira": true, "dialogo": { "entradas": [{ "nodo": "hola" }], "nodos": { "hola": { "texto": "Aquí estoy.", "opciones": [{ "texto": "Adiós.", "accion": { "tipo": "despedir" } }] } } } }
+  ```
+  Una página que no conozca `sitio` ve a la persona en su `posicion` de siempre (el estado compartido no cambia).
 
 **Marcas sobre las personas y las cosas («!» y «✓», U14 (4))** — las decide el servidor para cada jugador, con su
 progreso, y le llegan **solo a él** (a todas sus pestañas) tras cada libro (evento `marcas`). La aventura no escribe

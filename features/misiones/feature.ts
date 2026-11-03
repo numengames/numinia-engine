@@ -20,12 +20,12 @@ const GIRO = { kind: "fixed", min: -180, max: 180, step: 0.1, default: 0 } as co
 
 export const pnj = defineFeature({
   id: "pnj",
-  version: 4, // v4: the state gains `voz` (how a person sounds when you start and stop talking; "" = from its id); v3: the state gains `oficio` (a person's trade, a smaller line under the name); v2: `y` (the height a person stands at)
+  version: 5, // v5 (P2): the state gains `reposo` and `mira` (a person breathes / turns toward you; on unless the file says false) and the event `sitio` brings where THIS player finds a person who has `posiciones`; v4: the state gains `voz` (how a person sounds when you start and stop talking; "" = from its id); v3: the state gains `oficio` (a person's trade, a smaller line under the name); v2: `y` (the height a person stands at)
   level: "base",
   describe: "Personas del mundo que no son jugadores (PNJ). Se les habla de cerca y contestan con un diálogo de opciones, igual para todos y decidido por el servidor, que cambia según tus misiones. Las escribe la aventura (pnj@1).",
   state: {
-    describe: "Una entrada por persona (clave = su id): nombre, su oficio (vacío = ninguno; va bajo el nombre), su voz (una de VOCES_PNJ; vacío = la que salga de su id), dónde está (y = altura sobre el suelo, m: su planta), hacia dónde mira (grados), a qué distancia se le habla (m, y a menos de 2,5 m de altura) y su modelo (sha256 de un .glb; vacío = el robot de la casa).",
-    fields: { nombre: { kind: "text", maxBytes: LIM.nombre }, descripcion: DESCRIPCION, x: X, z: X, giro: { kind: "fixed", min: -180, max: 180, step: 0.1, default: 0 }, radio: { kind: "fixed", min: 0.5, max: 16, step: 0.1, default: 3 }, modelo: MODELO, escala: ESCALA, y: { kind: "fixed", min: 0, max: ALTURA_MAX, step: 0.01, default: 0 }, oficio: { kind: "text", maxBytes: LIM.oficio, default: "" }, voz: { kind: "text", maxBytes: 16, default: "" } },
+    describe: "Una entrada por persona (clave = su id): nombre, su oficio (vacío = ninguno; va bajo el nombre), su voz (una de VOCES_PNJ; vacío = la que salga de su id), dónde está (y = altura sobre el suelo, m: su planta), hacia dónde mira (grados), a qué distancia se le habla (m, y a menos de 2,5 m de altura) y su modelo (sha256 de un .glb; vacío = el robot de la casa), si respira y cambia el peso (reposo) y si se vuelve hacia quien se acerca (mira); los dos, sí salvo que el fichero diga que no.",
+    fields: { nombre: { kind: "text", maxBytes: LIM.nombre }, descripcion: DESCRIPCION, x: X, z: X, giro: { kind: "fixed", min: -180, max: 180, step: 0.1, default: 0 }, radio: { kind: "fixed", min: 0.5, max: 16, step: 0.1, default: 3 }, modelo: MODELO, escala: ESCALA, y: { kind: "fixed", min: 0, max: ALTURA_MAX, step: 0.01, default: 0 }, oficio: { kind: "text", maxBytes: LIM.oficio, default: "" }, voz: { kind: "text", maxBytes: 16, default: "" }, reposo: { kind: "bool", default: true }, mira: { kind: "bool", default: true } },
     card: { role: "persona", name: "{nombre}", description: "{descripcion}", at: ["x", "z"], actions: ["hablar"], interact: { intent: "hablar", prompt: "hablar con {nombre}", radius: "radio", key: "pnj" } },
   },
   intents: {
@@ -38,6 +38,11 @@ export const pnj = defineFeature({
       describe: "Lo que dice la persona y las respuestas que puedes elegir (o1…o4; vacía = no hay). Solo a quien habla.",
       fields: { pnj: ID, nombre: { kind: "text", maxBytes: LIM.nombre }, texto: { kind: "text", maxBytes: LIM.linea }, o1: { kind: "text", maxBytes: LIM.opcion, default: "" }, o2: { kind: "text", maxBytes: LIM.opcion, default: "" }, o3: { kind: "text", maxBytes: LIM.opcion, default: "" }, o4: { kind: "text", maxBytes: LIM.opcion, default: "" } },
       announce: { text: "{nombre}: {texto}", sound: "suave", importance: 1 },
+    },
+    sitio: {
+      describe: "Dónde encuentras tú a una persona que tiene `posiciones` (pnj@1): según tus misiones puede estar en otro sitio que para los demás. Solo te llega a ti, al entrar y cuando cambia; sustituye a su x, z, y y giro del estado. Una persona sin `posiciones` nunca lo manda.",
+      fields: { pnj: ID, x: X, z: X, y: { kind: "fixed", min: 0, max: ALTURA_MAX, step: 0.01, default: 0 }, giro: GIRO },
+      announce: "silent",
     },
     fin: { describe: "La conversación terminó (te despediste o te alejaste).", fields: { pnj: ID, nombre: { kind: "text", maxBytes: LIM.nombre } }, announce: { text: "Fin de la conversación con {nombre}.", sound: "suave", importance: 0 } },
     rechazado: { describe: "No se pudo hablar o elegir, y por qué.", fields: { motivo: MOTIVO }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
