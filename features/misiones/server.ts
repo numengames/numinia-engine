@@ -6,10 +6,10 @@ import { adoptarClaves, alAlcanceEnAltura, INTERACT_SLACK_M, serverPart } from "
 import type { ServerApi, ServerPart } from "../../packages/feature/src/index.ts";
 import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
 import { ACCIONES_PAGINA, cargarAventura, corta, LIM } from "./formato.ts";
-import type { Accion, Aventura, Fichero, Mision, Opcion, Paso, Pnj } from "./formato.ts";
+import type { Accion, Aventura, Cosa, Dialogo, Fichero, Mision, Opcion, Paso, Pnj } from "./formato.ts";
 import { leerCatalogo } from "../inventario/objeto.ts"; // Y3: the objeto@1 a `coge` step may hand over
 import type { ObjetoAventura } from "../inventario/objeto.ts";
-import { abandonar, aceptar, asentar, enTexto, esperaLlegada, HECHAS_MAX, leerProgreso, marcas, lugarDe, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
+import { abandonar, aceptar, asentar, bloqueados, callan, cogePendiente, enTexto, esperaLlegada, HECHAS_MAX, leerProgreso, marcas, lugarDe, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
 import type { Hecho, Progreso } from "./maquina.ts";
 import { esperando, faltaEspera, pendiente, proximaEspera } from "./maquina.ts"; // U14 (5): steps that wait
 import type { Suceso } from "./maquina.ts";
@@ -21,6 +21,10 @@ import { claveConcesion, concesion } from "./concesion.ts"; // U14 (6): the rewa
 export const LLEGADA_CADA = 4;
 /** A conversation ends when the player walks this many metres beyond the person's radius. */
 export const ALEJARSE_M = 4;
+/** P3: the same notice of a step's `antes` is sent to a player at most once in this many ms. */
+export const ANTES_CADA_MS = 5000;
+/** P3: who can hold a conversation — a person, or a quest thing that carries a `dialogo` (inspecting it opens the same panel). */
+type Hablante = Pnj | (Cosa & { dialogo: Dialogo });
 /** Completed quests sent in the book (the newest); all of them stay saved. */
 export const LIBRO_HECHAS = 20;
 
@@ -50,6 +54,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   const abiertos = new Map<number, { pnj: string; vistas: Opcion[] }>(); // open conversations
   const llegadas = new Set<number>();                 // players whose current step somewhere is llega_a
   const esperas = new Map<number, number>();          // U14 (5): connection -> when its next wait ends (ms): then its book again, once
+  const avisosAntes = new Map<number, Map<string, number>>(); // P3: connection -> «<quest>:<step>» -> when its `antes` notice was last sent (ms)
   const ahora = () => (o.reloj ? o.reloj() : Date.now());
 
   let objetos = new Map<string, ObjetoAventura>();      // Y3: the adventure's valid objeto@1 (a `coge` step may hand one over)
@@ -105,6 +110,21 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     const s = Math.max(1, Math.ceil(w.faltaMs / 1000)), texto = A.misiones.get(w.mision)?.pasos[w.paso]?.texto ?? "";
     return corta(`Todavía no: ${s === 1 ? "falta 1 s" : `faltan ${s} s`} para «${texto}».`, 160);
   };
+  /** P3: «Recoja antes el cuaderno…» — tried a step that is still locked behind an earlier one and that has an `antes`: tell
+   * this connection (the aviso event), at most once every ANTES_CADA_MS per step. True when it was sent now. */
+  const avisarAntes = (e: number, ws: { mision: string; paso: number; antes: string }[]): boolean => {
+    const t = ahora();
+    let por = avisosAntes.get(e);
+    for (const w of ws) {
+      const k = `${w.mision}:${w.paso}`, ultimo = por?.get(k);
+      if (ultimo !== undefined && t - ultimo < ANTES_CADA_MS) continue;
+      if (!por) avisosAntes.set(e, (por = new Map()));
+      por.set(k, t);
+      M?.emit("aviso", { texto: corta(w.antes, 160) }, { to: e });
+      return true;
+    }
+    return false;
+  };
   /** U14 (5): the steps just done that name a sequence send it to this player's pages alone — once: a page that comes
    * back later never sees it again. Each sequence is turned into its events once. */
   const cifradas = new Map<string, ReturnType<typeof eventosDe>>();
@@ -134,9 +154,10 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   // grupo, and `hecho` is true for what is already done in the block); `espera` = the seconds a step to do still waits
   const enviarMision = (to: number, p: Progreso, m: Mision, t: number) => {
     const act = p.activas[m.id], hecha = !act, ahora = hecha ? m.pasos.length : Math.min(primerPendiente(m, act), m.pasos.length - 1);
-    M!.emit("mision", { id: m.id, titulo: m.titulo, descripcion: m.descripcion, estado: hecha ? "hecha" : "activa", paso: ahora, pasos: m.pasos.length, seguida: p.seguida === m.id, recompensa: recompensa(m) }, { to });
+    const señala = m.pistas !== false; // P3: a quest with pistas:false sends its steps without a place (nothing to point at, nothing to read off the wire)
+    M!.emit("mision", { id: m.id, titulo: m.titulo, descripcion: m.descripcion, estado: hecha ? "hecha" : "activa", paso: ahora, pasos: m.pasos.length, seguida: p.seguida === m.id, recompensa: recompensa(m), pistas: señala }, { to });
     m.pasos.forEach((s, n) => {
-      const ob = objetivo(s, A, p), espera = !hecha && pendiente(m, act, n) ? Math.ceil(faltaEspera(m, act, n, t) / 1000) : 0;
+      const ob = señala ? objetivo(s, A, p) : { ...objetivo(s, A, p), x: 0, z: 0, nombre: "" }, espera = !hecha && pendiente(m, act, n) ? Math.ceil(faltaEspera(m, act, n, t) / 1000) : 0;
       M!.emit("paso", { mision: m.id, n, texto: s.texto, tipo: s.tipo, hecho: hecha || pasoHecho(m, act, n), x: ob.x, z: ob.z, donde: corta(ob.nombre, LIM.lugar), que: ob.que, grupo: s.grupo ?? "", espera, accion: s.tipo === "hace" ? s.accion : "", senala: s.senala ?? "" }, { to });
     });
   };
@@ -146,7 +167,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     const activas = Object.keys(p.activas).map((id) => A.misiones.get(id)).filter((m): m is Mision => !!m);
     const hechas = p.hechas.map((id) => A.misiones.get(id)).filter((m): m is Mision => !!m).slice(-LIBRO_HECHAS);
     const mk = marcas(p, A, t), lim = LIM.marcas; // U14 (4): «!» / «✓» over people and things, for this player only (U14 (5): not on a step that still waits)
-    const marcasMsg = { tiene: enTexto(mk.tiene, lim), hecho: enTexto(mk.hecho, lim), cosas: enTexto(mk.cosas, lim) };
+    const marcasMsg = { tiene: enTexto(mk.tiene, lim), hecho: enTexto(mk.hecho, lim), cosas: enTexto(mk.cosas, lim), callan: enTexto(callan(p, A), lim) };
     for (const x of solo ? [e] : suyos(e)) {
       M.emit("libro", { activas: activas.length, hechas: hechas.length }, { to: x });
       for (const m of [...activas, ...hechas]) enviarMision(x, p, m, t);
@@ -187,9 +208,11 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
    * says what you got («Has recibido: …»). */
   const tras = (e: number, p: Progreso, hechos: Hecho[]) => {
     guardar(e, p);
+    let abrirLibro = false; // P3: a `coge` step with abreLibro was done
     for (const h of hechos) {
       const m = A.misiones.get(h.mision)!, s = m.pasos[h.paso];
       const texto = s.tipo === "recibe" ? corta(`Has recibido: ${A.cosas.get(s.cosa)?.nombre ?? s.cosa}`, LIM.textoPaso) : s.texto;
+      if (s.tipo === "coge" && s.abreLibro) abrirLibro = true;
       otorgarPaso(e, s); // Y3: the thing you picked up brings its weapon or relic (before «completada»: it is in the Reserva when the page says it)
       M!.hecho("aventura.paso", { aventura: m.id, paso: String(h.paso) }); // MIS-248: the world's book, no person
       if (h.completada) { M!.hecho("aventura.terminada", { aventura: m.id, resultado: "completada" }); conceder(e, m); } // before anyone hears «completada»: the record exists when the page says it
@@ -200,6 +223,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       if (h.completada) otorgar(e, m);
     }
     enviarLibro(e);
+    if (abrirLibro) for (const x of suyos(e)) M!.emit("abrirLibro", {}, { to: x }); // P3: after the book, so the page opens it whole
     revisarLlegadas(e);
     revisarEsperas(e); // U14 (5): a new block may start a wait
     reproducir(e, hechos); // U14 (5): a step that names a sequence plays it for this player
@@ -219,25 +243,34 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   const rechazarM = (e: number, motivo: string) => { M?.emit("rechazado", { motivo: corta(motivo, 160) }, { to: e }); };
 
   // ---- conversations: one open per connection, with the options it was shown ----
-  const decir = (e: number, n: Pnj, nodo: string): string => {
+  const hablante = (id: string): Hablante | undefined => A.pnjs.get(id) ?? (A.cosas.get(id)?.dialogo ? (A.cosas.get(id) as Hablante) : undefined);
+  const esPersona = (n: Hablante): n is Pnj => A.pnjs.get(n.id) === n;
+  /** In reach of this speaker: a person through the pnj feature, a thing through the misiones one (each owns its entities). */
+  const alAlcance = (e: number, n: Hablante): boolean => esPersona(n) ? !!P && cerca(P, e, n) : M?.within(e, n.id) === true; // P2: a person where THIS player finds it
+  const decir = (e: number, n: Hablante, nodo: string): string => {
     const texto = n.dialogo.nodos[nodo].texto;
+    if (!esPersona(n)) return texto; // a thing's lines are never phrased by anyone else
     try { return corta(o.frasear?.({ pnj: n.id, nodo, texto, jugador: M?.who(e)?.nombre ?? "" }) || texto, LIM.linea); } catch { return texto; } // the written line is the fallback
   };
-  const abrir = (e: number, n: Pnj, nodo: string) => {
+  const abrir = (e: number, n: Hablante, nodo: string) => {
     const vistas = opcionesDe(n.dialogo.nodos[nodo], prog(e), A);
     abiertos.set(e, { pnj: n.id, vistas });
     P?.emit("dialogo", { pnj: n.id, nombre: n.nombre, texto: decir(e, n, nodo), o1: vistas[0]?.texto ?? "", o2: vistas[1]?.texto ?? "", o3: vistas[2]?.texto ?? "", o4: vistas[3]?.texto ?? "" }, { to: e });
   };
-  const cerrar = (e: number, n: Pnj) => { abiertos.delete(e); P?.emit("fin", { pnj: n.id, nombre: n.nombre }, { to: e }); };
-  const hacer = (e: number, n: Pnj, ac: Exclude<Accion, { tipo: "despedir" }>): { ok: true } | { ok: false; motivo: string } => {
+  const cerrar = (e: number, n: Hablante) => { abiertos.delete(e); P?.emit("fin", { pnj: n.id, nombre: n.nombre }, { to: e }); };
+  const hacer = (e: number, n: Hablante, ac: Exclude<Accion, { tipo: "despedir" }>): { ok: true } | { ok: false; motivo: string } => {
     const m = A.misiones.get(ac.mision);
     if (!m) return { ok: false, motivo: "Esa misión ya no existe." };
     const p = prog(e);
     if (ac.tipo === "dar_mision") return tomar(e, p, m);
-    const x: Suceso = ac.tipo === "avanzar_paso" ? { tipo: "avanzar", pnj: n.id, mision: m.id, ahora: ahora() } : { tipo: "entregar", pnj: n.id, mision: m.id, ahora: ahora() };
+    const x: Suceso = !esPersona(n) ? { tipo: "usa", cosa: n.id, mision: m.id, ahora: ahora() } // P3: a thing's option counts the `usa` step that names it
+      : ac.tipo === "avanzar_paso" ? { tipo: "avanzar", pnj: n.id, mision: m.id, ahora: ahora() } : { tipo: "entregar", pnj: n.id, mision: m.id, ahora: ahora() };
     asentarYa(e, p, true);
     const h = registrar(p, A, x);
-    if (!h.length) { const w = esperando(p, A, x); return { ok: false, motivo: w ? todaviaNo(w) : ac.tipo === "avanzar_paso" ? "Eso ahora no toca." : `No llevas lo que ${n.nombre} espera.` }; }
+    if (!h.length) {
+      const w = esperando(p, A, x), antes = bloqueados(p, A, x)[0];
+      return { ok: false, motivo: w ? todaviaNo(w) : antes ? antes.antes : ac.tipo === "avanzar_paso" ? "Eso ahora no toca." : `No llevas lo que ${n.nombre} espera.` }; // P3: a locked step says its `antes`
+    }
     tras(e, p, h);
     return { ok: true };
   };
@@ -259,15 +292,17 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       if (!cerca(api, e, n)) return rechazarP(e, `Acércate a ${n.nombre} para hablar.`);
       const p = prog(e), x: Suceso = { tipo: "habla", pnj: n.id, ahora: ahora() };
       asentarYa(e, p, true); // a finished grupo moves on before this talk (its dialogue reads the next block)
+      const nodo = nodoInicial(n, p, A);
+      if (nodo === null) return rechazarP(e, `${n.nombre} no tiene nada que decirle ahora.`); // P3: outside its phase it says nothing, and talking to it counts for nothing
       const h = registrar(p, A, x); // steps that complete just by talking
       if (h.length) tras(e, p, h);
-      else { const w = esperando(p, A, x); if (w) M?.emit("aviso", { texto: todaviaNo(w) }, { to: e }); } // U14 (5): it still waits
-      abrir(e, n, nodoInicial(n, p, A));
+      else { const w = esperando(p, A, x); if (w) M?.emit("aviso", { texto: todaviaNo(w) }, { to: e }); else avisarAntes(e, bloqueados(p, A, x)); } // U14 (5): it still waits; P3: or it comes later
+      abrir(e, n, nodoInicial(n, p, A) ?? nodo); // what it says may have changed with the step just done
     });
     api.on("elegir", (e, msg) => {
-      const d = abiertos.get(e), n = A.pnjs.get(String(msg.pnj));
+      const d = abiertos.get(e), n = hablante(String(msg.pnj));
       if (!d || !n || d.pnj !== n.id) return rechazarP(e, "No estás hablando con esa persona.");
-      if (!cerca(api, e, n)) { cerrar(e, n); return rechazarP(e, `Te has alejado de ${n.nombre}.`); }
+      if (!alAlcance(e, n)) { cerrar(e, n); return rechazarP(e, `Te has alejado de ${n.nombre}.`); }
       const op = d.vistas[Number(msg.opcion) - 1];
       if (!op) return rechazarP(e, "Esa respuesta no está.");
       if (op.accion && op.accion.tipo !== "despedir") {
@@ -286,7 +321,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     cargar(api);
     const ponerCosas = (suelo: ReturnType<typeof sueloDe>) => {
       for (const c of A.cosas.values()) {
-        api.state.set(c.id, { nombre: c.nombre, descripcion: c.descripcion, x: c.posicion.x, z: c.posicion.z, radio: c.radio, aviso: c.aviso, modelo: c.apariencia.modelo, escala: c.apariencia.escala, y: sobreSuelo(suelo, c), color: c.apariencia.color, modeloUsada: c.apariencia.usada?.modelo ?? "", escalaUsada: c.apariencia.usada?.escala ?? c.apariencia.escala }, { at: { x: c.posicion.x, z: c.posicion.z } }); // U14 (6): the used look travels with it; each page picks by its own book
+        api.state.set(c.id, { nombre: c.nombre, descripcion: c.descripcion, x: c.posicion.x, z: c.posicion.z, radio: c.radio, aviso: c.aviso, modelo: c.apariencia.modelo, escala: c.apariencia.escala, y: sobreSuelo(suelo, c), color: c.apariencia.color, modeloUsada: c.apariencia.usada?.modelo ?? "", escalaUsada: c.apariencia.usada?.escala ?? c.apariencia.escala, dialogo: !!c.dialogo }, { at: { x: c.posicion.x, z: c.posicion.z } }); // U14 (6): the used look travels with it; each page picks by its own book
       }
     };
     let claveC = sueloAhora(api).clave;
@@ -306,7 +341,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     });
     api.onLeave((e) => {
       const k = claveDe.get(e);
-      claveDe.delete(e); llegadas.delete(e); esperas.delete(e); enviadoSitio.delete(e);
+      claveDe.delete(e); llegadas.delete(e); esperas.delete(e); avisosAntes.delete(e); enviadoSitio.delete(e);
       if (k && ![...claveDe.values()].includes(k)) progresos.delete(k); // saved in the store already
     });
     // T1: step `hace`. Nothing here runs per tick: a builder's action reaches us as an event another piece already emits
@@ -398,8 +433,19 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       if (!api.within(e, c.id)) return rechazarM(e, `Acércate más a ${c.nombre}.`);
       const p = prog(e), x: Suceso = { tipo: "usa", cosa: c.id, ahora: ahora() };
       asentarYa(e, p, true);
+      if (c.dialogo && !cogePendiente(p, A, c.id)) { // P3: inspecting — a thing with a conversation opens it (picking it up, when a coge step asks, stays as it was)
+        const nodo = nodoInicial({ dialogo: c.dialogo }, p, A);
+        if (nodo === null) return rechazarM(e, `Ahora no hay nada que inspeccionar en ${c.nombre}.`);
+        return abrir(e, A.cosas.get(c.id) as Hablante, nodo);
+      }
       const h = registrar(p, A, x);
-      if (!h.length) { const w = esperando(p, A, x); return rechazarM(e, w ? todaviaNo(w) : `Ahora no te hace falta ${c.nombre}.`); } // U14 (5): too early
+      if (!h.length) { // U14 (5): too early; P3: or it comes after an earlier step (its `antes`, once in a while)
+        const w = esperando(p, A, x);
+        if (w) return rechazarM(e, todaviaNo(w));
+        const antes = bloqueados(p, A, x);
+        if (antes.length) { avisarAntes(e, antes); return; }
+        return rechazarM(e, `Ahora no te hace falta ${c.nombre}.`);
+      }
       tras(e, p, h);
     });
     // cheap per tick: only players on a llega_a step, each one every LLEGADA_CADA ticks; open conversations likewise;
@@ -409,8 +455,10 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
         if ((e + t) % LLEGADA_CADA !== 0) continue;
         const pos = api.position(e);
         if (!pos) continue;
-        const p = prog(e), h = registrar(p, A, { tipo: "llega", x: pos.x, z: pos.z, y: pos.y, ahora: ahora() }); // y: a llega_a with a height asks for the right floor
+        const llega: Suceso = { tipo: "llega", x: pos.x, z: pos.z, y: pos.y, ahora: ahora() }; // y: a llega_a with a height asks for the right floor
+        const p = prog(e), h = registrar(p, A, llega);
         if (h.length) tras(e, p, h);
+        else avisarAntes(e, bloqueados(p, A, llega)); // P3: standing where a later step wants you, too early
       }
       if (esperas.size && t % LLEGADA_CADA === 0) {
         const ya = ahora();
@@ -423,7 +471,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       }
       for (const [e, d] of abiertos) {
         if ((e + t) % LLEGADA_CADA !== 0) continue;
-        const n = A.pnjs.get(d.pnj), pos = api.position(e), st = n ? (n.posiciones.length ? sitioPara(sueloAhora(api), n, prog(e)) : n.posicion) : null; // P2: where this player finds it
+        const n = hablante(d.pnj), pos = api.position(e), st = n ? (esPersona(n) && n.posiciones.length ? sitioPara(sueloAhora(api), n, prog(e)) : n.posicion) : null; // P2: where this player finds it
         if (n && st && pos && (pos.x - st.x) ** 2 + (pos.z - st.z) ** 2 <= (n.radio + ALEJARSE_M) ** 2) continue;
         if (n) cerrar(e, n); else abiertos.delete(e);
       }

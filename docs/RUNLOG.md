@@ -1932,3 +1932,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5.
 - Commit: rama `feat/pnj-alive`, PR #298.
 - Siguiente: fotos y mundo de prueba (Sargento girándose; Sanitario en el salón y en la cocina), puertas y build.
+
+## 2026-11-03 13:40 · P3 cosas que se inspeccionan, misiones sin pistas, aviso «antes», libro al coger · hecho
+- Qué: cuatro piezas del motor para aventuras de formación (R-1, la primera: la escena del crimen de la Guardia Civil). `cosa@1.dialogo`: la cosa se inspecciona («E: inspeccionar la mancha») y abre el mismo panel que una persona; un paso `usa` sobre ella se cumple con su respuesta `avanzar_paso` (las irrelevantes se abren igual y nunca cuentan). Última entrada con `si` (en personas y cosas): fuera de su fase no sale «E» y el servidor rechaza la charla. `mision@1.pistas: false`: sin «!»/«✓», estrella, baliza, flecha ni objetivo más cercano. Paso `antes`: aviso corto, como mucho cada 5 s por paso, si se intenta antes de tiempo. Paso `coge` con `abreLibro: true`: la página abre el libro.
+- Números: `test/misiones-inspeccion.test.ts` nuevo (10 pruebas: formatos, máquina y todo sobre el enchufe real); misiones sube a v9 (estado `dialogo`, `callan` en `marcas`, `pistas` en `mision`, evento `abrirLibro`). Sin los campos nuevos el formato, el estado y los textos no cambian.
+- Consumo: sin medir · Sonnet 5.5.
+- Versión 0.104.0 (tras la fusión con main y con P2, #298). Commit: rama `feat/adventure-inspect`, PR #299.
+- Siguiente: la aventura de la escena del crimen sobre estas piezas.

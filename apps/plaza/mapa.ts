@@ -213,7 +213,7 @@ export function montarMapa(h: HostMapa) {
   });
   // misiones (another branch): `objetivos()` → [{ mision, paso, nombre, x, z }]; absent = no objectives
   fuentes.set("misiones", () => {
-    const o = h.otros().misiones?.objetivos?.();
+    const o = (h.otros().misiones?.senalados ?? h.otros().misiones?.objetivos)?.(); // P3: a quest with pistas:false is not on the map
     if (!Array.isArray(o)) return [];
     return o.map((m: { mision?: unknown; paso?: unknown; nombre?: unknown; x?: unknown; z?: unknown }) => ({ id: `m:${String(m.mision)}:${String(m.paso)}`, tipo: "objetivo", nombre: String(m.nombre ?? "Objetivo"), x: Number(m.x), z: Number(m.z), detalle: `Misión: ${String(m.mision ?? "")}` }));
   });

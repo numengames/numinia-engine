@@ -50,7 +50,8 @@ export const etiquetaCosa = (v: Msg): { text: string; mark: Marca; x: number; y:
 /** `espera` (U14 (5)): the seconds this step still waited when the book came (0 = it may be done); `listoEn` = when it
  * opens on this page's clock (ms; 0 = no wait). The server sends the book again when it opens. */
 export type PasoVista = { n: number; texto: string; tipo: string; hecho: boolean; x: number; z: number; donde: string; que: string; grupo: string; espera: number; listoEn: number; accion: string; senala: string };
-export type MisionVista = { id: string; titulo: string; descripcion: string; estado: "activa" | "hecha"; paso: number; pasos: number; seguida: boolean; recompensa: string; lista: PasoVista[] };
+/** `pistas` (P3): false = this quest points at nothing (no place on the map, no beacon, no arrow, no nearest target in the top line). */
+export type MisionVista = { id: string; titulo: string; descripcion: string; estado: "activa" | "hecha"; paso: number; pasos: number; seguida: boolean; recompensa: string; lista: PasoVista[]; pistas?: false };
 export type Objetivo = { mision: string; paso: number; nombre: string; texto: string; x: number; z: number; seguida: boolean };
 export type Dialogo = { pnj: string; nombre: string; oficio: string; texto: string; opciones: string[] };
 type Res = { ok: true } | { ok: false; why: string };
@@ -144,7 +145,8 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
   // U14 (4): the marks the server decided for THIS player. `marcas` is a new frozen object only when they change (a map
   // can tell by identity); a label is drawn again only for whoever's mark changed, and a quest thing has one only while
   // it is marked
-  let marcas: Readonly<Marcas> = Object.freeze({ tiene: [], hecho: [], cosas: [] }), marcasFirma = "||";
+  let marcas: Readonly<Marcas> = Object.freeze({ tiene: [], hecho: [], cosas: [] }), marcasFirma = "|||";
+  let callan: ReadonlySet<string> = new Set(); // P3: people and things whose conversation has nothing to say to you now (no «E»)
   let marcaP = new Map<string, Marca>(), marcaC = new Set<string>();
   const conRotulo = new Set<string>(); // the quest things that have a label now
   const marcaDe = (feature: string, key: string): Marca => (feature === "pnj" ? marcaP.get(key) ?? "" : feature === "misiones" && marcaC.has(key) ? "!" : "");
@@ -155,10 +157,11 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     else if (conRotulo.delete(key)) M?.view.tag?.(`misiones:${key}`, null);
   };
   const recibirMarcas = (m: Msg) => {
-    const firma = `${String(m.tiene ?? "")}|${String(m.hecho ?? "")}|${String(m.cosas ?? "")}`;
+    const firma = `${String(m.tiene ?? "")}|${String(m.hecho ?? "")}|${String(m.cosas ?? "")}|${String(m.callan ?? "")}`;
     if (firma === marcasFirma) return; // the same as before (every book brings them): nothing to draw
     const ids = (s: unknown) => String(s ?? "").split(",").filter(Boolean);
     marcasFirma = firma;
+    callan = new Set(String(m.callan ?? "").split(",").filter(Boolean));
     marcas = Object.freeze({ tiene: ids(m.tiene), hecho: ids(m.hecho), cosas: ids(m.cosas) });
     const antesP = marcaP, antesC = marcaC;
     marcaP = new Map([...marcas.hecho.map((k) => [k, "✓"] as const), ...marcas.tiene.map((k) => [k, "!"] as const)]); // «!» wins
@@ -191,6 +194,9 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     libro: (): MisionVista[] => [...libro.values()],
     /** Where each active quest's steps to do now point — every one of its current block (for the map: mapa reads this). */
     objetivos: (): Objetivo[] => [...libro.values()].flatMap((m) => ahoraDe(m).filter((s) => s.tipo !== "hace").map((s) => ({ mision: m.id, paso: s.n, nombre: s.donde, texto: s.texto, x: s.x, z: s.z, seguida: m.seguida }))),
+    /** P3: the objectives that point at something: those of the quests that do not say `pistas: false` (the map, the beacon and the
+     * top line read this; the book keeps `objetivos()` to tell the step to do now from the locked ones). */
+    senalados: (): Objetivo[] => misiones.objetivos().filter((o) => libro.get(o.mision)?.pistas !== false),
     /** For the player sheet: how many, the badges, and what is being followed (with its grupo's counter, if any). */
     resumen: () => {
       const todas = [...libro.values()], seg = todas.find((m) => m.seguida && m.estado === "activa"), s = seg && actual(seg), b = seg ? bloqueDe(seg) : [];
@@ -221,11 +227,15 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
       return M?.send("hace", { accion }) ?? sin("la página aún no ha arrancado");
     },
     /** T1: the id of the page button the arrow should point at for the step to do now of the followed quest (or the first active one with `senala`); "" = none. */
-    senala: (): string => { const todas = [...libro.values()].sort((a, b) => Number(b.seguida) - Number(a.seguida)); for (const m of todas) for (const s of ahoraDe(m)) if (s.senala) return s.senala; return ""; },
+    senala: (): string => { const todas = [...libro.values()].filter((m) => m.pistas !== false).sort((a, b) => Number(b.seguida) - Number(a.seguida)); for (const m of todas) for (const s of ahoraDe(m)) if (s.senala) return s.senala; return ""; },
     usar: (cosa: string): Res => M?.send("usar", { cosa }) ?? sin("la página aún no ha arrancado"),
     /** Whether the page should offer «E: …» for a thing: quest things only while a step to do now needs them (U14 (5):
      * also while that step still waits — trying it says how long is left). */
-    ofrece: (feature: string, key: string): boolean => feature !== "misiones" || [...libro.values()].some((m) => porHacer(m).some((s) => s.que === key && (s.tipo === "coge" || s.tipo === "usa"))),
+    ofrece: (feature: string, key: string): boolean => feature === "pnj" ? !callan.has(key) // P3: a person with nothing to say to you now offers no «E»
+      : feature !== "misiones" || (M?.state.get(key)?.dialogo === true && !callan.has(key)) // P3: a thing you inspect, whenever its conversation has something for you
+        || [...libro.values()].some((m) => porHacer(m).some((s) => s.que === key && (s.tipo === "coge" || s.tipo === "usa"))),
+    /** P3: whether a person's or a thing's conversation has nothing to say to you now (the server decides; `marcas.callan`). */
+    callaDe: (key: string): boolean => callan.has(key),
     /** U14 (5): the sequence playing now (id, second, length, the people it moves, the extra models shown, its last line,
      * how many wait behind it), or null. */
     secuencia: (): SecuenciaVista | null => rep?.ahora() ?? null,
@@ -296,7 +306,7 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     a.on("libro", (m) => { libro.clear(); esperadas = Number(m.activas) + Number(m.hechas); llegadas = 0; avisar("libro"); revisarUsadas(); });
     a.on("mision", (m) => {
       llegadas++;
-      libro.set(String(m.id), { id: String(m.id), titulo: String(m.titulo), descripcion: String(m.descripcion), estado: m.estado === "hecha" ? "hecha" : "activa", paso: Number(m.paso), pasos: Number(m.pasos), seguida: m.seguida === true, recompensa: String(m.recompensa ?? ""), lista: [] });
+      libro.set(String(m.id), { id: String(m.id), titulo: String(m.titulo), descripcion: String(m.descripcion), estado: m.estado === "hecha" ? "hecha" : "activa", paso: Number(m.paso), pasos: Number(m.pasos), seguida: m.seguida === true, recompensa: String(m.recompensa ?? ""), lista: [], ...(m.pistas === false ? { pistas: false as const } : {}) });
       avisar("libro");
     });
     a.on("paso", (m) => {

@@ -6,7 +6,7 @@
 // («!») and the server says «Todavía no» when someone tries.
 import { alAlcanceEnAltura } from "../../packages/feature/src/index.ts";
 import { cosasDe, LIM, shaDeBiblioteca } from "./formato.ts";
-import type { Aventura, Condicion, Lugar, Mision, Nodo, Opcion, Paso, Pnj } from "./formato.ts";
+import type { Aventura, Condicion, Dialogo, Lugar, Mision, Nodo, Opcion, Paso, Pnj } from "./formato.ts";
 
 /** An active quest: the index of the step it is on (the first of its block), the things it carries (taken or given,
  * for `entrega`) and the ids of the steps already done inside the current block (`grupo`; empty outside blocks).
@@ -138,8 +138,30 @@ export function lugarDe(n: Pnj, p: Progreso, a: Aventura): Lugar | null {
   return null;
 }
 
-/** The node a person opens with for this player: the first entrada whose conditions hold (the last has none). */
-export const nodoInicial = (n: Pnj, p: Progreso, a: Aventura): string => (n.dialogo.entradas.find((e) => cumple(p, e.si, a)) ?? n.dialogo.entradas[n.dialogo.entradas.length - 1]).nodo;
+/** The node a person (or, P3, a thing) opens with for this player: the first entrada whose conditions hold. The last one
+ * usually has none (what is said when nothing else applies); when it has some and none holds, there is nothing to say
+ * now and the answer is null: no «E» is offered and the server refuses the talk. */
+export function nodoInicial(n: { dialogo: Dialogo }, p: Progreso, a: Aventura): string | null {
+  const es = n.dialogo.entradas, e = es.find((x) => cumple(p, x.si, a));
+  if (e) return e.nodo;
+  const ultima = es[es.length - 1];
+  return ultima.si.length ? null : ultima.nodo;
+}
+/** P3: the ids of the people and things with a conversation that have nothing to say to this player now (the marks event
+ * carries them as `callan`; the page offers no «E» for them). */
+export function callan(p: Progreso, a: Aventura): string[] {
+  const out: string[] = [];
+  for (const n of a.pnjs.values()) if (nodoInicial(n, p, a) === null) out.push(n.id);
+  for (const c of a.cosas.values()) if (c.dialogo && nodoInicial({ dialogo: c.dialogo }, p, a) === null) out.push(c.id);
+  return out;
+}
+/** P3: is a `coge` step on this thing to do now (so «E» on it picks it up, as always, instead of opening its conversation)? */
+export function cogePendiente(p: Progreso, a: Aventura, cosa: string): boolean {
+  return Object.entries(p.activas).some(([id, act]) => {
+    const m = a.misiones.get(id);
+    return !!m && m.pasos.some((s, n) => s.tipo === "coge" && s.cosa === cosa && pendiente(m, act, n));
+  });
+}
 
 /** The options this player sees in a node (in order; those whose conditions fail are hidden). */
 export const opcionesDe = (nodo: Nodo, p: Progreso, a: Aventura): Opcion[] => nodo.opciones.filter((o) => cumple(p, o.si, a)).slice(0, 4);
@@ -151,7 +173,7 @@ export type Suceso = (
   | { tipo: "habla"; pnj: string }                           // it started talking to this person
   | { tipo: "avanzar"; pnj: string; mision: string }         // it chose an option avanzar_paso
   | { tipo: "entregar"; pnj: string; mision: string }        // it chose an option entregar
-  | { tipo: "usa"; cosa: string }                            // it took or used this thing
+  | { tipo: "usa"; cosa: string; mision?: string }          // it took or used this thing; P3: `mision` = it chose an avanzar_paso option of that thing's conversation
   | { tipo: "hace"; accion: string; modelo?: string; disparador?: string } // T1: the builder did this (modelo = the sha256 of the placed object's model; disparador = the cable's id)
 ) & { ahora?: number };
 /** A step completed: which quest, which step (index) and whether that finished the quest. */
@@ -160,7 +182,11 @@ export type Hecho = { mision: string; paso: number; completada: boolean };
 function cumplePaso(s: Paso, act: Activa, m: Mision, a: Aventura, x: Suceso): boolean {
   // llega_a: inside the circle and, when the step names a height, standing at it (± ALCANCE_ALTURA_M: a floor below does not count)
   if (s.tipo === "llega_a") return x.tipo === "llega" && (x.x - s.x) ** 2 + (x.z - s.z) ** 2 <= s.radio ** 2 && alAlcanceEnAltura(x.y, s.y);
-  if (s.tipo === "usa" || s.tipo === "coge") return x.tipo === "usa" && x.cosa === s.cosa;
+  if (s.tipo === "usa" || s.tipo === "coge") {
+    // P3: a `usa` on a thing that holds a conversation is done only by choosing its avanzar_paso option (inspecting alone never counts)
+    const conversa = s.tipo === "usa" && !!a.cosas.get(s.cosa)?.dialogo;
+    return x.tipo === "usa" && x.cosa === s.cosa && (conversa ? x.mision === m.id : x.mision === undefined);
+  }
   // hace: the action asked for; with `modelo` only an object of that model (coloca), with `disparador` only that cable
   if (s.tipo === "hace") return x.tipo === "hace" && x.accion === s.accion && (!s.modelo || x.modelo === shaDeBiblioteca(s.modelo)) && (!s.disparador || x.disparador === s.disparador);
   if (!("pnj" in s) || (x.tipo !== "habla" && x.tipo !== "avanzar" && x.tipo !== "entregar")) return false; // the rest are said to a person
@@ -272,8 +298,27 @@ export function objetivo(s: Paso, a: Aventura, p?: Progreso): { x: number; z: nu
 /** True when some active quest has a «llega_a» step to do now (the server checks those players' positions). */
 export const esperaLlegada = (p: Progreso, a: Aventura): boolean => Object.entries(p.activas).some(([id, act]) => {
   const m = a.misiones.get(id);
-  return !!m && m.pasos.some((s, n) => s.tipo === "llega_a" && pendiente(m, act, n));
+  // P3: a later `llega_a` that carries an `antes` notice is watched too (arriving early says why it is not time)
+  return !!m && m.pasos.some((s, n) => s.tipo === "llega_a" && (pendiente(m, act, n) || (s.antes !== undefined && n >= act.paso && !act.hechos.includes(s.id))));
 });
+
+/** P3: the steps this event would complete if they were not still locked behind an earlier block (a step with `antes`
+ * after the current block, not done): what the server answers with that step's `antes` notice. A `entrega` counts without
+ * the things in hand (the player has not got them yet: that is why it is early). */
+export function bloqueados(p: Progreso, a: Aventura, x: Suceso): { mision: string; paso: number; antes: string }[] {
+  const out: { mision: string; paso: number; antes: string }[] = [];
+  for (const [id, act] of Object.entries(p.activas)) {
+    const m = a.misiones.get(id);
+    if (!m) continue;
+    for (let n = finBloque(m, act.paso); n < m.pasos.length; n++) {
+      const s = m.pasos[n];
+      if (s.antes === undefined) continue;
+      const llevando: Activa = { ...act, tiene: [...act.tiene, ...(s.tipo === "entrega" ? cosasDe(s) : [])] };
+      if (cumplePaso(s, llevando, m, a, x)) out.push({ mision: id, paso: n, antes: s.antes });
+    }
+  }
+  return out;
+}
 
 // ---------- marks (U14 (4)): what each person and quest thing means to THIS player — the labels and the maps draw it ----------
 /** `tiene`: people with «!» — they offer you a quest you may take now, or a step of yours to do now (in the current
@@ -291,7 +336,7 @@ export function marcas(p: Progreso, a: Aventura, ahora?: number): Marcas {
   const dieron = (id: string) => { for (const d of a.dadores.get(id) ?? []) vistos.add(d); }; // the givers of a quest you have or had
   for (const [id, act] of Object.entries(p.activas)) {
     const m = a.misiones.get(id);
-    if (!m) continue;
+    if (!m || m.pistas === false) continue; // P3: a quest that does not point leaves no mark of its own
     m.pasos.forEach((s, n) => {
       if ("pnj" in s) (pasoHecho(m, act, n) ? vistos : espera).add(s.pnj);
       if (!pendiente(m, act, n) || faltaEspera(m, act, n, ahora) > 0) return;
@@ -302,11 +347,11 @@ export function marcas(p: Progreso, a: Aventura, ahora?: number): Marcas {
   }
   for (const id of [...p.hechas].reverse()) {
     const m = a.misiones.get(id);
-    if (!m) continue;
+    if (!m || m.pistas === false) continue;
     for (const s of m.pasos) if ("pnj" in s) vistos.add(s.pnj);
     dieron(id);
   }
-  for (const m of a.misiones.values()) if (disponible(p, m)) for (const d of a.dadores.get(m.id) ?? []) tiene.add(d);
+  for (const m of a.misiones.values()) if (m.pistas !== false && disponible(p, m)) for (const d of a.dadores.get(m.id) ?? []) tiene.add(d);
   return { tiene: [...tiene], hecho: [...vistos].filter((x) => !tiene.has(x) && !espera.has(x)), cosas: [...cosas] };
 }
 /** An id list as the wire carries it: comma-separated, cut before the id that would pass `max` bytes (ids are ASCII). */

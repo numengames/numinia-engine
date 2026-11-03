@@ -537,8 +537,20 @@ el servidor lo ve:
 | `habla_con` | `pnj` | elige en el diálogo de esa persona una respuesta `avanzar_paso` de esta misión; si su árbol no tiene ninguna, basta con hablarle |
 | `recibe` | `pnj`, `cosa` | como `habla_con`; esa persona te da la cosa, que queda «llevada» para una `entrega` |
 | `usa` | `cosa` | usa la cosa a su alcance (E) |
-| `coge` | `cosa`; opcional `otorga` (el id de un `objeto@1` de `objetos/`) | la coge a su alcance (E); queda «llevada» para una `entrega`; con `otorga`, en ese momento pasa a tu Reserva el arma o la reliquia que la aventura definió (una vez; si el `objeto@1` no existe o es inválido, la misión no carga y el diagnóstico dice el fichero y el campo `pasos[n].otorga`) |
+| `coge` | `cosa`; opcional `otorga` (el id de un `objeto@1` de `objetos/`) y `abreLibro: true` (P3: al completarse este paso, la página de quien la cogió abre el libro de misiones, p. ej. al coger el cuaderno de investigación) | la coge a su alcance (E); queda «llevada» para una `entrega`; con `otorga`, en ese momento pasa a tu Reserva el arma o la reliquia que la aventura definió (una vez; si el `objeto@1` no existe o es inválido, la misión no carga y el diagnóstico dice el fichero y el campo `pasos[n].otorga`) |
 | `entrega` | `pnj` y `cosa`, o `cosas` (una lista de 1 a 8) | las lleva todas (cada una con un `coge` o un `recibe` antes en la misma misión) y elige `entregar` (o le habla, si no hay esa respuesta); se las da todas a la vez |
+
+**Misión sin pistas (`pistas: false`, P3).** `mision@1` admite `"pistas": false` (por defecto `true`, lo de siempre). Esa
+misión no señala nada: ni «!»/«✓» por su causa, ni estrella ni baliza en el mapa y el minimapa, ni flecha, y la línea de
+arriba solo dice el nombre del grupo y su contador («★ Recoger datos 1/3»), nunca el objetivo más cercano. Sus pasos llegan a
+la página sin sitio. El libro, los textos de los pasos y los contadores no cambian. Las demás misiones siguen señalando.
+Para aventuras de formación en las que el libro no debe delatar qué importa.
+
+**Aviso «antes haga…» (`antes`, P3).** Opcional en **cualquier** paso (1–80 bytes) menos los primeros (los que ya se pueden
+hacer: allí nunca saldría): si el jugador intenta ese paso mientras sigue bloqueado tras otro sin terminar (llega a la zona de
+un `llega_a`, o habla o usa su objetivo), el servidor le manda ese texto como aviso corto, **como mucho una vez cada 5 s por
+paso**. Ejemplo: `{ "id": "precinto", "tipo": "llega_a", "texto": "Llegue al precinto", "x": 30, "z": 0, "lugar": "el precinto",
+"antes": "Recoja antes el cuaderno de investigación." }`. Pon los textos de cara al jugador en «usted» si la aventura lo usa.
 
 **`hace`: que quien construye haga algo de verdad (T1).** `{ "id", "tipo": "hace", "texto", "accion", "modelo"?, "disparador"?, "senala"? }`.
 Lo decide el servidor a partir de lo que las otras piezas ya cuentan (no hay nada nuevo en el tick); solo cuenta si ese
@@ -700,7 +712,11 @@ paso. La insignia queda en su ficha (I) y en su libro.
     } } }
 ```
 
-- Al hablarle, el servidor abre el primer nodo de `entradas` cuyo `si` se cumple; **la última no lleva `si`**.
+- Al hablarle, el servidor abre el primer nodo de `entradas` cuyo `si` se cumple; **la última normalmente no lleva `si`**
+  (lo que dice cuando nada más aplica). Si la última **sí** lleva `si` y no se cumple ninguna (P3), esa persona **no tiene nada que
+  decirle a ese jugador ahora**: no sale «E: hablar con…», el servidor rechaza la charla («<Nombre> no tiene nada que decirle
+  ahora.») y hablarle no cuenta ningún paso. Sirve para gente que solo está en una fase de la aventura (un cabo que solo habla
+  mientras la misión está en su paso). Sin esa `si` final, todo sigue exactamente como antes.
 - Condiciones (`si`, una o una lista: todas deben cumplirse): `{ "mision", "estado" }` con estado `sin_empezar`,
   `disponible` (sin empezar y con los requisitos hechos), `activa` (y si quieres `"paso": "<id de un paso que toca ahora>"`
   —en un grupo, uno que aún no has hecho: deja de cumplirse al hacerlo— o `"tiene": "<cosa>"`) o `hecha`. Una respuesta
@@ -774,6 +790,28 @@ usa solo desde menos de 2,5 m de esa altura) y `apariencia.color`
 («#rrggbb»: el modelo pintado de ese color, para que dos cosas se distingan). Lo cogido en un paso `coge` se dibuja en la
 mano que lo cogió (al lado de tu avatar en pantalla) hasta que la misión termina; luego vuelve a su sitio (lo recibido en
 un `recibe`, todavía no: se queda en su sitio).
+
+**Una cosa que se inspecciona (`dialogo`, P3).** `cosa@1` admite un `dialogo` opcional: el **mismo árbol** que el de `pnj@1`
+(`entradas` con `si`, `nodos`, hasta 4 respuestas, `ir`; `accion` solo `avanzar_paso` o `despedir`: una cosa no da misiones
+ni recibe entregas). Con él, la cosa ofrece «E: <aviso>» (p. ej. `"aviso": "inspeccionar la mancha"`) siempre que alguna
+`entrada` valga para ese jugador —no solo cuando un paso `coge`/`usa` la señala— y abre el mismo panel de conversación (el
+título es el `nombre` de la cosa). Así las cosas que no cuentan (la ventana, el cenicero) se pueden inspeccionar igual que las
+que sí, y el juego no delata cuál importa. Un paso `usa` sobre una cosa con `dialogo` **se cumple con una respuesta
+`{ "accion": { "tipo": "avanzar_paso", "mision": "<id>" } }` de ese diálogo** (como `habla_con` con una persona); inspeccionar
+sin elegirla no cuenta, ni la de otra cosa, ni la de otra misión. Si la cosa tiene un paso `coge` pendiente, «E» la coge como
+siempre. Como en las personas, si la **última** entrada lleva `si` y ninguna vale, la cosa no ofrece «E» y el servidor lo
+rechaza («Ahora no hay nada que inspeccionar en <Nombre>.»). El servidor decide el alcance (`api.within`) como hasta ahora.
+`node tools/aventura.ts <mundo>` comprueba el árbol y que cada `avanzar_paso` tenga su paso `usa` con esa cosa (y cada paso
+`usa` sobre una cosa con diálogo, su respuesta). Plugs: misiones **v9** (estado de la cosa `dialogo`, evento `marcas` con
+`callan`, `mision` con `pistas`, evento `abrirLibro`).
+
+```json
+{ "formato": "cosa@1", "id": "mancha", "nombre": "Mancha", "posicion": { "x": 12, "z": 12 }, "aviso": "inspeccionar la mancha",
+  "dialogo": { "entradas": [{ "nodo": "ver" }],
+    "nodos": { "ver": { "texto": "Una mancha oscura, seca.",
+      "opciones": [{ "texto": "Tomar nota.", "accion": { "tipo": "avanzar_paso", "mision": "caso" } },
+                   { "texto": "Seguir.", "accion": { "tipo": "despedir" } }] } } } }
+```
 
 **Una cosa que se ve usada para ti (`apariencia.usada`, U14 (6)).** `"apariencia": { "modelo": "<sha256 del cofre
 cerrado>", "escala": 1, "usada": { "modelo": "<sha256 del cofre abierto>", "escala": 1 } }`: cómo se ve la cosa para **quien
