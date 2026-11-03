@@ -2,7 +2,7 @@
 // Own avatar: predicted with the SAME sim step the server runs, reconciled exactly on each snapshot.
 // Others: drawn slightly in the past, interpolated between snapshots.
 import { fxToFloat } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, combinarMallas, PISO_SIN_SUELO, TICK_HZ } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, combinarMallas, barridoMalla, PISO_SIN_SUELO, TICK_HZ } from "../../sim/src/index.ts";
 import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
 import { crearSueloTerreno } from "./suelo-terreno.ts";
 import type { ConstruirMallaCliente } from "./malla-glb.ts"; // type only: the .glb reader (and its decoder) is the PAGE's chunk, never the AI bridge's
@@ -293,6 +293,12 @@ export class ClientSession {
   /** N1b: the solid boxes your prediction walks against (Q16.16, [x0 y0 z0 x1 y1 z1] each; the same as the server's).
    * The page hands them to the camera so it does not go through walls. A new array each time they change. */
   solidos(): Int32Array { return this.local.solids; }
+  /** P1: how far (m) the camera's sphere of radius `r` travels from the pivot along the unit `d` before touching the world's collision mesh
+   * (the GLB «malla» things and the terrain: the tree the prediction walks on), at most `max`; `l` and `u` are two unit vectors across `d`.
+   * Numbers in and out, nothing allocated: the view asks every frame. No mesh yet = `max`. */
+  barridoCamara = (ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, max: number, r: number,
+    lx: number, ly: number, lz: number, ux: number, uy: number, uz: number): number =>
+    barridoMalla(this.local.mesh, ox, oy, oz, dx, dy, dz, max, r, lx, ly, lz, ux, uy, uz);
   /** The ground the simulation walks on where the world has relieve (`suelo`: mesh + boxes, `malla`: mesh alone), or null in a flat world. */
   sueloTerreno(): ReturnType<typeof crearSueloTerreno> | null { return this.suelo; }
 

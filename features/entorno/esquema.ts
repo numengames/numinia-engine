@@ -6,14 +6,15 @@
 // that height (a floor plan inside a building), and the world's file says it again at each start (server.ts).
 import type { Issue, Result } from "../../packages/core/src/index.ts";
 import { defineSchema, validate } from "../../packages/schema/src/index.ts";
-import { CAMPOS, entorno } from "./feature.ts";
+import { CAMARA_INICIOS, CAMARA_MAX_MAX, CAMARA_MAX_MIN, CAMPOS, entorno } from "./feature.ts";
 
 export const ESQUEMA = "numinia-engine/entorno@1";
 export type Plano = Record<string, unknown>;
 /** `aparicion` (optional, the server's, never on the wire): where people appear, the square of half-side `radio` centred
  * at (x, z), metres. A vertical world puts it on a floor instead of inside a wall. Absent = the house square (40 m
  * around the origin). `radio` 1–40; x and z within ±APARICION_XZ_MAX so the square stays inside the walkable world (sim BOUND, ±2000). */
-export type Aparicion = { x: number; z: number; radio: number };
+export type Aparicion = { x: number; z: number; radio: number; giro?: number };
+export const APARICION_GIRO_MAX = 180;
 export const APARICION_RADIO_MIN = 1, APARICION_RADIO_MAX = 40, APARICION_XZ_MAX = 1960;
 
 /** Flat field (wire) ↔ path in the file. Colours are marked: in the file they are "#rrggbb". */
@@ -58,6 +59,8 @@ export function validarEntorno(json: unknown, base: Plano = porDefecto()): Resul
   if (!ap.ok) issues.push(...ap.issues);
   const af = leerAparicionFoto(json);
   if (!af.ok) issues.push(...af.issues);
+  const ca = leerCamara(json);
+  if (!ca.ok) issues.push(...ca.issues);
   const su = leerSuelo(json);
   if (!su.ok) issues.push(...su.issues);
   const vu = leerVuelo(json);
@@ -71,6 +74,12 @@ export function validarEntorno(json: unknown, base: Plano = porDefecto()): Resul
       else issues.push({ path: `entorno.${ruta}`, message: "un color \"#rrggbb\", p. ej. \"#87ceeb\"" });
     } else plano[campo] = v;
   }
+  // P1: the world's camera and the heading of the arrival ride the flat state (the page turns its own camera), checked above
+  if (ca.ok && ca.value) {
+    if (ca.value.inicio !== undefined) plano.camaraInicio = ca.value.inicio;
+    if (ca.value.distanciaMax !== undefined) plano.camaraMax = ca.value.distanciaMax;
+  }
+  if (ap.ok && ap.value?.giro !== undefined) { plano.llegadaGira = true; plano.llegadaGiro = ap.value.giro; }
   const v = validate(SCHEMA, plano);
   if (!v.ok) {
     for (const i of v.issues) {
@@ -98,7 +107,35 @@ export function leerAparicion(json: unknown): Result<Aparicion | null> {
     return 0;
   };
   const x = num("x", -APARICION_XZ_MAX, APARICION_XZ_MAX), z = num("z", -APARICION_XZ_MAX, APARICION_XZ_MAX), radio = num("radio", APARICION_RADIO_MIN, APARICION_RADIO_MAX);
-  return issues.length ? { ok: false, issues } : { ok: true, value: { x, z, radio } };
+  // P1: `giro` (optional, degrees, the `pnj@1.giro` convention): the heading faced on arrival. Without it the view looks along -z as always.
+  let giro: number | undefined;
+  if (o.giro !== undefined && o.giro !== null) {
+    if (typeof o.giro === "number" && Number.isFinite(o.giro) && o.giro >= -APARICION_GIRO_MAX && o.giro <= APARICION_GIRO_MAX) giro = o.giro;
+    else issues.push({ path: "entorno.aparicion.giro", message: `un número entre -${APARICION_GIRO_MAX} y ${APARICION_GIRO_MAX} (grados, como el giro de una persona): hacia dónde mira quien aparece; 0 mira hacia +z, 90 hacia +x, 180 hacia −z, −90 hacia −x. Sin la clave, mira hacia −z como siempre` });
+  }
+  return issues.length ? { ok: false, issues } : { ok: true, value: giro === undefined ? { x, z, radio } : { x, z, radio, giro } };
+}
+
+/** P1: the world's camera, `camara: { inicio?, distanciaMax? }` of an `entorno@1` file. `inicio`: «primera» (the person arrives with the
+ * character's eyes) or «tercera» (seen from behind, as always); `distanciaMax` (metres, CAMARA_MAX_MIN–CAMARA_MAX_MAX): the farthest the
+ * third-person camera goes (an interior: 2.5; the near limit of the third person, 1.5 m, still holds). null when the file has no `camara`:
+ * nothing changes. The page reads it from the flat state (`camaraInicio`, `camaraMax`), so it travels with the world and its zip. */
+export type CamaraFichero = { inicio?: (typeof CAMARA_INICIOS)[number]; distanciaMax?: number };
+export function leerCamara(json: unknown): Result<CamaraFichero | null> {
+  const c = typeof json === "object" && json !== null && !Array.isArray(json) ? (json as Record<string, unknown>).camara : undefined;
+  if (c === undefined || c === null) return { ok: true, value: null };
+  if (typeof c !== "object" || Array.isArray(c)) return { ok: false, issues: [{ path: "entorno.camara", message: `un objeto { "inicio": "primera" | "tercera", "distanciaMax": 2.5 }: la vista con la que entra la gente y hasta dónde se aleja la cámara en tercera persona (metros, ${CAMARA_MAX_MIN}–${CAMARA_MAX_MAX})` }] };
+  const o = c as Record<string, unknown>, issues: Issue[] = [], out: CamaraFichero = {};
+  if (o.inicio !== undefined) {
+    if (typeof o.inicio === "string" && (CAMARA_INICIOS as readonly string[]).includes(o.inicio)) out.inicio = o.inicio as CamaraFichero["inicio"];
+    else issues.push({ path: "entorno.camara.inicio", message: "«primera» (entra con los ojos del personaje) o «tercera» (entra viéndose desde atrás, como siempre)" });
+  }
+  if (o.distanciaMax !== undefined) {
+    const d = o.distanciaMax;
+    if (typeof d === "number" && Number.isFinite(d) && d >= CAMARA_MAX_MIN && d <= CAMARA_MAX_MAX) out.distanciaMax = d;
+    else issues.push({ path: "entorno.camara.distanciaMax", message: `un número entre ${CAMARA_MAX_MIN} y ${CAMARA_MAX_MAX} (metros): lo más lejos que se pone la cámara detrás de ti en tercera persona; en una casa, 2.5. La tercera persona no baja de 1.5 m` });
+  }
+  return issues.length ? { ok: false, issues } : { ok: true, value: out };
 }
 
 /** D-045: the world's void. `sueloMinimo` (metres, SUELO_MIN–SUELO_MAX): under it you have fallen and the server puts you
@@ -162,6 +199,9 @@ export function aFichero(p: Plano): Record<string, unknown> {
     for (const k of partes) o = (o[k] ??= {}) as Record<string, unknown>;
     o[ultima] = color ? hex(Number(p[campo])) : p[campo];
   }
+  // P1: the world's camera goes back to its place in the file only when the world has one (a file without `camara` stays without)
+  const max = Number(p.camaraMax ?? 0), inicio = p.camaraInicio ?? "tercera";
+  if (inicio !== "tercera" || max > 0) out.camara = { inicio, ...(max > 0 ? { distanciaMax: max } : {}) };
   return out;
 }
 

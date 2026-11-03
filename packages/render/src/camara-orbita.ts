@@ -32,7 +32,23 @@ export const CAMARA = {
   // camera; on a hit the camera comes in at once and goes back out at `vuelta` 1/s (Hyperfy's simpleCamLerp: sphere
   // 0.2 m, snap in, ease out ×6; Unreal's spring arm: «retract … and spring back»).
   choque: { radio: 0.2, vuelta: 6 },
+  // camera of the world (entorno.json `camara`, P1): the near plane (m) of the three.js camera in third person and in first person
+  // (inside your own body): in first person it is under the 0.35 m radius of the body, so a wall you stand against never opens (C-3).
+  planoCerca: { tercera: 0.1, primera: 0.05 },
 };
+
+/** P1: what a world says about its camera (entorno.json `camara` + `aparicion.giro`). `max` = the cap of the third-person distance in
+ * metres (0 = none); `giro` = the heading faced on arrival in degrees (the `pnj@1.giro` convention: a model with `ry = giro` faces
+ * (sin giro, cos giro)), or null = no heading (the view keeps looking along -z as always). */
+export type CamaraMundo = { inicio: "primera" | "tercera"; max: number; giro: number | null };
+/** P1: the camera sphere against the world's mesh: how far (m) it travels from the pivot `o` along the unit `d` before touching it, at
+ * most `max`; `l` and `u` are two unit vectors across `d` (the sphere's edge). Numbers in, one number out, so it allocates nothing.
+ * The page builds it on the simulation's mesh (`barridoMalla` in sim/bvh.ts); this file stays free of the simulation. */
+export type SondaMalla = (ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, max: number, r: number,
+  lx: number, ly: number, lz: number, ux: number, uy: number, uz: number) => number;
+
+/** P1: the camera yaw (radians) that looks where a model with `giro` degrees (three's rotation.y, front = +z) faces. */
+export const yawDeGiro = (giro: number): number => { const a = (giro + 180) * G; return Math.atan2(Math.sin(a), Math.cos(a)); };
 
 /** N1b: how far a sphere of radius `r` travels from `o` along the unit direction `d` before it touches one of the
  * boxes (metres, [x0 y0 z0 x1 y1 z1] each), at most `max`. Each box is grown by `r` (slab test): exact on the faces,
@@ -93,6 +109,10 @@ export function crearOrbita() {
   let alt: number | null = null, altMeta = 0;
   let cajas: ArrayLike<number> = [];
   let lim = Infinity, tope = Infinity, quiere = 0;
+  // P1: what the world says (null = nothing: every number below is as it was) and the sphere's probe against the world's mesh
+  let mundo: CamaraMundo | null = null, sonda: SondaMalla | null = null;
+  /** The farthest the third-person camera may be in this world (m); Infinity without a cap. Never nearer than the near limit. */
+  const lejosJuego = () => (mundo && mundo.max > 0 ? Math.max(mundo.max, CAMARA.juego.cerca) : Infinity);
   const ojoDe = (pies: Punto) => (alt ?? pies.y) + CAMARA.ojo;
 
   /** The drawn pivot (world) for the avatar's feet at `pies`; never under the ground. */
@@ -121,11 +141,11 @@ export function crearOrbita() {
     /** Multiply the distance by `f` (< 1 closer). Play: at the near limit one more step in = first person (0), and
      * one step out of first person = the near limit. Build: never first person. Returns the ratio really applied. */
     acercar(f: number): number {
-      const r = rango(), d0 = meta.dist;
+      const r = rango(), d0 = meta.dist, lejos = modo === "juego" ? Math.min(r.lejos, lejosJuego()) : r.lejos;
       let d: number;
       if (modo === "juego" && f < 1 && d0 <= r.cerca + 1e-6) d = 0;
       else if (modo === "juego" && d0 === 0) d = f > 1 ? r.cerca : 0;
-      else d = clamp(d0 * f, r.cerca, r.lejos);
+      else d = clamp(d0 * f, r.cerca, lejos);
       meta.dist = d;
       if (d > 0) terceraAntes = d;
       return d0 > 0 ? d / d0 : 1;
@@ -189,7 +209,7 @@ export function crearOrbita() {
         meta.dist = clamp(meta.dist, CAMARA.foto.cerca, CAMARA.foto.lejos);
       } else {
         modo = m;
-        meta.dist = distJuego;
+        meta.dist = Math.min(distJuego, lejosJuego());
         meta.ox = meta.oy = meta.oz = 0; // back to following the avatar, smoothly
       }
       const [a, b] = rango().inclinacion;
@@ -199,16 +219,41 @@ export function crearOrbita() {
     /** Behind the avatar (yaw 0 until avatars face somewhere), at the starting height and distance. */
     reiniciar(yaw = 0): void {
       meta.yaw = ahora.yaw + Math.atan2(Math.sin(yaw - ahora.yaw), Math.cos(yaw - ahora.yaw)); // the short way round
-      meta.pitch = CAMARA.inicio.pitch;
-      if (modo === "juego") meta.dist = CAMARA.inicio.dist;
+      meta.pitch = mundo?.inicio === "primera" && modo === "juego" ? 0 : CAMARA.inicio.pitch; // P1: first person looks level
+      if (modo === "juego") meta.dist = mundo?.inicio === "primera" ? 0 : Math.min(CAMARA.inicio.dist, lejosJuego());
       else { meta.dist = Math.max(CAMARA.inicio.dist, CAMARA.distConstruir); meta.ox = meta.oy = meta.oz = 0; }
     },
 
     /** Play mode: first person ↔ the last third-person distance. */
     alternarVista(): void {
       if (modo !== "juego") return;
-      if (meta.dist > 0) { terceraAntes = meta.dist; meta.dist = 0; } else meta.dist = Math.max(terceraAntes, CAMARA.juego.cerca);
+      if (meta.dist > 0) { terceraAntes = meta.dist; meta.dist = 0; } else meta.dist = Math.min(Math.max(terceraAntes, CAMARA.juego.cerca), lejosJuego());
     },
+
+    /** P1: the world's camera (null = none). Applies the cap of the third-person distance at once; the starting view and the heading
+     * wait for `llegar`. */
+    mundo(c: CamaraMundo | null): void {
+      mundo = c;
+      const cap = lejosJuego();
+      if (modo === "juego" && meta.dist > cap) meta.dist = cap;
+      if (distJuego > cap) distJuego = cap;
+      if (terceraAntes > cap) terceraAntes = cap;
+    },
+
+    /** P1: a person arrives (the page got the server's welcome): the view they start with and the heading they face. In first person
+     * the view is level; the drawn pose jumps to it (nobody sees the camera turn on arrival). Does nothing without `mundo`, or when the
+     * world says «tercera» and no heading: that world looks as it always did. */
+    llegar(): void {
+      if (!mundo || modo !== "juego") return;
+      const primera = mundo.inicio === "primera", gira = mundo.giro !== null;
+      if (!primera && !gira) return;
+      if (primera) { meta.dist = distJuego = 0; meta.pitch = 0; }
+      if (mundo.giro !== null) meta.yaw = yawDeGiro(mundo.giro);
+      ahora.yaw = meta.yaw; ahora.pitch = meta.pitch; ahora.dist = meta.dist;
+    },
+
+    /** P1: the sphere's probe against the world's mesh (null = boxes only, as before). */
+    malla(f: SondaMalla | null): void { sonda = f; },
 
     /** True when the drawn pose has reached the wanted one (nothing to animate). */
     quieta(): boolean {
@@ -259,7 +304,10 @@ export function crearOrbita() {
       let d = ahora.dist;
       if (sp < 0 && d > 0) d = Math.min(d, Math.max(0, (p.y - CAMARA.suelo) / -sp));
       if (modo === "juego" && d > 0) {
-        const golpe = cajas.length >= 6 ? barrido(p, { x: sy * cp, y: sp, z: cy * cp }, d, CAMARA.choque.radio, cajas) : d;
+        d = Math.min(d, lejosJuego());
+        let golpe = cajas.length >= 6 ? barrido(p, { x: sy * cp, y: sp, z: cy * cp }, d, CAMARA.choque.radio, cajas) : d;
+        // P1: and the mesh (the houses): the same sphere, from the pivot back toward the camera
+        if (sonda && golpe > 0) golpe = Math.min(golpe, sonda(p.x, p.y, p.z, sy * cp, sp, cy * cp, golpe, CAMARA.choque.radio, cy, 0, -sy, -sy * sp, cp, -cy * sp));
         quiere = d; tope = golpe < d ? golpe : Infinity;
         if (tope < lim) lim = tope; // in at once: never a frame inside the wall
         d = Math.min(d, lim);
