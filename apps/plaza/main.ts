@@ -191,7 +191,7 @@ const session = new ClientSession(transport, {
     // J5: a name that stays over a person of the world
     tag: (key, t) => view.tag(key, t),
     // H4/H8: the zone's environment and its elements (water, fire, smoke, dust)
-    entorno: (v) => view.entorno.aplicar(v),
+    entorno: (v) => { view.entorno.aplicar(v); view.cam.mundo(v); }, // P1: the same values carry the world's camera (camaraInicio, camaraMax, llegadaGira, llegadaGiro)
 
     naturaleza: (v) => void view.naturaleza.aplicar(v), // N4
     espacioBase: (v) => void view.espacioBase.aplicar(v), // H2
@@ -795,8 +795,11 @@ const suelosPedidos = () => {
   }
   return { pideNaturaleza, pideBase };
 };
+view.cam.malla(session.barridoCamara); // P1: the camera sphere also stops at the world's collision mesh (houses), not only at boxes
+let bienvenidaVista: unknown = null;
 view.loop((now) => {
   const dt = Math.min(250, now - last); last = now;
+  if (session.welcome && session.welcome !== bienvenidaVista) { bienvenidaVista = session.welcome; view.cam.llegar(); } // P1: each arrival starts in the world's view, facing its heading
   acc += dt;
   while (acc >= TICK_MS) { const [mx, mz] = readAxes(); session.tick(mx, mz, readButtons()); acc -= TICK_MS; }
   // v9: the determinism probe (a replay, ~60 ms on a PC, ~230 ms at 4x slower CPU) runs after the first frame, not before it

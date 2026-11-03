@@ -10,6 +10,9 @@ import type { Fields } from "../../packages/feature/src/index.ts";
 export const PRESETS = ["día", "amanecer", "atardecer", "noche", "niebla", "tormenta", "nublado", "jardín"] as const;
 export const SUELOS = ["hierba", "tierra", "arena", "roca", "nieve", "liso"] as const;
 export const CIELOS = ["atmosfera", "degradado", "color"] as const;
+/** P1: the views a person may start in. «tercera» first: it is the house's, and an enum's default is its first value. */
+export const CAMARA_INICIOS = ["tercera", "primera"] as const;
+export const CAMARA_MAX_MIN = 1, CAMARA_MAX_MAX = 20;
 export const TONOS = ["agx", "aces", "neutro", "ninguno"] as const;
 /** The zone's only state key (M16 will bring several zones per world). */
 export const ZONA = "zona";
@@ -56,6 +59,13 @@ export const CAMPOS: Fields = {
   rejilla: { kind: "bool", default: false },
   // U14: the maps cut the world at this height (m), like an architect's floor plan; 0 = not cut (the roofs show)
   mapaCorte: { kind: "fixed", min: 0, max: CORTE_MAX, step: 0.1, default: 0 },
+  // P1: the world's camera (entorno.json `camara` and `aparicion.giro`), the world's file's like `mapaCorte`: the server puts the file's
+  // values back on every change, so no panel moves them. camaraInicio = the view a person gets on arrival; camaraMax = the farthest the
+  // third-person camera goes (m, 0 = no cap); llegadaGira + llegadaGiro = the heading faced on arrival (degrees, `pnj@1.giro`), only when llegadaGira.
+  camaraInicio: { kind: "enum", values: CAMARA_INICIOS, default: "tercera" },
+  camaraMax: { kind: "fixed", min: 0, max: CAMARA_MAX_MAX, step: 0.1, default: 0 },
+  llegadaGira: { kind: "bool", default: false },
+  llegadaGiro: { kind: "fixed", min: -180, max: 180, step: 0.1, default: 0 },
 };
 
 export const entorno = defineFeature({
