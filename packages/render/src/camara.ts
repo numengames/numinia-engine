@@ -9,9 +9,9 @@
 // camera's (one orbits, two pinch and pan), the left stick walks the pivot; the page moves it with `desplazar`. Phones stay cool: `ocupada()` is true only
 // while a drag, a held key, a stick or the smoothing moves something; then the page may stop drawing.
 import type * as THREE from "three/webgpu";
-import { crearOrbita, zonaMuertaRadial, CAMARA, type ModoCamara, type Pose, type Punto } from "./camara-orbita.ts";
+import { crearOrbita, zonaMuertaRadial, CAMARA, type CamaraMundo, type ModoCamara, type Pose, type Punto, type SondaMalla } from "./camara-orbita.ts";
 export { haciaMundo, CAMARA } from "./camara-orbita.ts";
-export type { ModoCamara, Punto } from "./camara-orbita.ts";
+export type { CamaraMundo, ModoCamara, Punto, SondaMalla } from "./camara-orbita.ts";
 export { zonaMuertaRadial } from "./camara-orbita.ts";
 
 const RATON = 0.0055;           // radians per pixel of mouse drag (≈ 0.3°)
@@ -47,6 +47,7 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
   const palanca = { x: 0, z: 0, gx: 0, gy: 0, zoom: 0 };
   let sens = 1, invY = 1, zonaAndar = 0.5;                     // N2 settings: look speed (mouse, finger, stick) and inverted vertical axis
   let paredesFx: Int32Array | null = null;    // N1b: the last solid boxes given (to convert them only when they change)
+  let llegadaPedida = false, mundoVisto = false; // P1: a welcome arrived / the world's camera arrived; the arrival is applied once both are in
 
   // ---- mouse ----
   const soltar = () => {
@@ -185,7 +186,35 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
       orbita.pose(pies, pose);
       camera.position.set(pose.x, pose.y, pose.z);
       camera.rotation.set(-orbita.ahora.pitch, orbita.ahora.yaw, 0, "YXZ");
+      // P1: inside your own body (first person) the near plane is under the body's radius, so a wall you stand against never opens
+      const cerca = pose.dentro ? CAMARA.planoCerca.primera : CAMARA.planoCerca.tercera;
+      if (camera.near !== cerca) { camera.near = cerca; camera.updateProjectionMatrix(); }
     },
+    /** P1: in VR the headset owns the camera: put the near plane back where the page made it (the one thing `update` may have changed). */
+    planoVR(): void {
+      if (camera.near !== CAMARA.planoCerca.tercera) { camera.near = CAMARA.planoCerca.tercera; camera.updateProjectionMatrix(); }
+    },
+    /** P1: what the world says about the camera — the entorno's flat values `camaraInicio` («primera»|«tercera»), `camaraMax` (m, 0 = no cap),
+     * `llegadaGira` (bool) and `llegadaGiro` (degrees). Safe to call with every environment that arrives: a world that says nothing changes
+     * nothing. Never touches the camera of a headset (`update` does not run in VR). */
+    mundo(v: Record<string, unknown> | null | undefined): void {
+      const max = Number(v?.camaraMax), giro = Number(v?.llegadaGiro);
+      const c: CamaraMundo = {
+        inicio: v?.camaraInicio === "primera" ? "primera" : "tercera",
+        max: Number.isFinite(max) && max > 0 ? max : 0,
+        giro: v?.llegadaGira === true && Number.isFinite(giro) ? giro : null,
+      };
+      orbita.mundo(c);
+      mundoVisto = true;
+      if (llegadaPedida) { llegadaPedida = false; orbita.llegar(); }
+    },
+    /** P1: a person arrives (the server's welcome): they start in the world's view and face its heading. Wait for the world's camera if it has
+     * not come yet. */
+    llegar(): void {
+      if (mundoVisto) orbita.llegar(); else llegadaPedida = true;
+    },
+    /** P1: the sphere's probe against the world's mesh (`session.barridoCamara`); null = boxes only. */
+    malla(f: SondaMalla | null): void { orbita.malla(f); },
     /** Where the camera looks, radians: 0 = along -z, + = turned left. Movement keys turn with it. */
     yaw(): number { const y = orbita.ahora.yaw; return Math.atan2(Math.sin(y), Math.cos(y)); },
     /** "juego" (follows your avatar), "construir" (a free editor camera) or "foto" (N13: free, on a short leash). Returns the mode now. */

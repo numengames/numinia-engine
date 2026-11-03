@@ -5,7 +5,7 @@
 export const version = "0.101.0";
 /** Hasta 3 líneas, la más nueva primero. Vacío si el diario no tenía ninguna entrada con «Qué». */
 export const items: readonly string[] = [
-  "cuatro piezas del motor para aventuras de formación (R-1, la primera: la escena del crimen de la Guardia Civil).",
   "perfil de CPU del banco (node --cpu-prof sobre npm run bench, 1.000 personas, PC con carga 1,3): selectVisible (packages/net) era el 70 % de todo y el 82 % d…",
-  "revisión del motor como casa para agentes digitales (Pablo, 31-10)."
+  "revisión del motor como casa para agentes digitales (Pablo, 31-10).",
+  "el trozo 1 de M17 (rama vieja voz/tope-y-escenario, nunca entró en main) se pasa a main actual."
 ];

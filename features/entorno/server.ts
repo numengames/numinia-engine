@@ -38,13 +38,16 @@ export const crearEntorno = (mundo?: unknown) => serverPart(entorno, (api) => {
   // N6: whoever directs (api.puede "dirigir", STD-052 manage-rituals) changes it live too: the director's light and fog
   const puede = (from: number) => api.puede(from, "construir") || api.puede(from, "dirigir") || rechazar(from, "No puedes cambiar el entorno: el mundo está cerrado a construir (lo abre quien lo administra) y no diriges aquí.");
   const actual = (): Plano => (api.state.get(ZONA) as Plano | undefined) ?? base;
+  // P1: the camera of the world and the arrival's heading are the world's file's (no panel moves them), like the map cut
+  const DE_ARCHIVO = ["camaraInicio", "camaraMax", "llegadaGira", "llegadaGiro"] as const;
+  const delArchivo = (v: Msg): Msg => { const o: Msg = { ...v }; for (const k of DE_ARCHIVO) o[k] = base[k]; return o; };
   const poner = (v: Msg, avisar = true) => {
-    const ok = api.state.set(ZONA, conSol(v));
+    const ok = api.state.set(ZONA, conSol(delArchivo(v)));
     if (ok && avisar) api.emit("cambiado", { preset: String(v.preset) }, "all");
     return ok;
   };
   if (!api.state.get(ZONA)) poner(base, false); // nothing saved yet: the world's own
-  else if (Number(actual().mapaCorte ?? 0) !== Number(base.mapaCorte ?? 0)) poner({ ...actual(), mapaCorte: base.mapaCorte }, false); // U14: where the map is cut is the world's file's (no panel sets it): edit the file, restart, it shows
+  else if (Number(actual().mapaCorte ?? 0) !== Number(base.mapaCorte ?? 0) || DE_ARCHIVO.some((k) => (actual()[k] ?? porDefecto()[k]) !== base[k])) poner({ ...actual(), mapaCorte: base.mapaCorte }, false); // U14: where the map is cut is the world's file's (no panel sets it): edit the file, restart, it shows
 
   const avisar = (e: number) => { api.emit("permiso", { construir: api.puede(e, "construir") }, { to: e }); };
   api.onJoin(avisar);
