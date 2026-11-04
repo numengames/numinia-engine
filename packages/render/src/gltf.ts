@@ -7,8 +7,11 @@
 // Nothing is fetched from a CDN. Draco is NOT read (its decoder is 300 kB more and the engine never writes it: a Draco
 // model fails with a clear message and the slot stays empty, as before). The decoders arrive only with the loader,
 // and the transcoder only when a KTX2 texture does.
+// A material with KHR_materials_transmission is turned into plain translucency here (transmision.ts, N2-H1): three's
+// shared viewport texture for transmission got destroyed in a submit and the picture froze 12-14 s after loading.
 import type * as THREE from "three/webgpu";
 import type { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { registrarTransmision } from "./transmision.ts";
 
 /** Where the page serves the Basis transcoder (basis_transcoder.js + .wasm). */
 export const BASIS_DIR = `${(import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? "/"}basis/`;
@@ -41,5 +44,6 @@ export async function prepararGltf(loader: GLTFLoader): Promise<GLTFLoader> {
   const { MeshoptDecoder } = await import("three/addons/libs/meshopt_decoder.module.js");
   loader.setMeshoptDecoder(MeshoptDecoder);
   loader.setKTX2Loader(ktx2Perezoso as never);
+  registrarTransmision(loader as never); // N2-H1: a transmissive glass froze the picture 12-14 s after loading
   return loader;
 }

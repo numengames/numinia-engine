@@ -1939,3 +1939,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5.
 - Versión 0.104.0 (tras la fusión con main y con P2, #298). Commit: rama `feat/adventure-inspect`, PR #299.
 - Siguiente: la aventura de la escena del crimen sobre estas piezas.
+
+## 2026-11-04 00:30 · N2b · el cristal con transmisión ya no congela la imagen · hecho
+- Qué: un material glTF con `KHR_materials_transmission` (lo escribe Blender con «Transmission») congelaba el dibujo a los 12-14 s en WebGPU con GPU real («Destroyed texture RGBA16Float 1280x720 used in a submit», ~1 300 veces), en cualquier mundo. Arreglo en el cargador único (`gltf.ts` → `transmision.ts`): al leer el modelo, cada material con transmisión pasa a translúcido normal (opacidad = 1 − 0,85·transmisión, mínimo 0,15, sin escribir profundidad) y la consola avisa una vez por fichero. Sin refracción: vale para ventanas y mamparas.
+- Números: `test/transmision.test.ts` nuevo (4 pruebas: un cubo con cristal por el GLTFLoader real, alfa y transmisión juntos, material opaco intacto, función pura acotada); antes del arreglo fallaban 2 (transmission 0,9 y 0,5 seguía puesto). `npm test` 2753 en verde.
+- Consumo: sin medir · Sonnet 5.5.
+- Versión 0.104.1 (arreglo). Commit: rama `fix/transmission-freeze`, local.
+- Siguiente: medir con GPU real el mundo v2 con y sin el arreglo; si el congelado vuelve por otra causa, buscar la raíz en three (textura compartida de viewport).
