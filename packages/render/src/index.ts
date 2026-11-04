@@ -1255,6 +1255,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       fotoCarga ??= import("./foto-xr.ts").then((m) => (fotoXR = m.crearFotoXR({ renderer, scene, backend, ocultar: () => [vr.reloj.malla, vr.menu.malla, vr.aviso.malla, ...vr.rig.children] })));
       return (await fotoCarga).sacar();
     },
+    /** P10: where the headset's camera was and which way it looked for the last photo (null before the first). */
+    pose: () => fotoXR?.pose() ?? null,
   };
   // H12b: bloom + AO through a RenderPipeline, only on level A and only when asked. posproceso.ts (and the node modules it needs) is fetched when
   // the first effect is switched on: nothing of it is in the start bundle, and a phone or a headset never asks (the tier clamps the wish to off).

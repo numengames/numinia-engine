@@ -866,6 +866,42 @@ separados por comas y en orden; `mision` con `marcas`, `erroneas`, `desmarcados`
 `misiones.marcados()` (los ids, en orden) y `misiones.numeroDe(id)` (0 = sin marcar). Sin ningún campo nuevo en los ficheros
 de la aventura, nada cambia: ni el estado, ni los eventos, ni lo que se guarda.
 
+**`foto`: sacar una foto con la cámara del motor (P10).** `{ "id", "tipo": "foto", "texto": "Foto", "grupo": "Foto", "objetivo": { "x": 5, "y": 0.5, "z": -8.3, "radio": 1 }, "distancia": 8 }`.
+`objetivo` es una esfera (metros; `radio` de 0,1 a 20) sobre el rincón que hay que fotografiar (el cadáver, una ventana, una
+puerta); `distancia` (1 a 60, opcional, **8** si falta) es lo más lejos de la cámara que puede estar su centro. El jugador abre
+la cámara de fotos de siempre (`apps/plaza/foto.ts`, también la de VR) y la saca él: **no se crea otra cámara** y entrar en una
+zona no hace nada. El paso no pone baliza, flecha, «!» ni marca en el mapa, ni hace parpadear el botón de la cámara; usa `grupo`
+para que dos rincones sean un bloque que se cumple en cualquier orden. Reglas (las decide **el servidor**, `features/misiones/foto.ts`
+y `maquina.ts` `fotografiar`):
+- «Sale en el encuadre» = el **centro** del objetivo está dentro del frustum de la foto (con su fov vertical y su aspecto reales),
+  delante de la cámara, a ≤ `distancia`, y sin pared entre el jugador y ese centro.
+- Una foto cumple **como mucho un** paso `foto` de cada misión: de los objetivos pendientes del bloque en curso que salen, **el más
+  cercano a la cámara** (empate: el primero del fichero). Un objetivo ya cumplido no vuelve a contar. Dos misiones con pasos
+  `foto` pendientes reciben cada una su veredicto de la misma foto.
+- Mientras haya un paso `foto` pendiente en el bloque en curso, una foto que no cumple ninguno suma **`fotos_erroneas`** a esa
+  misión (junto a los contadores de `marca`: progreso, `libro()[i].cuenta`, que ya trae `fotos_erroneas` aunque valga 0). No se le
+  dice nada al jugador. Fuera de un bloque con pasos `foto` las fotos no cuentan nada. Un intento nuevo de la misión los pone a cero.
+- Al cumplirse, los avisos de paso de siempre (sonido, «Foto» marcado en el libro). La foto se guarda y se comparte como hoy.
+
+Cómo llega al servidor: la página, al sacar una foto (plana o de VR) y **solo si algún paso suyo pide una foto ahora**, manda el
+intento `foto` con la pose de la cámara: `x`, `y`, `z` (dónde estaba), `fx`, `fy`, `fz` (hacia dónde miraba, vector unidad), `fov`
+(vertical, grados) y `aspecto` (ancho / alto). El servidor no se fía de ella más que lo justo: rechaza una pose imposible, exige
+que la cámara esté a ≤ **28 m** del ojo del jugador según la posición **que él tiene** (correa del modo foto: el pivote a
+`CAMARA.foto.alcance` = 12 m del ojo + la cámara hasta `CAMARA.foto.lejos` = 14 m detrás + 2 m de margen; `test/misiones-foto.test.ts` ata
+estos números a `CAMARA`), mira como mucho **una foto por segundo** y el intento tiene su cubo (2/s, ráfaga 3). Para la pared usa
+`api.rayo` (la malla de colisión del mundo, la misma del movimiento): el rayo sale del **ojo del jugador** hacia el centro del
+objetivo, no de la cámara. **Límite conocido:** una cámara de foto que quede al otro lado de una pared que el jugador no tiene
+entre sí y el rincón puede ver el rincón a través de ella, y un mundo sin malla de colisión (ni terreno) no tiene paredes que
+cuenten; `api.rayo` además gasta del cubo del jugador (4/s, ráfaga 8), y si se agota la foto cuenta como sin pared. **Accesible:**
+el verbo `foto` (`spoken`: «hacer una foto para una misión»); `misiones.pideFoto()` dice si algún paso lo pide ahora y
+`misiones.foto(pose)` manda una pose (un agente puede hacer «una foto desde donde estoy mirando» con la suya); el cumplimiento
+sale por los avisos del paso. Plugs: misiones **v11** (intento `foto`; en el evento `mision`, `fotos`, el contador de fotos
+erróneas). Un mundo sin pasos `foto` no cambia: ni el estado, ni los eventos, ni lo que se guarda.
+
+```json
+{ "id": "ventana", "tipo": "foto", "texto": "Foto", "grupo": "Foto", "objetivo": { "x": 12.5, "y": 1.4, "z": -3, "radio": 1 }, "distancia": 10 }
+```
+
 **Una cosa que se ve usada para ti (`apariencia.usada`, U14 (6)).** `"apariencia": { "modelo": "<sha256 del cofre
 cerrado>", "escala": 1, "usada": { "modelo": "<sha256 del cofre abierto>", "escala": 1 } }`: cómo se ve la cosa para **quien
 ya hizo el paso que la usa** (`usa` o `coge`) en una misión que lleva o que terminó. Los demás la siguen viendo como antes,

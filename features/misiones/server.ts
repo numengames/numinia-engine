@@ -12,6 +12,9 @@ import type { ObjetoAventura } from "../inventario/objeto.ts";
 import { abandonar, aceptar, asentar, bloqueados, callan, cogePendiente, cuentaDe, desmarcar, enTexto, esperaLlegada, HECHAS_MAX, leerProgreso, marcablesAhora, marcados as marcadosDe, marcar, marcas, lugarDe, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
 import type { Hecho, Progreso } from "./maquina.ts";
 import { esperando, faltaEspera, pendiente, proximaEspera } from "./maquina.ts"; // U14 (5): steps that wait
+import { fotografiar, pasosFoto } from "./maquina.ts"; // P10: the step `foto`
+import { FOTO_CADA_MS, FOTO_CAMARA_MAX_M, FOTO_OJO_M, poseInvalida } from "./foto.ts";
+import type { PoseFoto } from "./foto.ts";
 import type { Suceso } from "./maquina.ts";
 import { alSuelo, eventosDe } from "./secuencia.ts"; // U14 (5): a moment only its player sees
 import { sueloDe } from "../objetos/server.ts"; // the ground people and things stand on (the espacio base, the nature, or flat)
@@ -59,6 +62,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   const abiertos = new Map<number, { pnj: string; vistas: Vista[] }>(); // open conversations
   const llegadas = new Set<number>();                 // players whose current step somewhere is llega_a
   const esperas = new Map<number, number>();          // U14 (5): connection -> when its next wait ends (ms): then its book again, once
+  const ultimaFoto = new Map<number, number>();       // P10: connection -> when its last photo that counted for a step was looked at (ms)
   const avisosAntes = new Map<number, Map<string, number>>(); // P3: connection -> «<quest>:<step>» -> when its `antes` notice was last sent (ms)
   const ahora = () => (o.reloj ? o.reloj() : Date.now());
 
@@ -159,10 +163,11 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   // grupo, and `hecho` is true for what is already done in the block); `espera` = the seconds a step to do still waits
   /** P4: a quest's counters as the `mision` event carries them. */
   const cuentaWire = (p: Progreso, id: string) => { const c = cuentaDe(p, id); return { marcas: c.marcas, erroneas: c.marcas_erroneas, desmarcados: c.desmarcados }; };
+  const fotosWire = (p: Progreso, id: string) => ({ fotos: cuentaDe(p, id).fotos_erroneas ?? 0 }); // P10
   const enviarMision = (to: number, p: Progreso, m: Mision, t: number) => {
     const act = p.activas[m.id], hecha = !act, ahora = hecha ? m.pasos.length : Math.min(primerPendiente(m, act), m.pasos.length - 1);
     const señala = m.pistas !== false; // P3: a quest with pistas:false sends its steps without a place (nothing to point at, nothing to read off the wire)
-    M!.emit("mision", { id: m.id, titulo: m.titulo, descripcion: m.descripcion, estado: hecha ? "hecha" : "activa", paso: ahora, pasos: m.pasos.length, seguida: p.seguida === m.id, recompensa: recompensa(m), pistas: señala, ...(m.pasos.some((s) => s.tipo === "marca") ? cuentaWire(p, m.id) : {}) }, { to }); // P4: the counters only for a quest that marks
+    M!.emit("mision", { id: m.id, titulo: m.titulo, descripcion: m.descripcion, estado: hecha ? "hecha" : "activa", paso: ahora, pasos: m.pasos.length, seguida: p.seguida === m.id, recompensa: recompensa(m), pistas: señala, ...(m.pasos.some((s) => s.tipo === "marca") ? cuentaWire(p, m.id) : {}), ...(m.pasos.some((s) => s.tipo === "foto") ? fotosWire(p, m.id) : {}) }, { to }); // P4: the counters only for a quest that marks; P10: and the photos only for one that photographs
     m.pasos.forEach((s, n) => {
       const ob = señala ? objetivo(s, A, p) : { ...objetivo(s, A, p), x: 0, z: 0, nombre: "" }, espera = !hecha && pendiente(m, act, n) ? Math.ceil(faltaEspera(m, act, n, t) / 1000) : 0;
       M!.emit("paso", { mision: m.id, n, texto: s.texto, tipo: s.tipo, hecho: hecha || pasoHecho(m, act, n), x: ob.x, z: ob.z, donde: corta(ob.nombre, LIM.lugar), que: ob.que, grupo: s.grupo ?? "", espera, accion: s.tipo === "hace" ? s.accion : "", senala: s.senala ?? "" }, { to });
@@ -374,7 +379,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     });
     api.onLeave((e) => {
       const k = claveDe.get(e);
-      claveDe.delete(e); llegadas.delete(e); esperas.delete(e); avisosAntes.delete(e); enviadoSitio.delete(e);
+      claveDe.delete(e); llegadas.delete(e); esperas.delete(e); avisosAntes.delete(e); enviadoSitio.delete(e); ultimaFoto.delete(e);
       if (k && ![...claveDe.values()].includes(k)) progresos.delete(k); // saved in the store already
     });
     // T1: step `hace`. Nothing here runs per tick: a builder's action reaches us as an event another piece already emits
@@ -459,6 +464,33 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       if (!seguir(p, id)) return rechazarM(e, "Solo se puede seguir una misión activa.");
       guardar(e, p);
       enviarLibro(e);
+    });
+    // P10: step `foto`. The page says WHERE its camera was and which way it looked when the photo was taken; the server decides. The camera
+    // must be within the photo mode's leash of where the SERVER has the player (never its own word), at most one photo a second is looked
+    // at, and a wall between the player's eye and the corner (the world's collision mesh: api.rayo) hides it. Outside a block with a
+    // `foto` step to do, a photo counts for nothing and says nothing.
+    api.on("foto", (e, msg) => {
+      const p = prog(e);
+      asentarYa(e, p, true);
+      if (!pasosFoto(p, A, ahora()).length) return;
+      const t = ahora(), ultima = ultimaFoto.get(e);
+      if (ultima !== undefined && t - ultima < FOTO_CADA_MS) return rechazarM(e, "Espere un momento antes de hacer otra foto.");
+      ultimaFoto.set(e, t);
+      const pose: PoseFoto = { x: Number(msg.x), y: Number(msg.y), z: Number(msg.z), fx: Number(msg.fx), fy: Number(msg.fy), fz: Number(msg.fz), fov: Number(msg.fov), aspecto: Number(msg.aspecto) };
+      const mal = poseInvalida(pose);
+      if (mal) return rechazarM(e, mal);
+      const yo = api.position(e);
+      if (!yo) return;
+      const ojo = { x: yo.x, y: yo.y + FOTO_OJO_M, z: yo.z };
+      if (Math.hypot(pose.x - ojo.x, pose.y - ojo.y, pose.z - ojo.z) > FOTO_CAMARA_MAX_M) return rechazarM(e, "La cámara queda demasiado lejos de usted para esa foto.");
+      const r = fotografiar(p, A, pose, t, (o) => {
+        const dir = { x: o.x - ojo.x, y: o.y - ojo.y, z: o.z - ojo.z }, d = Math.hypot(dir.x, dir.y, dir.z);
+        if (d <= o.radio) return false; // the player's eye is inside the corner
+        const golpe = api.rayo(e, dir, d); // null = a clear line, no mesh in this world, or no budget left (RAYO_RATE): nothing to hide it
+        return !!golpe && golpe.distancia < d - o.radio; // a wall inside the sphere (a window in its wall) does not hide it
+      });
+      if (r.hechos.length) tras(e, p, r.hechos);
+      else if (r.erroneas.length) { guardar(e, p); enviarLibro(e); } // the counter changed: the page's libro()[i].cuenta follows (it says nothing else)
     });
     api.on("usar", (e, msg) => {
       const c = A.cosas.get(String(msg.cosa));

@@ -24,9 +24,10 @@ import type { Issue, Result } from "../../packages/core/src/index.ts";
 import { SOUNDS } from "../../packages/feature/src/index.ts"; // U14 (5): a sequence's sounds are the house's
 import type { Sound } from "../../packages/feature/src/index.ts";
 import biblioteca from "../objetos/biblioteca.json" with { type: "json" }; // U14 (5): what a missing model can be instead
+import { FOTO_DISTANCIA_MAX_M } from "./foto.ts"; // P10: the step `foto`'s numbers
 
 export const FORMATOS = { mision: "mision@1", pnj: "pnj@1", cosa: "cosa@1" } as const;
-export const TIPOS_PASO = ["llega_a", "habla_con", "usa", "coge", "entrega", "recibe", "hace", "marca"] as const; // new kinds go at the end (the wire's enum)
+export const TIPOS_PASO = ["llega_a", "habla_con", "usa", "coge", "entrega", "recibe", "hace", "marca", "foto"] as const; // new kinds go at the end (the wire's enum)
 /** T1, step `hace` (the builder DOES something): the closed list of actions. The server decides the first ten from events the
  * other pieces already emit (objetos `hizo`, disparadores `hizo` / `senal`); the last three happen on the page, which the server
  * cannot see: the page says so with the intent `hace`, and only for those (ACCIONES_PAGINA). New ones go at the end. */
@@ -74,6 +75,7 @@ export type Paso = PasoBase & (
   | { tipo: "entrega"; cosas: string[]; pnj: string } // …or several at once (1–8); cosasDe() reads either
   | { tipo: "hace"; accion: AccionHace; modelo?: string; disparador?: string } // T1: the builder does something (modelo = a library id, only with coloca; disparador = a cable's id, only with the cable actions)
   | { tipo: "marca"; cosas: string[] } // P4: done when the things the player has marked are EXACTLY these (1–16 cosas marcables, order irrelevant)
+  | { tipo: "foto"; objetivo: { x: number; y: number; z: number; radio: number }; distancia?: number } // P10: done by a photo of the engine's camera whose frame holds the objetivo's centre (≤ distancia m from the camera, nothing solid between)
 );
 /** What an entrega asks for (its `cosa` or its `cosas`); for coge, usa and recibe, their one thing; else nothing. */
 export const cosasDe = (s: Paso): string[] => ("cosas" in s ? s.cosas : "cosa" in s ? [s.cosa] : []);
@@ -242,6 +244,16 @@ function paso(v: unknown, path: string, is: Issue[]): Paso {
     const cosas = lista(o.cosas, en(path, "cosas"), 1, LIM.marcados, is).map((c, j) => id(c, en(en(path, "cosas"), j), is));
     cosas.forEach((c, j) => { if (c && cosas.indexOf(c) < j) is.push({ path: en(en(path, "cosas"), j), message: `«${c}» ya está en la lista: cada cosa, una vez` }); });
     p = { ...base, tipo, cosas };
+  }
+  else if (tipo === "foto") { // P10: done by a photo of the engine's camera with the objetivo in the frame (maquina.ts `fotografiar`)
+    permite("objetivo", "distancia");
+    const en_ = en(path, "objetivo"), ob = o.objetivo === undefined ? null : objeto(o.objetivo, en_, is);
+    if (o.objetivo === undefined) is.push({ path: en_, message: 'el rincón a fotografiar, una esfera en metros: { "x": 5, "y": 0.5, "z": -8.3, "radio": 1 }' });
+    if (ob) campos(ob, ["x", "y", "z", "radio"], en_, is);
+    const objetivo = ob ? { x: numero(ob.x, en(en_, "x"), -MUNDO, MUNDO, is), y: numero(ob.y, en(en_, "y"), -ALTURA_MAX, ALTURA_MAX, is), z: numero(ob.z, en(en_, "z"), -MUNDO, MUNDO, is), radio: numero(ob.radio, en(en_, "radio"), 0.1, 20, is) } : { x: 0, y: 0, z: 0, radio: 1 };
+    const f: Extract<Paso, { tipo: "foto" }> = { ...base, tipo, objetivo };
+    if (o.distancia !== undefined) f.distancia = numero(o.distancia, en(path, "distancia"), 1, FOTO_DISTANCIA_MAX_M, is); // without it: FOTO_DISTANCIA_M
+    p = f;
   }
   else if (tipo === "coge") { // Y3: a `coge` may hand over a weapon or relic the adventure defines (objeto@1); cargarAventura checks the id exists
     permite("cosa", "otorga", "abreLibro");

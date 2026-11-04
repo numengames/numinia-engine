@@ -502,6 +502,7 @@ async function ponerPortada(f: File): Promise<{ ok: true } | { ok: false; why: s
   return { ok: false, why: "el servidor no contestó a tiempo; mira la imagen en Ajustes del mundo" };
 }
 const foto = montarFotoPuerta({ view, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), mapa, boton: document.getElementById("foto-abrir") as HTMLButtonElement, volverA: () => document.getElementById("camara-abrir"), ocupado: () => dardos.tirando(), registrar: (d) => acciones.registrar("foto", d),
+  alFoto: (pose) => { if (misiones.pideFoto()) misiones.foto(pose); }, // P10: a quest's `foto` step hears the camera's pose (the server decides); a world without one never hears of it
   aparecer: { puede: () => (viajar.estado.recibido ? viajar.foto() : null), pedir: (s) => { viajar.aparecerEnFoto(s.x, s.y, s.z); } }, // N16: the world may put you at the photo's place
   portada: { puede: () => ajustesMundo.estado.puede && ajustesMundo.actual() !== null, usar: ponerPortada }, // MIS-265: the photo as the world's cover
   decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); } });
