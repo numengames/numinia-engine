@@ -2,8 +2,14 @@ import { defineConfig } from "vite";
 import { fileURLToPath } from "node:url";
 import { readFileSync, existsSync } from "node:fs";
 
+import { generarNovedades } from "../../tools/novedades-generar.mjs";
+
 const root = fileURLToPath(new URL(".", import.meta.url));
 const repo = fileURLToPath(new URL("../..", import.meta.url));
+
+// novedades-datos.ts is not in git (it is made from the diary and the pending .changeset/ fragments): make it here, so
+// every way of building the page — npm run dev/build/deploy, tools/tamano.mjs, a plain `vite build` — finds it fresh.
+generarNovedades(repo, { silencio: true });
 
 // LAN mode (npm run dev:lan, tools/dev-lan.mjs): https on the home network + /ws passed to the instance
 // server on the same origin, so phones and headsets (which need a secure context) can open the page.

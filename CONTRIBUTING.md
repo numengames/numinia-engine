@@ -25,10 +25,15 @@ issues and pull requests, and the same review applies to everyone, people and AI
 2. Keep the change small and focused: one pull request, one change.
 3. Run `npm ci`, then `npm run gates` (tests, layer rules, determinism, bandwidth, 1,000-person tick). If you
    touched browser code, also run `npm run e2e`.
-4. Move the version number in `package.json` and `package-lock.json` as described in
-   [`docs/VERSIONES.md`](docs/VERSIONES.md): every pull request moves exactly one of major, minor or patch, and says
-   in its body which and why.
-5. Add an entry to `docs/RUNLOG.md` (format at the top of that file).
+4. Say how big the change is, without moving the number: add **one file of your own**,
+   `.changeset/<your-branch-with-dashes>.md` (format and example in [`.changeset/README.md`](.changeset/README.md)):
+   the package name and `patch`, `minor` or `major` on top ([`docs/VERSIONES.md`](docs/VERSIONES.md) says which), and
+   below it your diary entry. Do **not** edit `package.json`, `package-lock.json`, `docs/RUNLOG.md` or
+   `apps/plaza/novedades-datos.ts` in a normal pull request: every pull request touching those lines is what made
+   the others conflict. The number moves once, in a release pull request (`npm run cambios:juntar`) that folds all
+   the fragments.
+5. The diary entry (Spanish, format at the top of `docs/RUNLOG.md`) is the body of that same file; there is no second
+   place to write it. `npm run cambios:juntar -- --comprobar` checks it.
 6. Put a line `Mission: MIS-<number>` (or `Mission: jazz`, work with no mission card) on its own line in the PR body; the PR
    template asks for it.
 7. Open a pull request with an English title that says what changed, and a body that says why, how you checked it

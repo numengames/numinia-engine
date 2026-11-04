@@ -24,6 +24,18 @@ Se empezó en **0.1.0** el 16-10-2026 (STD-019: «todo empieza en cero punto uno
 
 ## Cómo
 
-- Sube el número en `package.json` y en `package-lock.json` (las dos primeras apariciones) en el mismo PR.
-- El PR dice en su cuerpo qué número movió y por qué.
-- `test/version.test.ts` comprueba que es una versión semántica válida y al menos 0.1.0.
+El número no lo mueve cada PR (todos tocaban las mismas líneas y al entrar uno, los demás quedaban en conflicto):
+
+- Cada PR deja **un fichero propio** `.changeset/<rama-con-guiones>.md`, en el formato de
+  [Changesets](https://github.com/changesets/changesets) (sin instalarlo): arriba el paquete y el salto
+  (`"numinia-engine": minor`), debajo la entrada del diario. Ejemplo y reglas en `.changeset/README.md`. El PR **no**
+  toca `package.json`, `package-lock.json`, `docs/RUNLOG.md` ni `apps/plaza/novedades-datos.ts` (este último ya no está
+  en git: se genera).
+- El PR dice en su cuerpo qué salto pide («Change kind») y por qué; el número sale al juntar.
+- Cuando hay varios PR fusionados, un PR de versión (`chore(release): x.y.z`) corre `npm run cambios:juntar`: toma el
+  salto **más alto** de los fragmentos (antes de 1.0.0, «mayor» se aplica como menor), escribe la versión una vez en
+  `package.json` y `package-lock.json` (las dos primeras apariciones), pasa los cuerpos a `docs/RUNLOG.md` por la hora
+  de su cabecera y borra los fragmentos. `npm run cambios:juntar -- --comprobar` solo valida y dice qué versión saldría.
+- La barra de novedades de la página ya cuenta los fragmentos pendientes: una novedad se ve desde que está en `main`.
+- `test/version.test.ts` comprueba que la versión es semántica válida y al menos 0.1.0; `test/cambios.test.ts`, que cada
+  fragmento es válido y que juntar funciona.

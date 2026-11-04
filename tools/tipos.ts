@@ -80,6 +80,8 @@ export function leerPermitidos(): Conteo {
 
 /** Runs tsc once. Returns { actuales, salida, status }; a crash of tsc itself (no `error TS` lines) is reported as a failure. */
 export function correrTsc(): { actuales: Conteo; salida: string; status: number | null } {
+  // apps/plaza/novedades-datos.ts is generated, not in git: tsc (apps/**) needs it to exist
+  spawnSync(process.execPath, [join(root, "tools/novedades-generar.mjs")], { cwd: root, encoding: "utf8" });
   const tsc = join(root, "node_modules/typescript/bin/tsc");
   const r = spawnSync(process.execPath, [tsc, "-p", "tsconfig.json", "--pretty", "false"], { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
   const salida = `${r.stdout ?? ""}${r.stderr ?? ""}`;
