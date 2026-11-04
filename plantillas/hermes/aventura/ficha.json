@@ -1,0 +1,6 @@
+{
+  "formato": "ficha@1",
+  "nombre": "Hermes",
+  "descripcion": "Un mundo cerrado que muestra, en vivo, lo que hace la aplicación de escritorio de Hermes: sus tareas programadas, sus sesiones y lo que vaya sumando. Usted mira y pide; Hermes decide.",
+  "notas": "Plantilla «hermes» del motor (plantillas/hermes): un tipo de mundo cerrado, no una función que otros mundos enciendan. Se elige con MOTOR_PLANTILLA=hermes al crear el mundo."
+}

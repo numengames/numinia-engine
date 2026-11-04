@@ -18,7 +18,7 @@ import { libroDeEntorno } from "./eventos.ts";
 import funciones from "../../../features/servidor.ts";
 import { aparicionDelMundo, conMundo, enlaceDardosDelMundo, sueloDelMundo, vueloDelMundo } from "../../../features/mundo.ts";
 import { leerMundo, escribirMundo } from "./mundo.ts";
-import { carpetaMundo, claves, escribirManifiesto, sembrar } from "./mundo-carpeta.ts";
+import { carpetaMundo, claves, EJEMPLO, escribirManifiesto, plantillaPorNombre, sembrar } from "./mundo-carpeta.ts";
 import { infoMotor } from "./version.ts";
 import { configPase } from "./pase.ts";
 import { puertaDeEntorno } from "./condiciones.ts";
@@ -31,8 +31,11 @@ const log = (l: string) => console.log(l);
 const cfgPase = configPase(env);
 if (!cfgPase.ok) { console.error(`[pase] no arranco: ${cfgPase.error}`); process.exit(1); }
 const c = env.MOTOR_MUNDO ? carpetaMundo(env.MOTOR_MUNDO) : null;
+// MOTOR_PLANTILLA: which template a NEW world is born from (plantillas/<name>; unset = taller). A world that exists is never re-born.
+const plantilla = plantillaPorNombre(env.MOTOR_PLANTILLA);
+if (!plantilla.ok) { console.error(`[mundo] no arranco: ${plantilla.error}`); process.exit(1); }
 if (c) {
-  sembrar(c, log);
+  sembrar(c, log, EJEMPLO, plantilla.ruta, plantilla.nombre);
   escribirManifiesto(c, infoMotor());
   log(`[mundo] carpeta del mundo: ${c.raiz} (datos/, aventura/, entorno/, sesiones/)`);
 }
