@@ -18,7 +18,8 @@ export type Cerca = { feature: string; key: string; intent: string; prompt: stri
   at?: { x: number; z: number; y?: number }; role?: string };
 type Sesion = { entity: number; selfPosition(alpha: number): { x: number; y: number; z: number }; features: { reachable(x: number, z: number, y?: number): Cerca[]; use(feature: string, key: string): Res } };
 type Vista = { renderer: { domElement: HTMLElement }; pickThing?(x: number, y: number): string | null; cam?: { modo?(): string; yaw?(): number };
-  /** P15: ring over the offered thing (centre in metres, radius), or null. */ marcar?(p: { x: number; y: number; z: number; r: number } | null): void; vr?: { active: boolean } };
+  /** P15: ring over the offered thing (centre in metres, radius; `suelo`: lying on the floor), or null. */ marcar?(p: { x: number; y: number; z: number; r: number; suelo?: boolean } | null): void;
+  /** P15: about how big a placed thing is (m), by its `<feature>:<key>` place; undefined = not known (yet). */ tamano?(key: string): number | undefined; vr?: { active: boolean } };
 
 /** True while the person types in a text box: global keys must not fire (J3's one rule, apps/plaza/escribiendo.ts). */
 import { escribiendo } from "./escribiendo.ts";
@@ -29,9 +30,17 @@ export { escribiendo };
 /** Building: the build panel is open or the camera is in build mode (there clicks select things and digits are tools). */
 export const construyendo = (view: Vista): boolean => !(document.getElementById("panel-construir")?.hidden ?? true) || view.cam?.modo?.() === "construir";
 const conMayuscula = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-/** P15: the ring over the offered thing: a person is circled at the chest, anything else just above its base (metres). */
-export const marcaDe = (c: Cerca, pies: number): { x: number; y: number; z: number; r: number } | null =>
-  !c.at ? null : c.role === "persona" ? { x: c.at.x, y: (c.at.y ?? pies) + 1.0, z: c.at.z, r: 0.55 } : { x: c.at.x, y: (c.at.y ?? pies) + 0.15, z: c.at.z, r: 0.2 };
+/** P15: the ring over the offered thing (metres). A person never gets a ring round the body (it hid them): a small one lies on the floor at
+ *  their feet. A thing gets a ring about as big as it is (`tam`, its size when the page knows it; never above 2× the size, never above 0.45 m
+ *  radius, 0.2 m when unknown), centred at half its height. */
+export const RADIO_PERSONA = 0.4, RADIO_MAX = 0.45, RADIO_MIN = 0.05, RADIO_COSA = 0.2;
+export const marcaDe = (c: Cerca, pies: number, tam?: number): { x: number; y: number; z: number; r: number; suelo?: boolean } | null => {
+  if (!c.at) return null;
+  const y = c.at.y ?? pies;
+  if (c.role === "persona") return { x: c.at.x, y: y + 0.03, z: c.at.z, r: RADIO_PERSONA, suelo: true };
+  const r = tam !== undefined && tam > 0 ? Math.min(RADIO_MAX, Math.max(RADIO_MIN, Math.round(tam * 100) / 100)) : RADIO_COSA;
+  return { x: c.at.x, y: y + Math.round(r * 50) / 100, z: c.at.z, r };
+};
 /** Pure: 0..1, how much of `holdS` seconds has elapsed between `desde` and `ahora` (both ms); no hold (0/undefined) = done at once. */
 export const fraccionMantenida = (desde: number, ahora: number, holdS?: number): number => (!holdS ? 1 : Math.min(1, Math.max(0, (ahora - desde) / (holdS * 1000))));
 
@@ -89,7 +98,7 @@ export function montarInteraccion(o: {
   // the ring in the world follows what is offered (moves with a walking person, goes when nothing is offered); `poner` ignores the same place twice
   let marcado = false;
   const marcar = (c: Cerca | null, pies: number) => {
-    const m = c && !o.view.vr?.active ? marcaDe(c, pies) : null;
+    const m = c && !o.view.vr?.active ? marcaDe(c, pies, c.role === "persona" ? undefined : o.view.tamano?.(`${c.feature}:${c.key}`)) : null;
     if (!m && !marcado) return;
     marcado = !!m;
     o.view.marcar?.(m);

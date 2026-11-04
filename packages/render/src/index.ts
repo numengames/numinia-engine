@@ -1729,6 +1729,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     orbesIA() { return orbesIA.lista(); },
     /** P15: mark the thing the «E: …» prompt is about (a ring facing the camera at `x y z`, radius `r` metres), or `null` for none. */
     marcar(p: Marca | null): void { marcaMirada.poner(p); },
+    /** P15: about how big a placed thing is (m: a sphere that holds its model, times its scale), or undefined while it is not placed or not loaded yet. */
+    tamano(key: string): number | undefined { const s = things.get(key); return s?.loaded && s.radio ? s.radio * Math.max(Math.abs(s.want.sx), Math.abs(s.want.sy), Math.abs(s.want.sz)) : undefined; },
     /** P15 (for checks): is the mark drawn, where, and how many meshes ever existed (never more than 1). */
     marcaMirada() { return marcaMirada.estado(); },
     /** ia-visible S5 (for checks): who has a ring, whether it is drawn, and how much the rings share (one geometry, one material per state). */

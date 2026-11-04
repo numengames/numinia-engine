@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { elegirMirada, anguloA, difAngulo, MIRADA_MAX_RAD, EMPATE_RAD, type Candidato } from "../apps/plaza/interactuar-mirada.ts";
-import { montarInteraccion, marcaDe } from "../apps/plaza/interactuar.ts";
+import { montarInteraccion, marcaDe, RADIO_PERSONA, RADIO_MAX, RADIO_MIN, RADIO_COSA } from "../apps/plaza/interactuar.ts";
 import { Instance } from "../packages/instance/src/index.ts";
 import { ClientSession } from "../packages/client/src/index.ts";
 import type { GuestKeeper } from "../packages/client/src/index.ts";
@@ -81,16 +81,25 @@ test("P15 elegirMirada: stickiness — the previous choice stays while the new o
   assert.equal(elegirMirada([a, b], mira(0), null)!.key, "b");
 });
 
-test("P15 marcaDe: a person is circled at the chest, a thing just over its base; no place = no ring", () => {
+test("P15 marcaDe: a person gets a small ring on the floor at their feet (never round the body); a thing a ring as big as itself; no place = no ring", () => {
   const base = { feature: "f", key: "k", intent: "i", prompt: "p", name: "n", distance: 1 };
-  assert.deepEqual(marcaDe({ ...base, role: "persona", at: { x: 3, z: 4 } }, 0.03), { x: 3, y: 1.03, z: 4, r: 0.55 });
-  assert.deepEqual(marcaDe({ ...base, role: "objeto", at: { x: 3, z: 4, y: 0.75 } }, 0), { x: 3, y: 0.9, z: 4, r: 0.2 }, "a shelf's own y wins over the player's feet");
+  assert.deepEqual(marcaDe({ ...base, role: "persona", at: { x: 3, z: 4 } }, 0.03), { x: 3, y: 0.06, z: 4, r: 0.4, suelo: true });
+  assert.ok(RADIO_PERSONA <= 0.45, "the brief: at most 0.45 m of radius for a person");
+  assert.deepEqual(marcaDe({ ...base, role: "persona", at: { x: 3, z: 4, y: 3 } }, 0, 1.8), { x: 3, y: 3.03, z: 4, r: 0.4, suelo: true }, "a person's size is not asked for: the ring stays the same on the floor of their storey");
+  // a thing: unknown size = the old 0.2 m just over the base; known size = a ring that is at most twice as wide as the thing
+  assert.deepEqual(marcaDe({ ...base, role: "objeto", at: { x: 3, z: 4, y: 0.75 } }, 0), { x: 3, y: 0.85, z: 4, r: 0.2 }, "a shelf's own y wins over the player's feet");
+  const vaso = marcaDe({ ...base, role: "objeto", at: { x: 3, z: 4, y: 0.794 } }, 0, 0.1)!;
+  assert.deepEqual(vaso, { x: 3, y: 0.794 + 0.05, z: 4, r: 0.1 });
+  assert.ok(2 * vaso.r <= 2 * 0.1 + 1e-9, "the ring's width is at most twice the thing's");
+  assert.equal(marcaDe({ ...base, role: "objeto", at: { x: 0, z: 0 } }, 0, 3)!.r, RADIO_MAX, "a big thing: capped at 0.45 m");
+  assert.equal(marcaDe({ ...base, role: "objeto", at: { x: 0, z: 0 } }, 0, 0.01)!.r, RADIO_MIN, "a tiny one: not smaller than 5 cm");
+  assert.equal(marcaDe({ ...base, role: "objeto", at: { x: 0, z: 0 } }, 0, 0)!.r, RADIO_COSA, "size 0 = unknown");
   assert.equal(marcaDe({ ...base }, 0), null);
 });
 
 // ---- the page piece, with a stub DOM -------------------------------------------------------------------------------------------
 type Cosa = { key: string; x: number; z: number; r: number; role?: string };
-function montarFalso(cosas: Cosa[], yo: { x: number; z: number; yaw: number }) {
+function montarFalso(cosas: Cosa[], yo: { x: number; z: number; yaw: number }, tamanos: Record<string, number> = {}) {
   const g = globalThis as Record<string, unknown>, viejo = { document: g.document, addEventListener: g.addEventListener, setInterval: g.setInterval };
   const tics: (() => void)[] = [];
   const hijo = () => ({ hidden: false, textContent: "", setAttribute() {}, className: "" });
@@ -104,7 +113,7 @@ function montarFalso(cosas: Cosa[], yo: { x: number; z: number; yaw: number }) {
   let consultas = 0;
   const i = montarInteraccion({
     session: { entity: 1, selfPosition: () => ({ x: yo.x, y: 0, z: yo.z }), features: { reachable: (x: number, z: number) => { consultas++; return reachable(x, z); }, use: () => ({ ok: true }) } },
-    view: { renderer: { domElement: { addEventListener() {} } as unknown as HTMLElement }, cam: { yaw: () => yo.yaw }, marcar: (p: unknown) => marcas.push(p) },
+    view: { renderer: { domElement: { addEventListener() {} } as unknown as HTMLElement }, cam: { yaw: () => yo.yaw }, marcar: (p: unknown) => marcas.push(p), tamano: (k: string) => tamanos[k] },
     boton: boton as unknown as HTMLButtonElement, ofrece: () => true, ocupado: () => false,
   });
   const restaurar = () => { g.document = viejo.document; g.addEventListener = viejo.addEventListener; g.setInterval = viejo.setInterval; };
@@ -128,6 +137,19 @@ test("P15 page: the prompt appears inside the radius, names the thing looked at,
     assert.equal(W.boton.hidden, true, "no prompt out of reach");
     assert.equal(W.i.actual(), null);
     assert.equal(W.marcas.at(-1), null, "and no ring");
+  } finally { W.restaurar(); }
+});
+
+test("P15 page: the ring fits what it marks — a person's is on the floor, a thing's as big as the thing (asked of the view by its place), unknown = 0.2 m", () => {
+  const yo = { x: 0, z: 0, yaw: 0 };
+  const W = montarFalso([{ key: "vaso", x: 0, z: -1.0, r: 1.1 }, { key: "sargento", x: -0.9, z: -0.3, r: 1.8, role: "persona" }, { key: "caja", x: 0.9, z: -0.3, r: 1.1 }], yo, { "f:vaso": 0.1, "f:sargento": 1.8 });
+  try {
+    W.i.mirar();
+    assert.deepEqual(W.marcas.at(-1), { x: 0, y: 0.05, z: -1, r: 0.1 }, "the glass: a ring the size of the glass, at half its height");
+    yo.yaw = 70 * G; W.i.mirar();
+    assert.deepEqual(W.marcas.at(-1), { x: -0.9, y: 0.03, z: -0.3, r: 0.4, suelo: true }, "the person: small, on the floor, whatever size the view says");
+    yo.yaw = -70 * G; W.i.mirar();
+    assert.deepEqual(W.marcas.at(-1), { x: 0.9, y: 0.1, z: -0.3, r: 0.2 }, "a thing whose size is not known yet keeps the old 0.2 m");
   } finally { W.restaurar(); }
 });
 
@@ -178,7 +200,7 @@ test("P15 marca-mirada: nothing is made until something is offered; one mesh is 
   M.update(); M.poner(null); M.update();
   assert.equal(world.children.length, 0, "a world where nothing is near makes nothing");
   assert.equal(M.busy(), false);
-  assert.deepEqual(M.estado(), { visible: false, x: 0, y: 0, z: 0, r: 0, mallas: 0 });
+  assert.deepEqual(M.estado(), { visible: false, x: 0, y: 0, z: 0, r: 0, suelo: false, mallas: 0 });
   M.poner({ x: 1, y: 2, z: 3, r: 0.2 });
   assert.equal(M.busy(), true, "a change: the power policy must draw one more frame");
   camera.quaternion.setFromEuler(new THREE.Euler(0, 1, 0));
@@ -187,7 +209,7 @@ test("P15 marca-mirada: nothing is made until something is offered; one mesh is 
   assert.equal(world.children.length, 1);
   const malla = world.children[0] as THREE.Mesh;
   assert.ok(malla.quaternion.equals(camera.quaternion), "it faces the camera");
-  assert.deepEqual(M.estado(), { visible: true, x: 1, y: 2, z: 3, r: 0.2, mallas: 1 });
+  assert.deepEqual(M.estado(), { visible: true, x: 1, y: 2, z: 3, r: 0.2, suelo: false, mallas: 1 });
   M.poner({ x: 1, y: 2, z: 3, r: 0.2 });
   assert.equal(M.busy(), false, "same place again: nothing to draw");
   M.poner({ x: 5, y: 2, z: 3, r: 0.55 });                     // another thing: the same mesh moves
@@ -199,4 +221,19 @@ test("P15 marca-mirada: nothing is made until something is offered; one mesh is 
   M.poner(null); assert.equal(M.busy(), false, "already gone: nothing to draw");
   M.poner({ x: 0, y: 0, z: 0, r: 0.2 });
   assert.equal(world.children.length, 1); assert.equal(malla.geometry, geo); assert.equal(malla.material, mat, "geometry and material are reused");
+});
+
+test("P15 marca-mirada: a ring for a person lies flat on the floor (face up) whatever the camera does, and goes back to facing the camera for a thing", () => {
+  const world = new THREE.Group(), camera = new THREE.PerspectiveCamera();
+  camera.quaternion.setFromEuler(new THREE.Euler(0.3, 1, 0));
+  const M = createMarcaMirada({ world, camera });
+  M.poner({ x: 1, y: 0.03, z: 2, r: 0.4, suelo: true }); M.update();
+  const malla = world.children[0] as THREE.Mesh, normal = new THREE.Vector3(0, 0, 1).applyQuaternion(malla.quaternion);
+  assert.ok(Math.abs(normal.x) < 1e-9 && Math.abs(normal.y - 1) < 1e-9 && Math.abs(normal.z) < 1e-9, `face up: ${normal.toArray()}`);
+  assert.equal(M.estado().suelo, true);
+  camera.quaternion.setFromEuler(new THREE.Euler(-0.5, -2, 0)); M.update();
+  assert.ok(Math.abs(new THREE.Vector3(0, 0, 1).applyQuaternion(malla.quaternion).y - 1) < 1e-9, "turning the camera does not turn it");
+  M.poner({ x: 1, y: 0.03, z: 2, r: 0.4, suelo: true }); assert.equal(M.busy(), false, "same ring again: nothing to draw");
+  M.poner({ x: 1, y: 0.03, z: 2, r: 0.4 }); assert.equal(M.busy(), true, "same place but now facing the camera: it changed"); M.update();
+  assert.ok(malla.quaternion.equals(camera.quaternion)); assert.equal(M.estado().suelo, false); assert.equal(world.children.length, 1);
 });

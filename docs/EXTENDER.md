@@ -371,9 +371,12 @@ Una cosa del mundo que se usa de cerca declara **cómo** en su ficha: `state.car
     cercana. Si ninguna está delante (se mira a otro lado, o solo hay cosas sin lugar como un asiento) se ofrece la más cercana,
     como antes: no se quita el aviso a quien apunta mal. La elegida se mantiene mientras la nueva no sea mejor en más de 4°
     (o 15 cm, si nada está delante), para que no parpadee entre dos cosas. Un clic sobre una cosa sigue mandando sobre esa cosa.
-  - *De qué cosa habla:* la elegida lleva un aro ámbar que mira a la cámara (`view.marcar`, `packages/render/src/marca-mirada.ts`):
-    una sola malla, creada al ofrecer la primera cosa, reutilizada siempre; sin nada cerca no existe y no pide cuadros. Una
-    persona se rodea a la altura del pecho; una cosa, sobre su base (usa su `y` si el estado la trae).
+  - *De qué cosa habla:* la elegida lleva un aro ámbar (`view.marcar`, `packages/render/src/marca-mirada.ts`): una sola malla,
+    creada al ofrecer la primera cosa, reutilizada siempre; sin nada cerca no existe y no pide cuadros. **Nunca tapa lo que
+    marca:** una persona lleva un aro pequeño (0,4 m de radio) tumbado en el suelo, a sus pies (el aro alrededor del cuerpo
+    la tapaba); una cosa lleva un aro que mira a la cámara y es tan ancho como ella como mucho el doble (la página pregunta a
+    `view.tamano("<función>:<clave>")` lo grande que es el modelo ya cargado; entre 5 cm y 0,45 m de radio; 0,2 m si todavía no
+    se sabe), a media altura de la cosa (usa su `y` si el estado la trae). Es igual en escritorio y en móvil.
   - `features.reachable()` entrega ahora, en cada oferta, `at` (`x`, `z` y, si el estado trae `y`, la altura) y `role` (el de su
     ficha): campos nuevos al final, nada de formato ni de huella cambia.
   - *VR:* la lógica de los mandos no cambia (apuntan con su rayo). La elección por mirada usa la cámara de escritorio/móvil; con
