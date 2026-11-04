@@ -20,7 +20,9 @@ import { audio } from "../../packages/render/src/audio/nucleo.ts"; // S1: one au
 
 type Res = { ok: true } | { ok: false; why: string };
 type Paso = { n: number; texto: string; hecho: boolean; donde: string; tipo?: string; espera?: number; listoEn?: number };
-type Mision = { id: string; titulo: string; descripcion: string; estado: "activa" | "hecha"; paso: number; pasos: number; seguida: boolean; recompensa: string; lista: Paso[]; pistas?: false };
+/** P13: the end card of a completed quest that has `evaluacion` (features/misiones/client.ts EvaluacionVista). */
+type Evaluacion = { titulo: string; puntos: number; base: number; minimo: number; resumen: string; filas: { tipo: string; etiqueta: string; texto: string; resta: number }[] };
+type Mision = { id: string; titulo: string; descripcion: string; estado: "activa" | "hecha"; paso: number; pasos: number; seguida: boolean; recompensa: string; lista: Paso[]; pistas?: false; evaluacion?: Evaluacion };
 type Objetivo = { mision: string; paso: number; nombre: string; texto: string; x: number; z: number; seguida: boolean };
 type Grupo = { nombre: string; hechos: number; total: number };
 type Ctl = {
@@ -249,6 +251,8 @@ export function montarLibro(c: Ctl, o: {
   oir?: Oir; ajuste?: (id: string) => unknown;
   /** U14 (6): the «Misión completada» banner (a polite live region, always in the page, empty when idle). */
   banner?: HTMLElement;
+  /** P13: the end evaluation card (hidden until a quest with `evaluacion` is completed or «Ver evaluación» is pressed in the book). */
+  evaluacion?: HTMLElement;
 }) {
   const senalados = () => (c.senalados ?? c.objetivos)();
   const balizar = (ob: Objetivo | undefined) => { if (ob) o.view.beacon(ob.x, ob.z, ob.nombre, BALIZA_MS); };
@@ -286,7 +290,15 @@ export function montarLibro(c: Ctl, o: {
     if (hechas.length) { // a completed quest: all its steps are done, so one row with the check
       partes.push(el("h3", `Hechas (${hechas.length})`));
       const ul = el("ul", "", "hechas");
-      for (const m of hechas) { const li = filaPaso({ n: 0, texto: `${m.titulo}${m.recompensa ? ` · ${m.recompensa}` : ""}`, hecho: true, donde: "" }, "hecho"); li.dataset.mision = m.id; ul.append(li); }
+      for (const m of hechas) {
+        const li = filaPaso({ n: 0, texto: `${m.titulo}${m.recompensa ? ` · ${m.recompensa}` : ""}`, hecho: true, donde: "" }, "hecho"); li.dataset.mision = m.id;
+        if (m.evaluacion && o.evaluacion) { // P13: the card can be opened again from the book
+          const ver = el("button", "Ver evaluación", "ver-evaluacion"); ver.type = "button"; ver.setAttribute("aria-label", `Ver la evaluación de ${m.titulo}`);
+          ver.addEventListener("click", () => verEvaluacion(m.id, true));
+          li.append(ver);
+        }
+        ul.append(li);
+      }
       partes.push(ul);
     }
     cuerpo.replaceChildren(...partes);
@@ -359,7 +371,7 @@ export function montarLibro(c: Ctl, o: {
     o.linea.hidden = !t;
   };
   c.alCambiar((que) => {
-    if (que === "libro") { pintar(); revisarBaliza(); linea(); }
+    if (que === "libro") { pintar(); revisarBaliza(); linea(); pintarTarjeta(); }
     if (que === "dialogo") quizasAbrir();
     if (que === "nota" && c.estado.nota) mostrarNota(c.estado.nota);
   });
@@ -383,6 +395,50 @@ export function montarLibro(c: Ctl, o: {
     o.nota.hidden = true;
     bannerHasta = performance.now() + BANNER_MS;
   };
+  // P13: the end evaluation card — what the quest came to: the score, the time and the counters, in the order the world's author chose.
+  // It opens by itself when the quest is completed (never taking the keyboard, never in VR) and from «Ver evaluación» in the book;
+  // «Cerrar» or Escape close it. Screen readers get the same in one announcement (main.ts leaves the event out of the general ones).
+  const tarjeta = o.evaluacion;
+  let tarjetaDe = "";
+  const tTitulo = el("h2", "Evaluación"), tCerrar = el("button", "Cerrar", "cerrar"), tCuerpo = el("div", "", "cuerpo");
+  const pintarTarjeta = () => {
+    if (!tarjeta || tarjeta.hidden) return;
+    const m = c.libro().find((x) => x.id === tarjetaDe), ev = m?.evaluacion;
+    if (!m || !ev) { tCuerpo.replaceChildren(el("p", "Esta misión no tiene evaluación.")); return; }
+    tTitulo.textContent = ev.titulo;
+    const puntos = el("p", "", "puntos"), barra = el("div", "", "barra"), marca = el("i"), dl = el("dl", "", "filas");
+    puntos.append(el("span", "Puntuación: ", "solo-lector"), el("span", String(ev.puntos), "num"), el("span", ` de ${ev.base} puntos`, "de"));
+    barra.setAttribute("aria-hidden", "true");
+    marca.style.width = `${Math.max(0, Math.min(100, ev.base > 0 ? (ev.puntos / ev.base) * 100 : 0))}%`;
+    barra.append(marca);
+    for (const f of ev.filas) {
+      if (!f) continue;
+      const fila = el("div", "", `fila ${f.tipo}`), dd = el("dd", f.texto);
+      if (f.resta > 0) dd.append(el("span", ` · quita ${f.resta} ${f.resta === 1 ? "punto" : "puntos"}`, "resta"));
+      fila.append(el("dt", f.etiqueta), dd);
+      dl.append(fila);
+    }
+    tCuerpo.replaceChildren(el("p", m.titulo, "mision"), puntos, barra, dl, el("p", "Puede volver a verla desde el libro de misiones (J).", "pie"));
+  };
+  const cerrarTarjeta = () => {
+    if (!tarjeta || tarjeta.hidden) return;
+    if (tarjeta.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
+    tarjeta.hidden = true;
+  };
+  /** Open the card of quest `id`; opened by hand the focus goes to its title, opened by itself it stays where it was. */
+  const verEvaluacion = (id: string, foco: boolean) => {
+    if (!tarjeta) return;
+    tarjetaDe = id; tarjeta.hidden = false; pintarTarjeta();
+    if (foco) tTitulo.focus({ preventScroll: true });
+  };
+  if (tarjeta) {
+    tTitulo.tabIndex = -1; tCerrar.type = "button"; tCerrar.setAttribute("aria-keyshortcuts", "Escape");
+    const cab = el("header", "", "cabeza"); cab.append(tTitulo, tCerrar);
+    tarjeta.replaceChildren(cab, tCuerpo);
+    tCerrar.addEventListener("click", cerrarTarjeta);
+    tarjeta.addEventListener("pointerdown", (ev) => ev.stopPropagation()); // not a joystick touch
+    addEventListener("keydown", (e) => { if (e.code === "Escape" && !tarjeta.hidden && !escribiendo(e)) cerrarTarjeta(); });
+  }
   o.oir?.((feature, event, msg) => {
     if (feature !== "misiones") return;
     const aviso = avisoDeEvento(event, msg, c.libro());
@@ -393,6 +449,10 @@ export function montarLibro(c: Ctl, o: {
       // a step done is silent (it is frequent): only the milestones sound (received, delivered, completed: avisoDeEvento)
     }
     if (event === "completada") mostrarCompletada(msg);
+    if (event === "abrirEvaluacion") { // P13: the quest just completed has an end card (it came with the book): show it and say it once
+      if (!o.view.vr?.active) verEvaluacion(String(msg.mision), false);
+      anunciar(`${String(msg.titulo ?? "Evaluación")}: ${Number(msg.puntos) || 0} puntos. ${String(msg.resumen ?? "")}${tarjeta && !o.view.vr?.active ? (tactil ? " La tarjeta de evaluación está abierta." : " La tarjeta de evaluación está abierta: Escape la cierra.") : ""}`.trim());
+    }
     if (event === "abrirLibro" && o.panel.hidden && !o.view.vr?.active) { // P3: a pick-up asked for it (the notebook): same as when a quest is accepted — it takes no focus, and never in VR
       abrir(true, false);
       anunciar(tactil ? "El libro de misiones se ha abierto." : "El libro de misiones se ha abierto: J lo cierra.");

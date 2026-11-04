@@ -171,3 +171,7 @@ html[data-aparato="movil-horizontal"] #pesca-hud { bottom: calc(var(--sb) + 10px
 /* Galatea, mobile «paseo» (Pablo, 2026-10-22): a phone walks and talks. The skill slots come up only while a creature is
    in reach (#objetivo shown), as the one action button does; the rest of the time the top of the screen is the world. */
 html[data-aparato^="movil"] body:not(:has(#objetivo:not([hidden]))) #habilidades { display: none !important; }
+
+/* P13: the end evaluation card on a phone: the whole width, big buttons */
+html[data-aparato^="movil"] #evaluacion { top: calc(var(--st) + 56px); width: calc(100% - var(--sl) - var(--sr) - 16px); max-height: calc(100% - var(--st) - var(--sb) - 72px); }
+html[data-aparato^="movil"] #evaluacion button, html[data-aparato^="movil"] #libro button.ver-evaluacion { min-height: 44px; min-width: 44px; padding: 0 12px; }
