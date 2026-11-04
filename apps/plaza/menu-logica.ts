@@ -39,3 +39,22 @@ export function filasDeAyuda(texto: string): Array<{ tecla: string; que: string 
   }
   return filas;
 }
+
+/** P8: how far from the bar's right edge (`right`, in the bar's own CSS px) a drop-down hangs so it never leaves the
+ * screen. It starts where the design wants it — right edges together with its button — and if that puts the right edge
+ * past `pantalla - margen` it moves left, and if it then puts the left edge before `margen` it moves right again; the
+ * right edge wins when the menu is wider than the screen (the page also caps its width). `escala` = viewport px per
+ * CSS px of the bar (the interface-size zoom; 1 normally), `borde` = the bar's right edge in the viewport. Negative =
+ * the menu pokes out to the right of the bar (a bar that sits far left on a wide screen). */
+export function derechaDelMenu(o: { barraAncho: number; botonIzq: number; botonAncho: number; menuAncho: number; borde: number; escala: number; pantalla: number; margen: number }): number {
+  const k = o.escala > 0 && Number.isFinite(o.escala) ? o.escala : 1;
+  const ideal = Math.max(0, o.barraAncho - (o.botonIzq + o.botonAncho));
+  const minimo = (o.borde - (o.pantalla - o.margen)) / k;   // any smaller and the right edge is past the screen's
+  let d = Math.max(ideal, minimo);
+  const izquierdo = o.borde - d * k - o.menuAncho * k;
+  if (izquierdo < o.margen) d = Math.max(minimo, d - (o.margen - izquierdo) / k);
+  return Number.isFinite(d) ? Math.round(d * 100) / 100 : ideal;
+}
+
+/** P8: does a menu spanning `izq`…`dcha` (viewport px) sit inside the screen with `margen` to spare on both sides? */
+export const cabeEnPantalla = (izq: number, dcha: number, pantalla: number, margen: number): boolean => izq >= margen - 0.5 && dcha <= pantalla - margen + 0.5;

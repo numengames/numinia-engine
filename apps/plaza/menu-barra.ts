@@ -6,7 +6,9 @@
 // gives focus back, Tab or a press outside closes. One menu open at a time. A menu with every entry hidden hides its
 // button (the `hidden` attribute, never a CSS display), so the bar never shows a dead button.
 import { escribiendo } from "./escribiendo.ts";
-import { botonVisible, entradasVisibles, siguienteEntrada } from "./menu-logica.ts";
+import { botonVisible, cabeEnPantalla, derechaDelMenu, entradasVisibles, siguienteEntrada } from "./menu-logica.ts";
+/** P8: the least space (CSS px) a drop-down leaves between itself and the screen's edge. */
+const MARGEN_PANTALLA = 8;
 
 export type MenuBarra = {
   boton: HTMLButtonElement; menu: HTMLElement;
@@ -33,6 +35,16 @@ export function montarMenuBarra(o: {
   let porTecladoAbierto = false;
   const ocultas = () => entradas.map((b) => !!b.hidden); // `hidden` may also be "until-found"
   const visibles = () => entradasVisibles(ocultas());
+  const colocar = (): void => {
+    menu.style.removeProperty("right");
+    const rb = barra.getBoundingClientRect(), k = barra.offsetWidth > 0 && rb.width > 0 ? rb.width / barra.offsetWidth : 1;
+    const pantalla = document.documentElement.clientWidth || innerWidth;
+    menu.style.maxWidth = `${Math.max(0, (pantalla - 2 * MARGEN_PANTALLA) / k)}px`; // a menu wider than a tiny screen shrinks (its entries are single lines)
+    const natural = menu.getBoundingClientRect();
+    if (cabeEnPantalla(natural.left, natural.right, pantalla, MARGEN_PANTALLA)) return; // where the page's CSS hangs it, it fits: leave it as it always was (a desktop)
+    const derecha = derechaDelMenu({ barraAncho: barra.clientWidth, botonIzq: boton.offsetLeft, botonAncho: boton.offsetWidth, menuAncho: menu.offsetWidth, borde: rb.right, escala: k, pantalla, margen: MARGEN_PANTALLA });
+    menu.style.setProperty("right", `${derecha}px`, "important");
+  };
 
   const m: MenuBarra = {
     boton, menu,
@@ -46,9 +58,12 @@ export function montarMenuBarra(o: {
       m.sincronizar();
       if (boton.hidden) return false;
       for (const x of todos) if (x !== m) x.cerrar(false);
-      // hang it under its button, right edges together (offsets are the bar's own CSS pixels: the UI zoom does not matter)
-      menu.style.right = `${Math.max(0, barra.clientWidth - (boton.offsetLeft + boton.offsetWidth))}px`;
+      // hang it under its button where the page's CSS puts it; only if that leaves the screen (P8: a phone is 360–412 px wide, the
+      // menu 220) hang it right edges together with its button and inside the margins. The bar's own CSS
+      // (`#barra-arriba > * { inset: auto !important }`) beats a plain inline `right`, so it goes in with `important` — an inline
+      // !important wins over a stylesheet's. Offsets are the bar's own CSS pixels: the UI zoom does not matter.
       menu.hidden = false; boton.setAttribute("aria-expanded", "true"); porTecladoAbierto = porTeclado;
+      colocar();
       if (porTeclado) entradas[visibles()[0]]?.focus({ preventScroll: true });
       return true;
     },
