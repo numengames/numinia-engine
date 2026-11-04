@@ -88,5 +88,18 @@ export function caminaPaso(o: { dx: number; dz: number }, dt: number): number {
 /** A walk worth showing: the person was already drawn somewhere and the move is neither nothing nor too long. */
 export const vaACaminar = (metros: number): boolean => metros > 0.05 && metros <= CAMINA_MAX_M;
 
-/** A name that says the model has an idle clip of its own (it is played instead of the procedural idle). */
-export const esClipReposo = (nombre: string): boolean => /idle|reposo|respira/i.test(nombre);
+/** A name that says the model has a talking clip (gestures while the person talks to you): `talk`, `habla` or `gesto`. */
+export const esClipHabla = (nombre: string): boolean => /talk|habla|gesto/i.test(nombre);
+/** ... a walking clip (played while the person walks to a new place): `walk`, `camina` or `andar`. */
+export const esClipCamina = (nombre: string): boolean => /(^|[^a-z])(walk|camina|andar)/i.test(nombre);
+/** A name that says the model has an idle clip of its own (it is played instead of the procedural idle). A talking or walking one
+ * that has «idle» in its name (`Idle_Talking_Loop`) is NOT the idle: it is what the person does while it talks. */
+export const esClipReposo = (nombre: string): boolean => /idle|reposo|respira/i.test(nombre) && !esClipHabla(nombre) && !esClipCamina(nombre);
+
+/** What a person with clips of its own is doing: standing (idle), talking to you (a conversation is open with it), walking. */
+export type Gesto = "reposo" | "habla" | "camina";
+export const FUNDIDO_GESTO_S = 0.3;    // crossfade between two gestures, seconds
+/** Walking wins over talking (it does not stand still to talk while it moves), talking over standing. */
+export const gestoDe = (atiende: boolean | undefined, anda: boolean): Gesto => (anda ? "camina" : atiende === true ? "habla" : "reposo");
+/** The gesture to play now when the model may not have a clip for it: its own if it has one, else the one it was playing (never none). */
+export const gestoDisponible = (quiere: Gesto, tiene: Readonly<Record<Gesto, boolean>>, actual: Gesto): Gesto => (tiene[quiere] ? quiere : actual);

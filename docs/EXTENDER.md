@@ -741,6 +741,12 @@ paso. La insignia queda en su ficha (I) y en su libro.
     cada una con su propio compás sacado de su `id` (nunca van a la vez). Si su modelo trae una animación que se llame
     `idle`, `reposo` o `respira`, suena esa en vez del movimiento de la casa. Más lejos de 25 m, o a tu espalda, se queda
     quieta. `"reposo": false` la deja quieta del todo.
+  - **Gestos con sus propias animaciones.** Si, además del reposo, el modelo trae una animación que se llame `talk`,
+    `habla` o `gesto` (p. ej. `Idle_Talking_Loop`: un nombre así **no** cuenta como reposo), suena mientras hablas con esa
+    persona (conversación abierta con ella); y si trae una `walk`, `camina` o `andar`, suena mientras camina a su sitio
+    nuevo. El paso de una a otra es un fundido de 0,3 s; sin la animación de un gesto, sigue con la que suena. Los modelos
+    de personas **miran a +z** (glTF); un VRM 0.x mira a −z: gíralo 180° en el fichero (nodo raíz) o te dará la espalda al
+    girarse hacia ti.
   - **Se vuelve hacia ti.** Cuando estás a menos de su `radio` + 1 m, el cuerpo gira hacia ti en medio segundo con un giro
     suave (solo el cuerpo; la cámara no se toca, ni en gafas) y mientras hablas con ella te sigue mirando; al alejarte
     vuelve a su `giro` en un segundo. `"mira": false` la deja mirando siempre a su `giro`.

@@ -19,7 +19,7 @@ import { crearMisiones } from "../features/misiones/server.ts";
 import { crearCliente, vidaPnj } from "../features/misiones/client.ts";
 import type { PlacedObject } from "../packages/feature/src/index.ts";
 import {
-  BALANCEO_MAX_GRAD, BALANCEO_S, CAMINA_MAX_M, CAMINA_MS, RESPIRA_MAX, RESPIRA_S, caminaPaso, envuelve, esClipReposo, faseDe, giraHacia,
+  BALANCEO_MAX_GRAD, BALANCEO_S, CAMINA_MAX_M, CAMINA_MS, FUNDIDO_GESTO_S, RESPIRA_MAX, RESPIRA_S, caminaPaso, envuelve, esClipCamina, esClipHabla, esClipReposo, faseDe, gestoDe, gestoDisponible, giraHacia,
   noto, nuevoReposo, reposoDe, rumboHacia, vaACaminar, GIRO_HACIA_S, GIRO_VUELTA_S,
 } from "../packages/render/src/vida.ts";
 
@@ -105,6 +105,21 @@ test("rumboHacia, noto, caminaPaso, vaACaminar, esClipReposo", () => {
   assert.ok(Math.abs(t - (5 - 1.4) / CAMINA_MS) < 0.2, `a 5 m walk takes ${t} s`);
   assert.equal(vaACaminar(0), false); assert.equal(vaACaminar(2), true); assert.equal(vaACaminar(CAMINA_MAX_M + 0.1), false);
   assert.deepEqual(["Idle", "idle_loop", "Reposo", "respira", "Walk", "Run"].map(esClipReposo), [true, true, true, true, false, false]);
+});
+
+// feat/pnj-gestures: a model with clips of its own talks with its hands and walks with its legs
+test("gestos: a talking idle is not the idle; talk/walk clips are found by name; the gesture follows the state; a missing clip keeps what plays", () => {
+  assert.deepEqual(["Idle_Loop", "Idle_Talking_Loop", "Walk_Formal_Loop", "Idle_Walk"].map(esClipReposo), [true, false, false, false], "Idle_Talking_Loop is the talk, not the idle");
+  assert.deepEqual(["Idle_Talking_Loop", "Sitting_Talking_Loop", "habla", "gesto_mano", "Idle_Loop", "Walk"].map(esClipHabla), [true, true, true, true, false, false]);
+  assert.deepEqual(["Walk_Formal_Loop", "Walk_Loop", "camina", "andar", "Idle_Loop", "Standard"].map(esClipCamina), [true, true, true, true, false, false], "«Standard» has «andar» inside and is not a walk");
+  assert.equal(gestoDe(false, false), "reposo"); assert.equal(gestoDe(undefined, false), "reposo");
+  assert.equal(gestoDe(true, false), "habla"); assert.equal(gestoDe(true, true), "camina", "it does not stand talking while it walks");
+  assert.equal(gestoDe(false, true), "camina");
+  const todo = { reposo: true, habla: true, camina: true }, sinHabla = { reposo: true, habla: false, camina: true };
+  assert.equal(gestoDisponible("habla", todo, "reposo"), "habla");
+  assert.equal(gestoDisponible("habla", sinHabla, "reposo"), "reposo", "no talking clip: it keeps the idle");
+  assert.equal(gestoDisponible("reposo", sinHabla, "camina"), "reposo");
+  assert.ok(FUNDIDO_GESTO_S > 0 && FUNDIDO_GESTO_S <= 0.5, "a short crossfade: no pop, no sliding");
 });
 
 test("CPU: the idle + turn update of 20 people stays far under a frame (µs per frame reported)", () => {

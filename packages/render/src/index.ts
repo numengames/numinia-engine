@@ -108,7 +108,8 @@ export type { Calidad, Nivel } from "./calidad.ts";
 import { decidirLOD } from "./lod-politica.ts";
 import { personaEn, type Proyectada } from "./gente-politica.ts";
 import { REACCION_MS, reaccionDe } from "./reaccion.ts"; // lote 5: the hop of a clicked thing
-import { GIRO_HACIA_S, GIRO_VUELTA_S, LEJOS_REPOSO_M, caminaPaso, envuelve, esClipReposo, faseDe, giraHacia, noto, nuevoReposo, reposoDe, rumboHacia, vaACaminar } from "./vida.ts"; // P2: people who live
+import { FUNDIDO_GESTO_S, GIRO_HACIA_S, GIRO_VUELTA_S, LEJOS_REPOSO_M, caminaPaso, envuelve, esClipCamina, esClipHabla, esClipReposo, faseDe, gestoDe, gestoDisponible, giraHacia, noto, nuevoReposo, reposoDe, rumboHacia, vaACaminar } from "./vida.ts"; // P2: people who live
+import type { Gesto } from "./vida.ts";
 import type { Fase, Giro, Reposo, Vida } from "./vida.ts";
 export { decidirLOD, LOD_LEJOS_M, LOD_HISTERESIS_M } from "./lod-politica.ts";
 export type { EstadoLOD } from "./lod-politica.ts";
@@ -575,7 +576,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   type Gltf = { scene: THREE.Object3D; animations: THREE.AnimationClip[] };
   type Pieza = { geo: THREE.BufferGeometry; mat: THREE.Material; sombra: boolean; sinSombra?: boolean };
   /** P2: what a living person carries between frames (all written in place: no allocation per frame). `ca`: how far its drawn place still is from `want` (it is walking); `clip`: the model's own idle clip plays instead of the procedural one. */
-  type EstadoVida = { fase: Fase; giro: Giro; rep: Reposo; ca: { dx: number; dz: number }; clip: boolean; anda: boolean };
+  // `gestos` (feat/pnj-gestures): the model's own clips for standing / talking / walking, and the one that plays now
+  type EstadoVida = { fase: Fase; giro: Giro; rep: Reposo; ca: { dx: number; dz: number }; clip: boolean; anda: boolean; gestos?: { acciones: Partial<Record<Gesto, THREE.AnimationAction>>; actual: Gesto } };
   type Slot = { vida?: EstadoVida; group: THREE.Group; want: Thing; model: string; loaded: boolean; failed: boolean; mixer?: THREE.AnimationMixer; medio?: Medio; color?: string; horneado?: boolean;
     /** N12: the baked parts (copies of one model share them: a lote draws them), and a sphere round the group's origin that holds the model (m, before scale). */
     partes?: Parte[]; radio?: number;
@@ -815,6 +817,15 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   let vivosCerca = false;
   /** Is this thing in front of the camera (or are we in XR, where the head moves freely: then yes)? A cheap stand-in for «on screen». */
   const vivosDelante = (s: Slot): boolean => renderer.xr.isPresenting || !selfXZ || ((s.want.x - camera.position.x) * camFwd.x + (s.want.z - camera.position.z) * camFwd.z > -3 * Math.max(0.5, s.radio ?? 1));
+  /** The gesture the person does now: a crossfade from the clip that plays to the one for `quiere`; a model without a clip for it keeps what it plays. */
+  function cambiaGesto(G: NonNullable<EstadoVida["gestos"]>, quiere: Gesto): void {
+    const tiene = { reposo: !!G.acciones.reposo, habla: !!G.acciones.habla, camina: !!G.acciones.camina };
+    const ahora = gestoDisponible(quiere, tiene, G.actual);
+    if (ahora === G.actual) return;
+    G.acciones[G.actual]?.fadeOut(FUNDIDO_GESTO_S);
+    G.acciones[ahora]!.reset().fadeIn(FUNDIDO_GESTO_S).play();
+    G.actual = ahora;
+  }
   /** One living person for one frame. `hop`: its clicked hop is running (reaccion.ts owns its height and scale this frame). */
   function vivir(k: string, s: Slot, dt: number, ahora: number, d2: number, delante: boolean): void {
     const v = s.vida!, w = s.want, vd = w.vida!;
@@ -822,6 +833,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     const anda = v.ca.dx !== 0 || v.ca.dz !== 0;
     const nota = !!selfXZ && noto(d2, vd.mira, vd.atiende);
     const cerca = d2 <= LEJOS_REPOSO_M * LEJOS_REPOSO_M && delante;
+    if (v.gestos) cambiaGesto(v.gestos, gestoDe(vd.atiende, anda)); // its own clips: standing, talking to you, walking
     // where the body points: toward where it is walking, else toward you if you are near (or it is talking to you), else its own yaw
     let objetivo = w.ry, suave = GIRO_VUELTA_S;
     if (anda) { objetivo = Math.atan2(-v.ca.dx, -v.ca.dz) * 57.29577951308232; suave = GIRO_HACIA_S; }
@@ -915,8 +927,13 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
           now.group.add(copy);
           if (anima && g.animations.length) {
             const clips = fu ? fu.clips : g.animations;
-            now.mixer = new THREE.AnimationMixer(copy); now.mixer.clipAction((clipVida && clips.find((c) => c.name === clipVida.name)) || clips[0]).play();
+            now.mixer = new THREE.AnimationMixer(copy); const reposo = now.mixer.clipAction((clipVida && clips.find((c) => c.name === clipVida.name)) || clips[0]); reposo.play();
             if (clipVida && !now.want.animate && now.vida) now.vida.clip = true;
+            // a person with an idle of its own may also have a talking clip and a walking one: they play while it talks / walks (see cambiaGesto)
+            if (clipVida && now.vida) {
+              const habla = clips.find((c) => esClipHabla(c.name)), camina = clips.find((c) => esClipCamina(c.name));
+              if (habla || camina) now.vida.gestos = { acciones: { reposo, ...(habla ? { habla: now.mixer.clipAction(habla) } : {}), ...(camina ? { camina: now.mixer.clipAction(camina) } : {}) }, actual: "reposo" };
+            }
           }
           now.loaded = true; now.color = undefined; pintar(now);
           if (llevados.has(best) && now.group.parent !== world) { const d = llevados.get(best)!; soltarLlevado(best); llevados.set(best, d); } // re-fit in the hand
