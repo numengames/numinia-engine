@@ -854,7 +854,7 @@ html[data-aparato^="movil"] #ficha-objeto .acciones { margin-top: 10px; }
 
 /* P13: the end evaluation card of a quest (misiones.ts montarLibro): the score, then one row per time or counter. Centred, above the book; hidden until a
    quest with `evaluacion` is completed. The world's look comes through the same variables as the book and the banner. */
-#evaluacion { position: fixed; left: 50%; top: max(150px, 22%); z-index: 9; transform: translateX(-50%); box-sizing: border-box; width: min(420px, calc(100% - 24px)); max-height: calc(100% - max(150px, 22%) - 24px); overflow: auto; padding: 12px 16px 14px; background: var(--n-sup); color: var(--n-texto); border: 1px solid var(--n-linea); border-top: 3px solid var(--n-ambar); border-radius: 8px; }
+#evaluacion { position: fixed; left: 50%; top: max(104px, 14%); z-index: 9; transform: translateX(-50%); box-sizing: border-box; width: min(420px, calc(100% - 24px)); max-height: calc(100% - max(104px, 14%) - 190px); overflow: auto; padding: 12px 16px 14px; background: linear-gradient(var(--n-sup), var(--n-sup)), var(--n-fondo); color: var(--n-texto); border: 1px solid var(--n-linea); border-top: 3px solid var(--n-ambar); border-radius: 8px; }
 #evaluacion[hidden] { display: none; }
 #evaluacion .cabeza { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 6px; }
 #evaluacion h2 { margin: 0; font-family: var(--n-titulos); font-weight: var(--n-titulos-peso); letter-spacing: var(--n-titulos-espacio); text-transform: var(--n-titulos-mayus); text-shadow: var(--n-titulos-sombra); font-size: calc(17px * var(--n-titulos-escala)); line-height: 1.15; }
@@ -866,15 +866,16 @@ html[data-aparato^="movil"] #ficha-objeto .acciones { margin-top: 10px; }
 #evaluacion .puntos { margin-top: 8px; display: flex; align-items: baseline; gap: 6px; }
 #evaluacion .puntos .num { font-family: var(--n-titulos); font-weight: var(--n-titulos-peso); font-size: 38px; line-height: 1; color: var(--n-ambar); }
 #evaluacion .puntos .de { font-size: 13px; color: var(--n-texto2); }
-#evaluacion .barra { height: 6px; margin: 6px 0 10px; border-radius: 3px; background: var(--n-elev); overflow: hidden; }
+#evaluacion .barra { height: 6px; margin: 5px 0 8px; border-radius: 3px; background: var(--n-elev); overflow: hidden; }
 #evaluacion .barra > i { display: block; height: 100%; background: var(--n-ambar); }
-#evaluacion dl.filas { margin: 0; display: flex; flex-direction: column; gap: 2px; }
-#evaluacion dl.filas .fila { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 4px 6px; border-radius: 6px; }
+#evaluacion dl.filas { margin: 0; display: flex; flex-direction: column; gap: 1px; }
+#evaluacion dl.filas .fila { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 3px 6px; border-radius: 6px; }
 #evaluacion dl.filas .fila:nth-child(odd) { background: color-mix(in srgb, var(--n-elev) 55%, transparent); }
 #evaluacion dl.filas dt { font-size: 13px; min-width: 0; }
 #evaluacion dl.filas dd { margin: 0; font-size: 13px; font-weight: 600; text-align: right; flex: none; }
+#evaluacion dl.filas .fase { padding-top: 1px; padding-bottom: 1px; }
 #evaluacion dl.filas .fase dt { padding-left: 14px; font-size: 12px; color: var(--n-texto2); }
 #evaluacion dl.filas .fase dd { font-size: 12px; font-weight: 400; color: var(--n-texto2); }
 #evaluacion .resta { font-weight: 400; font-size: 12px; color: var(--n-grana); }
-#evaluacion .pie { margin-top: 10px; font-size: 12px; color: var(--n-texto2); }
+#evaluacion .pie { margin-top: 8px; font-size: 12px; color: var(--n-texto2); }
 #libro li.paso > button.ver-evaluacion { grid-column: 2; justify-self: start; margin-top: 4px; padding: 2px 10px; font-size: 12px; }

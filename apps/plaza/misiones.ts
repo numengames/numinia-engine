@@ -293,7 +293,7 @@ export function montarLibro(c: Ctl, o: {
       for (const m of hechas) {
         const li = filaPaso({ n: 0, texto: `${m.titulo}${m.recompensa ? ` · ${m.recompensa}` : ""}`, hecho: true, donde: "" }, "hecho"); li.dataset.mision = m.id;
         if (m.evaluacion && o.evaluacion) { // P13: the card can be opened again from the book
-          const ver = el("button", "Ver evaluación", "ver-evaluacion"); ver.type = "button"; ver.setAttribute("aria-label", `Ver la evaluación de ${m.titulo}`);
+          const ver = el("button", "Ver evaluación", "ver-evaluacion"); ver.type = "button"; ver.setAttribute("aria-label", `Ver evaluación: ${m.titulo}`); // the visible words come first (WCAG label in name)
           ver.addEventListener("click", () => verEvaluacion(m.id, true));
           li.append(ver);
         }
@@ -432,7 +432,7 @@ export function montarLibro(c: Ctl, o: {
     if (foco) tTitulo.focus({ preventScroll: true });
   };
   if (tarjeta) {
-    tTitulo.tabIndex = -1; tCerrar.type = "button"; tCerrar.setAttribute("aria-keyshortcuts", "Escape");
+    tTitulo.tabIndex = -1; tarjeta.tabIndex = 0; /* a scrolling box must be reachable by keyboard */ tCerrar.type = "button"; tCerrar.setAttribute("aria-keyshortcuts", "Escape");
     const cab = el("header", "", "cabeza"); cab.append(tTitulo, tCerrar);
     tarjeta.replaceChildren(cab, tCuerpo);
     tCerrar.addEventListener("click", cerrarTarjeta);
