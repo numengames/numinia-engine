@@ -10,7 +10,7 @@ import { esIA } from "../avatar/feature.ts";
 import { espejo as decl, ALCANCE_M, CADUCA_S, PETICIONES_MAX, PETICIONES_POR_PERSONA, RADIO_USO_M } from "./feature.ts";
 
 const TICK_HZ = 20; // the sim's TICK_HZ (features import only core, schema, feature); the clock of the expiry is the server's tick, so a test runs it without waiting
-import { LIMITES, SOLO_LEER, VERBOS, funcionesEncendidas, leerObjeto, limpiar, tiposEncendidos } from "./esquema.ts";
+import { LIMITES, SOLO_LEER, TIPOS, VERBOS, funcionesEncendidas, leerObjeto, limpiar, tiposEncendidos } from "./esquema.ts";
 import type { Espejo, Estado, Funcion, Objeto, Seguridad, Tipo, Verbo } from "./esquema.ts";
 
 /** The key of a thing in the shared state: «<tipo>/<id>» (≤ 11 + 1 + 32 bytes, inside the engine's 64). */
@@ -59,16 +59,38 @@ export function crearEspejo(opts: OpcionesEspejo = {}): ParteConEspejo {
     }
     const encendidos = new Set<string>(tiposEncendidos(cfg));
     const puestas = new Map<string, Objeto>(); // key → what the source published (the truth is outside; this is only what we put)
+    const propias = new Set<string>(); // things the world itself puts (the switch panel): a source's `lote` never removes them
+    const huecos = new Map<string, { zona: string; n: number }>(); // key → the grid slot of a thing that came WITHOUT x/z (the source does not know the map)
     const lugar = (o: Objeto) => ({ at: { x: o.x, z: o.z } });
     const valor = (o: Objeto): Msg => ({ titulo: o.titulo, subtitulo: o.subtitulo, estado: o.estado, zona: o.zona, x: o.x, z: o.z, luz: o.luz, acciones: o.acciones.join(" ") });
     const cercaDe = (o: Objeto) => ({ near: { x: o.x, z: o.z }, radius: ALCANCE_M });
 
+    /** A thing that comes without x/z gets a slot on its zone's grid (4 m apart), filled outwards from the zone's centre (the first thing is AT the centre, then
+     *  its neighbours, nearest first). It keeps its slot while it stays in that zone, so a `cambio` or a `lote` never moves it. Past the zone's size the grid goes on. */
+    const ESPACIO_M = 4;
+    const CELDAS = (() => { const c: { i: number; j: number }[] = []; for (let i = -15; i <= 15; i++) for (let j = -15; j <= 15; j++) c.push({ i, j }); return c.sort((p, q) => p.i * p.i + p.j * p.j - (q.i * q.i + q.j * q.j) || p.j - q.j || p.i - q.i); })();
+    const casilla = (z: { x: number; z: number }, n: number) => { const c = CELDAS[Math.min(n, CELDAS.length - 1)]; return { x: z.x + c.i * ESPACIO_M, z: z.z + c.j * ESPACIO_M }; };
+    const sitioLibre = (k: string, zona: string): number => {
+      const ya = huecos.get(k); if (ya && ya.zona === zona) return ya.n;
+      const usados = new Set([...huecos].filter(([otra, h]) => otra !== k && h.zona === zona).map(([, h]) => h.n));
+      let n = 0; while (usados.has(n)) n++;
+      return n;
+    };
+    const sinLugar = (crudo: unknown): boolean => typeof crudo === "object" && crudo !== null && (crudo as { x?: unknown }).x === undefined && (crudo as { z?: unknown }).z === undefined;
+    const colocar = (o: Objeto, auto: boolean): Objeto => {
+      const k = claveDe(o.tipo, o.id);
+      if (!auto) { huecos.delete(k); return o; }
+      const zona = cfg.zonas.find((z) => z.id === o.zona)!, n = sitioLibre(k, o.zona);
+      huecos.set(k, { zona: o.zona, n });
+      return { ...o, ...casilla(zona, n) };
+    };
+
     /** Check one thing against the world's file AND its switch; return it or why not. Off-switch rejects: nothing is placed. */
-    const admitir = (crudo: unknown, path = "objeto"): { ok: true; o: Objeto } | { ok: false; r: Resultado } => {
+    const admitir = (crudo: unknown, path = "objeto"): { ok: true; o: Objeto; auto: boolean } | { ok: false; r: Resultado } => {
       const l = leerObjeto(crudo, cfg, path);
       if (!l.ok) return { ok: false, r: { ok: false, motivo: `${l.issues[0].path}: ${l.issues[0].message}`, problemas: l.issues } };
       if (!encendidos.has(l.value.tipo)) return { ok: false, r: { ok: false, motivo: `la función de «${l.value.tipo}» está apagada en este mundo (entorno/espejo.json → funciones)`, problemas: [{ path: `${path}.tipo`, message: "función apagada" }] } };
-      return { ok: true, o: l.value };
+      return { ok: true, o: l.value, auto: sinLugar(crudo) };
     };
     const poner = (o: Objeto): boolean => {
       const k = claveDe(o.tipo, o.id);
@@ -83,6 +105,7 @@ export function crearEspejo(opts: OpcionesEspejo = {}): ParteConEspejo {
     };
     const quitar = (k: string): boolean => {
       if (!puestas.delete(k)) return false;
+      huecos.delete(k); propias.delete(k);
       api.state.delete(k);
       return true;
     };
@@ -94,20 +117,25 @@ export function crearEspejo(opts: OpcionesEspejo = {}): ParteConEspejo {
         const a = admitir(crudo); if (!a.ok) return a.r;
         if (!puestas.has(claveDe(a.o.tipo, a.o.id)) && [...puestas.values()].filter((x) => x.zona === a.o.zona).length >= LIMITES.objetosPorZona) return { ok: false, motivo: `la zona «${a.o.zona}» ya tiene ${LIMITES.objetosPorZona} cosas (el tope): quite alguna o pagine en la fuente` };
         const antes = puestas.get(claveDe(a.o.tipo, a.o.id));
-        if (!poner(a.o)) return { ok: false, motivo: "el servidor no pudo poner la cosa (más en su registro)" };
-        decirCambio(antes, a.o);
+        if (antes && propias.has(claveDe(a.o.tipo, a.o.id))) return { ok: false, motivo: `«${claveDe(a.o.tipo, a.o.id)}» es de este mundo (el panel de interruptores): la fuente no puede cambiarla` };
+        const o = colocar(a.o, a.auto);
+        if (!poner(o)) { huecos.delete(claveDe(o.tipo, o.id)); return { ok: false, motivo: "el servidor no pudo poner la cosa (más en su registro)" }; }
+        decirCambio(antes, o);
         return { ok: true, puestas: 1 };
       },
       cambio(crudo) {
         const a = admitir(crudo); if (!a.ok) return a.r;
         const k = claveDe(a.o.tipo, a.o.id), antes = puestas.get(k);
         if (!antes) return { ok: false, motivo: `no hay ninguna cosa «${k}» que cambiar (use alta o lote primero)` };
-        if (!poner(a.o)) return { ok: false, motivo: "el servidor no pudo poner la cosa (más en su registro)" };
-        decirCambio(antes, a.o);
+        if (propias.has(k)) return { ok: false, motivo: `«${k}» es de este mundo (el panel de interruptores): la fuente no puede cambiarla` };
+        const o = colocar(a.o, a.auto);
+        if (!poner(o)) return { ok: false, motivo: "el servidor no pudo poner la cosa (más en su registro)" };
+        decirCambio(antes, o);
         return { ok: true, puestas: 1 };
       },
       baja(ref) {
         const t = String(ref?.tipo ?? ""), id = String(ref?.id ?? "");
+        if (propias.has(claveDe(t, id))) return { ok: false, motivo: `«${claveDe(t, id)}» es de este mundo (el panel de interruptores): la fuente no puede quitarla` };
         if (!quitar(claveDe(t, id))) return { ok: false, motivo: `no hay ninguna cosa «${limpiar(claveDe(t, id), 48)}» que quitar` };
         return { ok: true, quitadas: 1 };
       },
@@ -115,22 +143,23 @@ export function crearEspejo(opts: OpcionesEspejo = {}): ParteConEspejo {
         if (!Array.isArray(objetos)) return { ok: false, motivo: "un lote es una lista de cosas" };
         if (objetos.length > LIMITES.objetosPorLote) return { ok: false, motivo: `un lote lleva como mucho ${LIMITES.objetosPorLote} cosas (lleva ${objetos.length}); mande menos o pagine` };
         // all or nothing for the CHECK (one bad thing says which, and the world keeps what it had); then replace everything
-        const nuevos: Objeto[] = [], problemas: { path: string; message: string }[] = [], vistos = new Set<string>(), porZona = new Map<string, number>();
+        const nuevos: Objeto[] = [], autos = new Set<string>(), problemas: { path: string; message: string }[] = [], vistos = new Set<string>(), porZona = new Map<string, number>();
         objetos.forEach((c, i) => {
           const a = admitir(c, `lote[${i}]`);
           if (!a.ok) { problemas.push(...(a.r.ok ? [] : a.r.problemas ?? [{ path: `lote[${i}]`, message: a.r.motivo }])); return; }
           const k = claveDe(a.o.tipo, a.o.id);
           if (vistos.has(k)) { problemas.push({ path: `lote[${i}]`, message: `«${k}» está repetida en el lote` }); return; }
-          vistos.add(k);
+          if (propias.has(k)) { problemas.push({ path: `lote[${i}]`, message: `«${k}» es de este mundo (el panel de interruptores): la fuente no puede publicarla` }); return; }
+          vistos.add(k); if (a.auto) autos.add(k);
           const n = (porZona.get(a.o.zona) ?? 0) + 1; porZona.set(a.o.zona, n);
           if (n > LIMITES.objetosPorZona) { problemas.push({ path: `lote[${i}]`, message: `la zona «${a.o.zona}» pasa de ${LIMITES.objetosPorZona} cosas` }); return; }
           nuevos.push(a.o);
         });
         if (problemas.length) return { ok: false, motivo: `${problemas[0].path}: ${problemas[0].message}${problemas.length > 1 ? ` (y ${problemas.length - 1} más)` : ""}`, problemas };
         let quitadas = 0;
-        for (const k of [...puestas.keys()]) if (!vistos.has(k)) { quitar(k); quitadas++; }
+        for (const k of [...puestas.keys()]) if (!vistos.has(k) && !propias.has(k)) { quitar(k); quitadas++; }
         let n = 0;
-        for (const o of nuevos) { const antes = puestas.get(claveDe(o.tipo, o.id)); if (poner(o)) { n++; if (antes) decirCambio(antes, o); } }
+        for (const o0 of nuevos) { const k = claveDe(o0.tipo, o0.id), antes = puestas.get(k), o = colocar(o0, autos.has(k)); if (poner(o)) { n++; if (antes) decirCambio(antes, o); } }
         return { ok: true, puestas: n, quitadas };
       },
       conectada(si) {
@@ -149,6 +178,16 @@ export function crearEspejo(opts: OpcionesEspejo = {}): ParteConEspejo {
       esperando: () => esperando.size,
     };
     Object.assign(enlace, e);
+
+    // ---- the world's own thing: the switch panel on the threshold (the zone that admits «salud»). Read-only here: the switches are the owner's, in espejo.json. ----
+    const zonaPanel = cfg.zonas.find((z) => z.tipos.includes("salud"));
+    if (zonaPanel && encendidos.has("salud")) {
+      const FUNCIONES_DE_ZONAS = [...new Set(cfg.zonas.flatMap((z) => z.tipos.map((t) => TIPOS[t])))] as Funcion[];
+      const sel = (on: boolean) => FUNCIONES_DE_ZONAS.filter((f) => cfg.funciones[f] === on);
+      const lista = (xs: Funcion[]) => (xs.length ? xs.join(", ") : "ninguna");
+      const panel: Objeto = { tipo: "salud", id: "panel", titulo: "Panel de interruptores", subtitulo: limpiar(`Encendido: ${lista(sel(true))}. Apagado: ${lista(sel(false))}.`, LIMITES.subtitulo), estado: "activo", zona: zonaPanel.id, x: zonaPanel.x, z: zonaPanel.z - zonaPanel.fondo / 2 + 2.5, luz: true, acciones: [] };
+      if (poner(panel)) propias.add(claveDe(panel.tipo, panel.id));
+    }
 
     // ---- story 4: usar / pedir. The page only ASKS; the server checks and forwards. It never runs anything. ----
     let conectada = false, salida: ((p: Peticion) => void) | null = null, n = 0;

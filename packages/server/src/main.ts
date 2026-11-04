@@ -26,6 +26,7 @@ import { intervaloDeEntorno } from "./condiciones-fuente.ts"; // condiciones/w4
 import { pensadorDeCable } from "./cable-ia.ts";
 import { abrirEnlace } from "./enlace-espejo.ts";
 import { conEspejo } from "../../../features/espejo/server.ts";
+import { vistaPublica } from "../../../features/espejo/esquema.ts";
 
 const env = process.env;
 const log = (l: string) => console.log(l);
@@ -50,7 +51,10 @@ const leerEntorno = entorno ? leerMundo(entorno) : null; // the world's entorno/
 // the features once, so the composition root can find the espejo's seam afterwards (mundo-hermes)
 const partes = env.SIN_FUNCIONES === "1" ? [] : leerEntorno ? conMundo(funciones, leerEntorno, log, entorno ? escribirMundo(entorno, log) : undefined, { decir: pensadorDeCable(env, log) }) : funciones;
 
+const parteEspejo = partes.find(conEspejo); // mundo-hermes: the espejo's seam (null in a world without it) — also what /status tells the page
+const cfgEspejo = parteEspejo?.enlace.config() ?? null;
 const srv = await startServer({
+  espejo: cfgEspejo ? vistaPublica(cfgEspejo) : undefined,
   port: Number(env.PORT ?? 8790),
   host: env.HOST ?? "127.0.0.1",
   statsMs: Number(env.STATS_MS ?? 30000),
@@ -82,8 +86,6 @@ const srv = await startServer({
 
 // mundo-hermes: the local link of the espejo. Only when the world's espejo.json is on (no file = no socket); 127.0.0.1 only, key from enlace.env.
 let enlaceEspejo: Awaited<ReturnType<typeof abrirEnlace>> | null = null;
-const parteEspejo = partes.find(conEspejo);
-const cfgEspejo = parteEspejo?.enlace.config() ?? null;
 if (parteEspejo && cfgEspejo) {
   const clave = claveDeEnlace(env, c, log);
   if (!clave) log("[enlace] el espejo está encendido pero no hay dónde guardar la clave del enlace (use MOTOR_MUNDO o MOTOR_ENLACE_CLAVE): el enlace no se abre");

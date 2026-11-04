@@ -202,3 +202,15 @@ export function leerObjeto(crudo: unknown, e: Pick<Espejo, "zonas">, path = "obj
   if (issues.length) return { ok: false, issues };
   return { ok: true, value: { tipo, id: crudo.id as string, titulo: limpiar(crudo.titulo, LIMITES.titulo), subtitulo: limpiar(crudo.subtitulo ?? "", LIMITES.subtitulo), estado: (crudo.estado as Estado | undefined) ?? "desconocido", zona: zona!.id, x: (crudo.x as number | undefined) ?? zona!.x, z: (crudo.z as number | undefined) ?? zona!.z, luz: crudo.luz === true, acciones: verbos } };
 }
+
+/** What the page may know of the mirror (GET /status → `espejo`): where the zones are and which of their functions are switched on. No source, no key,
+ *  no verbs: only what is needed to draw the floors and the lamps of the switch panel. `funciones` lists only the functions some zone shows (in F0 order). */
+export type VistaEspejo = { zonas: { id: string; nombre: string; cartel: string; x: number; z: number; ancho: number; fondo: number; tipos: Tipo[] }[]; funciones: Partial<Record<Funcion, boolean>> };
+export function vistaPublica(e: Espejo): VistaEspejo | null {
+  if (!e.activa) return null;
+  const mostradas = new Set<Funcion>(e.zonas.flatMap((z) => z.tipos.map((t) => TIPOS[t])));
+  return {
+    zonas: e.zonas.map((z) => ({ id: z.id, nombre: z.nombre, cartel: z.cartel, x: z.x, z: z.z, ancho: z.ancho, fondo: z.fondo, tipos: z.tipos })),
+    funciones: Object.fromEntries(FUNCIONES.filter((f) => mostradas.has(f)).map((f) => [f, e.funciones[f]])),
+  };
+}

@@ -18,7 +18,7 @@ const json = (f: string) => JSON.parse(readFileSync(f, "utf8"));
 /** Exactly what a new Hermes world's folder holds (besides mundo.json / datos / claves, which the server makes after). */
 export const ESPERADOS_HERMES = [
   "aventura/ficha.json", "aventura/LEEME-IA.md",
-  "entorno/ancestros.json", "entorno/dardos.json", "entorno/espacio-base.json", "entorno/lucha.json", "entorno/naturaleza.json", "entorno/pesca.json",
+  "entorno/ancestros.json", "entorno/dardos.json", "entorno/entorno.json", "entorno/espacio-base.json", "entorno/espejo.json", "entorno/lucha.json", "entorno/naturaleza.json", "entorno/pesca.json",
 ].sort();
 
 const HERMES = plantillaPorNombre("hermes");
