@@ -506,6 +506,16 @@ se ignora. Va en `GET /status` (`tema`) y la página lo vuelca en las variables 
 "texto": "#e8f8ff", "accion": "#ff8ebe", "enfasis": "#f9ff8e", "foco": "#64f5f0", "titulos": "bebas-neue", "sombra":
 "#ff8ebe", "mayusculas": true, "forma": "pildora" }`.
 
+**`interfaz`** (opcional, dentro de la ficha): qué botones quita ESTE mundo de la pantalla. Hoy un solo campo, `ocultar`, una
+lista de grupos; el único grupo que existe es `"gestos"` = «Saludar», «Bailar» y «Movimientos» (la barra de abajo en
+escritorio, el menú «…» del móvil y el botón «Movimientos» de la pantalla táctil). Pensado para un simulador de formación,
+donde esos botones sobran: `"interfaz": { "ocultar": ["gestos"] }`. **Solo quita botones**: las teclas (G para la rueda, H
+para bailar) siguen funcionando, y el «Saludar» de la tarjeta de una persona también (es otra cosa: saludar a alguien). Un nombre
+que no existe se deja fuera y se dice en el registro (`[ficha] interfaz.ocultar: «chat» no existe…`); el resto se aplica; una
+clave desconocida se ignora. Va en `GET /status` (`interfaz`, solo si hay algo que ocultar) y la página lo lee en
+`apps/plaza/interfaz-mundo.ts`. Sin el campo, nada cambia: ni `/status` ni la pantalla. Fuente: `leerInterfaz`
+(`packages/server/src/aventura.ts`); prueba: `test/interfaz-mundo.test.ts`.
+
 Reglas para quien escribe (persona o LLM):
 - **Ids** en minúsculas, cifras y guiones (`primeros-pasos`); cada fichero, un `formato` en su primera línea. Un campo
   desconocido es un error (así una tilde de más, `descripción`, no pasa en silencio). `notas` vale en todos.
