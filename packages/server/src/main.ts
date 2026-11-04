@@ -18,12 +18,14 @@ import { libroDeEntorno } from "./eventos.ts";
 import funciones from "../../../features/servidor.ts";
 import { aparicionDelMundo, conMundo, enlaceDardosDelMundo, sueloDelMundo, vueloDelMundo } from "../../../features/mundo.ts";
 import { leerMundo, escribirMundo } from "./mundo.ts";
-import { carpetaMundo, claves, EJEMPLO, escribirManifiesto, plantillaPorNombre, sembrar } from "./mundo-carpeta.ts";
+import { carpetaMundo, claveDeEnlace, claves, EJEMPLO, escribirManifiesto, plantillaPorNombre, sembrar } from "./mundo-carpeta.ts";
 import { infoMotor } from "./version.ts";
 import { configPase } from "./pase.ts";
 import { puertaDeEntorno } from "./condiciones.ts";
 import { intervaloDeEntorno } from "./condiciones-fuente.ts"; // condiciones/w4
 import { pensadorDeCable } from "./cable-ia.ts";
+import { abrirEnlace } from "./enlace-espejo.ts";
+import { conEspejo } from "../../../features/espejo/server.ts";
 
 const env = process.env;
 const log = (l: string) => console.log(l);
@@ -45,12 +47,15 @@ const entorno = env.MUNDO_DIR || c?.entorno || null;
 const libro = libroDeEntorno(env, datos, log); // MIS-248: the book of world facts, off unless MOTOR_EVENTOS=si (the pieces that write to it come in the next cards)
 const leerEntorno = entorno ? leerMundo(entorno) : null; // the world's entorno/ folder (entorno.json, elementos.json; H4)
 
+// the features once, so the composition root can find the espejo's seam afterwards (mundo-hermes)
+const partes = env.SIN_FUNCIONES === "1" ? [] : leerEntorno ? conMundo(funciones, leerEntorno, log, entorno ? escribirMundo(entorno, log) : undefined, { decir: pensadorDeCable(env, log) }) : funciones;
+
 const srv = await startServer({
   port: Number(env.PORT ?? 8790),
   host: env.HOST ?? "127.0.0.1",
   statsMs: Number(env.STATS_MS ?? 30000),
   // SIN_FUNCIONES=1: the bare engine · the world's own environment and elements (entorno.json, elementos.json; H4)
-  features: env.SIN_FUNCIONES === "1" ? [] : leerEntorno ? conMundo(funciones, leerEntorno, log, entorno ? escribirMundo(entorno, log) : undefined, { decir: pensadorDeCable(env, log) }) : funciones,
+  features: partes,
   aparicion: leerEntorno ? aparicionDelMundo(leerEntorno, log) : null,  // where people appear (entorno.json `aparicion`; a tower's floor)
   enlaceDardos: leerEntorno ? enlaceDardosDelMundo(leerEntorno, log) : undefined, // dardos enlazados (E1): where this world's AR darts go (dardos.json `enlace`); told to the page in /status
   suelo: leerEntorno ? sueloDelMundo(leerEntorno, log) : null,          // D-045: under `sueloMinimo` you come back to your last safe spot
@@ -75,12 +80,25 @@ const srv = await startServer({
   reiniciar: () => { if (env.INVOCATION_ID) process.exit(0); else if (env.MOTOR_REINICIO === "salir") process.exit(75); else console.log("[mundo] mundo cambiado y servidor parado: arráncalo otra vez para usarlo"); },
 });
 
+// mundo-hermes: the local link of the espejo. Only when the world's espejo.json is on (no file = no socket); 127.0.0.1 only, key from enlace.env.
+let enlaceEspejo: Awaited<ReturnType<typeof abrirEnlace>> | null = null;
+const parteEspejo = partes.find(conEspejo);
+const cfgEspejo = parteEspejo?.enlace.config() ?? null;
+if (parteEspejo && cfgEspejo) {
+  const clave = claveDeEnlace(env, c, log);
+  if (!clave) log("[enlace] el espejo está encendido pero no hay dónde guardar la clave del enlace (use MOTOR_MUNDO o MOTOR_ENLACE_CLAVE): el enlace no se abre");
+  else {
+    try { enlaceEspejo = await abrirEnlace({ enlace: parteEspejo.enlace, clave, puerto: Number(env.MOTOR_ENLACE_PUERTO || cfgEspejo.fuente.puerto), log }); }
+    catch (err) { log(`[enlace] no he podido abrir el enlace: ${(err as Error).message}`); }
+  }
+}
+
 // systemd, the container (docker stop) and tools/plaza.sh stop the server with SIGTERM: close every connection first
 // so each session that reported gets its closing line written (T1) and the features' data is flushed, then leave;
 // never wait more than 2 s (a container gets 10 s before SIGKILL).
 for (const sig of ["SIGTERM", "SIGINT"] as const) {
   process.once(sig, () => {
     setTimeout(() => process.exit(0), 2000).unref();
-    void srv.close().then(() => process.exit(0));
+    void Promise.all([enlaceEspejo?.close(), srv.close()]).then(() => process.exit(0));
   });
 }

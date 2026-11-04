@@ -103,6 +103,31 @@ export function escribirManifiesto(c: Carpeta, motor: Motor, cuando = new Date()
 }
 
 export type Claves = { secreto?: string; admin?: string; dondeCodigo: string };
+
+/** mundo-hermes: the key of the local link to an outside source (espejo). Its own file at the world's root, next to claves.env and, like it,
+ *  never in the zip (the zip holds only datos/ aventura/ entorno/): `enlace.env`, mode 600, made ONCE and only when the world asks for a link.
+ *  Distinct from MOTOR_SECRET on purpose: a leaked link key can lie about a cron, but cannot forge a pass or a QR. MOTOR_ENLACE_CLAVE wins when set.
+ *  Returns "" when there is nowhere to keep it (no world folder and no variable): then the link is not opened. Never printed. */
+export function claveDeEnlace(env: Record<string, string | undefined>, c: Carpeta | null, log: (l: string) => void = () => {}): string {
+  const dada = env.MOTOR_ENLACE_CLAVE;
+  if (dada) { if (dada.length >= 16) return dada; log("[enlace] MOTOR_ENLACE_CLAVE tiene menos de 16 caracteres: no la uso"); return ""; }
+  if (!c) return "";
+  const fichero = join(c.raiz, "enlace.env");
+  if (existsSync(fichero)) {
+    const m = /^MOTOR_ENLACE_CLAVE=([A-Za-z0-9_-]{16,128})$/m.exec(readFileSync(fichero, "utf8"));
+    if ((statSync(fichero).mode & 0o077) !== 0) { chmodSync(fichero, 0o600); log(`[enlace] ${fichero} se podía leer por otros: ahora solo tú (600)`); }
+    if (m) return m[1];
+    log(`[enlace] ${fichero} no trae MOTOR_ENLACE_CLAVE=<16+ caracteres>: bórrelo para que se haga de nuevo`);
+    return "";
+  }
+  const clave = nueva();
+  const tmp = `${fichero}.tmp-${process.pid}`;
+  writeFileSync(tmp, `# Clave del enlace local del espejo (la hizo el motor). La firma el plugin; nunca viaja. No va en el zip del mundo.\nMOTOR_ENLACE_CLAVE=${clave}\n`, { mode: 0o600 });
+  renameSync(tmp, fichero);
+  log(`[enlace] clave hecha una vez en ${fichero} (600)`);
+  return clave;
+}
+
 const LINEA = /^(MOTOR_SECRET|MOTOR_ADMIN)=([A-Za-z0-9_-]{16,128})$/;
 const nueva = () => randomBytes(24).toString("hex");
 
