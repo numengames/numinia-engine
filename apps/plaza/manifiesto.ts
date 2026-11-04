@@ -1,7 +1,9 @@
 // manifiesto (M16, page side): the zone's manifest — every file with its sha256, size and class — and a store of files by hash.
 // The page reads /manifiesto.json once; a model it asks for is looked up there: if the browser already holds the bytes under
 // that sha256 (Cache API) they are used and nothing is downloaded; if not, they are downloaded, CHECKED against the sha256 (a
-// file that does not match is refused, not drawn) and kept. A server with no manifest (or a file it does not list) is not
+// file that does not match is refused, not drawn) and kept. The one other thing accepted is the file the url itself names
+// (/a/<sha256>.<ext>, the original): a browser that kept it before the server made its lighter copy gets it again from its HTTP
+// cache; it is authentic by construction and is kept under its own sha256. A server with no manifest (or a file it does not list) is not
 // an error: the model loads as it always did.
 //
 // The store works on bytes and takes `fetch` and `caches` as arguments, so test/manifiesto.test.ts runs it in node.
@@ -14,6 +16,8 @@ export const ESQUEMA = "numinia-engine/manifiesto@1";
 /** The Cache API cache the files live in; the key is the sha256 (never the url: the same bytes at another origin are the same file). */
 export const NOMBRE_CACHE = "numinia-activos-v1";
 const CLAVE = (sha: string): string => `https://activos.invalid/${sha}`;
+/** The sha256 a plain asset url names (`/a/<sha256>.<ext>`: the ORIGINAL file), or null for anything else (a level of detail's name carries its model's sha, not its own). */
+export const shaDeLaUrl = (ruta: string): string | null => /^\/a\/([0-9a-f]{64})\.[a-z0-9]+$/.exec(ruta)?.[1] ?? null;
 
 /** Reads and checks the shape of a manifest; null if it is not one. */
 export function leerManifiesto(x: unknown): Manifiesto | null {
@@ -101,9 +105,11 @@ export function crearTienda(o: OpcionesTienda): Tienda {
         if (!r.ok) throw new Error(`${url}: ${r.status}`);
         const b = await r.arrayBuffer();
         const h = await sha256(b);
-        if (h !== f.sha256) { est.rechazados++; throw new HashFalso(f.ruta, f.sha256, h); }
+        // the bytes are the manifest's, or — for a plain `/a/<sha>.<ext>` — the very file the url names (the original that a
+        // browser kept as immutable before the server had made its lighter copy): authentic by construction, kept under ITS sha
+        if (h !== f.sha256 && h !== shaDeLaUrl(f.ruta)) { est.rechazados++; throw new HashFalso(f.ruta, f.sha256, h); }
         est.descargados++; est.bytesDescargados += b.byteLength;
-        await c?.put(CLAVE(f.sha256), new Response(b.slice(0))).catch(() => {});
+        await c?.put(CLAVE(h), new Response(b.slice(0))).catch(() => {});
         return b;
       })();
       pedidos.set(f.sha256, p);
