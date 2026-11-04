@@ -168,6 +168,28 @@ export function leerTema(v: unknown): { tema: Tema | null; problemas: string[] }
   return { tema: Object.keys(tema).length ? tema : null, problemas };
 }
 
+// ---------- ficha@1 `interfaz`: what this world takes off the page's buttons (a training sim has no use for a wave) ----------
+/** The groups of buttons a world may hide. `gestos` = «Saludar», «Bailar» and «Movimientos» (the bottom bar, the phone's «…» menu
+ * and the touch «Movimientos» button). Keys (G, H) and the wheel they open are not touched: this is about buttons on screen. */
+export const INTERFAZ_OCULTABLES = ["gestos"] as const;
+export type Interfaz = { ocultar: (typeof INTERFAZ_OCULTABLES)[number][] };
+
+/** A ficha's `interfaz`, value by value: a name that does not exist is left out and said (the rest still applies), unknown keys are
+ * ignored (a newer engine may add some), nothing to hide = null (the page as ever). Never throws. */
+export function leerInterfaz(v: unknown): { interfaz: Interfaz | null; problemas: string[] } {
+  if (v === undefined) return { interfaz: null, problemas: [] };
+  if (!v || typeof v !== "object" || Array.isArray(v)) return { interfaz: null, problemas: ['interfaz: un objeto { "ocultar": ["gestos"] }'] };
+  const o = (v as Record<string, unknown>).ocultar, problemas: string[] = [];
+  if (o === undefined) return { interfaz: null, problemas };
+  if (!Array.isArray(o)) return { interfaz: null, problemas: [`interfaz.ocultar: una lista con nombres de ${INTERFAZ_OCULTABLES.join(", ")}`] };
+  const buenos: Interfaz["ocultar"] = [];
+  for (const x of o) {
+    if ((INTERFAZ_OCULTABLES as readonly unknown[]).includes(x)) { if (!buenos.includes(x as Interfaz["ocultar"][number])) buenos.push(x as Interfaz["ocultar"][number]); }
+    else problemas.push(`interfaz.ocultar: «${typeof x === "string" ? x.slice(0, 40) : typeof x}» no existe; los que hay: ${INTERFAZ_OCULTABLES.join(", ")}`);
+  }
+  return { interfaz: buenos.length ? { ocultar: buenos } : null, problemas };
+}
+
 // ---------- agente@1 (ADR-080): an outside AI this world lets in, by its public key ----------
 export const AGENTE = "agente@1";
 export const AGENTES_CARPETA = "agentes";

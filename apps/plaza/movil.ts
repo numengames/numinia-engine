@@ -8,15 +8,18 @@ import "./movil.css"; // U24: every rule is scoped to html[data-aparato^="movil"
 import { icono } from "./iconos.ts";
 import { iconoDe, nombreDe } from "../../packages/render/src/menu-secciones.ts"; // v2 paridad: the same names and icons as the bar and the VR menu
 import { perfil } from "./perfil-aparato.ts";
+import { accionesVisibles } from "./interfaz-mundo.ts"; // P7: a world may hide the gestures
 import { anunciar } from "./paneles.ts";
 import { PULSACION_LARGA_MS, PULSACION_LARGA_TOLERANCIA, ZONA_SEGURA_SIMULADA, elegirAccion, entradasDelMenu, esPulsacionLarga, siguienteChat, ultimaLinea } from "../../packages/client/src/movil.ts";
 import type { Contexto, EstadoChat, Entrada } from "../../packages/client/src/movil.ts";
 
-type Accion = { id: string; label: string; describe?: string; run(): void };
+type Accion = { id: string; label: string; describe?: string; feature?: string; run(): void };
 type Cerca = { feature: string; key: string; prompt: string } | null;
 type Opciones = {
   interaccion: { actual(): Cerca; usar(): unknown; mirar(): void };
   acciones: readonly Accion[];
+  /** P7: the world took the gestures («Saludar», «Bailar») off the screen (ficha.json → interfaz.ocultar): «…» does not offer them. Asked each time the menu opens. */
+  sinGestos?: () => boolean;
   saltar: () => void;
   cajaChat: { cerrar(): void };
   mapa: { abrir(): void; cerrar(): void; abierto(): boolean };
@@ -109,7 +112,7 @@ export function montarMovil(o: Opciones): void {
   const cerrarMenu = () => { menu.hidden = true; ampliado = false; mas.setAttribute("aria-expanded", "false"); clearTimeout(tMenu); };
   const pintarMenu = () => {
     const ex = extras();
-    const entradas = entradasDelMenu(o.acciones, ex);
+    const entradas = entradasDelMenu(accionesVisibles(o.acciones, !!o.sinGestos?.()), ex);
     menu.classList.toggle("ampliado", ampliado);
     const botones = entradas.map((en) => {
       const b = el<HTMLButtonElement>("button", { clase: `tocable${en.masAlla ? " extra" : ""}`, html: icono(en.icono, 24) }); // the icon is a fixed house glyph; the label (a feature's text) goes in as text
