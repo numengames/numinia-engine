@@ -813,6 +813,43 @@ rechaza («Ahora no hay nada que inspeccionar en <Nombre>.»). El servidor decid
                    { "texto": "Seguir.", "accion": { "tipo": "despedir" } }] } } } }
 ```
 
+**Una cosa que se marca como indicio (`marcable`, P4).** `cosa@1` admite `"marcable": true` (o un objeto con textos propios, ≤ 40
+bytes cada uno, y `offset`): `{ "marcar": "Marcar", "desechar": "Desechar", "desmarcar": "Desmarcar", "dejar": "Dejar marcado",
+"offset": { "x": 0, "y": 0.6, "z": 0 } }` (todo opcional; `offset` en metros, de −5 a 5, donde flota el marcador sobre la cosa).
+Mientras **un paso `marca` suyo es el que toca**, la ficha de la cosa (su `dialogo`, o, sin él, una ficha mínima con su
+`nombre` y su `descripcion`) termina con dos botones que añade el servidor a cada nodo: «Marcar» / «Desechar», o
+«Desmarcar» / «Dejar marcado» si ya la marcó. «Desechar» y «Dejar marcado» solo cierran la ficha. Fuera de ese paso no salen
+(ni «E» en una cosa sin `dialogo`). Como los botones suman dos a las respuestas del nodo y caben cuatro, **cada nodo de una
+cosa marcable lleva como mucho 2 opciones** (`node tools/aventura.ts` lo dice con su ruta).
+
+La lista de lo marcado es **por jugador** (máximo 16 cosas, en orden) y se guarda con su progreso: sobrevive a reconectar y a
+reiniciar el servidor. El **número** de cada indicio es su puesto en la lista (desde 1); al desmarcar uno, los siguientes suben
+(marcar A y B → 1 y 2; desmarcar A → B pasa a ser 1). Cada uno lo ve **solo en su página**: una placa amarilla con el número
+en negro, siempre de cara, que se lee desde 2 m a la altura de los ojos (C-24 del estándar de cámara de las aventuras). Un solo
+atlas de números (4×4) y un solo `Sprite` por indicio: el coste es una placa por cosa marcada. Las placas siguen puestas cuando el
+paso termina; un intento nuevo de una misión que marca (repetible) empieza sin nada marcado y con los contadores a cero.
+
+```json
+{ "formato": "cosa@1", "id": "vaso", "nombre": "Vaso", "descripcion": "Un vaso con restos.", "posicion": { "x": 25, "z": 20 },
+  "aviso": "inspeccionar el vaso", "marcable": true }
+```
+
+**`marca`: marcar los indicios que son (P4).** `{ "id", "tipo": "marca", "texto", "cosas": ["pisada", "vaso", "movil"] }`
+(1 a 16 ids de cosas **marcables**, sin repetir). El paso se cumple cuando el conjunto de lo que el jugador tiene marcado es
+**exactamente** `cosas` (el orden da igual): tres acertadas y una de más **no** lo cumplen, y se cumple en cuanto se quita la
+de más. El libro no dice cuándo una está bien marcada: el paso no pone baliza ni marca en el mapa, y el aviso de cada cosa es
+el mismo sea relevante o no. Con el paso en marcha se puede marcar cualquier cosa marcable (todas pueden quedar marcadas, sin tope
+más que 16). El resto del libro no cambia.
+
+**Contadores para evaluar (P4).** Por jugador y misión que tiene un paso `marca` (sin nota ni aprobado: solo se cuenta), en el
+progreso (`cuenta`, hasta 8 misiones) y en `window.__numinia.misiones.libro()[i].cuenta`:
+`marcas` (cada vez que marcó algo), `marcas_erroneas` (cada marca de una cosa que el paso no pide) y `desmarcados` (cada vez que
+desmarcó). Una marca rechazada no cuenta; desechar tampoco. Se quedan al terminar la misión, para que una ficha de evaluación
+posterior los lea. Plugs: misiones **v10** (estado de la cosa `marcable`, `mox`, `moy`, `moz`; evento `marcados` con `ids`,
+separados por comas y en orden; `mision` con `marcas`, `erroneas`, `desmarcados`). Para agentes y páginas:
+`misiones.marcados()` (los ids, en orden) y `misiones.numeroDe(id)` (0 = sin marcar). Sin ningún campo nuevo en los ficheros
+de la aventura, nada cambia: ni el estado, ni los eventos, ni lo que se guarda.
+
 **Una cosa que se ve usada para ti (`apariencia.usada`, U14 (6)).** `"apariencia": { "modelo": "<sha256 del cofre
 cerrado>", "escala": 1, "usada": { "modelo": "<sha256 del cofre abierto>", "escala": 1 } }`: cómo se ve la cosa para **quien
 ya hizo el paso que la usa** (`usa` o `coge`) en una misión que lleva o que terminó. Los demás la siguen viendo como antes,

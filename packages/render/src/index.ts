@@ -552,6 +552,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     const mirado = verTodos ? null : elegirMirado(ojoC, alanteC, cand, miradoPrevio, NOMBRE_VISIBLE_M);
     miradoPrevio = mirado;
     nombres.update(now, { todos: verTodos, mirado: mirado?.startsWith("a:") ? (mirado.slice(2) === "self" ? "self" : Number(mirado.slice(2))) : null });
+    for (const m of marcadores.values()) m.s.visible = m.listo === 2; // P4: shown once linked, always (no look-at logic)
     const alto = ROT_NOMBRE * ROT_M;
     for (const [k, r] of tags) {
       const d = Math.hypot(r.x - ojoC.x, r.y - ojoC.y, r.z - ojoC.z);
@@ -1022,7 +1023,50 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     try { r.s.material.map && renderer.initTexture(r.s.material.map); p = calentarOcultos([r.s as never], ((o: THREE.Object3D) => compilarComoSeDibuja(o, camaraDeCompilar())) as never); } catch { /* a lost device: show it anyway */ }
     void Promise.race([p.catch(() => {}), new Promise((ok) => setTimeout(ok, ESPERA_MAX_MS))]).then(() => { if (r.listo === 1) { r.listo = 2; rotulosPendiente = true; } });
   }
-  ocultosDelMundo = () => { const o: THREE.Object3D[] = []; for (const r of tags.values()) if (r.listo !== 0) o.push(r.s); return o; }; // a light change re-keys the plates asked for already
+  ocultosDelMundo = () => { const o: THREE.Object3D[] = []; for (const r of tags.values()) if (r.listo !== 0) o.push(r.s); for (const m of marcadores.values()) if (m.listo !== 0) o.push(m.s); return o; }; // a light change re-keys the plates asked for already
+  // ---- P4: evidence markers. One yellow plate with a black number per marked thing, drawn on this page only. The numbers 1–16
+  // come from ONE small atlas (a 4×4 canvas, drawn once, on the first marker); each number has one material whose texture shares
+  // that atlas' image (a clone with its own offset), and every marker is a Sprite (one shared geometry, facing the camera by itself).
+  // A marker is born hidden, its program is linked off the frame (enlazarRotulo) and it shows when done: no hitch. Same number =
+  // only moved; unmarking takes it away (the others are told their new numbers by the feature: it calls marcador again). ----
+  type Marcador = Rotulo & { n: number };
+  const marcadores = new Map<string, Marcador>();
+  const matMarcador = new Map<number, THREE.SpriteMaterial>();
+  const MARC_CELDA = 128, MARC_LADO_M = 0.42; // atlas cell (px); the sprite's side (m): a number 1–2 digits tall ≈ 0.2 m, legible from 2 m at eye height (C-24)
+  let atlasMarcador: THREE.CanvasTexture | null = null;
+  function atlasDeMarcadores(): THREE.CanvasTexture {
+    if (atlasMarcador) return atlasMarcador;
+    const c = document.createElement("canvas");
+    c.width = c.height = MARC_CELDA * 4;
+    const g = c.getContext("2d")!;
+    for (let i = 0; i < 16; i++) {
+      const ox = (i % 4) * MARC_CELDA, oy = Math.floor(i / 4) * MARC_CELDA;
+      g.save(); g.translate(ox, oy);
+      g.beginPath(); g.moveTo(MARC_CELDA / 2 - 14, 92); g.lineTo(MARC_CELDA / 2, 124); g.lineTo(MARC_CELDA / 2 + 14, 92); g.closePath(); // the tip, pointing at the thing
+      g.fillStyle = "#ffd400"; g.fill(); g.lineWidth = 6; g.strokeStyle = "#111"; g.lineJoin = "round"; g.stroke();
+      g.beginPath(); g.roundRect(10, 6, MARC_CELDA - 20, 90, 16); g.fillStyle = "#ffd400"; g.fill(); g.stroke(); // the plate over the tip's root
+      g.fillStyle = "#ffd400"; g.fillRect(MARC_CELDA / 2 - 10, 88, 20, 10); // no seam between plate and tip
+      g.fillStyle = "#111"; g.font = "bold 70px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(String(i + 1), MARC_CELDA / 2, 53);
+      g.restore();
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; // no mip bleeding between cells
+    return (atlasMarcador = t);
+  }
+  function materialMarcador(n: number): THREE.SpriteMaterial {
+    let m = matMarcador.get(n);
+    if (m) return m;
+    const i = Math.max(0, Math.min(15, n - 1)), t = atlasDeMarcadores().clone();
+    t.repeat.set(0.25, 0.25); t.offset.set((i % 4) * 0.25, 1 - 0.25 * (Math.floor(i / 4) + 1)); t.needsUpdate = true;
+    m = new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false });
+    matMarcador.set(n, m);
+    return m;
+  }
+  function dropMarcador(key: string): void {
+    const m = marcadores.get(key);
+    if (!m) return;
+    world.remove(m.s); marcadores.delete(key); // the material is shared (kept for the next marker with that number)
+  }
   function dropTag(key: string): void {
     const r = tags.get(key);
     if (!r) return;
@@ -1451,6 +1495,21 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       s.visible = false; // U22: shown by updateRotulos (looked at, speaking, marked, or «todos»)
       world.add(s); tags.set(key, { s, firma, x: t.x, y: t.y, z: t.z, marca: !!t.mark, listo: 0 });
     },
+    /** P4: an evidence marker (yellow plate, black number 1–16) over a thing, for this page alone; `null` takes it away. A new
+     * number swaps the plate; the same number is only moved. */
+    marcador(key: string, t: { n: number; x: number; y: number; z: number } | null): void {
+      if (!t) { dropMarcador(key); return; }
+      const n = Math.max(1, Math.min(16, Math.round(t.n))), antes = marcadores.get(key);
+      if (antes && antes.n === n) { antes.s.position.set(t.x, t.y, t.z); antes.x = t.x; antes.y = t.y; antes.z = t.z; return; }
+      dropMarcador(key);
+      const s = new THREE.Sprite(materialMarcador(n));
+      s.name = `marcador:${key}`; s.center.set(0.5, 0); s.scale.set(MARC_LADO_M, MARC_LADO_M, 1); s.position.set(t.x, t.y, t.z); s.renderOrder = 11; s.visible = false;
+      const r: Marcador = { s, firma: String(n), x: t.x, y: t.y, z: t.z, marca: false, listo: 0, n };
+      world.add(s); marcadores.set(key, r);
+      enlazarRotulo(r); // its program links off the frame; updateRotulos shows it when done
+    },
+    /** P4: markers alive right now, by key → their number (for checks). */
+    marcadores(): [string, number][] { return [...marcadores].map(([k, m]) => [k, m.n]); },
     /** J5: names over things alive right now (for checks). */
     tagCount(): number { return tags.size; },
     /** U14 (4): label canvases drawn since the page started (for checks: it must not grow while nothing changes). */

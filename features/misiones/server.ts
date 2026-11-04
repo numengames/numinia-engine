@@ -6,10 +6,10 @@ import { adoptarClaves, alAlcanceEnAltura, INTERACT_SLACK_M, serverPart } from "
 import type { ServerApi, ServerPart } from "../../packages/feature/src/index.ts";
 import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
 import { ACCIONES_PAGINA, cargarAventura, corta, LIM } from "./formato.ts";
-import type { Accion, Aventura, Cosa, Dialogo, Fichero, Mision, Opcion, Paso, Pnj } from "./formato.ts";
+import type { Accion, Aventura, Cosa, Dialogo, Fichero, Mision, Nodo, Opcion, Paso, Pnj } from "./formato.ts";
 import { leerCatalogo } from "../inventario/objeto.ts"; // Y3: the objeto@1 a `coge` step may hand over
 import type { ObjetoAventura } from "../inventario/objeto.ts";
-import { abandonar, aceptar, asentar, bloqueados, callan, cogePendiente, enTexto, esperaLlegada, HECHAS_MAX, leerProgreso, marcas, lugarDe, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
+import { abandonar, aceptar, asentar, bloqueados, callan, cogePendiente, cuentaDe, desmarcar, enTexto, esperaLlegada, HECHAS_MAX, leerProgreso, marcablesAhora, marcados as marcadosDe, marcar, marcas, lugarDe, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
 import type { Hecho, Progreso } from "./maquina.ts";
 import { esperando, faltaEspera, pendiente, proximaEspera } from "./maquina.ts"; // U14 (5): steps that wait
 import type { Suceso } from "./maquina.ts";
@@ -23,8 +23,13 @@ export const LLEGADA_CADA = 4;
 export const ALEJARSE_M = 4;
 /** P3: the same notice of a step's `antes` is sent to a player at most once in this many ms. */
 export const ANTES_CADA_MS = 5000;
-/** P3: who can hold a conversation — a person, or a quest thing that carries a `dialogo` (inspecting it opens the same panel). */
-type Hablante = Pnj | (Cosa & { dialogo: Dialogo });
+/** P3: who can hold a conversation — a person, or a quest thing that carries a `dialogo` (inspecting it opens the same panel).
+ * P4: or a `marcable` thing, which without `dialogo` opens a minimal card (its name and description) just to mark it. */
+type Hablante = Pnj | Cosa;
+/** P4: what a card option does besides the conversation: mark, unmark, or just close (desechar / dejar marcado). */
+type Vista = Opcion & { marca?: "marcar" | "desmarcar" | "cerrar" };
+/** P4: the minimal card of a marcable thing without `dialogo`. */
+const tarjeta = (c: Cosa): Nodo => ({ texto: c.descripcion || c.nombre, opciones: [] });
 /** Completed quests sent in the book (the newest); all of them stay saved. */
 export const LIBRO_HECHAS = 20;
 
@@ -51,7 +56,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   const enviadoSitio = new Map<number, Map<string, string>>(); // P2: connection -> person -> the place last sent to it
   const progresos = new Map<string, Progreso>();      // "g:<guest>" (saved) or "e<entity>" (no identity: memory only)
   const claveDe = new Map<number, string>();          // entity -> its progress key (who() is gone by onLeave)
-  const abiertos = new Map<number, { pnj: string; vistas: Opcion[] }>(); // open conversations
+  const abiertos = new Map<number, { pnj: string; vistas: Vista[] }>(); // open conversations
   const llegadas = new Set<number>();                 // players whose current step somewhere is llega_a
   const esperas = new Map<number, number>();          // U14 (5): connection -> when its next wait ends (ms): then its book again, once
   const avisosAntes = new Map<number, Map<string, number>>(); // P3: connection -> «<quest>:<step>» -> when its `antes` notice was last sent (ms)
@@ -152,15 +157,18 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   const recompensa = (m: Mision) => corta(m.recompensas.map((r) => (r.tipo === "semilla" ? nombreSemilla(r) : `${r.tipo === "objeto" ? "Objeto" : "Insignia"} «${r.nombre}»`)).join(", "), 120); // N10: an «objeto» is a digital good of yours
   // `paso` = the first step still to do; inside a grupo the others of its block are to do too (each `paso` says its
   // grupo, and `hecho` is true for what is already done in the block); `espera` = the seconds a step to do still waits
+  /** P4: a quest's counters as the `mision` event carries them. */
+  const cuentaWire = (p: Progreso, id: string) => { const c = cuentaDe(p, id); return { marcas: c.marcas, erroneas: c.marcas_erroneas, desmarcados: c.desmarcados }; };
   const enviarMision = (to: number, p: Progreso, m: Mision, t: number) => {
     const act = p.activas[m.id], hecha = !act, ahora = hecha ? m.pasos.length : Math.min(primerPendiente(m, act), m.pasos.length - 1);
     const señala = m.pistas !== false; // P3: a quest with pistas:false sends its steps without a place (nothing to point at, nothing to read off the wire)
-    M!.emit("mision", { id: m.id, titulo: m.titulo, descripcion: m.descripcion, estado: hecha ? "hecha" : "activa", paso: ahora, pasos: m.pasos.length, seguida: p.seguida === m.id, recompensa: recompensa(m), pistas: señala }, { to });
+    M!.emit("mision", { id: m.id, titulo: m.titulo, descripcion: m.descripcion, estado: hecha ? "hecha" : "activa", paso: ahora, pasos: m.pasos.length, seguida: p.seguida === m.id, recompensa: recompensa(m), pistas: señala, ...(m.pasos.some((s) => s.tipo === "marca") ? cuentaWire(p, m.id) : {}) }, { to }); // P4: the counters only for a quest that marks
     m.pasos.forEach((s, n) => {
       const ob = señala ? objetivo(s, A, p) : { ...objetivo(s, A, p), x: 0, z: 0, nombre: "" }, espera = !hecha && pendiente(m, act, n) ? Math.ceil(faltaEspera(m, act, n, t) / 1000) : 0;
       M!.emit("paso", { mision: m.id, n, texto: s.texto, tipo: s.tipo, hecho: hecha || pasoHecho(m, act, n), x: ob.x, z: ob.z, donde: corta(ob.nombre, LIM.lugar), que: ob.que, grupo: s.grupo ?? "", espera, accion: s.tipo === "hace" ? s.accion : "", senala: s.senala ?? "" }, { to });
     });
   };
+  const conMarcables = () => [...A.cosas.values()].some((c) => c.marcable);
   const enviarLibro = (e: number, solo = false) => {
     if (!M) return;
     const p = prog(e), t = ahora();
@@ -172,6 +180,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       M.emit("libro", { activas: activas.length, hechas: hechas.length }, { to: x });
       for (const m of [...activas, ...hechas]) enviarMision(x, p, m, t);
       M.emit("marcas", marcasMsg, { to: x });
+      if (conMarcables()) M.emit("marcados", { ids: enTexto(marcadosDe(p, A), lim) }, { to: x }); // P4: what is marked, in order (its place = its number); only in a world with marcable things
       enviarSitios(x, p);
     }
   };
@@ -243,17 +252,24 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   const rechazarM = (e: number, motivo: string) => { M?.emit("rechazado", { motivo: corta(motivo, 160) }, { to: e }); };
 
   // ---- conversations: one open per connection, with the options it was shown ----
-  const hablante = (id: string): Hablante | undefined => A.pnjs.get(id) ?? (A.cosas.get(id)?.dialogo ? (A.cosas.get(id) as Hablante) : undefined);
+  const hablante = (id: string): Hablante | undefined => A.pnjs.get(id) ?? (A.cosas.get(id)?.dialogo || A.cosas.get(id)?.marcable ? A.cosas.get(id) : undefined);
+  /** The node a speaker shows: the written one, or (P4, a marcable thing with nothing written to say now) its minimal card. */
+  const nodoDe = (n: Hablante, nodo: string): Nodo => (n.dialogo ? n.dialogo.nodos[nodo] : undefined) ?? tarjeta(n as Cosa);
   const esPersona = (n: Hablante): n is Pnj => A.pnjs.get(n.id) === n;
   /** In reach of this speaker: a person through the pnj feature, a thing through the misiones one (each owns its entities). */
   const alAlcance = (e: number, n: Hablante): boolean => esPersona(n) ? !!P && cerca(P, e, n) : M?.within(e, n.id) === true; // P2: a person where THIS player finds it
   const decir = (e: number, n: Hablante, nodo: string): string => {
-    const texto = n.dialogo.nodos[nodo].texto;
+    const texto = nodoDe(n, nodo).texto;
     if (!esPersona(n)) return texto; // a thing's lines are never phrased by anyone else
     try { return corta(o.frasear?.({ pnj: n.id, nodo, texto, jugador: M?.who(e)?.nombre ?? "" }) || texto, LIM.linea); } catch { return texto; } // the written line is the fallback
   };
   const abrir = (e: number, n: Hablante, nodo: string) => {
-    const vistas = opcionesDe(n.dialogo.nodos[nodo], prog(e), A);
+    const p = prog(e), marcando = !esPersona(n) && n.marcable !== undefined && marcablesAhora(p, A, ahora()).includes(n.id);
+    let vistas: Vista[] = opcionesDe(nodoDe(n, nodo), p, A);
+    if (marcando) { // P4: the card of a marcable thing ends with its two buttons (the author's options are at most two: formato.ts checks it)
+      const mc = (n as Cosa).marcable!, ya = marcadosDe(p, A).includes(n.id);
+      vistas = [...vistas.slice(0, 2), { texto: ya ? mc.desmarcar : mc.marcar, si: [], marca: ya ? "desmarcar" : "marcar" }, { texto: ya ? mc.dejar : mc.desechar, si: [], marca: "cerrar" }];
+    }
     abiertos.set(e, { pnj: n.id, vistas });
     P?.emit("dialogo", { pnj: n.id, nombre: n.nombre, texto: decir(e, n, nodo), o1: vistas[0]?.texto ?? "", o2: vistas[1]?.texto ?? "", o3: vistas[2]?.texto ?? "", o4: vistas[3]?.texto ?? "" }, { to: e });
   };
@@ -272,6 +288,19 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       return { ok: false, motivo: w ? todaviaNo(w) : antes ? antes.antes : ac.tipo === "avanzar_paso" ? "Eso ahora no toca." : `No llevas lo que ${n.nombre} espera.` }; // P3: a locked step says its `antes`
     }
     tras(e, p, h);
+    return { ok: true };
+  };
+
+  /** P4: mark or unmark `n` (a marcable thing) for this player and let the steps that now hold complete — or not: a step asks for
+   * EXACTLY a set, so 3 right and 1 wrong is not done, and unmarking the wrong one finishes it. */
+  const alternar = (e: number, n: Hablante, que: "marcar" | "desmarcar"): { ok: true } | { ok: false; motivo: string } => {
+    const p = prog(e);
+    asentarYa(e, p, true);
+    const r = que === "marcar" ? marcar(p, A, n.id, ahora()) : desmarcar(p, A, n.id, ahora());
+    if (!r.ok) return r;
+    const h = registrar(p, A, { tipo: "marca", marcados: marcadosDe(p, A), ahora: ahora() });
+    if (h.length) tras(e, p, h);
+    else { guardar(e, p); enviarLibro(e); }
     return { ok: true };
   };
 
@@ -305,6 +334,10 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       if (!alAlcance(e, n)) { cerrar(e, n); return rechazarP(e, `Te has alejado de ${n.nombre}.`); }
       const op = d.vistas[Number(msg.opcion) - 1];
       if (!op) return rechazarP(e, "Esa respuesta no está.");
+      if (op.marca) { // P4: mark / unmark / just close; whatever it was, the card closes
+        if (op.marca !== "cerrar") { const r = alternar(e, n, op.marca); if (!r.ok) { cerrar(e, n); return rechazarP(e, r.motivo); } }
+        return cerrar(e, n);
+      }
       if (op.accion && op.accion.tipo !== "despedir") {
         const r = hacer(e, n, op.accion);
         if (!r.ok) return rechazarP(e, r.motivo); // the conversation stays where it was
@@ -321,7 +354,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     cargar(api);
     const ponerCosas = (suelo: ReturnType<typeof sueloDe>) => {
       for (const c of A.cosas.values()) {
-        api.state.set(c.id, { nombre: c.nombre, descripcion: c.descripcion, x: c.posicion.x, z: c.posicion.z, radio: c.radio, aviso: c.aviso, modelo: c.apariencia.modelo, escala: c.apariencia.escala, y: sobreSuelo(suelo, c), color: c.apariencia.color, modeloUsada: c.apariencia.usada?.modelo ?? "", escalaUsada: c.apariencia.usada?.escala ?? c.apariencia.escala, dialogo: !!c.dialogo }, { at: { x: c.posicion.x, z: c.posicion.z } }); // U14 (6): the used look travels with it; each page picks by its own book
+        api.state.set(c.id, { nombre: c.nombre, descripcion: c.descripcion, x: c.posicion.x, z: c.posicion.z, radio: c.radio, aviso: c.aviso, modelo: c.apariencia.modelo, escala: c.apariencia.escala, y: sobreSuelo(suelo, c), color: c.apariencia.color, modeloUsada: c.apariencia.usada?.modelo ?? "", escalaUsada: c.apariencia.usada?.escala ?? c.apariencia.escala, dialogo: !!c.dialogo, ...(c.marcable ? { marcable: true, mox: c.marcable.offset.x, moy: c.marcable.offset.y, moz: c.marcable.offset.z } : {}) }, { at: { x: c.posicion.x, z: c.posicion.z } }); // U14 (6): the used look travels with it; each page picks by its own book
       }
     };
     let claveC = sueloAhora(api).clave;
@@ -433,10 +466,11 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       if (!api.within(e, c.id)) return rechazarM(e, `Acércate más a ${c.nombre}.`);
       const p = prog(e), x: Suceso = { tipo: "usa", cosa: c.id, ahora: ahora() };
       asentarYa(e, p, true);
-      if (c.dialogo && !cogePendiente(p, A, c.id)) { // P3: inspecting — a thing with a conversation opens it (picking it up, when a coge step asks, stays as it was)
-        const nodo = nodoInicial({ dialogo: c.dialogo }, p, A);
-        if (nodo === null) return rechazarM(e, `Ahora no hay nada que inspeccionar en ${c.nombre}.`);
-        return abrir(e, A.cosas.get(c.id) as Hablante, nodo);
+      const marcando = !!c.marcable && marcablesAhora(p, A, ahora()).includes(c.id); // P4: a marca step is to do: this thing opens its card to mark it
+      if ((c.dialogo || marcando) && !cogePendiente(p, A, c.id)) { // P3: inspecting — a thing with a conversation opens it (picking it up, when a coge step asks, stays as it was)
+        const nodo = c.dialogo ? nodoInicial({ dialogo: c.dialogo }, p, A) : null;
+        if (nodo === null && !marcando) return rechazarM(e, `Ahora no hay nada que inspeccionar en ${c.nombre}.`);
+        return abrir(e, c, nodo ?? "");
       }
       const h = registrar(p, A, x);
       if (!h.length) { // U14 (5): too early; P3: or it comes after an earlier step (its `antes`, once in a while)
