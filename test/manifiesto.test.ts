@@ -17,6 +17,7 @@ import type { ClientPart } from "../packages/feature/src/index.ts";
 import { crearObjetos } from "../features/objetos/server.ts";
 import { crearCliente } from "../features/objetos/client.ts";
 import { Activos } from "../packages/server/src/activos.ts";
+import { ColaOptimizar } from "../packages/server/src/optimizar-cola.ts";
 import { ARRANQUE_M, CacheHashes, claseDe, construirManifiesto } from "../packages/server/src/manifiesto.ts";
 import { crearTienda, HashFalso, leerManifiesto, sha256, type CachesLike } from "../apps/plaza/manifiesto.ts";
 import { textoBytes, textoPiezas } from "../apps/plaza/carga.ts";
@@ -141,6 +142,61 @@ test("page store: a file whose sha256 is not the manifest's is refused and not k
   const t = crearTienda({ origen: "http://mundo", fetch: w.fetchFalso, caches: w.caches });
   await assert.rejects(() => t.leer("http://mundo/a/x.glb"), (e: unknown) => e instanceof HashFalso && /no coincide/.test((e as Error).message));
   assert.equal(w.guardado.size, 0, "nothing wrong is kept"); assert.equal(t.estadisticas().rechazados, 1);
+});
+
+/** A manifest whose one model is listed under its ORIGINAL's name but with the sha256 of the lighter copy the server sends today. */
+function mundoConCopia(original: Uint8Array, copia: Uint8Array, ruta = `/a/${sha(original)}.glb`) {
+  const manifiesto = { schema: "numinia-engine/manifiesto@1", zona: "principal", origenes: ["/"], total: { ficheros: 1, bytes: copia.length }, clases: { arranque: { ficheros: 1, bytes: copia.length }, fondo: { ficheros: 0, bytes: 0 }, perezoso: { ficheros: 0, bytes: 0 } },
+    ficheros: [{ ruta, sha256: sha(copia), bytes: copia.length, clase: "arranque", tipo: "glb" }] };
+  const guardado = new Map<string, ArrayBuffer>();
+  const caches: CachesLike = { open: async () => ({ match: async (k: string) => (guardado.has(k) ? { arrayBuffer: async () => guardado.get(k)!.slice(0) } : undefined), put: async (k: string, r: unknown) => { guardado.set(k, await (r as Response).arrayBuffer()); } }) };
+  const crear = (cuerpo: Uint8Array) => crearTienda({ origen: "http://mundo", caches, fetch: (async (u: string) => (new URL(u).pathname === "/manifiesto.json" ? new Response(JSON.stringify(manifiesto)) : new Response(cuerpo as unknown as BodyInit))) as unknown as typeof fetch });
+  return { crear, guardado, ruta };
+}
+
+test("page store: the ORIGINAL a browser kept from before the lighter copy existed is accepted (its sha256 is the url's); anything else is still refused", async () => {
+  const original = new Uint8Array(6000).map((_, i) => (i * 13) % 241), copia = new Uint8Array(2500).map((_, i) => (i * 5) % 239);
+  const w = mundoConCopia(original, copia);
+  // the manifest says the copy's sha256 (as the server does today); the HTTP cache of the browser answers the url with the original
+  const t = w.crear(original);
+  const b = await t.leer(`http://mundo${w.ruta}`);
+  assert.deepEqual(new Uint8Array(b!), original, "the page gets the original and draws it");
+  assert.equal(t.estadisticas().rechazados, 0); assert.equal(t.estadisticas().descargados, 1);
+  assert.deepEqual([...w.guardado.keys()], [`https://activos.invalid/${sha(original)}`], "kept under ITS sha256, not under the manifest's");
+  // and the copy itself, when the url answers it, is kept under its own, as before
+  const w2 = mundoConCopia(original, copia); const t2 = w2.crear(copia);
+  assert.deepEqual(new Uint8Array((await t2.leer(`http://mundo${w2.ruta}`))!), copia);
+  assert.deepEqual([...w2.guardado.keys()], [`https://activos.invalid/${sha(copia)}`]);
+  // bytes that are neither the manifest's nor the url's: refused, nothing kept
+  const w3 = mundoConCopia(original, copia); const otros = original.slice(); otros[7] ^= 1;
+  await assert.rejects(() => w3.crear(otros).leer(`http://mundo${w3.ruta}`), (e: unknown) => e instanceof HashFalso && /no coincide/.test((e as Error).message));
+  assert.equal(w3.guardado.size, 0);
+  // a level of detail is not «the file its url names»: the model's bytes there are wrong and refused
+  const w4 = mundoConCopia(original, copia, `/a/${sha(original)}.lod1.glb`);
+  await assert.rejects(() => w4.crear(original).leer(`http://mundo${w4.ruta}`), HashFalso);
+  assert.equal(w4.guardado.size, 0);
+});
+
+test("server: an upload still waiting for its lighter copy is not sent as immutable for a year; the copy, and an original that stays as it is, are", async () => {
+  const dir = tmp("p9-inmutable-"), glb = await colina(), h = sha(glb);
+  writeFileSync(join(dir, `${h}.glb`), glb);
+  const pedir = (a: Activos, path: string) => { const ch: Buffer[] = []; let est = 0, cab: Record<string, string> = {}; const res = { writeHead(s: number, x: Record<string, string>) { est = s; cab = x; }, write(x: Buffer) { ch.push(Buffer.from(x)); }, end(x?: Buffer | string) { if (x) ch.push(Buffer.from(x)); }, on() { return this; }, once() { return this; }, emit() { return true; } };
+    a.servir(path, res as never, false); return new Promise<{ est: number; cab: Record<string, string>; cuerpo: Buffer }>((ok) => setTimeout(() => ok({ est, cab, cuerpo: Buffer.concat(ch) }), 150)); };
+  const a = new Activos(null, dir), c = new ColaOptimizar(a, () => {}, true);
+  c.pedir(h, "glb"); // queued, not made yet
+  const antes = await pedir(a, `/a/${h}.glb`);
+  assert.equal(antes.est, 200); assert.equal(antes.cab["x-optimizado"], undefined); assert.deepEqual(antes.cuerpo, Buffer.from(glb), "still the original");
+  assert.match(antes.cab["cache-control"], /max-age=300/); assert.doesNotMatch(antes.cab["cache-control"], /immutable/, "a copy is coming: the url will answer other bytes");
+  await c.esperar();
+  const despues = await pedir(a, `/a/${h}.glb`);
+  assert.equal(despues.cab["x-optimizado"], "meshopt"); assert.match(despues.cab["cache-control"], /immutable/);
+  await c.parar();
+  // an optimiser that is off (MOTOR_OPTIMIZAR=no) or has nothing to make: the original is final
+  const dir2 = tmp("p9-inmutable2-"); writeFileSync(join(dir2, `${h}.glb`), glb);
+  const a2 = new Activos(null, dir2), c2 = new ColaOptimizar(a2, () => {}, false); c2.pedir(h, "glb");
+  const sin = await pedir(a2, `/a/${h}.glb`);
+  assert.match(sin.cab["cache-control"], /immutable/); assert.equal(sin.cab["x-optimizado"], undefined);
+  await c2.parar();
 });
 
 test("page store: with no manifest (older server) or no Cache API, nothing breaks", async () => {

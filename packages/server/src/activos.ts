@@ -53,6 +53,9 @@ export class Activos {
   private readonly gz = new Map<string, Buffer | null>(); // file -> its gzip (null = being made)
   private gzBytes = 0;
   readonly stats = { gz: 0, optimizados: 0 };
+  /** The optimiser queue says whether a lighter copy of this upload is still to come (optimizar-cola.ts sets it). While it is, the original is not
+   * sent as «immutable for a year»: the url will answer other bytes once the copy exists, and a browser that kept the original would hold the wrong ones. */
+  copiaPendiente: ((hash: string, ext: string) => boolean) | null = null;
   constructor(biblioteca: string | null, subidas: string | null, log: (l: string) => void = () => {}) {
     this.biblioteca = biblioteca; this.subidas = subidas; this.optimizados = subidas ? join(subidas, "optimizados") : null;
     if (biblioteca && existsSync(biblioteca)) this.indexar(biblioteca);
@@ -184,7 +187,8 @@ export class Activos {
     const vary = comprimible ? "accept-encoding" : (m[2] === "png" && this.optimizados) || pidePx ? "accept" : null;
     // the original answering a `?px` (no copy, yet): kept a few minutes only — unless it is no bigger than the tier, which gets no copy ever
     const med = pidePx && !rp ? this.medidas(m[1], m[2]) : null, sinCopiaYa = pidePx && !rp && !(med && Math.max(med.ancho, med.alto) <= px);
-    const comun: Record<string, string> = { "content-type": elegido!.tipo ?? SERVIR[m[2]], "cache-control": sinCopiaYa ? `public, max-age=${ESPERA_COPIA_S}` : "public, max-age=31536000, immutable", "access-control-allow-origin": "*", "accept-ranges": "bytes", ...(vary ? { vary } : {}), ...(elegido!.optimizado ? { "x-optimizado": elegido!.copia ? `px${elegido!.copia}` : elegido!.tipo ? "webp-sin-perdida" : lod ? `lod${lod[2]}` : "meshopt" } : {}) };
+    const originalSinCopiaYa = !lod && !elegido!.optimizado && m[2] === "glb" && !!this.copiaPendiente?.(m[1], m[2]); // a model queued for its lighter copy
+    const comun: Record<string, string> = { "content-type": elegido!.tipo ?? SERVIR[m[2]], "cache-control": sinCopiaYa || originalSinCopiaYa ? `public, max-age=${ESPERA_COPIA_S}` : "public, max-age=31536000, immutable", "access-control-allow-origin": "*", "accept-ranges": "bytes", ...(vary ? { vary } : {}), ...(elegido!.optimizado ? { "x-optimizado": elegido!.copia ? `px${elegido!.copia}` : elegido!.tipo ? "webp-sin-perdida" : lod ? `lod${lod[2]}` : "meshopt" } : {}) };
     // U10: videos and sounds ask for byte ranges (a browser seeks a video, or will not loop it, without them)
     const r = range ? /^bytes=(\d*)-(\d*)$/.exec(range.trim()) : null;
     if (r && (r[1] || r[2])) {
