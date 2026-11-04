@@ -1000,6 +1000,8 @@ export type ViewHooks = {
   place?(key: string, o: PlacedObject | null): void;
   /** H1: where this player is now (metres), so a feature can put things in front of them. */
   here?(): { x: number; y: number; z: number } | null;
+  /** mundo-hermes: a flat black-and-white shape made by code at a world point — a clock, a cube, a slab or a zone's floor — in a state (off / starting / on / fail); `null` takes it away. */
+  forma?(key: string, f: { forma: "reloj" | "cubo" | "losa" | "suelo"; x: number; z: number; estado: "off" | "starting" | "on" | "fail"; rumbo?: number; mano?: number; ancho?: number; fondo?: number; discontinuo?: boolean; luces?: boolean[] } | null): void;
   /** J3: the name over an avatar (null takes it away). The page decides from how far it is drawn. */
   nameTag?(entity: number, text: string | null): void;
   /** J3: a speech bubble over an avatar for `ms` (several lines; the latest replaces the one before). */

@@ -72,6 +72,8 @@ import { crearEspacioBasePerezoso } from "./espacio-base/cargador.ts"; // H2: th
 import { crearNaturalezaPerezosa, horaDeEntorno } from "./naturaleza/cargador.ts"; // N4b: relief + trees + grass from a seed (the piece is a separate chunk, fetched only when a world asks)
 import { audio } from "./audio/nucleo.ts"; // F5: the creatures sound on the shared audio core (ambient bus)
 import { vistaPesca } from "./pesca-vista.ts";
+import { vistaFormas } from "./formas-vista.ts"; // mundo-hermes: flat black-and-white shapes of things that live outside the world (lazy: formas-planas.ts)
+import type { FormaPlana } from "./formas-vista.ts";
 import { vistaDados } from "./dados-vista.ts";
 import { crearDianas3D, crearDianaAR } from "./dardos.ts";
 import { crearPantallasWeb } from "./web.ts";
@@ -433,6 +435,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const orbesIA = createOrbesIA({ world, cuerpo: (t) => meshOf(t), visible: (t) => (t === "self" ? selfMat.visible : true), encima: (t, c) => nombres.above(t, c), camera, max: () => orbesMax(power.mobile), nivel: () => entorno.nivel });
   const burbujas = createBurbujas({ world, avatarOf: (t) => meshOf(t), yo: () => selfXZ ? { x: selfXZ.x, y: selfXZ.y ?? 0, z: selfXZ.z } : null, max: () => burbujasMax(power.mobile, renderer.xr.isPresenting) }); // ia-llamar S9: nothing is made until the first AI
   const pompas = createPompas({ world, avatarOf: (t) => meshOf(t) }); // condiciones/c5: a bubble around whoever is reading the norms (one shared sphere)
+  const formas = vistaFormas({ world }); // mundo-hermes: the espejo's shapes (nothing is fetched until the first one is asked for)
   // pesca v1: rods, lines and floats of whoever fishes near (lazy: packages/render/src/pesca.ts). "self" hides in first person, so the rod uses the capsule's place anyway
   const pesca = vistaPesca({ world, posicionDe: (t) => (t === "self" ? selfMesh.position : others.get(t)?.position) ?? null,
     manoDe: (t, out) => avs.mano(t === "self" ? "yo" : t, "derecha", out), orientar: (t, rumbo) => avs.orientar(t === "self" ? "yo" : t, rumbo),
@@ -1329,7 +1332,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     updateThings(dtSeconds);
     selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
     editor.frame();
-    entorno.actualizar(); naturaleza.actualizar(dtSeconds); espacioBase.actualizar(dtSeconds); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds); ancestros.actualizar(dtSeconds, selfXZ);
+    entorno.actualizar(); naturaleza.actualizar(dtSeconds); espacioBase.actualizar(dtSeconds); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds); ancestros.actualizar(dtSeconds, selfXZ); formas.actualizar();
     if (renderer.xr.isPresenting) { cam.planoVR(); ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); cuerpoEnVR(); pesca.actualizar(dtSeconds); dardosVR.actualizar(dtSeconds); pincelVR.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); oyente?.actualizar(); dibujarCuadro(); return; } // S5: tras vr.update, el oyente lee la pose de la cabeza de este cuadro // N4: after the hands moved, so a held rod does not trail a frame
     pesca.actualizar(dtSeconds); dardos.actualizar(dtSeconds); dados3d.actualizar(dtSeconds);
     if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
@@ -1497,6 +1500,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       const p = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
       return p && p.distanceTo(camera.position) <= 150 ? { x: p.x, z: p.z } : null;
     },
+    /** mundo-hermes: a flat black-and-white shape made by code (clock, cube, slab, zone floor) at (x, z), or `null` to take it away; the same description is only kept. */
+    forma(key: string, f: FormaPlana | null): void { formas.poner(key, f); },
+    /** The shapes alive right now (for checks): how many and their keys. */
+    formas: { cuantas: () => formas.cuantas(), claves: () => formas.claves() },
     /** J5: a name that stays over a thing (`key` as in place), or `null` to take it away. U14 (4): `sub` = a smaller
      * second line (a person's trade), `mark` = «!» or «✓» above the name. The plate's bottom edge stays where a plain
      * name's was (just over the head): a trade or a mark grow it upwards. Same text and mark = only moved. */
@@ -1745,7 +1752,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
     /** MIS-200 (t_9687b5fc): the world still loads models or shaders: the entry buttons wait (the same gate as the VR entry, not busy()). */
     cargando(): boolean { return loading > 0 || precompilar.pendientes() > 0; },
-    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || vivosCerca || reacciones.size > 0 || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || ojosIA.busy() || orbesIA.busy() || burbujas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || dados3d.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ); },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || vivosCerca || reacciones.size > 0 || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || ojosIA.busy() || orbesIA.busy() || burbujas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || dados3d.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ) || formas.ocupado(); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); power.paron(2); }, // B4: the next frames pay the resize
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */
