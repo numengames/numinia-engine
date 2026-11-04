@@ -51,7 +51,9 @@ export const etiquetaCosa = (v: Msg): { text: string; mark: Marca; x: number; y:
  * opens on this page's clock (ms; 0 = no wait). The server sends the book again when it opens. */
 export type PasoVista = { n: number; texto: string; tipo: string; hecho: boolean; x: number; z: number; donde: string; que: string; grupo: string; espera: number; listoEn: number; accion: string; senala: string };
 /** `pistas` (P3): false = this quest points at nothing (no place on the map, no beacon, no arrow, no nearest target in the top line). */
-export type MisionVista = { id: string; titulo: string; descripcion: string; estado: "activa" | "hecha"; paso: number; pasos: number; seguida: boolean; recompensa: string; lista: PasoVista[]; pistas?: false };
+export type MisionVista = { id: string; titulo: string; descripcion: string; estado: "activa" | "hecha"; paso: number; pasos: number; seguida: boolean; recompensa: string; lista: PasoVista[]; pistas?: false;
+  /** P4: the counters of a quest with a `marca` step (marks made, marks of things the step does not ask for, unmarks); absent otherwise. */
+  cuenta?: { marcas: number; marcas_erroneas: number; desmarcados: number } };
 export type Objetivo = { mision: string; paso: number; nombre: string; texto: string; x: number; z: number; seguida: boolean };
 export type Dialogo = { pnj: string; nombre: string; oficio: string; texto: string; opciones: string[] };
 type Res = { ok: true } | { ok: false; why: string };
@@ -187,13 +189,35 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     }
   };
 
+  /** P4: the counters of a `mision` event (kept only when the quest has used them; a `marca` step brings the zeros, see the `paso` handler). */
+  const cuentaDe = (m: Msg): { cuenta?: { marcas: number; marcas_erroneas: number; desmarcados: number } } => {
+    const c = { marcas: Number(m.marcas) || 0, marcas_erroneas: Number(m.erroneas) || 0, desmarcados: Number(m.desmarcados) || 0 };
+    return c.marcas || c.marcas_erroneas || c.desmarcados ? { cuenta: c } : {};
+  };
+  // P4: what this player marked as evidence, in order (the server says; a thing's number is its place + 1). Each one wears a yellow
+  // numbered plate over it on this page alone. Drawn again when the list changes (a number moves up when an earlier one is unmarked)
+  // or when the thing's state arrives or moves (the ground changed); the view's marcador keeps the same plate when only moved.
+  let marcados: readonly string[] = [];
+  const cm = (m: number) => Math.round(m * 100) / 100; // the wire's metres are in centimetres
+  const dibujarMarcador = (key: string, v = M?.state.get(key)) => {
+    const i = marcados.indexOf(key);
+    M?.view.marcador?.(`misiones:${key}`, i < 0 || !v ? null : { n: i + 1, x: cm(Number(v.x) + (Number(v.mox) || 0)), y: cm((Number(v.y) || 0) + (Number(v.moy) || 0)), z: cm(Number(v.z) + (Number(v.moz) || 0)) });
+  };
+  const recibirMarcados = (m: Msg) => {
+    const nuevos = String(m.ids ?? "").split(",").filter(Boolean), antes = marcados;
+    if (antes.length === nuevos.length && antes.every((k, i) => k === nuevos[i])) return; // the same as before (every book brings them)
+    marcados = Object.freeze(nuevos);
+    for (const k of new Set([...antes, ...nuevos])) dibujarMarcador(k);
+    avisar("libro");
+  };
+
   const actual = (m: MisionVista): PasoVista | undefined => m.lista.find((s) => s.n === m.paso);
   const misiones = {
     estado,
     /** The book as it arrived: active quests first, then the completed ones. */
     libro: (): MisionVista[] => [...libro.values()],
     /** Where each active quest's steps to do now point — every one of its current block (for the map: mapa reads this). */
-    objetivos: (): Objetivo[] => [...libro.values()].flatMap((m) => ahoraDe(m).filter((s) => s.tipo !== "hace").map((s) => ({ mision: m.id, paso: s.n, nombre: s.donde, texto: s.texto, x: s.x, z: s.z, seguida: m.seguida }))),
+    objetivos: (): Objetivo[] => [...libro.values()].flatMap((m) => ahoraDe(m).filter((s) => s.tipo !== "hace" && s.tipo !== "marca").map((s) => ({ mision: m.id, paso: s.n, nombre: s.donde, texto: s.texto, x: s.x, z: s.z, seguida: m.seguida }))),
     /** P3: the objectives that point at something: those of the quests that do not say `pistas: false` (the map, the beacon and the
      * top line read this; the book keeps `objetivos()` to tell the step to do now from the locked ones). */
     senalados: (): Objetivo[] => misiones.objetivos().filter((o) => libro.get(o.mision)?.pistas !== false),
@@ -233,7 +257,12 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
      * also while that step still waits — trying it says how long is left). */
     ofrece: (feature: string, key: string): boolean => feature === "pnj" ? !callan.has(key) // P3: a person with nothing to say to you now offers no «E»
       : feature !== "misiones" || (M?.state.get(key)?.dialogo === true && !callan.has(key)) // P3: a thing you inspect, whenever its conversation has something for you
-        || [...libro.values()].some((m) => porHacer(m).some((s) => s.que === key && (s.tipo === "coge" || s.tipo === "usa"))),
+        || [...libro.values()].some((m) => porHacer(m).some((s) => s.que === key && (s.tipo === "coge" || s.tipo === "usa")))
+        || (M?.state.get(key)?.marcable === true && [...libro.values()].some((m) => porHacer(m).some((s) => s.tipo === "marca"))), // P4: a marcable thing, while a step of yours marks
+    /** P4: the things you marked as evidence, in order: the number of each is its place + 1 (unmarking one moves the rest up). */
+    marcados: (): readonly string[] => marcados,
+    /** P4: the number on a thing's marker for you (0 = not marked). */
+    numeroDe: (key: string): number => marcados.indexOf(key) + 1,
     /** P3: whether a person's or a thing's conversation has nothing to say to you now (the server decides; `marcas.callan`). */
     callaDe: (key: string): boolean => callan.has(key),
     /** U14 (5): the sequence playing now (id, second, length, the people it moves, the extra models shown, its last line,
@@ -302,11 +331,12 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     a.state.onChange((key, v) => {
       a.view.place?.(`misiones:${key}`, v ? aspectoCosa(v, usadas.has(key)) : null); // J4: <feature>:<key>, so a click is understood; U14 (6): your look of it
       rotularCosa(key); // U14 (4): a label only while the server marks it for you
+      dibujarMarcador(key, v); // P4: its evidence plate, if you marked it
     });
     a.on("libro", (m) => { libro.clear(); esperadas = Number(m.activas) + Number(m.hechas); llegadas = 0; avisar("libro"); revisarUsadas(); });
     a.on("mision", (m) => {
       llegadas++;
-      libro.set(String(m.id), { id: String(m.id), titulo: String(m.titulo), descripcion: String(m.descripcion), estado: m.estado === "hecha" ? "hecha" : "activa", paso: Number(m.paso), pasos: Number(m.pasos), seguida: m.seguida === true, recompensa: String(m.recompensa ?? ""), lista: [], ...(m.pistas === false ? { pistas: false as const } : {}) });
+      libro.set(String(m.id), { id: String(m.id), titulo: String(m.titulo), descripcion: String(m.descripcion), estado: m.estado === "hecha" ? "hecha" : "activa", paso: Number(m.paso), pasos: Number(m.pasos), seguida: m.seguida === true, recompensa: String(m.recompensa ?? ""), lista: [], ...(m.pistas === false ? { pistas: false as const } : {}), ...cuentaDe(m) });
       avisar("libro");
     });
     a.on("paso", (m) => {
@@ -315,6 +345,7 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
       const espera = Math.max(0, Number(m.espera ?? 0) || 0); // U14 (5): seconds left; counted down here, the server resends the book when it opens
       const s: PasoVista = { n: Number(m.n), texto: String(m.texto), tipo: String(m.tipo), hecho: m.hecho === true, x: Number(m.x), z: Number(m.z), donde: String(m.donde), que: String(m.que ?? ""), grupo: String(m.grupo ?? ""), espera, listoEn: espera ? reloj() + espera * 1000 : 0, accion: String(m.accion ?? ""), senala: String(m.senala ?? "") };
       mv.lista = [...mv.lista.filter((x) => x.n !== s.n), s].sort((p, q) => p.n - q.n);
+      if (s.tipo === "marca" && !mv.cuenta) mv.cuenta = { marcas: 0, marcas_erroneas: 0, desmarcados: 0 }; // P4: a quest that marks always shows its counters, zeros included
       avisar("libro");
       revisarUsadas(); // U14 (6): the book's last step has arrived → the used looks
     });
@@ -324,6 +355,7 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     a.on("aviso", (m) => { estado.ultimoAviso = String(m.texto); nota(String(m.texto)); });
     a.on("rechazado", (m) => { estado.ultimoRechazo = String(m.motivo); nota(String(m.motivo)); });
     a.on("marcas", recibirMarcas); // U14 (4)
+    a.on("marcados", recibirMarcados); // P4
   });
 
   const parts: ClientPart[] = [pnjPart, misionesPart];

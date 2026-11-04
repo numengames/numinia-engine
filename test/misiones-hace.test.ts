@@ -34,7 +34,7 @@ const valida = (paso: unknown) => leerMision(mision([paso]));
 const quePaso = (paso: unknown) => { const r = valida(paso); assert.ok(!r.ok, JSON.stringify(paso)); return r.ok ? [] : r.issues; };
 
 test("T1 formats: a `hace` step reads (every action), `modelo` only with coloca (a library id), `disparador` only with cable actions, `senala` for any step; mistakes say where and how to fix", () => {
-  assert.equal(TIPOS_PASO.at(-1), "hace", "the new kind goes at the end (the wire's enum)");
+  assert.equal(TIPOS_PASO.at(-2), "hace", "T1 added `hace` at the end of the wire enum (P4 then added `marca` after it)");
   assert.deepEqual(misionesDecl.issues, []); assert.deepEqual(objetosDecl.issues, []); assert.deepEqual(disparadoresDecl.issues, []);
   for (const accion of ACCIONES_HACE) {
     const r = valida({ id: "p", tipo: "hace", texto: "Haz algo", accion });

@@ -15,6 +15,9 @@
 // a conversation panel, an `avanzar_paso` option completes a `usa`/`coge` step); a dialogue whose LAST entrada has a `si`
 // cannot be opened outside that phase; mision@1 `pistas: false` hides every pointer (marks, map, arrow, nearest target);
 // any step may carry `antes` (the notice for trying it too early); a `coge` step may carry `abreLibro`.
+// Evidence markers (P4, optional): a cosa may be `marcable` (its card gets «Marcar»/«Desechar» while a `marca` step is the one to do;
+// a marked thing shows a numbered marker for that player only) and a step of type `marca` ({ cosas: [...] }) is done when the player has
+// marked EXACTLY those things. Counters per quest (wrong marks, unmarks) are kept in the progress (maquina.ts `cuenta`).
 // The recipe for authors (people or LLMs) is docs/EXTENDER.md «Misiones y PNJ». Every check returns Result with paths
 // that say how to fix each problem; nothing here throws, touches the network or the world.
 import type { Issue, Result } from "../../packages/core/src/index.ts";
@@ -23,7 +26,7 @@ import type { Sound } from "../../packages/feature/src/index.ts";
 import biblioteca from "../objetos/biblioteca.json" with { type: "json" }; // U14 (5): what a missing model can be instead
 
 export const FORMATOS = { mision: "mision@1", pnj: "pnj@1", cosa: "cosa@1" } as const;
-export const TIPOS_PASO = ["llega_a", "habla_con", "usa", "coge", "entrega", "recibe", "hace"] as const; // new kinds go at the end (the wire's enum)
+export const TIPOS_PASO = ["llega_a", "habla_con", "usa", "coge", "entrega", "recibe", "hace", "marca"] as const; // new kinds go at the end (the wire's enum)
 /** T1, step `hace` (the builder DOES something): the closed list of actions. The server decides the first ten from events the
  * other pieces already emit (objetos `hizo`, disparadores `hizo` / `senal`); the last three happen on the page, which the server
  * cannot see: the page says so with the intent `hace`, and only for those (ACCIONES_PAGINA). New ones go at the end. */
@@ -45,6 +48,7 @@ export const LIM = {
   id: 32, titulo: 80, descripcion: 300, textoPaso: 160, lugar: 60, nombre: 60, descripcionCosa: 140, linea: 400, opcion: 100,
   aviso: 40, textoMision: 200, pasos: 16, opciones: 4, nodos: 64, entradas: 16, recompensas: 8, requisitos: 16,
   grupo: 40, cosasEntrega: 8, antes: 80, // P3: a step's `antes` notice
+  marcable: 40, marcados: 16, // P4: a label of the marking card (bytes); the most things a player may have marked at once (= most `cosas` of a `marca` step)
   lugares: 8, // P2: pnj@1 `posiciones`
   oficio: 40, marcas: 256, // U14 (4): a person's trade (pnj@1 `oficio`); each id list of the `marcas` event (≈ 25 short ids)
 } as const;
@@ -69,6 +73,7 @@ export type Paso = PasoBase & (
   | { tipo: "entrega"; cosa: string; pnj: string } // one thing, as written…
   | { tipo: "entrega"; cosas: string[]; pnj: string } // …or several at once (1–8); cosasDe() reads either
   | { tipo: "hace"; accion: AccionHace; modelo?: string; disparador?: string } // T1: the builder does something (modelo = a library id, only with coloca; disparador = a cable's id, only with the cable actions)
+  | { tipo: "marca"; cosas: string[] } // P4: done when the things the player has marked are EXACTLY these (1–16 cosas marcables, order irrelevant)
 );
 /** What an entrega asks for (its `cosa` or its `cosas`); for coge, usa and recibe, their one thing; else nothing. */
 export const cosasDe = (s: Paso): string[] => ("cosas" in s ? s.cosas : "cosa" in s ? [s.cosa] : []);
@@ -114,6 +119,9 @@ export type Pnj = {
   /** P2: where it stands for a player, by that player's quests (the first whose `si` holds); none → `posicion` and `giro`. */
   posiciones: Lugar[];
 };
+export type Marcable = { marcar: string; desechar: string; desmarcar: string; dejar: string; offset: { x: number; y: number; z: number } };
+/** P4: the labels of a marcable thing's card when the author says nothing («usted»-neutral: they are buttons) and where its numbered marker floats over it (m). */
+export const MARCABLE_POR_DEFECTO: Marcable = { marcar: "Marcar", desechar: "Desechar", desmarcar: "Desmarcar", dejar: "Dejar marcado", offset: { x: 0, y: 0.6, z: 0 } };
 /** One entry of pnj@1 `posiciones`: where the person stands for the player whose quests meet `si` (empty = always), and the yaw it
  * keeps there (`giro`: absent = the person's own). `sinY` as for `posicion`. */
 export type Lugar = { si: Condicion[]; posicion: { x: number; z: number; y: number }; sinY?: true; giro?: number };
@@ -122,8 +130,11 @@ export type Lugar = { si: Condicion[]; posicion: { x: number; z: number; y: numb
  * `apariencia.usada` (optional, U14 (6)): how it looks for a player once THEY did the step that uses it (`usa`/`coge`)
  * in a quest they have or finished — the open chest; absent when the file does not say it.
  * `dialogo` (optional, P3): what you inspect opens this conversation (title = the thing's name); `aviso` is then the «E:»
- * prompt whenever an entrada holds for you («inspeccionar la mancha»). Absent = a thing you only take or use, as always. */
-export type Cosa = { formato: "cosa@1"; id: string; nombre: string; descripcion: string; apariencia: Apariencia & { color: string; usada?: Apariencia }; posicion: { x: number; z: number; y: number }; sinY?: true; radio: number; aviso: string; dialogo?: Dialogo };
+ * prompt whenever an entrada holds for you («inspeccionar la mancha»). Absent = a thing you only take or use, as always.
+ * `marcable` (optional, P4): while a `marca` step of yours is the one to do, its card (the `dialogo`, or a minimal one with its name)
+ * ends with «Marcar» / «Desechar» (or «Desmarcar» / «Dejar marcado» when you marked it) and a marked thing shows a numbered yellow
+ * marker, for you alone. Absent = nothing of it. */
+export type Cosa = { formato: "cosa@1"; id: string; nombre: string; descripcion: string; apariencia: Apariencia & { color: string; usada?: Apariencia }; posicion: { x: number; z: number; y: number }; sinY?: true; radio: number; aviso: string; dialogo?: Dialogo; marcable?: Marcable };
 export type Fichero = { fichero: string; texto: string };
 export type Aventura = {
   misiones: Map<string, Mision>; pnjs: Map<string, Pnj>; cosas: Map<string, Cosa>;
@@ -226,6 +237,12 @@ function paso(v: unknown, path: string, is: Issue[]): Paso {
   else if (tipo === "recibe") { permite("pnj", "cosa"); p = { ...base, tipo, pnj: id(o.pnj, en(path, "pnj"), is), cosa: id(o.cosa, en(path, "cosa"), is) }; }
   else if (tipo === "entrega") { permite("cosa", "cosas", "pnj"); p = entrega(o, base, path, is); }
   else if (tipo === "hace") { permite("accion", "modelo", "disparador"); p = hace(o, base, path, is); }
+  else if (tipo === "marca") { // P4: done when the player has marked exactly these things (cargarAventura checks each is `marcable`)
+    permite("cosas");
+    const cosas = lista(o.cosas, en(path, "cosas"), 1, LIM.marcados, is).map((c, j) => id(c, en(en(path, "cosas"), j), is));
+    cosas.forEach((c, j) => { if (c && cosas.indexOf(c) < j) is.push({ path: en(en(path, "cosas"), j), message: `«${c}» ya está en la lista: cada cosa, una vez` }); });
+    p = { ...base, tipo, cosas };
+  }
   else if (tipo === "coge") { // Y3: a `coge` may hand over a weapon or relic the adventure defines (objeto@1); cargarAventura checks the id exists
     permite("cosa", "otorga", "abreLibro");
     const c: Extract<Paso, { tipo: "coge" }> = { ...base, tipo, cosa: id(o.cosa, en(path, "cosa"), is) };
@@ -529,16 +546,34 @@ export function leerCosa(v: unknown): Result<Cosa> {
   const is: Issue[] = [];
   const o = objeto(v, "", is);
   if (!o) return resultado(is, null as never);
-  campos(o, ["formato", "id", "nombre", "descripcion", "apariencia", "posicion", "radio", "aviso", "dialogo", "notas"], "", is);
+  campos(o, ["formato", "id", "nombre", "descripcion", "apariencia", "posicion", "radio", "aviso", "dialogo", "marcable", "notas"], "", is);
   formato(o, FORMATOS.cosa, is);
   const ap = apariencia(o.apariencia, "apariencia", is, ["color", "usada"]), usada = usadaDe(o.apariencia, ap.escala, is);
+  const marcable = leerMarcable(o.marcable, is);
   return resultado(is, {
     formato: FORMATOS.cosa, id: id(o.id, "id", is), nombre: texto(o.nombre, "nombre", LIM.nombre, is), descripcion: texto(o.descripcion, "descripcion", LIM.descripcionCosa, is, true),
     apariencia: { ...ap, color: color(o.apariencia, is), ...(usada ? { usada } : {}) },
     posicion: { ...posicion(o.posicion, "posicion", is, ["y"]), y: altura(o.posicion, is, ALTURA_MAX) }, ...sinY(o.posicion), radio: numero(o.radio, "radio", 1, 8, is, 2),
     aviso: texto(o.aviso, "aviso", LIM.aviso, is),
     ...(o.dialogo !== undefined ? { dialogo: leerDialogo(o.dialogo, "dialogo", is, true) } : {}), // P3: what you inspect opens this conversation
+    ...(marcable ? { marcable } : {}), // P4: it may be marked as evidence
   });
+}
+/** cosa@1 `marcable` (P4): `true` (the house labels) or `{ "marcar"?, "desechar"?, "desmarcar"?, "dejar"?: label (1–40 bytes), "offset"?: { x, y, z } }`
+ * (metres over the thing where its numbered marker floats). `false` or absent = not marcable (nothing is added). */
+function leerMarcable(v: unknown, is: Issue[]): Marcable | undefined {
+  if (v === undefined || v === false) return undefined;
+  const D = MARCABLE_POR_DEFECTO;
+  if (v === true) return { ...D, offset: { ...D.offset } };
+  const p = "marcable";
+  if (!esObjeto(v)) { is.push({ path: p, message: "true (con los textos de la casa: «Marcar» / «Desechar» / «Desmarcar» / «Dejar marcado») o un objeto { \"marcar\": \"…\", \"desechar\": \"…\", \"desmarcar\": \"…\", \"dejar\": \"…\", \"offset\": { \"x\": 0, \"y\": 0.6, \"z\": 0 } }" }); return undefined; }
+  const o = v;
+  campos(o, ["marcar", "desechar", "desmarcar", "dejar", "offset"], p, is);
+  const t = (k: "marcar" | "desechar" | "desmarcar" | "dejar") => (o[k] === undefined ? D[k] : texto(o[k], en(p, k), LIM.marcable, is));
+  const off = objeto(o.offset, en(p, "offset"), is, true) ?? {};
+  campos(off, ["x", "y", "z"], en(p, "offset"), is);
+  const d = (k: "x" | "y" | "z") => numero(off[k], en(en(p, "offset"), k), -5, 5, is, D.offset[k]);
+  return { marcar: t("marcar"), desechar: t("desechar"), desmarcar: t("desmarcar"), dejar: t("dejar"), offset: { x: d("x"), y: d("y"), z: d("z") } };
 }
 /** `{ sinY: true }` when a position gave no `y` (it then stands on the ground); nothing otherwise. */
 const sinY = (v: unknown): { sinY?: true } => (typeof v === "object" && v !== null && (v as Record<string, unknown>).y === undefined ? { sinY: true } : {});
@@ -659,6 +694,7 @@ export function cargarAventura(f: { misiones: Fichero[]; pnj: Fichero[]; cosas: 
           const donde = "cosas" in p ? `${at}.cosas[${j}]` : `${at}.cosa`;
           if (!cosas.has(c)) is.push({ path: donde, message: `no hay ninguna cosa «${c}» (hay: ${hay(cosas)})` });
           else if (p.tipo === "entrega" && !m.pasos.slice(0, i).some((q) => (q.tipo === "coge" || q.tipo === "recibe") && q.cosa === c)) is.push({ path: donde, message: `para entregar «${c}» antes hay que tenerla: pon delante un paso coge (la coge) o recibe (alguien se la da) con esa cosa` });
+          else if (p.tipo === "marca" && !cosas.get(c)?.marcable) is.push({ path: donde, message: `«${c}» no se puede marcar: añada "marcable": true a cosas/${c}.json (o quítela de la lista de este paso)` });
         });
         if (p.tipo === "usa" && cosas.get(p.cosa)?.dialogo && !avanzaDeCosa(cosas.get(p.cosa)!, m.id)) is.push({ path: `${at}.cosa`, message: `«${p.cosa}» se inspecciona (tiene diálogo) y un paso usa se cumple con una opción {"accion": {"tipo": "avanzar_paso", "mision": "${m.id}"}} de ese diálogo: añádala a algún nodo de cosas/${p.cosa}.json` });
         if (p.tipo === "coge" && p.otorga !== undefined && o.objetos && !o.objetos.has(p.otorga)) is.push({ path: `${at}.otorga`, message: `la aventura no define ningún objeto «${p.otorga}» (hay: ${[...o.objetos].join(", ") || "ninguno"}; van en objetos/<id>.json, formato objeto@1, y tienen que ser válidos)` });
@@ -670,6 +706,7 @@ export function cargarAventura(f: { misiones: Fichero[]; pnj: Fichero[]; cosas: 
       if (!c.dialogo) continue;
       const is: Issue[] = [];
       if (pnjs.has(c.id)) is.push({ path: "id", message: `«${c.id}» ya es una persona: la cosa con diálogo y la persona no pueden llamarse igual (hablan por el mismo canal)` });
+      if (c.marcable) for (const [k, nodo] of Object.entries(c.dialogo.nodos)) if (nodo.opciones.length > 2) is.push({ path: `dialogo.nodos.${k}.opciones`, message: `una cosa marcable añade a cada nodo sus dos botones («${c.marcable.marcar}» / «${c.marcable.desechar}») y caben 4 en total: deje en este nodo 2 opciones como mucho (hoy ${nodo.opciones.length})` }); // P4
       revisaDialogo(c.dialogo, "dialogo", c.id, true, misiones, cosas, is, hay);
       if (is.length) { issues.push(...conFichero(`cosas/${c.id}`, is)); cosas.delete(c.id); cae = true; }
     }
