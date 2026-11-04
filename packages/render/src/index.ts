@@ -48,6 +48,7 @@ export type { Movimiento } from "./avatares-politica.ts";
 export type { CatalogoAvatares } from "./avatares.ts";
 import type { CatalogoAvatares } from "./avatares.ts";
 import { createNombres, NOMBRE_VISIBLE_M } from "./nombres.ts";
+import { createMarcaMirada, type Marca } from "./marca-mirada.ts"; // P15: the one ring over the thing «E: …» speaks about (lazy, one mesh)
 import { createAros } from "./aros.ts"; // ia-visible S5: a green ring on the floor under every AI (pooled, one shared geometry)
 import { arosMax } from "./ia-marca.ts";
 import { createOjosIA } from "./ojos-ia.ts"; // t_5096d6f4: the eyes of an AI say the size of its model (one mesh per near AI, shared geometry and material)
@@ -429,6 +430,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const meshOf = (t: Target): THREE.Mesh | undefined => (t === "self" ? (selfMesh.visible ? selfMesh : undefined) : others.get(t));
   const nombres = createNombres({ world, camera, avatarOf: meshOf }); // J3: names over heads and speech bubbles
   const aros = createAros({ world, avatarOf: (t) => meshOf(t), camera, max: () => arosMax(power.mobile) }); // ia-visible S5: nothing is made until the first AI
+  const marcaMirada = createMarcaMirada({ world, camera }); // P15: nothing is made until the first thing is offered
   const ojosIA = createOjosIA({ world, cuerpo: (t) => meshOf(t), visible: (t) => (t === "self" ? selfMat.visible : true), cabeza: (t, out) => avs.cabeza(t === "self" ? "yo" : t, out), rumbo: (t) => avs.rumbo(t === "self" ? "yo" : t), camera, max: () => ojosMax(power.mobile) });
   const orbesIA = createOrbesIA({ world, cuerpo: (t) => meshOf(t), visible: (t) => (t === "self" ? selfMat.visible : true), encima: (t, c) => nombres.above(t, c), camera, max: () => orbesMax(power.mobile), nivel: () => entorno.nivel });
   const burbujas = createBurbujas({ world, avatarOf: (t) => meshOf(t), yo: () => selfXZ ? { x: selfXZ.x, y: selfXZ.y ?? 0, z: selfXZ.z } : null, max: () => burbujasMax(power.mobile, renderer.xr.isPresenting) }); // ia-llamar S9: nothing is made until the first AI
@@ -535,6 +537,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     updateRotulos(now);
     pompas.update(now);
     aros.update();
+    marcaMirada.update();
     ojosIA.update(); // after the avatars moved (the VRM's head follows its capsule)
     orbesIA.update(now); // after the plates are placed: it floats over the name
     burbujas.update(now);
@@ -1724,6 +1727,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     orbeQuieto(si: boolean): void { orbesIA.quieto(si); },
     /** t_466efdb8 (for checks): who thinks, how many orbs are drawn, that they share one mesh. */
     orbesIA() { return orbesIA.lista(); },
+    /** P15: mark the thing the «E: …» prompt is about (a ring facing the camera at `x y z`, radius `r` metres), or `null` for none. */
+    marcar(p: Marca | null): void { marcaMirada.poner(p); },
+    /** P15 (for checks): is the mark drawn, where, and how many meshes ever existed (never more than 1). */
+    marcaMirada() { return marcaMirada.estado(); },
     /** ia-visible S5 (for checks): who has a ring, whether it is drawn, and how much the rings share (one geometry, one material per state). */
     aros() { return { lista: aros.lista(), ...aros.compartidos() }; },
     /** t_5096d6f4 (for checks): who has eyes (colour and shape), whether they are drawn, and how much the eyes share (one geometry per shape, one material per colour). */
@@ -1745,7 +1752,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
     /** MIS-200 (t_9687b5fc): the world still loads models or shaders: the entry buttons wait (the same gate as the VR entry, not busy()). */
     cargando(): boolean { return loading > 0 || precompilar.pendientes() > 0; },
-    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || vivosCerca || reacciones.size > 0 || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || ojosIA.busy() || orbesIA.busy() || burbujas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || dados3d.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ); },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || vivosCerca || reacciones.size > 0 || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || marcaMirada.busy() || ojosIA.busy() || orbesIA.busy() || burbujas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || dados3d.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); power.paron(2); }, // B4: the next frames pay the resize
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */

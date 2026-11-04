@@ -29,7 +29,7 @@ test("the wireframe's boxes at 1600×900: «now» top left, map + clock top righ
   assert.equal(cajaDe(marco("hud.reloj"), "normal")!.ancla, "arriba-derecha");
   assert.equal(cajaDe(marco("hud.minimapa"), "normal")!.dy, 94);
   assert.deepEqual(rect("hud.avisos"), { x: 580, y: 14, w: 440, h: 0 }, "notices: centred, 440 wide, at y = 14");
-  assert.deepEqual(rect("hud.accion"), { x: 620, y: 734, w: 360, h: 54 });
+  assert.deepEqual(rect("hud.accion"), { x: 620, y: 728, w: 360, h: 52 });
   assert.deepEqual(rect("hud.acciones"), { x: 620, y: 804, w: 360, h: 80 });
   assert.equal(cajaDe(marco("hud.chat"), "normal")!.ancho, 440);
   assert.deepEqual(rectDe({ ...cajaDe(marco("hud.chat"), "normal")!, alto: 150 }, 1600, 900), { x: 16, y: 734, w: 440, h: 150 });

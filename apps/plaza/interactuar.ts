@@ -9,19 +9,29 @@
 // J4 «mantener pulsado»: a thing whose card sets `hold` (seconds) is not used at once — E / the mobile button / the VR
 // trigger must be HELD that long (a progress ring fills on the button, --progreso 0..1) before the intent is sent;
 // letting go early, or the target changing, cancels with nothing sent. A thing without `hold` fires as before.
+// P15: of the things in reach the prompt names the one the player LOOKS at (interactuar-mirada.ts: smallest angle to the camera's
+// heading, nearest on a tie, nearest of all when none is ahead), the chosen thing wears a ring in the world (`view.marcar`), and the
+// prompt is drawn big in the house amber with the key as a drawn key cap. It lasts exactly as long as the thing is in reach.
 type Res = { ok: true } | { ok: false; why: string };
-export type Cerca = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number; hold?: number; local?: () => Res };
+export type Cerca = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number; hold?: number; local?: () => Res;
+  /** P15: where the thing is and what it is (features.reachable gives both); page-side offers without a place are never marked. */
+  at?: { x: number; z: number; y?: number }; role?: string };
 type Sesion = { entity: number; selfPosition(alpha: number): { x: number; y: number; z: number }; features: { reachable(x: number, z: number, y?: number): Cerca[]; use(feature: string, key: string): Res } };
-type Vista = { renderer: { domElement: HTMLElement }; pickThing?(x: number, y: number): string | null; cam?: { modo?(): string } };
+type Vista = { renderer: { domElement: HTMLElement }; pickThing?(x: number, y: number): string | null; cam?: { modo?(): string; yaw?(): number };
+  /** P15: ring over the offered thing (centre in metres, radius), or null. */ marcar?(p: { x: number; y: number; z: number; r: number } | null): void; vr?: { active: boolean } };
 
 /** True while the person types in a text box: global keys must not fire (J3's one rule, apps/plaza/escribiendo.ts). */
 import { escribiendo } from "./escribiendo.ts";
 import { esTactil, perfil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
-import { ayudaDe, glifoDe } from "../../packages/client/src/movil.ts"; // U24: the glyph each device names (touch: none)
+import { glifoDe } from "../../packages/client/src/movil.ts"; // U24: the glyph each device names (touch: none)
+import { elegirMirada } from "./interactuar-mirada.ts"; // P15: the thing looked at, not just the nearest
 export { escribiendo };
 /** Building: the build panel is open or the camera is in build mode (there clicks select things and digits are tools). */
 export const construyendo = (view: Vista): boolean => !(document.getElementById("panel-construir")?.hidden ?? true) || view.cam?.modo?.() === "construir";
 const conMayuscula = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** P15: the ring over the offered thing: a person is circled at the chest, anything else just above its base (metres). */
+export const marcaDe = (c: Cerca, pies: number): { x: number; y: number; z: number; r: number } | null =>
+  !c.at ? null : c.role === "persona" ? { x: c.at.x, y: (c.at.y ?? pies) + 1.0, z: c.at.z, r: 0.55 } : { x: c.at.x, y: (c.at.y ?? pies) + 0.15, z: c.at.z, r: 0.2 };
 /** Pure: 0..1, how much of `holdS` seconds has elapsed between `desde` and `ahora` (both ms); no hold (0/undefined) = done at once. */
 export const fraccionMantenida = (desde: number, ahora: number, holdS?: number): number => (!holdS ? 1 : Math.min(1, Math.max(0, (ahora - desde) / (holdS * 1000))));
 
@@ -34,6 +44,10 @@ export function montarInteraccion(o: {
   const tactil = esTactil();
   let actual: Cerca | null = null, ultimo: Res | null = null;
   let manteniendo: { c: Cerca; desde: number } | null = null;
+  // the button's two parts, made once (P15): a drawn key «E» and the words. Text only goes in through textContent (a world's words are never HTML).
+  const tecla = document.createElement("kbd"), palabras = document.createElement("span");
+  tecla.setAttribute("aria-hidden", "true"); palabras.className = "palabras";
+  o.boton.replaceChildren(tecla, palabras);
   const usar = (c: Cerca | null): Res => (ultimo = !c ? { ok: false, why: "no hay nada al alcance" } : c.local ? c.local() : o.session.features.use(c.feature, c.key));
   const libre = () => o.session.entity >= 0 && !construyendo(o.view) && !o.ocupado();
   const cancelarMantener = () => { if (!manteniendo) return; manteniendo = null; o.boton.classList.remove("manteniendo"); o.boton.style.removeProperty("--progreso"); };
@@ -46,19 +60,39 @@ export function montarInteraccion(o: {
     o.boton.style.setProperty("--progreso", String(frac));
     if (frac >= 1) { const c = manteniendo.c; cancelarMantener(); usar(c); }
   }, 40);
+  let pies = 0;
   const mirar = () => {
     let c: Cerca | null = null;
     if (libre()) {
       const p = o.session.selfPosition(1); // y: a person one floor up gets no prompt
       const de = o.session.features.reachable(p.x, p.z, p.y).filter((x) => o.ofrece(x.feature, x.key));
-      c = [...de, ...(o.locales?.(p.x, p.z, p.y) ?? [])].sort((a, b) => a.distance - b.distance)[0] ?? null;
+      const lista = [...de, ...(o.locales?.(p.x, p.z, p.y) ?? [])];
+      // in VR the head is not the desktop camera: there the nearest wins as before (the controllers aim with their own ray)
+      const yaw = o.view.vr?.active ? undefined : o.view.cam?.yaw?.();
+      c = yaw === undefined ? lista.sort((a, b) => a.distance - b.distance)[0] ?? null : elegirMirada(lista, { x: p.x, z: p.z, yaw }, actual);
+      pies = p.y;
     }
     const antes = actual;
     actual = c;
+    marcar(c, pies);
     if (c?.feature === antes?.feature && c?.key === antes?.key && c?.prompt === antes?.prompt) return;
     if (!c) cancelarMantener();
     o.boton.hidden = !c;
-    if (c) { const g = glifoDe(perfil().clase, "interactuar"); o.boton.textContent = tactil ? conMayuscula(c.prompt) : ayudaDe(perfil().clase, "interactuar", c.prompt); o.boton.setAttribute("aria-label", g ? `${conMayuscula(c.prompt)} (tecla ${g})` : conMayuscula(c.prompt)); }
+    if (c) {
+      const g = glifoDe(perfil().clase, "interactuar");
+      tecla.hidden = !g; tecla.textContent = g ?? "";
+      palabras.textContent = tactil ? conMayuscula(c.prompt) : c.prompt;
+      o.boton.title = conMayuscula(c.prompt);
+      o.boton.setAttribute("aria-label", g ? `${conMayuscula(c.prompt)} (tecla ${g})` : conMayuscula(c.prompt));
+    }
+  };
+  // the ring in the world follows what is offered (moves with a walking person, goes when nothing is offered); `poner` ignores the same place twice
+  let marcado = false;
+  const marcar = (c: Cerca | null, pies: number) => {
+    const m = c && !o.view.vr?.active ? marcaDe(c, pies) : null;
+    if (!m && !marcado) return;
+    marcado = !!m;
+    o.view.marcar?.(m);
   };
   setInterval(mirar, 200);
   addEventListener("keydown", (e) => {
