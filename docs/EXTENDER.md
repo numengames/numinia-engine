@@ -903,6 +903,26 @@ reconectar y a reiniciar, y el tiempo con el servidor apagado cuenta. Al complet
 para lectores de pantalla y agentes («Evaluación de la inspección: 79 puntos. Tiempo de la misión: 2 min 05 s; …»). Una misión
 aceptada antes de que el mundo tuviera `evaluacion` no tiene reloj: su tarjeta sale sin la fila del tiempo. Plugs: misiones **v11**.
 
+**Fases con nombre (`evaluacion.fases`).** Una misión con muchos bloques (la del crimen tiene 8) no quiere una fila por bloque, sino el
+tiempo de toda la misión y el de unas pocas **fases** con nombre. `fases` es opcional (1–8) y cada fase dice dónde acaba:
+
+```json
+"fases": [
+  { "nombre": "Fase 1 · Datos preliminares", "hasta": "recoger-cuaderno" },
+  { "nombre": "Fase 2 · La escena",          "hasta": "marcar-indicios" },
+  { "nombre": "Fase 3 · El informe",         "hasta": "informar-sargento" }
+]
+```
+
+Cada fase va desde el final de la anterior (la primera, desde que se acepta la misión) hasta que se cumple el paso `hasta`; si ese
+paso está en un `grupo`, hasta que se cierra el bloque entero. La tarjeta enseña entonces la fila del tiempo total y **estas** filas
+(`tipo: "fase"`; el nombre, de hasta 60 bytes, sale tal como se escribe, sin «Fase n:» añadido) en vez de una por
+bloque. Sin `fases`, lo de siempre. El formato exige que `hasta` sea el id de un paso de la misión, que las fases vayan en el orden
+de los pasos y que dos no acaben en el mismo bloque; el tiempo que pase después de la última fase cuenta en el total pero en
+ninguna fase (acabe la última en el último paso para que las fases sumen el total). Una tarjeta guardada con otro número de fases que
+el actual (el autor cambió la misión después) enseña solo el tiempo total, nunca una fila equivocada. Las filas de fase no restan
+puntos y no entran en el resumen de una línea.
+
 En la página, la tarjeta (`#evaluacion`, `apps/plaza/misiones.ts`) se abre sola al terminar la misión sin quitar el teclado (nunca
 en VR), se cierra con «Cerrar» o Escape y se vuelve a abrir con «Ver evaluación» en la lista de misiones hechas del libro (J). Para
 agentes y páginas: `misiones.evaluacion(id)` (o `misiones.libro()[i].evaluacion`) devuelve

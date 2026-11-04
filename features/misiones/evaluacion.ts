@@ -30,6 +30,17 @@ export function bloques(m: Mision): { desde: number; hasta: number }[] {
   return out;
 }
 
+/** The block (index in `bloques`) that closes each named phase of the card: the block holding the step `hasta`. Empty when there are no `fases` (or a step is gone). */
+export function bloquesDeFases(m: Mision, ev: Evaluacion): number[] {
+  const bs = bloques(m), out: number[] = [];
+  for (const f of ev.fases ?? []) {
+    const i = m.pasos.findIndex((p) => p.id === f.hasta), k = bs.findIndex((b) => i >= b.desde && i < b.hasta);
+    if (k < 0) return [];
+    out.push(k);
+  }
+  return out;
+}
+
 const num = (o: Readonly<Record<string, number | undefined>>, k: string): number => (Object.hasOwn(o, k) && Number.isInteger(o[k]) ? Math.min(TOPE_CONTADOR, Math.max(0, o[k]!)) : 0);
 const ms = (v: number): number => Math.min(MS_MAX, Math.max(0, Math.round(v)));
 
@@ -40,7 +51,7 @@ export function restaTiempo(ev: Evaluacion, tiempoMs: number): number {
   return sobra > 0 ? Math.floor(sobra / 60_000) * ev.tiempo.resta_por_minuto : 0;
 }
 
-/** The result for a completed quest. `t0` = when it was accepted, `tb` = when each block closed (one per block, the last one is the finish);
+/** The result for a completed quest (`fases` = ms of each named phase when the card has them — from accepting to the close of the first, then each from the close of the one before — otherwise of each block). `t0` = when it was accepted, `tb` = when each block closed (one per block, the last one is the finish);
  *  `ahora` = the finish when `tb` is not complete (older progress). `cuenta` = the quest's counters. */
 export function calcular(m: Mision, ev: Evaluacion, cuenta: Readonly<Record<string, number | undefined>>, t0: number | undefined, tb: readonly number[], ahora: number): Resultado {
   const cont: Record<string, number> = {};
@@ -49,7 +60,10 @@ export function calcular(m: Mision, ev: Evaluacion, cuenta: Readonly<Record<stri
   if (t0 !== undefined) {
     const completo = tb.length === bloques(m).length && tb.length > 0;
     total = ms((completo ? tb[tb.length - 1] : ahora) - t0);
-    if (completo) fases = tb.map((t, k) => ms(t - (k ? tb[k - 1] : t0)));
+    if (completo && ev.fases) {
+      const cierres = bloquesDeFases(m, ev).map((k) => tb[k]);
+      if (cierres.length === ev.fases.length) fases = cierres.map((t, k) => ms(t - (k ? cierres[k - 1] : t0)));
+    } else if (completo) fases = tb.map((t, k) => ms(t - (k ? tb[k - 1] : t0)));
   }
   let resta = total === undefined ? 0 : restaTiempo(ev, total);
   for (const [k, peso] of Object.entries(ev.resta)) resta += num(cuenta, k) * peso;
@@ -64,7 +78,8 @@ export function duracion(tiempoMs: number): string {
   return min ? `${min} min ${dos(s % 60)} s` : `${s} s`;
 }
 
-/** The rows of the card, in the order the author's `muestra` says. The time row is followed by one row per block when there is more than one. */
+/** The rows of the card, in the order the author's `muestra` says. The time row is followed by the author's named phases (`fases`) or, without them,
+ *  by one row per block when there is more than one. */
 export function filas(m: Mision, ev: Evaluacion, r: Resultado): Fila[] {
   const out: Fila[] = [];
   for (const k of ev.muestra) {
@@ -72,7 +87,9 @@ export function filas(m: Mision, ev: Evaluacion, r: Resultado): Fila[] {
       if (r.ms === undefined) continue; // the accept time was not kept: there is no time to tell
       out.push({ tipo: "tiempo", clave: "tiempo", etiqueta: Object.hasOwn(ev.etiquetas, "tiempo") ? ev.etiquetas.tiempo : ETIQUETA_TIEMPO, valor: Math.floor(r.ms / 1000), texto: duracion(r.ms), resta: restaTiempo(ev, r.ms) });
       const bs = bloques(m);
-      if (r.fases.length > 1 && r.fases.length === bs.length) r.fases.forEach((t, i) => {
+      if (ev.fases) {
+        if (r.fases.length === ev.fases.length) r.fases.forEach((t, i) => out.push({ tipo: "fase", clave: `fase-${i + 1}`, etiqueta: corta(ev.fases![i].nombre, 72), valor: Math.floor(t / 1000), texto: duracion(t), resta: 0 }));
+      } else if (r.fases.length > 1 && r.fases.length === bs.length) r.fases.forEach((t, i) => {
         const p = m.pasos[bs[i].desde];
         out.push({ tipo: "fase", clave: `fase-${i + 1}`, etiqueta: corta(`Fase ${i + 1}: ${p.grupo || p.texto}`, 72), valor: Math.floor(t / 1000), texto: duracion(t), resta: 0 });
       });

@@ -116,7 +116,11 @@ export const LIM_EVAL = { titulo: 80, etiqueta: 40, contadores: 12, tope: 9999, 
 export type Evaluacion = {
   titulo: string; base: number; minimo: number; resta: Record<string, number>; tiempo?: { referencia_min: number; resta_por_minuto: number };
   muestra: string[]; etiquetas: Record<string, string>;
+  /** Named phases (optional): each runs from the end of the one before (or from accepting the quest) until the block holding the step `hasta` is done.
+   *  With them the card shows these rows under the time instead of one per block. */
+  fases?: { nombre: string; hasta: string }[];
 };
+export const LIM_FASES = 8; // most named phases of a card
 /** True when every listed fact holds for this player. `paso` and `tiene` only with estado "activa"; `paso` = that step is
  * to do now (inside a grupo: one of the block's steps not done yet). */
 export type Condicion = { mision: string; estado: Estado; paso?: string; tiene?: string };
@@ -360,7 +364,7 @@ export function leerMision(v: unknown): Result<Mision> {
   });
   const ids = new Set<string>();
   recompensas.forEach((r, i) => { if (r.tipo === "semilla") return; if (r.id && ids.has(r.id)) is.push({ path: en(en("recompensas", i), "id"), message: `«${r.id}» ya es otra recompensa de esta misión: cada una, un id distinto` }); ids.add(r.id); });
-  const evaluacion = leerEvaluacion(o.evaluacion, is);
+  const evaluacion = leerEvaluacion(o.evaluacion, is, pasos);
   if (evaluacion && !pasos.some((p) => p.tipo === "marca")) evaluacion.muestra.forEach((c, i) => { if ((CONTADORES_DE_MARCA as readonly string[]).includes(c)) is.push({ path: en("evaluacion.muestra", i), message: `«${c}» lo cuentan los pasos "marca" y esta misión no tiene ninguno: quítelo o añada un paso marca` }); });
   const tx = objeto(o.textos, "textos", is, true) ?? {};
   campos(tx, ["aceptada", "completada"], "textos", is);
@@ -382,13 +386,14 @@ const entero = (v: unknown, path: string, min: number, max: number, is: Issue[],
   return n;
 };
 /** mision@1 `evaluacion` (P13):
- *  `{ "titulo"?, "base"?: 100, "minimo"?: 0, "resta"?: { "<contador>": peso }, "tiempo"?: { "referencia_min", "resta_por_minuto" }, "muestra"?: [...], "etiquetas"?: { "<fila>": "texto" } }`.
+ *  `{ "titulo"?, "base"?: 100, "minimo"?: 0, "resta"?: { "<contador>": peso }, "tiempo"?: { "referencia_min", "resta_por_minuto" }, "muestra"?: [...], "etiquetas"?: { "<fila>": "texto" },
+ *     "fases"?: [{ "nombre": "Fase 1 · Datos preliminares", "hasta": "<id del paso que la cierra>" }] }`.
  *  Whole numbers only; a counter missing from the progress counts 0 (so a name the engine does not know yet is harmless, but it needs its label). */
-function leerEvaluacion(v: unknown, is: Issue[]): Evaluacion | undefined {
+function leerEvaluacion(v: unknown, is: Issue[], pasos: readonly Paso[] = []): Evaluacion | undefined {
   if (v === undefined) return undefined;
   const p = "evaluacion", L = LIM_EVAL;
   if (!esObjeto(v)) { is.push({ path: p, message: 'un objeto { "base": 100, "resta": { "fotos_erroneas": 5 }, "tiempo": { "referencia_min": 20, "resta_por_minuto": 1 } }: la tarjeta que ve el jugador al terminar la misión' }); return undefined; }
-  campos(v, ["titulo", "base", "minimo", "resta", "tiempo", "muestra", "etiquetas"], p, is);
+  campos(v, ["titulo", "base", "minimo", "resta", "tiempo", "muestra", "etiquetas", "fases"], p, is);
   const n0 = is.length;
   const titulo = v.titulo === undefined ? TITULO_EVALUACION : texto(v.titulo, en(p, "titulo"), L.titulo, is);
   const base = entero(v.base, en(p, "base"), 1, L.tope, is, 100), minimo = entero(v.minimo, en(p, "minimo"), 0, L.tope, is, 0);
@@ -428,7 +433,32 @@ function leerEvaluacion(v: unknown, is: Issue[]): Evaluacion | undefined {
     etiquetas[k] = texto(eo[k], pk, L.etiqueta, is);
   }
   for (const k of muestra) if (k !== "tiempo" && !Object.hasOwn(CONTADORES_CONOCIDOS, k) && !Object.hasOwn(etiquetas, k)) is.push({ path: en(en(p, "etiquetas"), k), message: `el motor no conoce el contador «${k}»: escriba cómo se llama en la tarjeta, p. ej. "${k}": "Fotos repetidas"` });
-  return is.length > n0 ? undefined : { titulo, base, minimo, resta, ...(tiempo ? { tiempo } : {}), muestra, etiquetas };
+  const fases = leerFases(v.fases, en(p, "fases"), pasos, is);
+  return is.length > n0 ? undefined : { titulo, base, minimo, resta, ...(tiempo ? { tiempo } : {}), muestra, etiquetas, ...(fases ? { fases } : {}) };
+}
+
+/** `evaluacion.fases`: 1–8 named phases, each closed by a step of the quest (`hasta`). A step in a `grupo` closes with its block, so two
+ *  phases may not end in the same block, and they must follow the order of the quest. */
+function leerFases(v: unknown, p: string, pasos: readonly Paso[], is: Issue[]): { nombre: string; hasta: string }[] | undefined {
+  if (v === undefined) return undefined;
+  const bloque = new Map<string, number>(); // step id → number of its block (consecutive steps with the same grupo are one)
+  let b = -1;
+  pasos.forEach((s, i) => { if (!(i > 0 && s.grupo && s.grupo === pasos[i - 1].grupo)) b++; if (s.id) bloque.set(s.id, b); });
+  const out: { nombre: string; hasta: string }[] = [];
+  let ultimo = -1, ultimoId = "";
+  lista(v, p, 1, LIM_FASES, is).forEach((f, i) => {
+    const pf = en(p, i), fo = objeto(f, pf, is);
+    if (!fo) return;
+    campos(fo, ["nombre", "hasta"], pf, is);
+    const nombre = texto(fo.nombre, en(pf, "nombre"), LIM.nombre, is);
+    const hasta = typeof fo.hasta === "string" ? fo.hasta : "";
+    const k = bloque.get(hasta);
+    if (k === undefined) is.push({ path: en(pf, "hasta"), message: hasta ? `«${hasta}» no es un paso de esta misión: use el id de uno de ellos (${pasos.map((s) => s.id).filter(Boolean).slice(0, 8).join(", ")}${pasos.length > 8 ? ", …" : ""})` : "el id del paso que cierra esta fase (p. ej. \"hablar-con-la-jefa\")" });
+    else if (k <= ultimo) is.push({ path: en(pf, "hasta"), message: k === ultimo ? `«${hasta}» cierra el mismo bloque de pasos que «${ultimoId}»: dos fases no pueden acabar a la vez, elija un paso de un bloque posterior` : `«${hasta}» va antes que «${ultimoId}», el final de la fase anterior: ordene las fases como van los pasos de la misión` });
+    else { ultimo = k; ultimoId = hasta; }
+    out.push({ nombre, hasta });
+  });
+  return out;
 }
 
 /** N10: `{ "tipo": "objeto", "id", "nombre", "descripcion"?, "modelo"?: "<sha256 de un .glb>", "licencia"?: "CC0-1.0" }`. */

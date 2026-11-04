@@ -329,3 +329,69 @@ test("over the plug: a world whose quest has no `evaluacion` sends none of the n
   assert.equal("evaluacion" in a.m.libro()[0], false);
   for (const n of ["evaluacion", "evaluacionFila", "abrirEvaluacion"]) assert.equal(W.eventos(a, n).length, 0, n);
 });
+
+// ---- `fases`: the card groups the blocks into the author's named phases ----
+const CUATRO = {
+  formato: "mision@1", id: "cuatro", titulo: "Cuatro", descripcion: "D",
+  pasos: [
+    { id: "a", tipo: "usa", texto: "Use a", cosa: "pisada", grupo: "Piezas" }, { id: "b", tipo: "usa", texto: "Use b", cosa: "vaso", grupo: "Piezas" },
+    { id: "c", tipo: "usa", texto: "Use c", cosa: "movil" }, { id: "d", tipo: "usa", texto: "Use d", cosa: "correo" }, { id: "e", tipo: "habla_con", texto: "Hable", pnj: "jefa" },
+  ],
+};
+const FASES = [{ nombre: "Fase 1 · Datos preliminares", hasta: "b" }, { nombre: "Fase 2 · La escena", hasta: "d" }, { nombre: "Fase 3 · El informe", hasta: "e" }];
+const conFases = (fases: unknown) => quien(leerMision({ ...CUATRO, evaluacion: { muestra: ["tiempo"], tiempo: { referencia_min: 5, resta_por_minuto: 1 }, fases } }));
+
+test("formats: `evaluacion.fases` — named phases closed by a step; each mistake says the path and how to fix it", () => {
+  const ok = leerMision({ ...CUATRO, evaluacion: { muestra: ["tiempo"], fases: FASES } });
+  assert.ok(ok.ok);
+  if (ok.ok) assert.deepEqual(ok.value.evaluacion!.fases, FASES);
+  const sin = leerMision({ ...CUATRO, evaluacion: { muestra: ["tiempo"] } });
+  assert.ok(sin.ok && !("fases" in sin.value.evaluacion!), "no `fases`: the key does not even exist");
+  assert.deepEqual(conFases(FASES), []);
+  assert.deepEqual(conFases([{ nombre: "Todo", hasta: "a" }]), [], "a step of a grupo closes with its block, and that is fine for one phase");
+  const m1 = conFases([{ nombre: "X", hasta: "zeta" }]);
+  assert.ok(m1.some((s) => s.startsWith("evaluacion.fases[0].hasta:") && /«zeta» no es un paso de esta misión/.test(s) && /a, b, c, d, e/.test(s)), m1.join("|"));
+  assert.ok(conFases([{ nombre: "X" }]).some((s) => s.startsWith("evaluacion.fases[0].hasta:") && /el id del paso/.test(s)));
+  assert.ok(conFases([{ hasta: "a" }]).some((s) => s.startsWith("evaluacion.fases[0].nombre:")));
+  assert.ok(conFases([{ nombre: "X", hasta: "a", otro: 1 }]).some((s) => s.startsWith("evaluacion.fases[0].otro:") && /campo desconocido/.test(s)));
+  const igual = conFases([{ nombre: "A", hasta: "a" }, { nombre: "B", hasta: "b" }]);
+  assert.ok(igual.some((s) => s.startsWith("evaluacion.fases[1].hasta:") && /mismo bloque/.test(s) && /posterior/.test(s)), igual.join("|"));
+  const orden = conFases([{ nombre: "A", hasta: "d" }, { nombre: "B", hasta: "c" }]);
+  assert.ok(orden.some((s) => s.startsWith("evaluacion.fases[1].hasta:") && /va antes que «d»/.test(s) && /ordene/.test(s)), orden.join("|"));
+  assert.ok(conFases([]).some((s) => s.startsWith("evaluacion.fases:") && /de 1 a 8/.test(s)));
+  assert.ok(conFases(Array.from({ length: 9 }, (_, i) => ({ nombre: `F${i}`, hasta: "e" }))).some((s) => s.startsWith("evaluacion.fases:") && /de 1 a 8/.test(s)));
+  assert.ok(conFases("sí").some((s) => s.startsWith("evaluacion.fases:")));
+  assert.ok(conFases([{ nombre: "x".repeat(61), hasta: "a" }]).some((s) => s.startsWith("evaluacion.fases[0].nombre:")));
+});
+
+test("machine: with `fases` the card shows the quest's time and the time of each named phase; without them, one row per block as before", () => {
+  const con3 = { ...CUATRO, evaluacion: { muestra: ["tiempo"], fases: FASES } }, sin = { ...CUATRO, id: "sin", evaluacion: { muestra: ["tiempo"] } };
+  const A = cargar([con3, sin, ESCENA]);
+  const jugar = (id: string) => {
+    const p = nuevoProgreso(), m = A.misiones.get(id)!;
+    assert.ok(aceptar(p, m, A, T0).ok);
+    registrar(p, A, { tipo: "usa", cosa: "pisada", ahora: T0 + 10_000 }); registrar(p, A, { tipo: "usa", cosa: "vaso", ahora: T0 + 20_000 });
+    registrar(p, A, { tipo: "usa", cosa: "movil", ahora: T0 + 50_000 }); registrar(p, A, { tipo: "usa", cosa: "correo", ahora: T0 + 80_000 });
+    registrar(p, A, { tipo: "habla", pnj: "jefa", ahora: T0 + 130_000 });
+    return { m, r: evaluacionDe(p, id)!, p };
+  };
+  const a = jugar("cuatro");
+  assert.deepEqual([a.r.ms, a.r.fases], [130_000, [20_000, 60_000, 50_000]]);
+  assert.deepEqual(filas(a.m, a.m.evaluacion!, a.r).map((f) => [f.tipo, f.clave, f.etiqueta, f.texto]), [
+    ["tiempo", "tiempo", "Tiempo de la misión", "2 min 10 s"], ["fase", "fase-1", "Fase 1 · Datos preliminares", "20 s"], ["fase", "fase-2", "Fase 2 · La escena", "1 min 00 s"], ["fase", "fase-3", "Fase 3 · El informe", "50 s"],
+  ]);
+  assert.equal(resumen(filas(a.m, a.m.evaluacion!, a.r)), "Tiempo de la misión: 2 min 10 s", "the one-line summary leaves the phases out, as before");
+  // two phases that stop before the last step: the time after them belongs to no phase, the whole time stays whole
+  const corta2 = { ...a.m, evaluacion: { ...a.m.evaluacion!, fases: FASES.slice(0, 2) } };
+  const r2 = calcular(corta2, corta2.evaluacion, {}, T0, a.p.activas.cuatro?.tb ?? [T0 + 20_000, T0 + 50_000, T0 + 80_000, T0 + 130_000], T0 + 130_000);
+  assert.deepEqual([r2.ms, r2.fases], [130_000, [20_000, 60_000]]);
+  // without `fases`: one row per block, exactly as before
+  const b = jugar("sin");
+  assert.deepEqual(b.r.fases, [20_000, 30_000, 30_000, 50_000]);
+  assert.deepEqual(filas(b.m, b.m.evaluacion!, b.r).filter((f) => f.tipo === "fase").map((f) => f.etiqueta), ["Fase 1: Piezas", "Fase 2: Use c", "Fase 3: Use d", "Fase 4: Hable"]);
+  // a card saved with another number of phases (the author edited the quest since) shows the time only, never a wrong row
+  const vieja = { ...a.r, fases: [1000, 2000] };
+  assert.deepEqual(filas(a.m, a.m.evaluacion!, vieja).map((f) => f.tipo), ["tiempo"]);
+  // it round-trips through the store
+  assert.deepEqual(evaluacionDe(leerProgreso(JSON.parse(JSON.stringify(a.p))), "cuatro")!.fases, [20_000, 60_000, 50_000]);
+});
