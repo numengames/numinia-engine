@@ -1054,8 +1054,10 @@ export type PlacedObject = { model: string; x: number; y: number; z: number; rx:
  * own phase (never in sync with the next); `reposo`: breathes and shifts its weight (or plays the model's idle clip); `mira`: turns its
  * body toward you when you are within this many metres (0 = never; the yaw it was placed with is where it goes back to); `atiende`:
  * keeps facing you whatever the distance (a conversation is open); `camina`: if this placement moves it a short way (≤ 10 m), it walks
- * there at ≤ 1.4 m/s instead of popping. */
-export type Vida = { id: string; reposo: boolean; mira: number; atiende?: boolean; camina?: boolean };
+ * there at ≤ 1.4 m/s instead of popping. `andando` (P16, a person on a round): the page places her again every frame she moves, so the render does
+ * not walk her itself or snap her yaw on each placement; `true` while she walks (the walking clip and the turn toward where she goes), `false`
+ * while she stands. Absent = as before. */
+export type Vida = { id: string; reposo: boolean; mira: number; atiende?: boolean; camina?: boolean; andando?: boolean };
 export const NO_VIEW: ViewHooks = { label() {}, bounce() {} };
 /** An event as a person hears and reads it (V1). `at` in metres; `who` = the entity it is about. */
 export type Announcement = { feature: string; event: string; text: string; sound: Sound; importance: Importance; at?: { x: number; z: number }; who?: number };

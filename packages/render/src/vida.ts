@@ -5,7 +5,7 @@
 // pose jump when it starts or stops, and a person never drifts: every term is a bounded sine of the clock.
 
 /** How a placed person is alive (the same shape as `Vida` in packages/feature: the feature says what it wants, the render does it). */
-export type Vida = { id: string; reposo: boolean; mira: number; atiende?: boolean; camina?: boolean };
+export type Vida = { id: string; reposo: boolean; mira: number; atiende?: boolean; camina?: boolean; andando?: boolean };
 
 export const RESPIRA_MAX = 0.015;      // breathing: at most 1.5 % taller (and half as much wider)
 export const RESPIRA_S: readonly [number, number] = [3.5, 5];  // its period range, seconds

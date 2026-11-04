@@ -4,6 +4,7 @@
 // What exists (quests, people, things) comes from the adventure's text files (formato.ts; docs/EXTENDER.md).
 import { defineFeature, SOUNDS } from "../../packages/feature/src/index.ts";
 import { ACCIONES_PAGINA, ALTURA_MAX, ESPERA_MAX, LIM, LIM_SECUENCIA, MUNDO, TIPOS_PASO, TIPOS_PISTA } from "./formato.ts";
+import { RONDA } from "./ronda.ts";
 
 const ID = { kind: "text", maxBytes: LIM.id } as const;
 const X = { kind: "fixed", min: -MUNDO, max: MUNDO, step: 0.01 } as const;
@@ -21,7 +22,7 @@ const GIRO = { kind: "fixed", min: -180, max: 180, step: 0.1, default: 0 } as co
 
 export const pnj = defineFeature({
   id: "pnj",
-  version: 5, // v5 (P2): the state gains `reposo` and `mira` (a person breathes / turns toward you; on unless the file says false) and the event `sitio` brings where THIS player finds a person who has `posiciones`; v4: the state gains `voz` (how a person sounds when you start and stop talking; "" = from its id); v3: the state gains `oficio` (a person's trade, a smaller line under the name); v2: `y` (the height a person stands at)
+  version: 6, // v6 (P16): the new event `ronda` brings the round a person walks for THIS player (pnj@1 `posiciones[].ronda`); v5 (P2): the state gains `reposo` and `mira` (a person breathes / turns toward you; on unless the file says false) and the event `sitio` brings where THIS player finds a person who has `posiciones`; v4: the state gains `voz` (how a person sounds when you start and stop talking; "" = from its id); v3: the state gains `oficio` (a person's trade, a smaller line under the name); v2: `y` (the height a person stands at)
   level: "base",
   describe: "Personas del mundo que no son jugadores (PNJ). Se les habla de cerca y contestan con un diálogo de opciones, igual para todos y decidido por el servidor, que cambia según tus misiones. Las escribe la aventura (pnj@1).",
   state: {
@@ -43,6 +44,11 @@ export const pnj = defineFeature({
     sitio: {
       describe: "Dónde encuentras tú a una persona que tiene `posiciones` (pnj@1): según tus misiones puede estar en otro sitio que para los demás. Solo te llega a ti, al entrar y cuando cambia; sustituye a su x, z, y y giro del estado. Una persona sin `posiciones` nunca lo manda.",
       fields: { pnj: ID, x: X, z: X, y: { kind: "fixed", min: 0, max: ALTURA_MAX, step: 0.01, default: 0 }, giro: GIRO },
+      announce: "silent",
+    },
+    ronda: {
+      describe: "La ronda que hace para ti una persona (pnj@1 `posiciones[].ronda`): sus puntos (x,z,y,giro,pausa separados por «;»; el giro vacío = mira hacia donde viene), a qué velocidad anda (m/s), si al llegar al último vuelve por el mismo camino (ida) y cuántos segundos de la ronda han pasado (rt). Con `quieta` está parada (habla contigo) y rt no avanza hasta que vuelva a llegar. La página calcula con ello dónde está en cada momento, igual que el servidor. Solo te llega a ti, justo después del `sitio` que la acompaña.",
+      fields: { pnj: ID, puntos: { kind: "text", maxBytes: RONDA.texto }, vel: { kind: "fixed", min: RONDA.velMin, max: RONDA.velMax, step: 0.01, default: RONDA.velDefecto }, ida: { kind: "bool", default: false }, rt: { kind: "fixed", min: 0, max: RONDA.cicloMaxS, step: 0.001, default: 0 }, quieta: { kind: "bool", default: false }, giro: GIRO },
       announce: "silent",
     },
     fin: { describe: "La conversación terminó (te despediste o te alejaste).", fields: { pnj: ID, nombre: { kind: "text", maxBytes: LIM.nombre } }, announce: { text: "Fin de la conversación con {nombre}.", sound: "suave", importance: 0 } },
