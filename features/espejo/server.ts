@@ -6,7 +6,10 @@
 // A package cannot import features/, so the seam is hung on the part itself (`enlace`, as `funciones` does) and the server finds it in the list of parts.
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi, ServerPart } from "../../packages/feature/src/index.ts";
+import { esIA } from "../avatar/feature.ts";
 import { espejo as decl, ALCANCE_M, CADUCA_S, PETICIONES_MAX, PETICIONES_POR_PERSONA, RADIO_USO_M } from "./feature.ts";
+
+const TICK_HZ = 20; // the sim's TICK_HZ (features import only core, schema, feature); the clock of the expiry is the server's tick, so a test runs it without waiting
 import { LIMITES, SOLO_LEER, VERBOS, funcionesEncendidas, leerObjeto, limpiar, tiposEncendidos } from "./esquema.ts";
 import type { Espejo, Estado, Funcion, Objeto, Seguridad, Tipo, Verbo } from "./esquema.ts";
 
@@ -130,12 +133,81 @@ export function crearEspejo(opts: OpcionesEspejo = {}): ParteConEspejo {
         for (const o of nuevos) { const antes = puestas.get(claveDe(o.tipo, o.id)); if (poner(o)) { n++; if (antes) decirCambio(antes, o); } }
         return { ok: true, puestas: n, quitadas };
       },
-      conectada: () => {}, // story 5 (the link) fills these three in; kept on the seam so story 3's tests can drive the same API
-      resultado: () => false,
-      alPedir: () => {},
-      esperando: () => 0,
+      conectada(si) {
+        if (si === conectada) return;
+        conectada = si;
+        if (!si) for (const [id, p] of [...esperando]) cerrar(id, p, false, "La conexión con la fuente se cortó: no sé si se hizo.");
+        api.emit("aviso", { conectada: si, texto: si ? "La fuente de fuera se ha conectado." : "La fuente de fuera se ha desconectado: las acciones esperan." }, "all");
+      },
+      resultado(id, ok, texto) {
+        const p = esperando.get(String(id));
+        if (!p) return false;
+        cerrar(String(id), p, ok === true, limpiar(texto, 120) || (ok ? "Hecho." : "No se pudo."));
+        return true;
+      },
+      alPedir(fn) { salida = fn; },
+      esperando: () => esperando.size,
     };
     Object.assign(enlace, e);
+
+    // ---- story 4: usar / pedir. The page only ASKS; the server checks and forwards. It never runs anything. ----
+    let conectada = false, salida: ((p: Peticion) => void) | null = null, n = 0;
+    const esperando = new Map<string, Peticion & { texto: string }>();
+    const rechazar = (from: number, motivo: string) => { api.emit("rechazado", { motivo: limpiar(motivo, 160) }, { to: from }); };
+    const cerrar = (id: string, p: Peticion & { texto: string }, ok: boolean, texto: string) => {
+      esperando.delete(id);
+      api.emit("resultado", { objeto: p.objeto, verbo: p.verbo, ok, texto: limpiar(texto, 160) }, { to: p.quien.entidad });
+    };
+    /** Only a real, identified person who directs here (or rules the world) may ask. Never an AI inhabitant (no identity), never `@todos` without the role. */
+    const puedePedir = (e: number): string => {
+      const quien = api.who(e);
+      if (!quien || esIA(quien.id)) return "Solo una persona identificada puede pedir acciones sobre lo de fuera; una IA o alguien sin identidad no puede.";
+      if (!(api.puede(e, "dirigir") || api.puede(e, "mandar"))) return "Pedir acciones sobre lo de fuera es cosa de quien dirige aquí o de quien manda en el mundo.";
+      return "";
+    };
+    const buscar = (from: number, clave: string): { k: string; o: Objeto } | null => {
+      const k = String(clave ?? "");
+      const o = puestas.get(k);
+      if (!o) { rechazar(from, "Esa cosa ya no está en el mundo."); return null; }
+      if (!api.within(from, k)) { rechazar(from, `Está demasiado lejos: acérquese a «${o.titulo}» (a menos de ${RADIO_USO_M} m).`); return null; }
+      return { k, o };
+    };
+
+    api.on("usar", (from, msg) => {
+      const b = buscar(from, String(msg.objeto)); if (!b) return;
+      const ofrece = b.o.acciones.length ? ` Se le puede pedir: ${b.o.acciones.join(", ")}.` : " No ofrece acciones.";
+      api.emit("ficha", { objeto: b.k, texto: limpiar(`${b.o.titulo}: ${TEXTO_ESTADO[b.o.estado]}.${b.o.subtitulo ? ` ${b.o.subtitulo}.` : ""}${ofrece}`, 240) }, { to: from });
+    });
+
+    api.on("pedir", (from, msg) => {
+      const verbo = String(msg.verbo ?? "");
+      // order of the checks = cheapest and most revealing first: who, what, where, which verb, which switch, how many, is anyone there
+      const no = puedePedir(from); if (no) return rechazar(from, no);
+      const b = buscar(from, String(msg.objeto)); if (!b) return;
+      if (!(verbo in VERBOS)) return rechazar(from, `«${limpiar(verbo, 24)}» no es una acción que conozca.`);
+      if (!b.o.acciones.includes(verbo as Verbo)) return rechazar(from, `«${b.o.titulo}» no ofrece la acción «${verbo}».`);
+      if (!encendidos.has(b.o.tipo)) return rechazar(from, "Esa función está apagada en este mundo.");
+      if (!conectada || !salida) return rechazar(from, "La fuente de fuera no está conectada: ahora no puedo pedírselo.");
+      const mias = [...esperando.values()].filter((p) => p.quien.entidad === from).length;
+      if (mias >= PETICIONES_POR_PERSONA) return rechazar(from, `Ya tiene ${mias} peticiones esperando respuesta: espere a que lleguen.`);
+      if (esperando.size >= PETICIONES_MAX) return rechazar(from, "Hay demasiadas peticiones esperando respuesta: inténtelo en un momento.");
+      const quien = api.who(from)!;
+      const id = `p${(++n).toString(36)}-${api.tick().toString(36)}`;
+      const seguridad = cfg.acciones[verbo as Verbo];
+      const p: Peticion & { texto: string } = { id, objeto: b.k, verbo: verbo as Verbo, seguridad, quien: { entidad: from, id: quien.id, nombre: limpiar(quien.nombre, 40) }, caduca: api.tick() + CADUCA_S * TICK_HZ, texto: b.o.titulo };
+      esperando.set(id, p);
+      try { salida(p); }
+      catch (err) { esperando.delete(id); api.log(`espejo: la salida falló: ${(err as Error).message}`); return rechazar(from, "No he podido mandar la petición fuera."); }
+      api.emit("pedido", { objeto: b.k, verbo, espera: CADUCA_S, texto: limpiar(`Pedido «${verbo}» sobre «${b.o.titulo}»; espero respuesta (hasta ${CADUCA_S} s).`, 160) }, { to: from });
+    });
+
+    // a request nobody answers expires: the person hears it, and a late answer is then ignored
+    api.onTick((t) => {
+      if (!esperando.size) return;
+      for (const [id, p] of [...esperando]) if (t >= p.caduca) cerrar(id, p, false, "Hermes no ha respondido a tiempo: no sé si se hizo.");
+    });
+    // a person who leaves takes their waiting requests with them (the answer has nobody to tell)
+    api.onLeave((e) => { for (const [id, p] of [...esperando]) if (p.quien.entidad === e) esperando.delete(id); });
     api.log(`espejo: encendido (${funcionesEncendidas(cfg).join(", ") || "ninguna función"}; ${cfg.zonas.length} zona(s))`);
   });
   return Object.assign(parte, { enlace: enlace as EnlaceEspejo });
