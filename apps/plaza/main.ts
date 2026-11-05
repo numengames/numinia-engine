@@ -150,7 +150,7 @@ let sonarServidor: (s: PeticionSonido) => boolean = (s) => catalogoSonidos.suena
 // del catálogo que suena como cama única en bucle (hoy «ambiente-numinia», el colchón CC0); `ambiente_ganancia` = su
 // volumen (×0,042 por defecto, el que quiso su autor); `ambiente_sintetizado` = las camas y capas SINTETIZADAS que
 // este mundo enciende por nombre (de serie, ninguna).
-type Estado = { espejo?: unknown; dardosEnlace?: unknown; version?: string; nombre?: string; tema?: unknown; interfaz?: unknown; avatar?: string; avatares?: unknown; aforo?: number; conectados?: number;
+type Estado = { temaHud?: unknown; espejo?: unknown; dardosEnlace?: unknown; version?: string; nombre?: string; tema?: unknown; interfaz?: unknown; avatar?: string; avatares?: unknown; aforo?: number; conectados?: number;
   audio?: { ambiente?: string | null; ambiente_ganancia?: number; ambiente_sintetizado?: string[]; avisos?: Record<string, string> } };
 const estadoP: Promise<Estado | null> = fetch(`${activos}/status`).then((r) => r.json() as Promise<Estado>).catch(() => null);
 const estado = await Promise.race([estadoP, new Promise<null>((ok) => setTimeout(() => ok(null), 1500))]);
@@ -384,6 +384,8 @@ viajar.alDestello((d) => view.teletransporte.lanzar({ ...d, clave: d.quien === s
 const webPagina = montarWeb({ web: pantallasWeb, view }); // N17: web screens — iframe in the world (PC/phone), card + «Abrir fuera» in VR
 const ancestrosPagina = montarAncestros({ ancestros, view }); // ancestros v1: the hall in 3D, the two panels, and the law + our rule on screen when the hologram answers you
 // ---- mundo-hermes: the zones' floors and the switch lamps (/status `espejo`), and the card that opens when a thing is looked at ----
+// mundo-hermes: entorno.json `tema: "black-and-white"` (told as /status `temaHud`) dresses the HUD; any other world never loads this
+if (estado?.temaHud === "black-and-white") void Promise.all([import("./tema-byn.ts"), import("./mapa.ts")]).then(([t, m]) => { m.temaMapa(true); t.aplicarTemaByn(); }).catch((e) => console.warn(`[tema] no se pudo cargar el tema: ${(e as Error)?.message ?? e}`));
 espejoCtl.configurar(estado?.espejo);
 let espejoCard: Promise<unknown> | null = null;
 espejoCtl.alCambiar((que) => { if (que === "ficha" && espejoCtl.estado.ficha) espejoCard ??= import("./espejo.ts").then((m) => m.montarEspejo({ espejo: espejoCtl, viaje: viajar })).catch((e) => console.warn(`[espejo] no se pudo cargar la ficha: ${(e as Error)?.message ?? e}`)); });

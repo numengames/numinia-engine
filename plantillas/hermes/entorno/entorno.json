@@ -7,5 +7,6 @@
   "suelo": { "tipo": "liso", "color": "#000000" },
   "tono": { "curva": "neutro", "exposicion": 1 },
   "hitos": false,
+  "tema": "black-and-white",
   "aparicion": { "x": 0, "z": 3, "radio": 3 }
 }

@@ -18,7 +18,8 @@ import { crearAsiento, leerAsientos } from "./asiento/server.ts";
 import { crearBurbujas, leerBurbujas } from "./burbujas/server.ts";
 import { crearDados } from "./dados/server.ts";
 import type { Torre as TorreDados } from "./dados/server.ts";
-import { leerAparicion, leerAparicionFoto, leerSuelo, leerVuelo } from "./entorno/esquema.ts";
+import { leerAparicion, leerAparicionFoto, leerSuelo, leerTema, leerVuelo } from "./entorno/esquema.ts";
+import type { TemaMundo } from "./entorno/esquema.ts";
 import type { VueloMundo } from "./entorno/esquema.ts";
 import { crearSuelo } from "./suelo/server.ts"; // D-045
 import { crearNaturaleza } from "./naturaleza/server.ts"; // N4
@@ -181,6 +182,14 @@ export function vueloDelMundo(leer: (fichero: string) => unknown, log: (l: strin
   const r = leerVuelo(leer("entorno.json"));
   if (r.ok) return r.value;
   log(`[mundo] vuelo de entorno.json no se usa (nadie vuela): ${r.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
+  return null;
+}
+
+/** The world's HUD theme (entorno.json `tema`), or null: no file, no key, or a wrong one (logged, with its path). */
+export function temaDelMundo(leer: (fichero: string) => unknown, log: (l: string) => void = () => {}): TemaMundo | null {
+  const r = leerTema(leer("entorno.json"));
+  if (r.ok) return r.value;
+  log(`[mundo] tema de entorno.json no se usa (aspecto de siempre): ${r.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
   return null;
 }
 

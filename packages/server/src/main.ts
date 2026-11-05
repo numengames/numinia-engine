@@ -16,7 +16,7 @@ import { join } from "node:path";
 import { startServer } from "./server.ts";
 import { libroDeEntorno } from "./eventos.ts";
 import funciones from "../../../features/servidor.ts";
-import { aparicionDelMundo, conMundo, enlaceDardosDelMundo, sueloDelMundo, vueloDelMundo } from "../../../features/mundo.ts";
+import { aparicionDelMundo, conMundo, enlaceDardosDelMundo, sueloDelMundo, temaDelMundo, vueloDelMundo } from "../../../features/mundo.ts";
 import { leerMundo, escribirMundo } from "./mundo.ts";
 import { carpetaMundo, claveDeEnlace, claves, EJEMPLO, escribirManifiesto, plantillaPorNombre, sembrar } from "./mundo-carpeta.ts";
 import { infoMotor } from "./version.ts";
@@ -63,6 +63,7 @@ const srv = await startServer({
   aparicion: leerEntorno ? aparicionDelMundo(leerEntorno, log) : null,  // where people appear (entorno.json `aparicion`; a tower's floor)
   enlaceDardos: leerEntorno ? enlaceDardosDelMundo(leerEntorno, log) : undefined, // dardos enlazados (E1): where this world's AR darts go (dardos.json `enlace`); told to the page in /status
   suelo: leerEntorno ? sueloDelMundo(leerEntorno, log) : null,          // D-045: under `sueloMinimo` you come back to your last safe spot
+  temaHud: leerEntorno ? temaDelMundo(leerEntorno, log) : null,            // mundo-hermes: entorno.json `tema` (black-and-white: the page's HUD); told in /status
   vuelo: leerEntorno ? vueloDelMundo(leerEntorno, log) : null,          // H2: who may fly (entorno.json `vuelo`: nadie · constructores · todos)
   sesiones: env.SESIONES_DIR || c?.sesiones || "informes/sesiones", // T1: how each player entered
   libro,                                                              // MIS-248: counters of the book go to /metrics.prom
