@@ -358,7 +358,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
         const org = roles.organizacionDeAgente(c.who!.id);
         if (org) agentesDe.organizacion[org] = (agentesDe.organizacion[org] ?? 0) + 1; else agentesDe.habitante++;
       }
-      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "access-control-allow-origin": "*" });
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...(o.embed?.activo() && !origenAdmitido(req.headers.origin, req.headers.host) ? {} : { "access-control-allow-origin": "*" }) }); // M9: embed on = no CORS for a foreign page (same-origin reads need none)
       return void res.end(JSON.stringify({
         uptime: Math.floor((performance.now() - born) / 1000), conectados: personas, agentes: agentesConectados.length,
         total: inst.conns.length, agentesDe, commitHash: motor.commit ?? undefined, version, ...(semver ? { semver } : {}), cerebro: cerebroEstado,
