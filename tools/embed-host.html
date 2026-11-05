@@ -14,5 +14,7 @@
     if (host.alRecibir) host.alRecibir(e.data);
   });
   if (q.get("allow")) f.allow = q.get("allow"); // e.g. local-network-access (Chromium blocks loopback from an opaque origin without it)
-  f.src = q.get("mundo"); // the full URL of the world page, with its query and #fragment
+  // the full URL of the world page, with its query and #fragment. This is a loopback-only test stand-in: anything else is refused.
+  const destino = new URL(q.get("mundo") || "", location.href);
+  if (destino.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(destino.hostname)) f.src = destino.href;
 </script>
