@@ -145,7 +145,9 @@ export function abrirEnlace(o: OpcionesEnlace): Promise<EnlaceEscuchando> {
   });
 
   return new Promise((resolve, reject) => {
-    http.once("error", reject);
+    // `wss` re-emits the http server's errors: with no listener on it a busy port would be an uncaught 'error' that kills the world. One catchable, clear error instead.
+    wss.on("error", () => {});
+    http.once("error", (e: NodeJS.ErrnoException) => { wss.close(); reject(e.code === "EADDRINUSE" ? new Error(`el puerto ${o.puerto} del enlace está ocupado (¿otro enlace de Hermes abierto?): el mundo sigue sin enlace; cambie el puerto en espejo.json (fuente.puerto) o con MOTOR_ENLACE_PUERTO`) : e); });
     http.listen(o.puerto, host === "localhost" ? "127.0.0.1" : host, () => {
       const a = http.address();
       const puerto = typeof a === "object" && a ? a.port : o.puerto;
