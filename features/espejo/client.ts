@@ -7,14 +7,16 @@
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg } from "../../packages/feature/src/index.ts";
 import { espejo as decl } from "./feature.ts";
-import { TIPOS, TEXTO_FUNCION, textoFuncion, textoIrA } from "./esquema.ts";
+import { COLUMNAS_TABLERO, LIMITES, TEXTO_COLUMNA, TIPOS, TEXTO_FUNCION, tableroDeTexto, textoFuncion, textoIrA } from "./esquema.ts";
 export { TEXTO_FUNCION, textoFuncion, textoIrA };
 import type { Tipo } from "./esquema.ts";
 
 export type EstadoCosa = "activo" | "programado" | "pausado" | "fallo" | "apagado" | "desconocido";
-export type Cosa = { clave: string; tipo: string; id: string; titulo: string; subtitulo: string; estado: EstadoCosa; zona: string; x: number; z: number; acciones: string[] };
+export type Cosa = { clave: string; tipo: string; id: string; titulo: string; subtitulo: string; estado: EstadoCosa; zona: string; x: number; z: number; acciones: string[];
+  /** M6: `documento` → url; `habilidad` → grupo, descripcion; `tablero` → tablero (JSON text, read with `tableroDeTexto`). Empty on the rest. */
+  url: string; grupo: string; descripcion: string; tablero: string };
 /** What /status tells about the mirror (features/espejo/esquema.ts `vistaPublica`). */
-export type Vista = { zonas: { id: string; nombre: string; cartel: string; x: number; z: number; ancho: number; fondo: number; tipos: string[] }[]; funciones: Record<string, boolean> };
+export type Vista = { zonas: { id: string; nombre: string; cartel: string; x: number; z: number; ancho: number; fondo: number; tipos: string[] }[]; funciones: Record<string, boolean>; documentos?: { origenes: string[] }; guia?: { frases: Record<string, string>; recorrido: string[] } };
 export type Que = "cosas" | "ficha" | "pedido" | "resultado" | "rechazo" | "fuente" | "funcion";
 type Res = { ok: true } | { ok: false; why: string };
 const SIN: Res = { ok: false, why: "el espejo no está en este servidor" };
@@ -34,10 +36,12 @@ export function estadoDeForma(tipo: string, estado: EstadoCosa): "off" | "starti
   if (estado === "fallo") return "fail";
   if (tipo === "cron") return estado === "programado" ? "on" : estado === "activo" ? "starting" : "off";
   if (tipo === "sesion") return estado === "activo" ? "on" : "off";
+  if (tipo === "documento" || tipo === "tablero") return "on";
   return estado === "activo" || estado === "programado" ? "on" : "off";
 }
 /** The word for the state of a thing, by kind: a profile (an agent) works, rests or is off; anything else uses the house words. Pure. */
 export function textoEstadoDe(tipo: string, estado: EstadoCosa): string {
+  if (tipo === "habilidad") return estado === "activo" ? "activa" : "inactiva";
   if (tipo === "perfil") return estado === "activo" ? "trabajando" : estado === "apagado" ? "apagado" : estado === "fallo" ? "con fallo" : "en reposo";
   return TEXTO_ESTADO[estado] ?? TEXTO_ESTADO.desconocido;
 }
@@ -64,7 +68,11 @@ export function leerUso(subtitulo: string): LecturaUso {
 }
 /** The lines of a card under its title, in Spanish. For spend: tokens in + out and the cache APART (it is far larger and would hide the rest), the cost always
  *  as an estimate, the rest as the source wrote it. For any other kind: its subtitle. Pure. */
-export function detalleDe(c: Pick<Cosa, "tipo" | "subtitulo">): string[] {
+export const cortar = (t: string, n: number): string => { const a = [...t]; return a.length <= n ? t : `${a.slice(0, n - 1).join("").trimEnd()}…`; };
+export function detalleDe(c: Pick<Cosa, "tipo" | "subtitulo"> & Partial<Pick<Cosa, "grupo" | "descripcion" | "tablero" | "url">>): string[] {
+  if (c.tipo === "habilidad") return [...(c.grupo ? [`Grupo: ${c.grupo}`] : []), ...(c.descripcion ? [cortar(c.descripcion, LIMITES.descripcionVista)] : c.subtitulo ? [cortar(c.subtitulo, LIMITES.descripcionVista)] : [])];
+  if (c.tipo === "documento") return [...(c.descripcion ? [cortar(c.descripcion, LIMITES.descripcionVista)] : c.subtitulo ? [c.subtitulo] : []), ...(c.url ? [`Página: ${c.url}`] : [])];
+  if (c.tipo === "tablero") { const t = tableroDeTexto(c.tablero ?? ""); return t ? COLUMNAS_TABLERO.flatMap((k) => [`${TEXTO_COLUMNA[k]}: ${t[k].n}`, ...t[k].top.map((x) => `  · ${x}`)]) : c.subtitulo ? [c.subtitulo] : []; }
   if (c.tipo !== "uso") return c.subtitulo ? [c.subtitulo] : [];
   const u = leerUso(c.subtitulo), l: string[] = [];
   if (u.tokensTexto) l.push(`Entrada y salida: ${u.tokensTexto}`);
@@ -84,9 +92,12 @@ export function manoDe(clave: string): number {
   let h = 2166136261; for (let i = 0; i < clave.length; i++) { h ^= clave.charCodeAt(i); h = Math.imul(h, 16777619); }
   return ((h >>> 0) % 1000) / 1000;
 }
-const ALTO_ROTULO: Record<string, number> = { cron: 3.1, sesion: 2.9, salud: 2.9, perfil: 3.0, uso: 3.1 };
+const ALTO_ROTULO: Record<string, number> = { cron: 3.1, sesion: 2.9, salud: 2.9, perfil: 3.0, uso: 3.1, documento: 2.9, habilidad: 2.0, tablero: 5.8 };
 /** The height (m) of the figure under each label: the label keeps clear of it on the screen (a camera that looks down from behind sees a label «over the head» drawn over the body). */
-const TOPE_FIGURA: Record<string, number> = { cron: 2.7, sesion: 2.4, salud: 2.3, perfil: 2.4, uso: 2.8 };
+const TOPE_FIGURA: Record<string, number> = { cron: 2.7, sesion: 2.4, salud: 2.3, perfil: 2.4, uso: 2.8, documento: 2.4, habilidad: 1.5, tablero: 5.3 };
+
+/** The columns of a board thing as the shape wants them (three, in order; zeros when the text is not a board). */
+const columnasDe = (texto: string): { n: number; top: string[] }[] => { const t = tableroDeTexto(texto); return COLUMNAS_TABLERO.map((k) => t?.[k] ?? { n: 0, top: [] }); };
 
 /** One per page (tests make one per client). */
 export function crearCliente() {
@@ -108,7 +119,7 @@ export function crearCliente() {
 
   const leer = (clave: string, v: Msg): Cosa => {
     const [tipo, ...resto] = clave.split("/");
-    return { clave, tipo, id: resto.join("/"), titulo: String(v.titulo ?? ""), subtitulo: String(v.subtitulo ?? ""), estado: String(v.estado ?? "desconocido") as EstadoCosa, zona: String(v.zona ?? ""), x: Number(v.x ?? 0), z: Number(v.z ?? 0), acciones: String(v.acciones ?? "").split(" ").filter(Boolean) };
+    return { clave, tipo, id: resto.join("/"), titulo: String(v.titulo ?? ""), subtitulo: String(v.subtitulo ?? ""), estado: String(v.estado ?? "desconocido") as EstadoCosa, zona: String(v.zona ?? ""), x: Number(v.x ?? 0), z: Number(v.z ?? 0), acciones: String(v.acciones ?? "").split(" ").filter(Boolean), url: String(v.url ?? ""), grupo: String(v.grupo ?? ""), descripcion: String(v.descripcion ?? ""), tablero: String(v.tablero ?? "") };
   };
   const luces = (): boolean[] => (vista ? Object.values(vista.funciones) : []);
   /** Draw (or take away) one thing. */
@@ -116,10 +127,10 @@ export function crearCliente() {
     const v = A?.view;
     if (!v) return;
     if (!c) { v.forma?.(`espejo:${clave}`, null); v.tag?.(`espejo:${clave}`, null); return; }
-    const forma = c.tipo === "cron" ? "reloj" : c.tipo === "salud" ? "losa" : c.tipo === "perfil" ? "perfil" : c.tipo === "uso" ? "uso" : "cubo";
-    v.forma?.(`espejo:${clave}`, { forma, x: c.x, z: c.z, estado: estadoDeForma(c.tipo, c.estado), rumbo: 0, ...(forma === "reloj" ? { mano: manoDe(clave) } : {}), ...(forma === "losa" ? { luces: luces() } : {}), ...(forma === "perfil" && c.estado === "apagado" ? { discontinuo: true } : {}), ...(forma === "uso" ? { nivel: nivelDeUso(c, cosas.values()) ?? 0 } : {}) });
+    const forma = ({ cron: "reloj", salud: "losa", perfil: "perfil", uso: "uso", documento: "estante", habilidad: "tableta", tablero: "tablero" } as Record<string, "reloj" | "losa" | "perfil" | "uso" | "estante" | "tableta" | "tablero">)[c.tipo] ?? "cubo";
+    v.forma?.(`espejo:${clave}`, { forma, x: c.x, z: c.z, estado: estadoDeForma(c.tipo, c.estado), rumbo: 0, ...(forma === "reloj" ? { mano: manoDe(clave) } : {}), ...(forma === "losa" ? { luces: luces() } : {}), ...(forma === "perfil" && c.estado === "apagado" ? { discontinuo: true } : {}), ...(forma === "uso" ? { nivel: nivelDeUso(c, cosas.values()) ?? 0 } : {}), ...(forma === "tablero" ? { columnas: columnasDe(c.tablero) } : {}) });
     // a spend meter is labelled with its tokens (what it measures); anything else with its state, in the house words
-    const pie = c.tipo === "uso" ? leerUso(c.subtitulo).tokensTexto || textoEstadoDe(c.tipo, c.estado) : textoEstadoDe(c.tipo, c.estado);
+    const pie = c.tipo === "uso" ? leerUso(c.subtitulo).tokensTexto || textoEstadoDe(c.tipo, c.estado) : c.tipo === "habilidad" ? `${c.grupo} · ${textoEstadoDe(c.tipo, c.estado)}` : c.tipo === "documento" ? "documento" : c.tipo === "tablero" ? "tablero de trabajo" : textoEstadoDe(c.tipo, c.estado);
     v.tag?.(`espejo:${clave}`, { text: c.titulo, sub: pie, x: c.x, y: ALTO_ROTULO[c.tipo] ?? 3, z: c.z, plano: true, tope: TOPE_FIGURA[c.tipo] ?? 2.4, siempre: true });
   };
   /** The floors of the zones (a white edge on the black ground; dashed when everything the zone shows is switched off) and their signs. */

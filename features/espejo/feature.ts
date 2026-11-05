@@ -35,6 +35,11 @@ export const espejo = defineFeature({
       x: X, z: X,
       luz: { kind: "bool", default: false },
       acciones: { kind: "text", maxBytes: 160 },
+      // M6: `documento` → url (checked against the world's allowlist), `habilidad` → grupo + descripcion, `tablero` → tablero (JSON of the 3 columns). Empty on every other kind.
+      url: { kind: "text", maxBytes: LIMITES.url },
+      grupo: { kind: "text", maxBytes: LIMITES.grupo },
+      descripcion: { kind: "text", maxBytes: LIMITES.descripcion },
+      tablero: { kind: "text", maxBytes: LIMITES.tablero },
     },
     card: { role: "objeto", name: "{titulo}", description: "{subtitulo}", at: ["x", "z"], actions: ["pedir"], interact: { intent: "usar", prompt: "mirar {titulo}", radius: RADIO_USO_M, key: "objeto" } },
     radius: ALCANCE_M,

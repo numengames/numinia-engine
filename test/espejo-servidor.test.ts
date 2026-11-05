@@ -90,7 +90,7 @@ test("espejo: alta puts a thing in the world WITH `at` and a card (role, name, p
   assert.deepEqual(r, { ok: true, puestas: 1 });
   W.pump(4);
   const [a, b] = W.gente;
-  assert.deepEqual(a.s.features.stateOf("espejo").get(claveDe("cron", "8bc0")), { titulo: "Tarea 8bc0", subtitulo: "próxima: 09:00", estado: "programado", zona: "z7", x: 40, z: -10, luz: false, acciones: "cron.pausar" });
+  assert.deepEqual(a.s.features.stateOf("espejo").get(claveDe("cron", "8bc0")), { titulo: "Tarea 8bc0", subtitulo: "próxima: 09:00", estado: "programado", zona: "z7", x: 40, z: -10, luz: false, acciones: "cron.pausar", url: "", grupo: "", descripcion: "", tablero: "" });
   const c = a.s.features.cards().find((x) => x.feature === "espejo");
   assert.ok(c, "the card exists"); assert.deepEqual([c.role, c.name, c.at], ["objeto", "Tarea 8bc0", { x: 40, z: -10 }]);
   assert.deepEqual(a.s.features.reachable(40, -10).map((x) => [x.feature, x.intent]), [["espejo", "usar"]], "usable from near");

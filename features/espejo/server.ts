@@ -66,9 +66,10 @@ export function crearEspejo(opts: OpcionesEspejo = {}, io?: EntornoMundo): Parte
     let encendidos = new Set<string>(tiposEncendidos(cfg));
     const puestas = new Map<string, Objeto>(); // key → what the source published (the truth is outside; this is only what we put)
     const propias = new Set<string>(); // things the world itself puts (the switch panel): a source's `lote` never removes them
-    const huecos = new Map<string, { zona: string; n: number }>(); // key → the grid slot of a thing that came WITHOUT x/z (the source does not know the map)
+    const huecos = new Map<string, { zona: string; n: number; grupo?: string }>(); // key → the grid slot of a thing that came WITHOUT x/z (the source does not know the map)
     const lugar = (o: Objeto) => ({ at: { x: o.x, z: o.z } });
-    const valor = (o: Objeto): Msg => ({ titulo: o.titulo, subtitulo: o.subtitulo, estado: o.estado, zona: o.zona, x: o.x, z: o.z, luz: o.luz, acciones: o.acciones.join(" ") });
+    const valor = (o: Objeto): Msg => ({ titulo: o.titulo, subtitulo: o.subtitulo, estado: o.estado, zona: o.zona, x: o.x, z: o.z, luz: o.luz, acciones: o.acciones.join(" "),
+      ...(o.url ? { url: o.url } : {}), ...(o.grupo ? { grupo: o.grupo } : {}), ...(o.descripcion ? { descripcion: o.descripcion } : {}), ...(o.tablero ? { tablero: o.tablero } : {}) }); // M6 fields only when set: older things keep their exact bytes
     const cercaDe = (o: Objeto) => ({ near: { x: o.x, z: o.z }, radius: ALCANCE_M });
 
     /** A thing that comes without x/z gets a slot on its zone's grid (4 m apart), filled outwards from the zone's centre (the first thing is AT the centre, then
@@ -83,9 +84,27 @@ export function crearEspejo(opts: OpcionesEspejo = {}, io?: EntornoMundo): Parte
       return n;
     };
     const sinLugar = (crudo: unknown): boolean => typeof crudo === "object" && crudo !== null && (crudo as { x?: unknown }).x === undefined && (crudo as { z?: unknown }).z === undefined;
+    // Skills sit in ROWS by group (the grid of «El taller»): one band per group in order of first appearance, tablets side by side, a second lane when a row is full.
+    const PASO_TABLILLA_M = 2.4, BANDA_M = 3.2, CARRIL_M = 1.6;
+    const ordenGrupos = new Map<string, string[]>(); // zone → groups in order of first appearance (append-only: a tablet never changes row because another group came)
+    const casillaTablilla = (zona: { x: number; z: number; ancho: number; fondo: number }, g: number, n: number) => {
+      const cols = Math.max(1, Math.floor((zona.ancho - 4) / PASO_TABLILLA_M) + 1), col = n % cols, carril = Math.floor(n / cols);
+      return { x: zona.x - ((cols - 1) * PASO_TABLILLA_M) / 2 + col * PASO_TABLILLA_M, z: zona.z - zona.fondo / 2 + 3 + g * BANDA_M + carril * CARRIL_M };
+    };
+    const colocarTablilla = (k: string, o: Objeto): Objeto => {
+      const zona = cfg.zonas.find((z) => z.id === o.zona)!, orden = ordenGrupos.get(zona.id) ?? [];
+      if (!orden.includes(o.grupo)) orden.push(o.grupo);
+      ordenGrupos.set(zona.id, orden);
+      const ya = huecos.get(k);
+      let n = ya && ya.zona === zona.id && ya.grupo === o.grupo ? ya.n : 0;
+      if (!(ya && ya.zona === zona.id && ya.grupo === o.grupo)) { const usados = new Set([...huecos].filter(([otra, h]) => otra !== k && h.zona === zona.id && h.grupo === o.grupo).map(([, h]) => h.n)); while (usados.has(n)) n++; }
+      huecos.set(k, { zona: zona.id, n, grupo: o.grupo });
+      return { ...o, ...casillaTablilla(zona, orden.indexOf(o.grupo), n) };
+    };
     const colocar = (o: Objeto, auto: boolean): Objeto => {
       const k = claveDe(o.tipo, o.id);
       if (!auto) { huecos.delete(k); return o; }
+      if (o.tipo === "habilidad") return colocarTablilla(k, o);
       const zona = cfg.zonas.find((z) => z.id === o.zona)!, n = sitioLibre(k, o.zona);
       huecos.set(k, { zona: o.zona, n });
       return { ...o, ...casilla(zona, n) };
@@ -153,7 +172,7 @@ export function crearEspejo(opts: OpcionesEspejo = {}, io?: EntornoMundo): Parte
         // The one exception: a thing whose ZONE the world does not have (or whose zone does not take its type) is DROPPED and reported in `descartadas`, the rest goes in
         // (a source that publishes to the zones it was told in `hola` may still be a step behind a world whose file was just edited).
         const descartadas: Descartada[] = [];
-        const soloZona = (ps: { path: string; message: string }[]): boolean => ps.length > 0 && ps.every((q) => /^no hay ninguna zona|^la zona «.*no admite el tipo/.test(q.message));
+        const soloZona = (ps: { path: string; message: string }[]): boolean => ps.length > 0 && ps.every((q) => /^no hay ninguna zona|^la zona «.*no admite el tipo|^dirección no permitida/.test(q.message)); // (a document whose address the world does not allow is left out, like a thing of an unknown zone)
         const nuevos: Objeto[] = [], autos = new Set<string>(), problemas: { path: string; message: string }[] = [], vistos = new Set<string>(), porZona = new Map<string, number>();
         objetos.forEach((c, i) => {
           const a = admitir(c, `lote[${i}]`);
@@ -198,13 +217,13 @@ export function crearEspejo(opts: OpcionesEspejo = {}, io?: EntornoMundo): Parte
     // ---- the world's own thing: the switch panel on the threshold (the zone that admits «salud»). Its lamps are the controls (`encender`, below);
     //      it says what is on and off and follows every flip. It stays even when «salud» itself is switched off, so the world can be switched back on from inside. ----
     const zonaPanel = cfg.zonas.find((z) => z.tipos.includes("salud"));
-    const FUNCIONES_DE_ZONAS = [...new Set(cfg.zonas.flatMap((z) => z.tipos.map((t) => TIPOS[t])))] as Funcion[];
+    const FUNCIONES_DE_ZONAS = [...new Set([...cfg.zonas.flatMap((z) => z.tipos.map((t) => TIPOS[t])), ...(cfg.guia.definida ? ["guia" as const] : [])])] as Funcion[];
     const CLAVE_PANEL = claveDe("salud", "panel");
     const refrescarPanel = (): void => {
       if (!zonaPanel || (!encendidos.has("salud") && !propias.has(CLAVE_PANEL))) return;
       const sel = (on: boolean) => FUNCIONES_DE_ZONAS.filter((f) => cfg.funciones[f] === on);
       const lista = (xs: Funcion[]) => (xs.length ? xs.map(nombreFuncion).join(", ") : "ninguna");
-      const panel: Objeto = { tipo: "salud", id: "panel", titulo: "Panel de interruptores", subtitulo: limpiar(`Encendido: ${lista(sel(true))}. Apagado: ${lista(sel(false))}.`, LIMITES.subtitulo), estado: "activo", zona: zonaPanel.id, x: zonaPanel.x, z: zonaPanel.z - zonaPanel.fondo / 2 + 2.5, luz: true, acciones: [] };
+      const panel: Objeto = { tipo: "salud", id: "panel", titulo: "Panel de interruptores", subtitulo: limpiar((() => { const t = `Encendido: ${lista(sel(true))}. Apagado: ${lista(sel(false))}.`; return [...t].length <= LIMITES.subtitulo ? t : `Encendido: ${lista(sel(true))}. Apagado: ${sel(false).length} funciones.`; })(), LIMITES.subtitulo), estado: "activo", zona: zonaPanel.id, x: zonaPanel.x, z: zonaPanel.z - zonaPanel.fondo / 2 + 2.5, luz: true, acciones: [], url: "", grupo: "", descripcion: "", tablero: "" };
       if (poner(panel)) propias.add(CLAVE_PANEL);
     };
     refrescarPanel();

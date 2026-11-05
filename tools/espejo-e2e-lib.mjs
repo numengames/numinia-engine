@@ -83,7 +83,7 @@ export async function fuenteLocal(puerto, { cosas = [], alPedir } = {}) {
     cerrar: () => ws.close(),
   };
 }
-const TIPO_FUNCION = { sesion: "sesiones", perfil: "perfiles", mensaje: "chat" };
+const TIPO_FUNCION = { sesion: "sesiones", perfil: "perfiles", mensaje: "chat", documento: "documentos", habilidad: "habilidades", tablero: "kanban" };
 
 /** One headless Chromium (software GL; the caller holds the browser lock). */
 export async function abrirNavegador() {

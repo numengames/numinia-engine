@@ -1545,8 +1545,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     },
     /** mundo-hermes: a flat black-and-white shape made by code (clock, cube, slab, zone floor) at (x, z), or `null` to take it away; the same description is only kept. */
     forma(key: string, f: FormaPlana | null): void { formas.poner(key, f); },
+    moverForma(key: string, x: number, z: number, rumbo: number): void { formas.mover(key, x, z, rumbo); },
     /** The shapes alive right now (for checks): how many and their keys. */
-    formas: { cuantas: () => formas.cuantas(), claves: () => formas.claves() },
+    formas: { cuantas: () => formas.cuantas(), claves: () => formas.claves(), donde: (k: string) => formas.donde(k) },
     /** J5: a name that stays over a thing (`key` as in place), or `null` to take it away. U14 (4): `sub` = a smaller
      * second line (a person's trade), `mark` = «!» or «✓» above the name. The plate's bottom edge stays where a plain
      * name's was (just over the head): a trade or a mark grow it upwards. Same text and mark = only moved. */

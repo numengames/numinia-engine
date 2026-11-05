@@ -5,6 +5,7 @@
 //   The card then says «Esperando a Hermes…» and, when the answer arrives (or after 30 s, «Hermes no ha respondido»), what happened.
 // Everything that comes from outside goes in with `textContent`, never as markup. The server decides who may ask; this only offers.
 import type { espejo as Controlador } from "../../features/espejo/client.ts";
+import { siguienteZona, zonaDe } from "../../features/espejo/guia.ts";
 import { detalleDe, textoEstadoDe, textoFuncion, textoIrA, TEXTO_VERBO } from "../../features/espejo/client.ts";
 
 type Ctl = typeof Controlador;
@@ -30,7 +31,7 @@ const CSS = `
 #espejo-ficha .dicho[hidden] { display: none; }
 `;
 
-export function montarEspejo(o: { espejo: Ctl; doc?: Document; /** the teleport piece (R-1): `irAPunto` + whether this world allows it */ viaje?: { activo(): boolean; irAPunto(x: number, z: number, nombre: string): { ok: true } | { ok: false; why: string } } }) {
+export function montarEspejo(o: { espejo: Ctl; doc?: Document; /** the teleport piece (R-1): `irAPunto` + whether this world allows it */ yo?: () => { x: number; z: number } | null; viaje?: { activo(): boolean; irAPunto(x: number, z: number, nombre: string): { ok: true } | { ok: false; why: string } } }) {
   const d = o.doc ?? document;
   const estilo = d.createElement("style"); estilo.textContent = CSS; d.head.appendChild(estilo);
   const caja = d.createElement("section"); caja.id = "espejo-ficha"; caja.hidden = true; caja.setAttribute("role", "dialog"); caja.setAttribute("aria-label", "Cosa del espejo");
@@ -49,7 +50,7 @@ export function montarEspejo(o: { espejo: Ctl; doc?: Document; /** the teleport 
   };
   d.defaultView?.addEventListener("resize", ajustar);
 
-  let actual = "", seguro = "", esperando = false;
+  let actual = "", seguro = "", esperando = false, visor: { cerrar(): void; estaAbierto(): boolean } | null = null;
   /** Show or hide the card; while it is open the page root carries `ficha-espejo` (the black-and-white theme hides the house action bar and prompt then: the card is the only thing to press). */
   const mostrar = (v: boolean): void => { caja.hidden = !v; d.documentElement.classList.toggle("ficha-espejo", v); };
   const ocultar = () => { mostrar(false); actual = ""; seguro = ""; esperando = false; o.espejo.cerrarFicha(); };
@@ -85,7 +86,20 @@ export function montarEspejo(o: { espejo: Ctl; doc?: Document; /** the teleport 
       });
       en.appendChild(b);
     };
-    for (const v of c.acciones) boton(grupo("Acciones"), v, TEXTO_VERBO[v] ?? v, () => o.espejo.pedir(actual, v));
+    // a document opens HERE (nothing changes outside the world, so there is no request and no «¿Seguro?»): the viewer is its own chunk, fetched on the first press
+    if (c.tipo === "documento") {
+      const b = d.createElement("button"); b.type = "button"; b.dataset.verbo = "documento.abrir"; b.textContent = "Abrir";
+      b.addEventListener("click", () => {
+        const origenes = o.espejo.vista()?.documentos?.origenes ?? [];
+        void import("./documento.ts").then((m) => {
+          const r = m.abrirVisor({ url: c.url, titulo: c.titulo, origenes, doc: d });
+          if ("error" in r) { decir(`No se puede abrir: ${r.error}.`); return; }
+          ocultar(); visor = r;
+        }).catch(() => decir("No se pudo cargar el visor de documentos."));
+      });
+      grupo("Acciones").appendChild(b);
+    }
+    for (const v of c.acciones) if (!(c.tipo === "documento" && v === "documento.abrir")) boton(grupo("Acciones"), v, TEXTO_VERBO[v] ?? v, () => o.espejo.pedir(actual, v));
     // the switch panel: one button per function, shown only to who may (the server checks it again and refuses anyone else)
     if (c.tipo === "salud" && o.espejo.interruptor.estado.puede) for (const f of Object.keys(o.espejo.vista()?.funciones ?? {})) {
       const on = o.espejo.interruptor.activa(f);
@@ -96,6 +110,15 @@ export function montarEspejo(o: { espejo: Ctl; doc?: Document; /** the teleport 
       const b = d.createElement("button"); b.type = "button"; b.dataset.verbo = `ir:${z.id}`; b.textContent = textoIrA(z.nombre);
       b.addEventListener("click", () => { const r = o.viaje!.irAPunto(z.x, z.z, z.nombre); if (r.ok) ocultar(); else { decir(r.why); pintar(); } });
       grupo("Ir a una zona").appendChild(b);
+    }
+    // the guide's tour: one button takes the visitor to the next zone of the tour order (she goes along: she follows the visitor)
+    if (c.tipo === "salud" && o.viaje?.activo() && o.espejo.interruptor.activa("guia") && o.espejo.vista()?.guia) {
+      const v = o.espejo.vista()!, yo = o.yo?.() ?? null, sig = siguienteZona(v.guia!.recorrido, yo ? zonaDe(yo.x, yo.z, v.zonas) : null), z = v.zonas.find((q) => q.id === sig);
+      if (z) {
+        const b = d.createElement("button"); b.type = "button"; b.dataset.verbo = "ir-con-la-guia"; b.textContent = "Ir con la guía";
+        b.addEventListener("click", () => { const r = o.viaje!.irAPunto(z.x, z.z, z.nombre); if (r.ok) ocultar(); else { decir(r.why); pintar(); } });
+        grupo("Guía").appendChild(b);
+      }
     }
     if (seguro) { const n = d.createElement("button"); n.type = "button"; n.dataset.verbo = "cancelar"; n.textContent = "No, cancelar"; n.addEventListener("click", () => { seguro = ""; pintar(); }); pie.appendChild(n); }
     pie.appendChild(cerrar);
@@ -120,5 +143,5 @@ export function montarEspejo(o: { espejo: Ctl; doc?: Document; /** the teleport 
   });
   abrir(); // the answer that made main.ts load this file arrived before the card existed: show it now
   d.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !caja.hidden) ocultar(); });
-  return { caja, ocultar, estaAbierta: () => !caja.hidden, quitar };
+  return { caja, ocultar, estaAbierta: () => !caja.hidden, quitar, visorAbierto: () => !!visor?.estaAbierto() };
 }

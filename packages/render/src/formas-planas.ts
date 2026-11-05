@@ -13,7 +13,7 @@ import * as THREE from "three/webgpu";
 
 export type EstadoForma = "off" | "starting" | "on" | "fail";
 export type FormaPlana = {
-  forma: "reloj" | "cubo" | "losa" | "suelo" | "perfil" | "uso";
+  forma: "reloj" | "cubo" | "losa" | "suelo" | "perfil" | "uso" | "estante" | "tableta" | "tablero" | "guia";
   x: number; z: number;
   estado: EstadoForma;
   /** The way the front looks, radians around the vertical (0 = towards +z). */
@@ -28,11 +28,13 @@ export type FormaPlana = {
   luces?: boolean[];
   /** uso: how full the meter is, 0..1 (anything else is clamped; not a number = empty). */
   nivel?: number;
+  /** tablero: the three columns (por hacer, en curso, hecho): how many cards each has and the titles of the top ones. */
+  columnas?: { n: number; top: string[] }[];
 };
 
-const B = 1, N = 0; // white, black
+export const B = 1, N = 0; // white, black
 /** Accumulates triangles with a flat colour each into one geometry. Local space: x right, y up, z towards the viewer. */
-class Malla {
+export class Malla {
   pos: number[] = []; col: number[] = []; idx: number[] = [];
   tri(a: number[], b: number[], c: number[], color: number): void {
     const i = this.pos.length / 3;
@@ -135,7 +137,7 @@ function suelo(m: Malla, f: FormaPlana): void {
 }
 
 /** A hollow rectangle drawn as dashes (0.12 m on, 0.12 m off) — the «off» look; the four corners stay solid so it still reads as a rectangle. */
-function marcoRaya(m: Malla, x0: number, y0: number, x1: number, y1: number, w: number, z: number): void {
+export function marcoRaya(m: Malla, x0: number, y0: number, x1: number, y1: number, w: number, z: number): void {
   const raya = (ax: number, ay: number, bx: number, by: number) => {
     const l = Math.hypot(bx - ax, by - ay), paso = 0.12;
     for (let t = 0; t < l - 1e-6; t += paso * 2) { const a = t / l, b = Math.min(l, t + paso) / l; m.barra(ax + (bx - ax) * a, ay + (by - ay) * a, ax + (bx - ax) * b, ay + (by - ay) * b, w, z, B); }
@@ -145,7 +147,7 @@ function marcoRaya(m: Malla, x0: number, y0: number, x1: number, y1: number, w: 
 }
 /** The three looks of one flat part: white fill (working), white outline on black (idle), dashed outline on black (off). */
 type Aspecto = "lleno" | "borde" | "raya";
-function parte(m: Malla, a: Aspecto, x0: number, y0: number, x1: number, y1: number, z: number): void {
+export function parte(m: Malla, a: Aspecto, x0: number, y0: number, x1: number, y1: number, z: number): void {
   if (a === "lleno") { m.rect(x0, y0, x1, y1, z, B); return; }
   m.rect(x0, y0, x1, y1, z, N);
   if (a === "borde") m.marco(x0, y0, x1, y1, 0.05, z + 0.005, B); else marcoRaya(m, x0, y0, x1, y1, 0.05, z + 0.005);
@@ -185,6 +187,7 @@ const HACER = { reloj, cubo, losa, suelo, perfil, uso } as const;
 export function crearFormas(h: { world: THREE.Object3D }) {
   const material = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, toneMapped: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }); // the offset: a floor edge 3 cm over the ground must win against it from far away
   const vivas = new Map<string, { malla: THREE.Mesh; firma: string }>();
+  const extra: Record<string, (m: Malla, f: FormaPlana) => void> = {}; // the shapes of formas-extra.ts, once that chunk has arrived
   let restantes = 0;
   const quitar = (key: string) => { const v = vivas.get(key); if (!v) return; h.world.remove(v.malla); v.malla.geometry.dispose(); vivas.delete(key); restantes = 45; };
   return {
@@ -194,13 +197,17 @@ export function crearFormas(h: { world: THREE.Object3D }) {
       const firma = JSON.stringify(f), antes = vivas.get(key);
       if (antes && antes.firma === firma) return;
       quitar(key);
-      const m = new Malla(); (HACER[f.forma] ?? cubo)(m, f); // an unknown shape name is drawn as the safe default, the cube
+      const m = new Malla(); ((HACER as Record<string, (m: Malla, f: FormaPlana) => void>)[f.forma] ?? extra[f.forma] ?? cubo)(m, f); // an unknown shape name is drawn as the safe default, the cube
       const malla = new THREE.Mesh(m.geometria(), material);
-      malla.name = `forma:${key}`; malla.userData.sinSombra = true; malla.userData.pulsable = f.forma !== "suelo" && key.includes(":"); // a click on it (not on a zone's floor) opens its card malla.frustumCulled = true;
+      malla.name = `forma:${key}`; malla.userData.sinSombra = true; malla.userData.pulsable = f.forma !== "suelo" && f.forma !== "guia" && key.includes(":"); // a click on it (not on a zone's floor) opens its card malla.frustumCulled = true;
       malla.position.set(f.x, 0, f.z); malla.rotation.y = f.rumbo ?? 0;
       malla.geometry.computeBoundingSphere();
       h.world.add(malla); vivas.set(key, { malla, firma }); restantes = 45;
     },
+    /** Teach the shapes of the extra chunk (it arrives after the first ones were asked for). */
+    registrar(mas: Record<string, (m: Malla, f: FormaPlana) => void>): void { Object.assign(extra, mas); },
+    /** Move a shape that is already there without rebuilding it (the guide walks): position and the way it faces. */
+    mover(key: string, x: number, z: number, rumbo: number): void { const v = vivas.get(key); if (!v) return; v.malla.position.set(x, 0, z); v.malla.rotation.y = rumbo; restantes = 3; },
     /** Counts down the frames still to draw after a change (a still page draws only when something moved). */
     actualizar(): void { if (restantes > 0) restantes--; },
     ocupado: (): boolean => restantes > 0,

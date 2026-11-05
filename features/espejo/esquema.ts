@@ -11,24 +11,26 @@
 // Texts that come from outside (titles, subtitles) are UNTRUSTED: `limpiar` cuts them to their size and strips control characters;
 // the page paints them escaped and they never enter an AI's instructions (STD-050).
 import type { Issue, Result } from "../../packages/core/src/index.ts";
+import { MAX_ORIGENES, ORIGEN_DEFECTO, direccionPermitida, leerOrigen } from "./origenes.ts";
+import { FRASES_DEFECTO, MAX_FRASE } from "./guia.ts";
 
 export const ESQUEMA = "numinia-engine/espejo@1";
 export const FICHERO = "espejo.json";
 
 /** One switch per function of the outside app, in the order of F0 §1 (P1 first). The switch name is the key in `funciones{}`. */
 export const FUNCIONES = [
-  "salud", "cron", "sesiones", "chat", "aprobaciones", "subagentes", "perfiles", "mcp", "skills", "biblioteca",
+  "salud", "cron", "sesiones", "chat", "aprobaciones", "subagentes", "perfiles", "mcp", "habilidades", "documentos",
   "opciones", "memoria", "journey", "lienzo", "kanban", "mensajeria", "plugins",
-  "metas", "archivos", "uso", "voz", "navegador",
+  "metas", "archivos", "uso", "voz", "navegador", "guia",
 ] as const;
 export type Funcion = (typeof FUNCIONES)[number];
 
 /** What each function is called for a person, WITH its article (Spanish): «Apagar el gasto», «Encender los agentes». Every function has one: a test keeps it complete. */
 export const TEXTO_FUNCION: Record<Funcion, string> = {
   salud: "la salud", cron: "las tareas programadas", sesiones: "las sesiones", chat: "el chat", aprobaciones: "las aprobaciones", subagentes: "los subagentes",
-  perfiles: "los agentes", mcp: "las herramientas conectadas", skills: "las habilidades", biblioteca: "la biblioteca", opciones: "las opciones", memoria: "la memoria",
+  perfiles: "los agentes", mcp: "las herramientas conectadas", habilidades: "las habilidades", documentos: "la documentación", opciones: "las opciones", memoria: "la memoria",
   journey: "el recorrido", lienzo: "el lienzo", kanban: "el tablero", mensajeria: "la mensajería", plugins: "los complementos", metas: "las metas",
-  archivos: "los archivos", uso: "el gasto", voz: "la voz", navegador: "el navegador",
+  archivos: "los archivos", uso: "el gasto", voz: "la voz", navegador: "el navegador", guia: "la guía",
 };
 /** The label of a function (with article), or its own name when it is not one of ours. */
 export function textoFuncion(f: string): string { return (TEXTO_FUNCION as Record<string, string | undefined>)[f] ?? f; }
@@ -46,8 +48,8 @@ export function textoIrA(zona: string): string {
 /** What a thing IS: each type belongs to one function (the switch that turns it on). `salud` has the master light of the threshold. */
 export const TIPOS = {
   salud: "salud", cron: "cron", sesion: "sesiones", mensaje: "chat", aprobacion: "aprobaciones", subagente: "subagentes", perfil: "perfiles",
-  mcp: "mcp", skill: "skills", documento: "biblioteca", opcion: "opciones", memoria: "memoria", estrella: "journey", artefacto: "lienzo",
-  tarjeta: "kanban", canal: "mensajeria", plugin: "plugins", meta: "metas", fichero: "archivos", uso: "uso", voz: "voz", ventana: "navegador",
+  mcp: "mcp", habilidad: "habilidades", documento: "documentos", opcion: "opciones", memoria: "memoria", estrella: "journey", artefacto: "lienzo",
+  tarjeta: "kanban", tablero: "kanban", canal: "mensajeria", plugin: "plugins", meta: "metas", fichero: "archivos", uso: "uso", voz: "voz", ventana: "navegador",
 } as const satisfies Record<string, Funcion>;
 export type Tipo = keyof typeof TIPOS;
 export const TIPOS_LISTA = Object.keys(TIPOS) as Tipo[];
@@ -59,7 +61,7 @@ export const VERBOS = {
   "mensaje.enviar": "chat", "aprobacion.responder": "aprobaciones",
   "subagente.dirigir": "subagentes", "subagente.parar": "subagentes",
   "perfil.activar": "perfiles", "mcp.probar": "mcp", "mcp.activar": "mcp",
-  "skill.abrir": "skills", "skill.activar": "skills", "documento.abrir": "biblioteca",
+  "habilidad.abrir": "habilidades", "habilidad.activar": "habilidades", "documento.abrir": "documentos",
   "opcion.cambiar": "opciones", "memoria.abrir": "memoria", "artefacto.abrir": "lienzo",
   "tarjeta.mover": "kanban", "canal.probar": "mensajeria", "plugin.activar": "plugins",
   "meta.pausar": "metas", "meta.reanudar": "metas", "fichero.abrir": "archivos",
@@ -74,12 +76,13 @@ export type Seguridad = (typeof SEGURIDADES)[number];
 /** What each verb asks when the file says nothing: everything `aprobar`. */
 export const SEGURIDAD_DEFECTO: Seguridad = "aprobar";
 /** Verbs that only OPEN something to read (no change anywhere): they still go out as requests, but may be asked as `confirmar`. They are the only ones the world may lower further in a later version. */
-export const SOLO_LEER: readonly Verbo[] = ["skill.abrir", "documento.abrir", "memoria.abrir", "artefacto.abrir", "fichero.abrir", "sesion.abrir"];
+export const SOLO_LEER: readonly Verbo[] = ["habilidad.abrir", "documento.abrir", "memoria.abrir", "artefacto.abrir", "fichero.abrir", "sesion.abrir"];
 
 /** Bounds (bytes for texts: the shared-state codec counts bytes). */
 export const LIMITES = {
   id: 32, titulo: 60, subtitulo: 120, cartel: 80, zonaNombre: 40, zonas: 12, tiposPorZona: 8, verbosPorCosa: 6, objetosPorLote: 200, objetosPorZona: 200,
   coord: 2000, puertoMin: 1024, puertoMax: 65535, alto: 40, lado: 200,
+  url: 300, grupo: 32, descripcion: 200, descripcionVista: 140, tablero: 512, tituloTarjeta: 32, tarjetasPorColumna: 3, frase: 120, frases: 40,
 } as const;
 export const ESTADOS = ["activo", "programado", "pausado", "fallo", "apagado", "desconocido"] as const;
 export type Estado = (typeof ESTADOS)[number];
@@ -93,10 +96,47 @@ export type Espejo = {
   zonas: Zona[];
   /** The safety asked per verb (every verb has one; the default fills the rest). */
   acciones: Record<Verbo, Seguridad>;
+  /** M6: the origins a document thing may open in the in-world viewer (default: the local docs server). */
+  documentos: { origenes: string[] };
+  /** M6: the guide's lines (zone id / `tocar:<tipo>` / `saludo` → text ≤ 120 characters, defaults filled in), the tour order (zone ids) and whether the file names her at all. */
+  guia: { frases: Record<string, string>; recorrido: string[]; definida: boolean };
 };
 
 /** A thing as the outside source publishes it (alta / cambio / lote). Checked by `leerObjeto`. */
-export type Objeto = { tipo: Tipo; id: string; titulo: string; subtitulo: string; estado: Estado; zona: string; x: number; z: number; luz: boolean; acciones: Verbo[] };
+export type Objeto = { tipo: Tipo; id: string; titulo: string; subtitulo: string; estado: Estado; zona: string; x: number; z: number; luz: boolean; acciones: Verbo[];
+  /** M6 `documento`: the page this thing opens in the viewer (already checked against `documentos.origenes`). */
+  url: string;
+  /** M6 `habilidad`: the need or category the tablet is grouped under, and what the skill does (cut to 200 bytes; the card shows 140 characters). */
+  grupo: string; descripcion: string;
+  /** M6 `tablero`: the counts and the top cards of the three columns, as compact JSON text (see `leerTablero`). "" = none. */
+  tablero: string };
+
+/** The three columns of a work board, in the order they are drawn. */
+export const COLUMNAS_TABLERO = ["hacer", "curso", "hecho"] as const;
+export type ColumnaTablero = (typeof COLUMNAS_TABLERO)[number];
+export type Tablero = Record<ColumnaTablero, { n: number; top: string[] }>;
+/** The words above each column (the board is read-only, so these are all it says). */
+export const TEXTO_COLUMNA: Record<ColumnaTablero, string> = { hacer: "Por hacer", curso: "En curso", hecho: "Hecho" };
+/** Check a board as the source publishes it `{ hacer: { n: 12, top: ["Redactar informe", …] }, curso: {…}, hecho: {…} }` and return it cleaned (titles cut to 32 bytes, at most 3 per column). Pure. */
+export function leerTablero(crudo: unknown, path = "tablero"): Result<Tablero> {
+  if (!obj(crudo)) return { ok: false, issues: [{ path, message: `un objeto { "hacer": { "n": 12, "top": ["título"] }, "curso": {…}, "hecho": {…} }` }] };
+  const issues: Issue[] = [], t = {} as Tablero;
+  for (const k of Object.keys(crudo)) if (!(COLUMNAS_TABLERO as readonly string[]).includes(k)) issues.push({ path: `${path}.${k}`, message: `columna desconocida (son: ${lista(COLUMNAS_TABLERO)})` });
+  for (const c of COLUMNAS_TABLERO) {
+    const x = crudo[c];
+    if (!obj(x) || !Number.isInteger(x.n) || (x.n as number) < 0 || (x.n as number) > 99999) { issues.push({ path: `${path}.${c}`, message: `{ "n": cuántas tarjetas (0 a 99999), "top": hasta ${LIMITES.tarjetasPorColumna} títulos }` }); continue; }
+    if (x.top !== undefined && (!Array.isArray(x.top) || x.top.length > LIMITES.tarjetasPorColumna || x.top.some((q) => typeof q !== "string"))) { issues.push({ path: `${path}.${c}.top`, message: `una lista de hasta ${LIMITES.tarjetasPorColumna} títulos (texto)` }); continue; }
+    t[c] = { n: x.n as number, top: ((x.top ?? []) as string[]).map((q) => limpiar(q.replace(/["\\]/g, "'"), LIMITES.tituloTarjeta)).filter(Boolean) };
+  }
+  return issues.length ? { ok: false, issues } : { ok: true, value: t };
+}
+/** The compact text a board travels in (the shared state holds text): the same JSON, columns in order. */
+export const tableroATexto = (t: Tablero): string => JSON.stringify(Object.fromEntries(COLUMNAS_TABLERO.map((c) => [c, t[c]])));
+/** Read that text back (the page's side); anything that is not a board gives null. Never throws. */
+export function tableroDeTexto(texto: string): Tablero | null {
+  if (!texto) return null;
+  try { const r = leerTablero(JSON.parse(texto)); return r.ok ? r.value : null; } catch { return null; }
+}
 
 const obj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const enc = new TextEncoder();
@@ -114,7 +154,7 @@ const bytes = (s: string) => enc.encode(s).length;
 const num = (v: unknown, min: number, max: number): v is number => typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
 const lista = (xs: readonly string[]) => xs.join(", ");
 
-const CLAVES_RAIZ = ["schema", "activa", "funciones", "fuente", "zonas", "acciones", "notas"];
+const CLAVES_RAIZ = ["schema", "activa", "funciones", "fuente", "zonas", "acciones", "documentos", "guia", "notas"];
 const CLAVES_ZONA = ["id", "nombre", "centro", "ancho", "fondo", "alto", "tipos", "luz", "cartel"];
 
 /** Read entorno/espejo.json. A missing `funciones` means every function OFF; a missing `acciones` means every verb `aprobar`. */
@@ -123,7 +163,7 @@ export function leerEspejo(json: unknown): Result<Espejo> {
   const issues: Issue[] = [], push = (path: string, message: string) => issues.push({ path, message });
   for (const k of Object.keys(json)) if (!CLAVES_RAIZ.includes(k)) push(`espejo.${k}`, `clave desconocida: quítala o corrige el nombre (las claves son: ${lista(CLAVES_RAIZ)})`);
   if (json.schema !== ESQUEMA) push("espejo.schema", `debe ser "${ESQUEMA}"`);
-  const v: Espejo = { activa: true, funciones: Object.fromEntries(FUNCIONES.map((f) => [f, false])) as Record<Funcion, boolean>, fuente: { tipo: "enlace-local", puerto: 8791 }, zonas: [], acciones: Object.fromEntries(VERBOS_LISTA.map((a) => [a, SEGURIDAD_DEFECTO])) as Record<Verbo, Seguridad> };
+  const v: Espejo = { activa: true, funciones: Object.fromEntries(FUNCIONES.map((f) => [f, false])) as Record<Funcion, boolean>, fuente: { tipo: "enlace-local", puerto: 8791 }, zonas: [], acciones: Object.fromEntries(VERBOS_LISTA.map((a) => [a, SEGURIDAD_DEFECTO])) as Record<Verbo, Seguridad>, documentos: { origenes: [ORIGEN_DEFECTO] }, guia: { frases: { ...FRASES_DEFECTO }, recorrido: [], definida: false } };
 
   if (json.activa !== undefined) { if (typeof json.activa === "boolean") v.activa = json.activa; else push("espejo.activa", "true o false (false apaga el espejo entero sin borrar el fichero)"); }
 
@@ -181,20 +221,60 @@ export function leerEspejo(json: unknown): Result<Espejo> {
       });
     }
   }
+  if (json.documentos !== undefined) {
+    const d = json.documentos;
+    if (!obj(d)) push("espejo.documentos", `un objeto { "origenes": ["${ORIGEN_DEFECTO}"] }`);
+    else {
+      for (const k of Object.keys(d)) if (k !== "origenes") push(`espejo.documentos.${k}`, "clave desconocida (es: origenes)");
+      if (d.origenes !== undefined) {
+        if (!Array.isArray(d.origenes) || d.origenes.length > MAX_ORIGENES) push("espejo.documentos.origenes", `una lista de hasta ${MAX_ORIGENES} orígenes, p. ej. ["${ORIGEN_DEFECTO}"] (vacía = el visor no abre nada)`);
+        else {
+          const buenos: string[] = [];
+          d.origenes.forEach((o, i) => { const r = leerOrigen(o); if (r.ok) { if (!buenos.includes(r.origen)) buenos.push(r.origen); } else push(`espejo.documentos.origenes[${i}]`, r.why); });
+          v.documentos.origenes = buenos;
+        }
+      }
+    }
+  }
+
+  if (json.guia !== undefined) {
+    const g = json.guia;
+    if (!obj(g)) push("espejo.guia", `un objeto { "frases": { "z0": "…" }, "recorrido": ["z0", "z7"] }`);
+    else {
+      v.guia.definida = true;
+      for (const k of Object.keys(g)) if (k !== "frases" && k !== "recorrido") push(`espejo.guia.${k}`, "clave desconocida (son: frases, recorrido)");
+      if (g.frases !== undefined) {
+        if (!obj(g.frases)) push("espejo.guia.frases", `un objeto { "z0": "texto", "tocar:documento": "texto", "saludo": "texto" }`);
+        else if (Object.keys(g.frases).length > LIMITES.frases) push("espejo.guia.frases", `como mucho ${LIMITES.frases} frases`);
+        else for (const [k, x] of Object.entries(g.frases)) {
+          const idZona = json.zonas === undefined || (Array.isArray(json.zonas) && json.zonas.some((q) => obj(q) && q.id === k)), esTipo = /^tocar:([a-z]+)$/.exec(k);
+          if (!(k === "saludo" || idZona || (esTipo && (TIPOS_LISTA as readonly string[]).includes(esTipo[1])))) { push(`espejo.guia.frases.${k}`, `clave desconocida: use el id de una zona, «tocar:<tipo>» o «saludo»`); continue; }
+          if (typeof x !== "string" || !x.trim() || [...x].length > MAX_FRASE || /[\u0000-\u001f\u007f]/.test(x)) push(`espejo.guia.frases.${k}`, `texto de 1 a ${MAX_FRASE} caracteres, una sola línea`);
+          else v.guia.frases[k] = x.trim();
+        }
+      }
+      if (g.recorrido !== undefined) {
+        const ids = v.zonas.map((z) => z.id);
+        if (!Array.isArray(g.recorrido) || g.recorrido.length > LIMITES.zonas) push("espejo.guia.recorrido", `una lista de ids de zona (hasta ${LIMITES.zonas}): ${lista(ids) || "ninguna zona"}`);
+        else g.recorrido.forEach((id, i) => { if (typeof id === "string" && ids.includes(id)) v.guia.recorrido.push(id); else push(`espejo.guia.recorrido[${i}]`, `no hay ninguna zona con ese id (hay: ${lista(ids) || "ninguna"})`); });
+      }
+    }
+  }
+  if (!v.guia.recorrido.length) v.guia.recorrido = v.zonas.map((z) => z.id);
   return issues.length ? { ok: false, issues } : { ok: true, value: v };
 }
 
 /** The types this mirror shows: those whose function is switched on (and the mirror itself is on). */
 export const tiposEncendidos = (e: Espejo): Tipo[] => (e.activa ? TIPOS_LISTA.filter((t) => e.funciones[TIPOS[t]]) : []);
 /** The functions that are on, in F0 order — what the engine tells the outside source in `hola.funciones` (what is off is never asked for). */
-export const funcionesEncendidas = (e: Espejo): Funcion[] => (e.activa ? FUNCIONES.filter((f) => e.funciones[f]) : []);
+export const funcionesEncendidas = (e: Espejo): Funcion[] => (e.activa ? FUNCIONES.filter((f) => e.funciones[f] && f !== "guia") : []); // the guide lives on the page only: the source never needs to hear of her
 
 /** One thing as an outside source publishes it, checked and cleaned. `zona` must exist; a missing x/z is the zone's centre; the verbs must be known,
  *  belong to the thing's own function and be allowed. Never throws; the issues say the path (`objeto.titulo`…). */
-export function leerObjeto(crudo: unknown, e: Pick<Espejo, "zonas">, path = "objeto"): Result<Objeto> {
+export function leerObjeto(crudo: unknown, e: Pick<Espejo, "zonas"> & Partial<Pick<Espejo, "documentos">>, path = "objeto"): Result<Objeto> {
   if (!obj(crudo)) return { ok: false, issues: [{ path, message: `un objeto { tipo, id, titulo, estado, zona, acciones }` }] };
   const issues: Issue[] = [], push = (p: string, message: string) => issues.push({ path: `${path}.${p}`, message });
-  for (const k of Object.keys(crudo)) if (!["tipo", "id", "titulo", "subtitulo", "estado", "zona", "x", "z", "luz", "acciones"].includes(k)) push(k, "clave desconocida (son: tipo, id, titulo, subtitulo, estado, zona, x, z, luz, acciones)");
+  for (const k of Object.keys(crudo)) if (!["tipo", "id", "titulo", "subtitulo", "estado", "zona", "x", "z", "luz", "acciones", "url", "grupo", "descripcion", "tablero"].includes(k)) push(k, "clave desconocida (son: tipo, id, titulo, subtitulo, estado, zona, x, z, luz, acciones, url, grupo, descripcion, tablero)");
   const tipo = crudo.tipo as Tipo;
   if (!(TIPOS_LISTA as readonly unknown[]).includes(crudo.tipo)) push("tipo", `uno de: ${lista(TIPOS_LISTA)}`);
   if (typeof crudo.id !== "string" || !ID_RE.test(crudo.id)) push("id", "minúsculas, cifras, . _ - ; hasta 32 caracteres");
@@ -219,18 +299,33 @@ export function leerObjeto(crudo: unknown, e: Pick<Espejo, "zonas">, path = "obj
       else verbos.push(a as Verbo);
     });
   }
+  // M6: the extra fields of the new kinds. Each belongs to ONE kind; on any other it is an error (a typo must not pass quietly).
+  const solo = (campo: string, tipos: readonly string[]): boolean => { if (crudo[campo] === undefined) return false; if (!tipos.includes(String(crudo.tipo))) { push(campo, `solo lo llevan las cosas de tipo ${tipos.map((t) => `«${t}»`).join(" o ")}`); return false; } return true; };
+  let url = "", grupo = "", descripcion = "", tablero = "";
+  if (solo("url", ["documento"])) {
+    const r = direccionPermitida(crudo.url, e.documentos?.origenes ?? [ORIGEN_DEFECTO]);
+    if (r.ok) url = r.url; else push("url", `dirección no permitida: ${r.why}`);
+  }
+  if (solo("grupo", ["habilidad"])) { if (typeof crudo.grupo !== "string" || !crudo.grupo.trim() || bytes(crudo.grupo) > LIMITES.grupo) push("grupo", `texto de 1 a ${LIMITES.grupo} bytes: la necesidad o categoría de la habilidad`); else grupo = limpiar(crudo.grupo, LIMITES.grupo); }
+  if (solo("descripcion", ["habilidad", "documento"])) { if (typeof crudo.descripcion !== "string" || bytes(crudo.descripcion) > LIMITES.descripcion) push("descripcion", `texto de hasta ${LIMITES.descripcion} bytes`); else descripcion = limpiar(crudo.descripcion, LIMITES.descripcion); }
+  if (solo("tablero", ["tablero"])) { const t = leerTablero(crudo.tablero, `${path}.tablero`); if (t.ok) { tablero = tableroATexto(t.value); if (bytes(tablero) > LIMITES.tablero) push("tablero", `pasa de ${LIMITES.tablero} bytes: ponga menos tarjetas o títulos más cortos`); } else for (const q of t.issues) issues.push(q); }
   if (issues.length) return { ok: false, issues };
-  return { ok: true, value: { tipo, id: crudo.id as string, titulo: limpiar(crudo.titulo, LIMITES.titulo), subtitulo: limpiar(crudo.subtitulo ?? "", LIMITES.subtitulo), estado: (crudo.estado as Estado | undefined) ?? "desconocido", zona: zona!.id, x: (crudo.x as number | undefined) ?? zona!.x, z: (crudo.z as number | undefined) ?? zona!.z, luz: crudo.luz === true, acciones: verbos } };
+  return { ok: true, value: { tipo, id: crudo.id as string, titulo: limpiar(crudo.titulo, LIMITES.titulo), subtitulo: limpiar(crudo.subtitulo ?? "", LIMITES.subtitulo), estado: (crudo.estado as Estado | undefined) ?? "desconocido", zona: zona!.id, x: (crudo.x as number | undefined) ?? zona!.x, z: (crudo.z as number | undefined) ?? zona!.z, luz: crudo.luz === true, acciones: verbos, url, grupo, descripcion, tablero } };
 }
 
 /** What the page may know of the mirror (GET /status → `espejo`): where the zones are and which of their functions are switched on. No source, no key,
  *  no verbs: only what is needed to draw the floors and the lamps of the switch panel. `funciones` lists only the functions some zone shows (in F0 order). */
-export type VistaEspejo = { zonas: { id: string; nombre: string; cartel: string; x: number; z: number; ancho: number; fondo: number; tipos: Tipo[] }[]; funciones: Partial<Record<Funcion, boolean>> };
+export type VistaEspejo = { zonas: { id: string; nombre: string; cartel: string; x: number; z: number; ancho: number; fondo: number; tipos: Tipo[] }[]; funciones: Partial<Record<Funcion, boolean>>;
+  /** M6: the viewer's allowlist (only when some zone shows documents) and the guide's lines and tour (only when the file names her). */
+  documentos?: { origenes: string[] }; guia?: { frases: Record<string, string>; recorrido: string[] } };
 export function vistaPublica(e: Espejo): VistaEspejo | null {
   if (!e.activa) return null;
   const mostradas = new Set<Funcion>(e.zonas.flatMap((z) => z.tipos.map((t) => TIPOS[t])));
+  if (e.guia.definida) mostradas.add("guia");
   return {
     zonas: e.zonas.map((z) => ({ id: z.id, nombre: z.nombre, cartel: z.cartel, x: z.x, z: z.z, ancho: z.ancho, fondo: z.fondo, tipos: z.tipos })),
     funciones: Object.fromEntries(FUNCIONES.filter((f) => mostradas.has(f)).map((f) => [f, e.funciones[f]])),
+    ...(mostradas.has("documentos") ? { documentos: { origenes: [...e.documentos.origenes] } } : {}),
+    ...(e.guia.definida ? { guia: { frases: { ...e.guia.frases }, recorrido: [...e.guia.recorrido] } } : {}),
   };
 }

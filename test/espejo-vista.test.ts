@@ -30,15 +30,15 @@ const PLANTILLA = JSON.parse(readFileSync(new URL("../plantillas/hermes/entorno/
 const conCron = { ...PLANTILLA, funciones: { ...PLANTILLA.funciones, cron: true, sesiones: true } };
 const cron = (id: string, extra: Record<string, unknown> = {}) => ({ tipo: "cron", id, titulo: `Tarea ${id}`, estado: "programado", zona: "z7", acciones: ["cron.pausar"], ...extra });
 
-test("the template's espejo.json is valid, has the six zones and ONLY salud is on", () => {
+test("the template's espejo.json is valid, has the nine zones and ONLY salud is on", () => {
   const r = leerEspejo(PLANTILLA);
   assert.equal(r.ok, true, JSON.stringify(r));
   if (!r.ok) return;
-  assert.deepEqual(r.value.zonas.map((z) => z.id), ["z0", "z7", "z3", "z8", "z6", "z2"]);
+  assert.deepEqual(r.value.zonas.map((z) => z.id), ["z0", "z7", "z3", "z8", "z6", "z2", "z1", "z4", "z9"]);
   assert.deepEqual(Object.entries(r.value.funciones).filter(([, on]) => on).map(([f]) => f), ["salud"]);
   const v = vistaPublica(r.value)!;
-  assert.deepEqual(v.funciones, { salud: true, cron: false, sesiones: false, chat: false, perfiles: false, uso: false });
-  assert.equal(v.zonas.length, 6);
+  assert.deepEqual(v.funciones, { salud: true, cron: false, sesiones: false, chat: false, perfiles: false, uso: false, documentos: false, habilidades: false, kanban: false, guia: false });
+  assert.equal(v.zonas.length, 9);
   assert.deepEqual(Object.keys(v.zonas[0]).sort(), ["ancho", "cartel", "fondo", "id", "nombre", "tipos", "x", "z"], "no keys, no verbs, no source: only what draws the floors");
   assert.equal(vistaPublica({ ...r.value, activa: false }), null);
 });
@@ -100,7 +100,7 @@ test("the switch panel (salud/panel) is the world's own: it sits on the threshol
   const p = s.get("salud/panel")!;
   assert.ok(p, "the panel is there from the start");
   assert.equal(p.titulo, "Panel de interruptores");
-  assert.equal(p.subtitulo, "Encendido: salud. Apagado: tareas programadas, sesiones, chat, agentes, gasto.");
+  assert.equal(p.subtitulo, "Encendido: salud. Apagado: 9 funciones.");
   assert.deepEqual([p.zona, p.x, p.z], ["z0", 0, -4.5]);
   assert.equal(W.enlace.lote([]).ok, true); W.pump(3);
   assert.ok(s.get("salud/panel"), "an empty lote from the source leaves the panel");
@@ -128,7 +128,7 @@ test("the page draws a flat shape by tipo in the house language of states, with 
   assert.equal(g.formas.get("espejo:zona:z7")!.discontinuo, false, "cron is on: solid edge"); assert.equal(g.formas.get("espejo:zona:z3")!.discontinuo, false);
   assert.equal(g.formas.get("espejo:zona:z8")!.discontinuo, true, "chat is off: dashed edge");
   assert.equal(g.formas.get("espejo:salud/panel")!.forma, "losa");
-  assert.deepEqual(g.formas.get("espejo:salud/panel")!.luces, [true, true, true, false, false, false], "one lamp per switch: salud, cron, sesiones, chat, perfiles, uso");
+  assert.deepEqual(g.formas.get("espejo:salud/panel")!.luces, [true, true, true, false, false, false, false, false, false, false], "one lamp per switch: salud, cron, sesiones, chat, perfiles, uso, documentos, habilidades, kanban, guia");
   W.enlace.lote([cron("8bc0"), { tipo: "sesion", id: "s1", titulo: "Charla con Hermes", estado: "activo", zona: "z3" }]); W.pump(4);
   const reloj = g.formas.get("espejo:cron/8bc0")!, cubo = g.formas.get("espejo:sesion/s1")!;
   assert.deepEqual([reloj.forma, reloj.estado], ["reloj", "on"]); assert.deepEqual([cubo.forma, cubo.estado], ["cubo", "on"]);

@@ -194,6 +194,7 @@ const session = new ClientSession(transport, {
     // J5: a name that stays over a person of the world
     tag: (key, t) => view.tag(key, t),
     forma: (key, f) => view.forma(key, f), // mundo-hermes: the flat shapes of the espejo
+    moverForma: (key, x, z, r) => view.moverForma(key, x, z, r),
     marcador: (key, t) => view.marcador(key, t), // P4: evidence markers (features/misiones)
     // H4/H8: the zone's environment and its elements (water, fire, smoke, dust)
     entorno: (v) => { view.entorno.aplicar(v); view.cam.mundo(v); }, // P1: the same values carry the world's camera (camaraInicio, camaraMax, llegadaGira, llegadaGiro)
@@ -388,7 +389,12 @@ const ancestrosPagina = montarAncestros({ ancestros, view }); // ancestros v1: t
 if (estado?.temaHud === "black-and-white") void Promise.all([import("./tema-byn.ts"), import("./mapa.ts")]).then(([t, m]) => { m.temaMapa(true); t.aplicarTemaByn(); }).catch((e) => console.warn(`[tema] no se pudo cargar el tema: ${(e as Error)?.message ?? e}`));
 espejoCtl.configurar(estado?.espejo);
 let espejoCard: Promise<unknown> | null = null;
-espejoCtl.alCambiar((que) => { if (que === "ficha" && espejoCtl.estado.ficha) espejoCard ??= import("./espejo.ts").then((m) => m.montarEspejo({ espejo: espejoCtl, viaje: viajar })).catch((e) => console.warn(`[espejo] no se pudo cargar la ficha: ${(e as Error)?.message ?? e}`)); });
+// M6 the guide: loaded when the switch `guia` is on (nothing of it is in the start bundle); the frame loop below asks her for her step
+let guiaPagina: { cuadro(dt: number): boolean } | null = null, guiaCarga = false;
+const cargarGuia = (): void => { if (guiaCarga || !espejoCtl.interruptor.activa("guia") || !espejoCtl.vista()?.guia) return; guiaCarga = true; void import("./guia.ts").then((m) => { guiaPagina = m.montarGuia({ espejo: espejoCtl, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), forma: (k, f) => view.forma(k, f), mover: (k, x, z, r) => view.moverForma(k, x, z, r) }); }).catch((e) => { guiaCarga = false; console.warn(`[guia] no se pudo cargar: ${(e as Error)?.message ?? e}`); }); };
+cargarGuia();
+espejoCtl.alCambiar(() => cargarGuia());
+espejoCtl.alCambiar((que) => { if (que === "ficha" && espejoCtl.estado.ficha) espejoCard ??= import("./espejo.ts").then((m) => m.montarEspejo({ espejo: espejoCtl, viaje: viajar, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) })).catch((e) => console.warn(`[espejo] no se pudo cargar la ficha: ${(e as Error)?.message ?? e}`)); });
 // ---- pesca v1: nothing of it is in the start bundle; the HUD and the 3D arrive with the first fishing spot or float ----
 let pescaHud: Promise<unknown> | null = null, pescaPagina: unknown = null; // N4: pescaPagina.manos (VR rod, gamepad) for the e2e
 pesca.alCambiar(() => { if (!pesca.sitios().length) return; /* f2: fishing switched off: nothing to load */ pescaHud ??= import("./pesca.ts").then((m) => (pescaPagina = m.montarPesca({ pesca, view, session, hud: document.getElementById("pesca-hud")!, interaccion: () => interaccion }))).catch((e) => console.warn(`[pesca] no se pudo cargar la página de pesca: ${(e as Error)?.message ?? e}`)); });
@@ -833,7 +839,8 @@ view.loop((now) => {
   if (probe.done && informe.primerCuadroMs && !informe.entrada) void enviarEntrada();
   // power policy (P2): skip the draw when hidden or when nothing changes; the 20 Hz ticks above never skip
   condicionesXR?.tick(); // condiciones/c4: the bubble inside the headset (nothing to do unless the bubble is up and VR is presenting)
-  const enSecuencia = misiones.cuadro(); // U14 (5): a sequence only this player sees moves its people (no work when none plays)
+  const guiaMueve = guiaPagina?.cuadro(dt) ?? false; // M6: the guide's step (false and free when she is off)
+  const enSecuencia = misiones.cuadro() || guiaMueve; // U14 (5): a sequence only this player sees moves its people (no work when none plays)
   const sig = lastSig; lastSig = signature();
   if (sig !== lastSig || keys.size > 0 || touch || view.vr.active || view.ar.state !== "off" || view.busy() || enSecuencia) lastActive = now;
   const active = now - lastActive < 600;
