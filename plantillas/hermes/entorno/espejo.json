@@ -1,14 +1,16 @@
 {
   "schema": "numinia-engine/espejo@1",
   "activa": true,
-  "notas": "Planta provisional, plana y sencilla (Pablo dibujará la definitiva). Z0 umbral con el panel de interruptores en el centro; Z7 el reloj (tareas programadas) al este; Z3 las sesiones al oeste; Z8 la plaza (marcador del chat) al norte. Solo «salud» nace encendida: para encender «cron» o «sesiones» ponga true y reinicie el mundo.",
-  "funciones": { "salud": true, "cron": false, "sesiones": false, "chat": false },
+  "notas": "Planta provisional, plana y sencilla (Pablo dibujará la definitiva). Z0 umbral con el panel de interruptores en el centro; Z7 el reloj (tareas programadas) al este; Z3 las sesiones al oeste; Z8 la plaza (marcador del chat) al norte; Z6 la torre de control (perfiles, figuras sobre una cuadrícula de 4 m) al noreste; Z2 la sala de máquinas (medidores de uso) al noroeste. Solo «salud» nace encendida: para encender «cron» o «sesiones» ponga true y reinicie el mundo.",
+  "funciones": { "salud": true, "cron": false, "sesiones": false, "chat": false, "perfiles": false, "uso": false },
   "fuente": { "tipo": "enlace-local", "puerto": 8791 },
   "zonas": [
     { "id": "z0", "nombre": "El umbral", "centro": { "x": 0, "z": 0 }, "ancho": 20, "fondo": 14, "alto": 4, "tipos": ["salud"], "cartel": "EL UMBRAL · interruptores" },
     { "id": "z7", "nombre": "El reloj", "centro": { "x": 30, "z": 0 }, "ancho": 24, "fondo": 16, "alto": 6, "tipos": ["cron"], "cartel": "EL RELOJ · tareas programadas" },
     { "id": "z3", "nombre": "Las sesiones", "centro": { "x": -30, "z": 0 }, "ancho": 24, "fondo": 16, "alto": 6, "tipos": ["sesion"], "cartel": "LAS SESIONES · conversaciones" },
-    { "id": "z8", "nombre": "La plaza", "centro": { "x": 0, "z": -28 }, "ancho": 24, "fondo": 18, "alto": 6, "tipos": ["mensaje"], "cartel": "LA PLAZA · chat (próximamente)" }
+    { "id": "z8", "nombre": "La plaza", "centro": { "x": 0, "z": -28 }, "ancho": 24, "fondo": 18, "alto": 6, "tipos": ["mensaje"], "cartel": "LA PLAZA · chat (próximamente)" },
+    { "id": "z6", "nombre": "La torre de control", "centro": { "x": 30, "z": -30 }, "ancho": 24, "fondo": 24, "alto": 6, "tipos": ["perfil"], "cartel": "LA TORRE DE CONTROL · perfiles" },
+    { "id": "z2", "nombre": "La sala de máquinas", "centro": { "x": -30, "z": -30 }, "ancho": 24, "fondo": 16, "alto": 6, "tipos": ["uso"], "cartel": "LA SALA DE MÁQUINAS · uso" }
   ],
   "acciones": { "cron.pausar": "confirmar", "cron.reanudar": "confirmar", "cron.ejecutar": "aprobar" }
 }

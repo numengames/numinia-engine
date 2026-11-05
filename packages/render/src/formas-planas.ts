@@ -101,15 +101,18 @@ function cubo(m: Malla, f: FormaPlana): void {
   }
 }
 
+/** Lamp spacing along the slab: 0.62 m, squeezed so that up to 8 lamps stay inside the slab's width (half-width `W`). */
+const pasoLuces = (n: number, W: number): number => (n > 1 ? Math.min(0.62, (2 * W - 0.8) / (n - 1)) : 0.62);
+
 /** The slab (panel de interruptores): 3.2 × 1.7 m standing on two feet, black with a white edge; a lamp per switch along its front. */
 function losa(m: Malla, f: FormaPlana): void {
   const W = 1.6, H = 1.7, y0 = 0.5, y1 = y0 + H, e = 0.07;
   m.rect(-0.45, 0, -0.35, y0, 0, B); m.rect(0.35, 0, 0.45, y0, 0, B); // feet
   m.rect(-W, y0, W, y1, 0, N); m.marco(-W, y0, W, y1, e, 0.01, B);
   m.rect(-W, y0, W, y1, -0.01, N);
-  const luces = f.luces ?? [], paso = 0.62, x0 = -((luces.length - 1) * paso) / 2, ly = y0 + H * 0.5;
+  const luces = f.luces ?? [], paso = pasoLuces(f.luces?.length ?? 0, W), x0 = -((luces.length - 1) * paso) / 2, ly = y0 + H * 0.5;
   luces.forEach((on, i) => {
-    const cx = x0 + i * paso, h = 0.22;
+    const cx = x0 + i * paso, h = Math.min(0.22, paso * 0.42);
     m.rect(cx - h, ly - h, cx + h, ly + h, 0.01, on ? B : N);
     m.marco(cx - h, ly - h, cx + h, ly + h, 0.045, 0.02, B);
   });

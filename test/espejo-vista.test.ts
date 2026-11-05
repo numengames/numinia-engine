@@ -1,5 +1,5 @@
 // mundo-hermes · M2: the client side of the espejo and the seeded layout of the Hermes template.
-//   · plantillas/hermes/entorno/espejo.json is valid, ONLY `salud` is on, the four zones are there and `vistaPublica` tells the page just what it needs
+//   · plantillas/hermes/entorno/espejo.json is valid, ONLY `salud` is on, the six zones are there and `vistaPublica` tells the page just what it needs
 //   · things that come WITHOUT x/z are laid on their zone's grid (the first at the centre), keep their slot, and the world's own switch panel
 //     (salud/panel) is never removed or replaced by the source
 //   · the page draws a flat shape by `tipo` in the house language of states (off/starting/on/fail), with the Spanish label, follows a change, takes it away,
@@ -30,17 +30,28 @@ const PLANTILLA = JSON.parse(readFileSync(new URL("../plantillas/hermes/entorno/
 const conCron = { ...PLANTILLA, funciones: { ...PLANTILLA.funciones, cron: true, sesiones: true } };
 const cron = (id: string, extra: Record<string, unknown> = {}) => ({ tipo: "cron", id, titulo: `Tarea ${id}`, estado: "programado", zona: "z7", acciones: ["cron.pausar"], ...extra });
 
-test("the template's espejo.json is valid, has the four zones and ONLY salud is on", () => {
+test("the template's espejo.json is valid, has the six zones and ONLY salud is on", () => {
   const r = leerEspejo(PLANTILLA);
   assert.equal(r.ok, true, JSON.stringify(r));
   if (!r.ok) return;
-  assert.deepEqual(r.value.zonas.map((z) => z.id), ["z0", "z7", "z3", "z8"]);
+  assert.deepEqual(r.value.zonas.map((z) => z.id), ["z0", "z7", "z3", "z8", "z6", "z2"]);
   assert.deepEqual(Object.entries(r.value.funciones).filter(([, on]) => on).map(([f]) => f), ["salud"]);
   const v = vistaPublica(r.value)!;
-  assert.deepEqual(v.funciones, { salud: true, cron: false, sesiones: false, chat: false });
-  assert.equal(v.zonas.length, 4);
+  assert.deepEqual(v.funciones, { salud: true, cron: false, sesiones: false, chat: false, perfiles: false, uso: false });
+  assert.equal(v.zonas.length, 6);
   assert.deepEqual(Object.keys(v.zonas[0]).sort(), ["ancho", "cartel", "fondo", "id", "nombre", "tipos", "x", "z"], "no keys, no verbs, no source: only what draws the floors");
   assert.equal(vistaPublica({ ...r.value, activa: false }), null);
+});
+
+// the zones of the template must not overlap each other (the floors are drawn side by side)
+test("the template's zone rectangles do not overlap and the new ones carry their own names", () => {
+  const r = leerEspejo(PLANTILLA); assert.ok(r.ok); if (!r.ok) return;
+  const zs = r.value.zonas;
+  for (let i = 0; i < zs.length; i++) for (let j = i + 1; j < zs.length; j++) {
+    const a = zs[i], b = zs[j], sepX = Math.abs(a.x - b.x) >= (a.ancho + b.ancho) / 2, sepZ = Math.abs(a.z - b.z) >= (a.fondo + b.fondo) / 2;
+    assert.ok(sepX || sepZ, `${a.id} and ${b.id} overlap`);
+  }
+  assert.deepEqual(zs.filter((z) => z.id === "z6" || z.id === "z2").map((z) => [z.id, z.nombre, z.tipos.join()]), [["z6", "La torre de control", "perfil"], ["z2", "La sala de máquinas", "uso"]]);
 });
 
 function mundo(n: number, espejo: unknown, o: { clientes?: ReturnType<typeof crearCliente>[]; vistas?: ViewHooks[] } = {}) {
@@ -89,7 +100,7 @@ test("the switch panel (salud/panel) is the world's own: it sits on the threshol
   const p = s.get("salud/panel")!;
   assert.ok(p, "the panel is there from the start");
   assert.equal(p.titulo, "Panel de interruptores");
-  assert.equal(p.subtitulo, "Encendido: salud. Apagado: cron, sesiones, chat.");
+  assert.equal(p.subtitulo, "Encendido: salud. Apagado: cron, sesiones, chat, perfiles, uso.");
   assert.deepEqual([p.zona, p.x, p.z], ["z0", 0, -4.5]);
   assert.equal(W.enlace.lote([]).ok, true); W.pump(3);
   assert.ok(s.get("salud/panel"), "an empty lote from the source leaves the panel");
@@ -117,7 +128,7 @@ test("the page draws a flat shape by tipo in the house language of states, with 
   assert.equal(g.formas.get("espejo:zona:z7")!.discontinuo, false, "cron is on: solid edge"); assert.equal(g.formas.get("espejo:zona:z3")!.discontinuo, false);
   assert.equal(g.formas.get("espejo:zona:z8")!.discontinuo, true, "chat is off: dashed edge");
   assert.equal(g.formas.get("espejo:salud/panel")!.forma, "losa");
-  assert.deepEqual(g.formas.get("espejo:salud/panel")!.luces, [true, true, true, false], "one lamp per switch: salud, cron, sesiones, chat");
+  assert.deepEqual(g.formas.get("espejo:salud/panel")!.luces, [true, true, true, false, false, false], "one lamp per switch: salud, cron, sesiones, chat, perfiles, uso");
   W.enlace.lote([cron("8bc0"), { tipo: "sesion", id: "s1", titulo: "Charla con Hermes", estado: "activo", zona: "z3" }]); W.pump(4);
   const reloj = g.formas.get("espejo:cron/8bc0")!, cubo = g.formas.get("espejo:sesion/s1")!;
   assert.deepEqual([reloj.forma, reloj.estado], ["reloj", "on"]); assert.deepEqual([cubo.forma, cubo.estado], ["cubo", "on"]);
@@ -150,4 +161,31 @@ test("touching: usar ⇒ the card (alone), pedir by the owner ⇒ pedido ⇒ res
   assert.deepEqual([e.estado.resultado!.ok, e.estado.resultado!.texto], [false, "Hermes no ha respondido a tiempo: no sé si se hizo."]);
   e.pedir("cron/8bc0", "cron.borrar"); W.pump(3);
   assert.match(e.estado.rechazo, /no es una acción que conozca/);
+});
+
+test("a fresh Hermes world with perfiles and uso switched on takes a lote of 14 perfil + 1 uso without x/z and lays them on the 4 m grid, no overlap, inside their zones", () => {
+  const conTodo = { ...PLANTILLA, funciones: { ...PLANTILLA.funciones, perfiles: true, uso: true } };
+  const W = mundo(1, conTodo);
+  const perfil = (i: number) => ({ tipo: "perfil", id: `p${i}`, titulo: `Perfil ${i}`, estado: i % 3 === 0 ? "activo" : "programado", zona: "z6", acciones: [] });
+  const uso = { tipo: "uso", id: "total", titulo: "Uso total", subtitulo: "33,8 M tokens · $1,654.69 est.", estado: "activo", zona: "z2", acciones: [] };
+  const lote = [...Array.from({ length: 14 }, (_, i) => perfil(i)), uso];
+  assert.deepEqual(W.enlace.lote(lote), { ok: true, puestas: 15, quitadas: 0 });
+  W.poner(W.gente[0], 30, -30); W.pump(4);
+  const ps = Array.from({ length: 14 }, (_, i) => lugar(W, `perfil/p${i}`)!);
+  assert.ok(ps.every(Boolean), "all 14 are in the world");
+  assert.deepEqual(ps[0], [30, -30], "the first stands at the zone's centre");
+  for (const [x, z] of ps) assert.ok(Math.abs(x - 30) <= 12 && Math.abs(z + 30) <= 12, `inside z6: ${x},${z}`);
+  for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) assert.ok(Math.hypot(ps[i][0] - ps[j][0], ps[i][1] - ps[j][1]) >= 4 - 1e-9, `profiles ${i} and ${j} are closer than 4 m`);
+  for (const [x, z] of ps) { assert.equal(Math.abs((x - 30) % 4), 0); assert.equal(Math.abs((z + 30) % 4), 0); }
+  assert.deepEqual(lugar(W, "uso/total"), [-30, -30], "the meter at the centre of the machine room");
+  // a second lote with the same things in another order moves nobody
+  W.enlace.lote([...lote].reverse()); W.pump(3);
+  assert.deepEqual(Array.from({ length: 14 }, (_, i) => lugar(W, `perfil/p${i}`)), ps);
+});
+
+test("with perfiles and uso off (the template as shipped) their things are refused, so a fresh world shows nothing of them", () => {
+  const W = mundo(1, PLANTILLA);
+  const r = W.enlace.alta({ tipo: "perfil", id: "a", titulo: "A", zona: "z6" });
+  assert.equal(r.ok, false); assert.match(r.ok ? "" : r.motivo, /apagada/);
+  assert.equal(W.enlace.alta({ tipo: "uso", id: "u", titulo: "U", zona: "z2" }).ok, false);
 });
