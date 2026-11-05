@@ -5,7 +5,7 @@
 //   The card then says «Esperando a Hermes…» and, when the answer arrives (or after 30 s, «Hermes no ha respondido»), what happened.
 // Everything that comes from outside goes in with `textContent`, never as markup. The server decides who may ask; this only offers.
 import type { espejo as Controlador } from "../../features/espejo/client.ts";
-import { TEXTO_ESTADO, TEXTO_FUNCION, TEXTO_VERBO } from "../../features/espejo/client.ts";
+import { detalleDe, textoEstadoDe, TEXTO_FUNCION, TEXTO_VERBO } from "../../features/espejo/client.ts";
 
 type Ctl = typeof Controlador;
 
@@ -40,8 +40,8 @@ export function montarEspejo(o: { espejo: Ctl; doc?: Document; /** the teleport 
     const c = actual ? o.espejo.cosa(actual) : null;
     if (!c) { if (actual) ocultar(); return; }
     titulo.textContent = c.titulo;
-    estado.textContent = `Estado: ${TEXTO_ESTADO[c.estado]}`;
-    detalle.textContent = c.subtitulo; detalle.hidden = !c.subtitulo;
+    estado.textContent = `Estado: ${textoEstadoDe(c.tipo, c.estado)}`;
+    const lineas = detalleDe(c); detalle.replaceChildren(...lineas.map((t, i) => { const l = d.createElement("span"); l.textContent = t; l.style.display = "block"; if (i > 0) l.style.marginTop = "2px"; return l; })); detalle.hidden = !lineas.length;
     filas.replaceChildren();
     /** One big button; the first press asks «¿Seguro?», only the second one does it (what changes the world or outside needs a person's yes). */
     const boton = (id: string, nombre: string, ir: () => { ok: true } | { ok: false; why: string }): void => {

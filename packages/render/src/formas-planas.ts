@@ -7,11 +7,13 @@
 //   cubo   a cube (a session: a new place): black faces, white edges, the top face white when on
 //   losa   a slab standing up (the switch panel): black, white edge, a row of lamps (filled = on)
 //   suelo  the floor of a zone: only its white edge on the world's black ground (dashed when the zone's function is off)
+//   perfil a standing figure (a Hermes profile / agent) with a status lamp over its head: working = white fill, idle = outline, off = dashed outline
+//   uso    a vertical meter (spend): ten stacked flat segments, filled from the bottom up to `nivel` (0..1); its tokens are the label (a tag, not geometry)
 import * as THREE from "three/webgpu";
 
 export type EstadoForma = "off" | "starting" | "on" | "fail";
 export type FormaPlana = {
-  forma: "reloj" | "cubo" | "losa" | "suelo";
+  forma: "reloj" | "cubo" | "losa" | "suelo" | "perfil" | "uso";
   x: number; z: number;
   estado: EstadoForma;
   /** The way the front looks, radians around the vertical (0 = towards +z). */
@@ -24,6 +26,8 @@ export type FormaPlana = {
   discontinuo?: boolean;
   /** losa: one lamp per switch, true = on (white fill), false = off (outline). */
   luces?: boolean[];
+  /** uso: how full the meter is, 0..1 (anything else is clamped; not a number = empty). */
+  nivel?: number;
 };
 
 const B = 1, N = 0; // white, black
@@ -127,7 +131,53 @@ function suelo(m: Malla, f: FormaPlana): void {
   for (const [cx, cz] of [[-w, -d], [w, -d], [w, d], [-w, d]]) m.quad([cx - 0.25, y, cz - 0.25], [cx + 0.25, y, cz - 0.25], [cx + 0.25, y, cz + 0.25], [cx - 0.25, y, cz + 0.25], B);
 }
 
-const HACER = { reloj, cubo, losa, suelo } as const;
+/** A hollow rectangle drawn as dashes (0.12 m on, 0.12 m off) — the «off» look; the four corners stay solid so it still reads as a rectangle. */
+function marcoRaya(m: Malla, x0: number, y0: number, x1: number, y1: number, w: number, z: number): void {
+  const raya = (ax: number, ay: number, bx: number, by: number) => {
+    const l = Math.hypot(bx - ax, by - ay), paso = 0.12;
+    for (let t = 0; t < l - 1e-6; t += paso * 2) { const a = t / l, b = Math.min(l, t + paso) / l; m.barra(ax + (bx - ax) * a, ay + (by - ay) * a, ax + (bx - ax) * b, ay + (by - ay) * b, w, z, B); }
+  };
+  raya(x0, y0, x1, y0); raya(x1, y0, x1, y1); raya(x1, y1, x0, y1); raya(x0, y1, x0, y0);
+  for (const [cx, cy] of [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]) m.rect(cx - w / 2, cy - w / 2, cx + w / 2, cy + w / 2, z, B);
+}
+/** The three looks of one flat part: white fill (working), white outline on black (idle), dashed outline on black (off). */
+type Aspecto = "lleno" | "borde" | "raya";
+function parte(m: Malla, a: Aspecto, x0: number, y0: number, x1: number, y1: number, z: number): void {
+  if (a === "lleno") { m.rect(x0, y0, x1, y1, z, B); return; }
+  m.rect(x0, y0, x1, y1, z, N);
+  if (a === "borde") m.marco(x0, y0, x1, y1, 0.05, z + 0.005, B); else marcoRaya(m, x0, y0, x1, y1, 0.05, z + 0.005);
+}
+
+/** The profile (an agent): a standing figure 1.9 m tall — head, shoulders and torso, two arms, two legs — and a lamp over the head.
+ *  on = white fill (working) · off = outline (idle) · off + `discontinuo` = dashed outline and dashed lamp (switched off) · fail = crossed out. Any other state is «idle». */
+function perfil(m: Malla, f: FormaPlana): void {
+  const a: Aspecto = f.estado === "on" ? "lleno" : f.discontinuo ? "raya" : "borde";
+  parte(m, a, -0.2, 0, -0.04, 0.8, 0); parte(m, a, 0.04, 0, 0.2, 0.8, 0); // legs
+  parte(m, a, -0.3, 0.8, 0.3, 1.45, 0); // torso
+  parte(m, a, -0.46, 0.85, -0.34, 1.4, 0); parte(m, a, 0.34, 0.85, 0.46, 1.4, 0); // arms
+  // the head: a disc (a ring when not working; a ring of dashes when off)
+  if (a === "lleno") m.disco(0, 1.68, 0.22, 0, B);
+  else { m.disco(0, 1.68, 0.22, 0, N); if (a === "borde") m.anillo(0, 1.68, 0.17, 0.22, 0.005, B); else for (let i = 0; i < 16; i += 2) m.tri([0, 1.68, 0.005], [Math.cos((i / 16) * Math.PI * 2) * 0.22, 1.68 + Math.sin((i / 16) * Math.PI * 2) * 0.22, 0.005], [Math.cos(((i + 1) / 16) * Math.PI * 2) * 0.22, 1.68 + Math.sin(((i + 1) / 16) * Math.PI * 2) * 0.22, 0.005], B); }
+  // the status lamp, 0.35 m over the head: filled when working, a ring when idle, a dotted ring when off
+  const ly = 2.2;
+  if (a === "lleno") m.disco(0, ly, 0.12, 0, B, 20);
+  else if (a === "borde") m.anillo(0, ly, 0.08, 0.12, 0, B, 20);
+  else for (let i = 0; i < 12; i += 2) { const t0 = (i / 12) * Math.PI * 2, t1 = ((i + 1) / 12) * Math.PI * 2; m.quad([Math.cos(t0) * 0.08, ly + Math.sin(t0) * 0.08, 0], [Math.cos(t0) * 0.12, ly + Math.sin(t0) * 0.12, 0], [Math.cos(t1) * 0.12, ly + Math.sin(t1) * 0.12, 0], [Math.cos(t1) * 0.08, ly + Math.sin(t1) * 0.08, 0], B); }
+  if (f.estado === "fail") { m.barra(-0.5, 0.1, 0.5, 1.9, 0.08, 0.03, B); m.barra(-0.5, 1.9, 0.5, 0.1, 0.08, 0.03, B); }
+}
+
+/** The spend meter: a tall flat column 0.9 × 2.6 m of ten stacked segments (0.22 m + 0.04 gap), a white base. Segment i (from the bottom) is filled when i < round(nivel × 10);
+ *  the rest are outlines. The label (tokens) is a tag put by the page, not geometry. A `nivel` that is not a number is an empty meter; outside 0..1 it is clamped. */
+export const SEGMENTOS_USO = 10;
+export function segmentosLlenos(nivel: unknown): number { const n = typeof nivel === "number" && Number.isFinite(nivel) ? Math.min(1, Math.max(0, nivel)) : 0; return Math.round(n * SEGMENTOS_USO); }
+function uso(m: Malla, f: FormaPlana): void {
+  const llenos = segmentosLlenos(f.nivel), W = 0.45, h = 0.22, gap = 0.04, y0 = 0.15;
+  m.rect(-0.6, 0, 0.6, 0.1, 0, B); // the base
+  for (let i = 0; i < SEGMENTOS_USO; i++) parte(m, i < llenos ? "lleno" : "borde", -W, y0 + i * (h + gap), W, y0 + i * (h + gap) + h, 0);
+  if (f.estado === "fail") { m.barra(-0.6, 0.1, 0.6, 2.7, 0.08, 0.03, B); m.barra(-0.6, 2.7, 0.6, 0.1, 0.08, 0.03, B); }
+}
+
+const HACER = { reloj, cubo, losa, suelo, perfil, uso } as const;
 
 export function crearFormas(h: { world: THREE.Object3D }) {
   const material = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, toneMapped: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }); // the offset: a floor edge 3 cm over the ground must win against it from far away
@@ -141,7 +191,7 @@ export function crearFormas(h: { world: THREE.Object3D }) {
       const firma = JSON.stringify(f), antes = vivas.get(key);
       if (antes && antes.firma === firma) return;
       quitar(key);
-      const m = new Malla(); HACER[f.forma](m, f);
+      const m = new Malla(); (HACER[f.forma] ?? cubo)(m, f); // an unknown shape name is drawn as the safe default, the cube
       const malla = new THREE.Mesh(m.geometria(), material);
       malla.name = `forma:${key}`; malla.userData.sinSombra = true; malla.userData.pulsable = f.forma !== "suelo" && key.includes(":"); // a click on it (not on a zone's floor) opens its card malla.frustumCulled = true;
       malla.position.set(f.x, 0, f.z); malla.rotation.y = f.rumbo ?? 0;

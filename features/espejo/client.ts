@@ -7,6 +7,8 @@
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg } from "../../packages/feature/src/index.ts";
 import { espejo as decl } from "./feature.ts";
+import { TIPOS } from "./esquema.ts";
+import type { Tipo } from "./esquema.ts";
 
 export type EstadoCosa = "activo" | "programado" | "pausado" | "fallo" | "apagado" | "desconocido";
 export type Cosa = { clave: string; tipo: string; id: string; titulo: string; subtitulo: string; estado: EstadoCosa; zona: string; x: number; z: number; acciones: string[] };
@@ -35,12 +37,55 @@ export function estadoDeForma(tipo: string, estado: EstadoCosa): "off" | "starti
   if (tipo === "sesion") return estado === "activo" ? "on" : "off";
   return estado === "activo" || estado === "programado" ? "on" : "off";
 }
+/** The word for the state of a thing, by kind: a profile (an agent) works, rests or is off; anything else uses the house words. Pure. */
+export function textoEstadoDe(tipo: string, estado: EstadoCosa): string {
+  if (tipo === "perfil") return estado === "activo" ? "trabajando" : estado === "apagado" ? "apagado" : estado === "fallo" ? "con fallo" : "en reposo";
+  return TEXTO_ESTADO[estado] ?? TEXTO_ESTADO.desconocido;
+}
+
+/** What the spend card knows, read from the thing's subtitle: `33,8 M tokens · $1,654.69 est. · 1329 ses. · 30 d · modelo` (the plugin's wording; a segment
+ *  «caché 4.302 M» is the cache, apart). Everything is optional: a subtitle that says none of it gives empty fields and the whole text in `otros`. Pure; it never throws. */
+export type LecturaUso = { tokens: number | null; tokensTexto: string; cacheTexto: string; costeTexto: string; otros: string[] };
+const ESCALA: Record<string, number> = { "": 1, k: 1e3, M: 1e6, G: 1e9 };
+export function numeroConEscala(t: string): number | null {
+  const m = /^\s*([0-9][0-9.,]*)\s*([kMG]?)\s*$/.exec(t); if (!m) return null;
+  const n = Number(m[1].includes(",") && !m[1].includes(".") ? m[1].replace(",", ".") : m[1].replace(/,/g, ""));
+  return Number.isFinite(n) ? n * ESCALA[m[2]] : null;
+}
+export function leerUso(subtitulo: string): LecturaUso {
+  const r: LecturaUso = { tokens: null, tokensTexto: "", cacheTexto: "", costeTexto: "", otros: [] };
+  for (const seg of String(subtitulo ?? "").split("·").map((s) => s.trim()).filter(Boolean)) {
+    let m: RegExpExecArray | null;
+    if ((m = /^cach[eé]\s+(.+?)(?:\s+tokens?)?$/i.exec(seg))) { if (!r.cacheTexto) r.cacheTexto = `${m[1]} tokens`; }
+    else if ((m = /^(.+?)\s+tokens?$/i.exec(seg)) && numeroConEscala(m[1]) !== null) { if (r.tokens === null) { r.tokens = numeroConEscala(m[1]); r.tokensTexto = `${m[1]} tokens`; } else r.otros.push(seg); }
+    else if ((m = /^(?:US)?\$\s*([0-9][0-9.,]*)(?:\s*est\.?|\s*estimado)?$/i.exec(seg))) { if (!r.costeTexto) r.costeTexto = `$${m[1]}`; }
+    else r.otros.push(seg);
+  }
+  return r;
+}
+/** The lines of a card under its title, in Spanish. For spend: tokens in + out and the cache APART (it is far larger and would hide the rest), the cost always
+ *  as an estimate, the rest as the source wrote it. For any other kind: its subtitle. Pure. */
+export function detalleDe(c: Pick<Cosa, "tipo" | "subtitulo">): string[] {
+  if (c.tipo !== "uso") return c.subtitulo ? [c.subtitulo] : [];
+  const u = leerUso(c.subtitulo), l: string[] = [];
+  if (u.tokensTexto) l.push(`Entrada y salida: ${u.tokensTexto}`);
+  if (u.cacheTexto) l.push(`Caché (aparte): ${u.cacheTexto}`);
+  if (u.costeTexto) l.push(`Coste estimado: ${u.costeTexto} (estimado, no es lo facturado)`);
+  if (u.otros.length) l.push(u.otros.join(" · "));
+  return l.length ? l : c.subtitulo ? [c.subtitulo] : [];
+}
+/** How full a spend meter is: its tokens over the largest in the world (0..1), or null when it states none (then the meter is drawn empty). Pure. */
+export function nivelDeUso(c: Pick<Cosa, "tipo" | "subtitulo">, todas: Iterable<Pick<Cosa, "tipo" | "subtitulo">>): number | null {
+  const t = leerUso(c.subtitulo).tokens; if (t === null) return null;
+  let max = 0; for (const o of todas) if (o.tipo === "uso") max = Math.max(max, leerUso(o.subtitulo).tokens ?? 0);
+  return max > 0 ? Math.min(1, t / max) : null;
+}
 /** A steady number 0..1 from a key (where a clock's hand points, so each one looks its own). Pure. */
 export function manoDe(clave: string): number {
   let h = 2166136261; for (let i = 0; i < clave.length; i++) { h ^= clave.charCodeAt(i); h = Math.imul(h, 16777619); }
   return ((h >>> 0) % 1000) / 1000;
 }
-const ALTO_ROTULO: Record<string, number> = { cron: 3.1, sesion: 2.9, salud: 2.9 };
+const ALTO_ROTULO: Record<string, number> = { cron: 3.1, sesion: 2.9, salud: 2.9, perfil: 2.7, uso: 3.1 };
 
 /** One per page (tests make one per client). */
 export function crearCliente() {
@@ -70,17 +115,18 @@ export function crearCliente() {
     const v = A?.view;
     if (!v) return;
     if (!c) { v.forma?.(`espejo:${clave}`, null); v.tag?.(`espejo:${clave}`, null); return; }
-    const forma = c.tipo === "cron" ? "reloj" : c.tipo === "salud" ? "losa" : "cubo";
-    v.forma?.(`espejo:${clave}`, { forma, x: c.x, z: c.z, estado: estadoDeForma(c.tipo, c.estado), rumbo: 0, ...(forma === "reloj" ? { mano: manoDe(clave) } : {}), ...(forma === "losa" ? { luces: luces() } : {}) });
-    v.tag?.(`espejo:${clave}`, { text: c.titulo, sub: TEXTO_ESTADO[c.estado], x: c.x, y: ALTO_ROTULO[c.tipo] ?? 3, z: c.z });
+    const forma = c.tipo === "cron" ? "reloj" : c.tipo === "salud" ? "losa" : c.tipo === "perfil" ? "perfil" : c.tipo === "uso" ? "uso" : "cubo";
+    v.forma?.(`espejo:${clave}`, { forma, x: c.x, z: c.z, estado: estadoDeForma(c.tipo, c.estado), rumbo: 0, ...(forma === "reloj" ? { mano: manoDe(clave) } : {}), ...(forma === "losa" ? { luces: luces() } : {}), ...(forma === "perfil" && c.estado === "apagado" ? { discontinuo: true } : {}), ...(forma === "uso" ? { nivel: nivelDeUso(c, cosas.values()) ?? 0 } : {}) });
+    // a spend meter is labelled with its tokens (what it measures); anything else with its state, in the house words
+    const pie = c.tipo === "uso" ? leerUso(c.subtitulo).tokensTexto || textoEstadoDe(c.tipo, c.estado) : textoEstadoDe(c.tipo, c.estado);
+    v.tag?.(`espejo:${clave}`, { text: c.titulo, sub: pie, x: c.x, y: ALTO_ROTULO[c.tipo] ?? 3, z: c.z });
   };
   /** The floors of the zones (a white edge on the black ground; dashed when everything the zone shows is switched off) and their signs. */
   const dibujarZonas = () => {
     const v = A?.view;
     if (!v || !vista) return;
-    const FUNC: Record<string, string> = { salud: "salud", cron: "cron", sesion: "sesiones", mensaje: "chat" };
     for (const z of vista.zonas) {
-      const encendida = z.tipos.some((t) => vista!.funciones[FUNC[t] ?? t] === true);
+      const encendida = z.tipos.some((t) => vista!.funciones[TIPOS[t as Tipo] ?? t] === true);
       v.forma?.(`espejo:zona:${z.id}`, { forma: "suelo", x: z.x, z: z.z, estado: encendida ? "on" : "off", ancho: z.ancho, fondo: z.fondo, discontinuo: !encendida });
       v.tag?.(`espejo:zona:${z.id}`, { text: z.cartel || z.nombre, sub: encendida ? "" : "apagada", x: z.x, y: 3.6, z: z.z + z.fondo / 2 - 0.5 });
     }
@@ -117,6 +163,7 @@ export function crearCliente() {
     api.state.onChange((clave, v) => {
       if (v) cosas.set(clave, leer(clave, v)); else cosas.delete(clave);
       dibujar(v ? cosas.get(clave)! : null, clave);
+      if ((clave.split("/")[0]) === "uso") for (const o of cosas.values()) if (o.tipo === "uso" && o.clave !== clave) dibujar(o, o.clave); // the meters are relative to the largest
       avisar("cosas", clave);
     });
     if (vista) dibujarZonas();
