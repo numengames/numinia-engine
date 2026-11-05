@@ -98,7 +98,6 @@ import { ancestros } from "../../features/ancestros/client.ts"; // ancestros v1:
 import { montarAncestros } from "./ancestros.ts";
 import { montarVoz } from "./voz.ts";
 import { montarSubtitulosPuerta } from "./subtitulos-puerta.ts"; // V13: voice subtitles (name + direction), loaded on first use
-import { anguloRelativo } from "./subtitulos-logica.ts";
 import { montarPantalla } from "./pantalla.ts";
 import { montarCondicionesPuerta } from "./condiciones-puerta.ts"; // condiciones/c3: the bubble of entry (only when the world's gate is on; the server decides). t_45ef2f70: its façade now (holds the page while the offer is on and the bubble is not here); the bubble itself loads after the first frame
 import { montarGraboso } from "./graboso.ts"; // M18b: the relic that records what you see (K)
@@ -446,7 +445,7 @@ alPrimerCuadro(() => import("./sonidos.ts").then(async (m) => { // t_45ef2f70: t
 const subtitulos = montarSubtitulosPuerta({
   activo: () => leerAjuste("accesibilidad.subtitulosVoz") === true,
   nombre: (q) => chatDePagina.nombres.get(q) ?? null,
-  relativa: (q) => { const r = session.entity < 0 ? undefined : session.remotePositions().find((x) => x.id === q); if (!r) return null; const y = session.selfPosition(1); return { angulo: anguloRelativo(view.cam.yaw(), y, r), dist: Math.hypot(r.x - y.x, r.z - y.z) }; },
+  relativa: (q) => { const r = session.entity < 0 ? undefined : session.remotePositions().find((x) => x.id === q); if (!r) return null; return { yaw: view.cam.yaw(), yo: session.selfPosition(1), otro: r }; },
   campoH: () => (360 / Math.PI) * Math.atan(Math.tan(Math.PI / 6) * (innerWidth / Math.max(1, innerHeight))), // vertical field assumed 60°
 });
 const voz = montarVoz({ subtitulos, session, view: { label: (t, text, ms) => view.label(t, text, ms), cam: view.cam, voz: (id, nivel) => view.voz(id, nivel) }, escribiendo, ajuste: leerAjuste, vr: { activo: () => view.vr.active, cerrada: () => condiciones.cerrada(), nota: (t) => view.vr.nota(t) }, decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } } });

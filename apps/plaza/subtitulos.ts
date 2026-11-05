@@ -47,8 +47,8 @@ export type OpcionesSubtitulos = {
   activo(): boolean;
   /** The name «Gente» shows for this entity, or null. */
   nombre(entidad: number): string | null;
-  /** Where that person is as seen from your camera: angle (0 = ahead, + = right, radians) and metres; null = unknown. */
-  relativa(entidad: number): { angulo: number; dist: number } | null;
+  /** Where that person and you stand, and where the camera looks (yaw): the angle and distance are worked out here, so the page's first load does not carry the maths. null = unknown. */
+  relativa(entidad: number): { yaw: number; yo: { x: number; z: number }; otro: { x: number; z: number } } | null;
   /** Horizontal field of view of the camera, in degrees. */
   campoH(): number;
 };
@@ -106,7 +106,8 @@ export function montarSubtitulos(o: OpcionesSubtitulos) {
       c.icono.innerHTML = ALTAVOZ; c.donde.textContent = "escenario"; c.el.classList.remove("lejos");
       return;
     }
-    const r = o.relativa(c.entidad);
+    const q = o.relativa(c.entidad);
+    const r = q ? { angulo: anguloRelativo(q.yaw, q.yo, q.otro), dist: Math.hypot(q.otro.x - q.yo.x, q.otro.z - q.yo.z) } : null;
     if (!r) { c.sector = null; c.icono.innerHTML = ""; c.donde.textContent = ""; return; }
     c.lejos = esLejos(r.dist, c.lejos);
     if (aLaVista(r.angulo, o.campoH())) { // you can see them: just the name (their avatar already says «habla»)
