@@ -6,7 +6,22 @@
 //     more than `niveles` steps is hidden (declutter by distance: the far ones give way to the near ones)
 
 /** A plate on the screen: `cx` centre x, `cy` bottom y, `w` width, `h` height (all NDC), `d` the distance to the viewer (m), `clave` its key. */
-export type Placa = { clave: string; cx: number; cy: number; w: number; h: number; d: number };
+export type Placa = { clave: string; cx: number; cy: number; w: number; h: number; d: number;
+  /** The screen box of the plate's own figure (`y1` its top): the plate's bottom is kept above it while they overlap sideways. */
+  figura?: { x0: number; x1: number; y1: number } };
+/** Options of `apilar`: `tope` = highest y a plate's top edge may reach (the screen's edge; beyond it the plate goes on rising and ends hidden);
+ *  `previos` = the levels of the last frame: a plate that was shown last time is treated as a bit nearer, so two plates at almost the same distance do not trade places (flicker). */
+export type OpcionesApilar = { tope?: number; previos?: ReadonlyMap<string, number> };
+/** How much nearer (factor) a plate shown in the last frame counts, to stop flicker. */
+export const HISTERESIS = 0.85;
+/** Margin kept to the screen's edge (NDC). */
+export const MARGEN_PANTALLA = 0.02;
+
+/** Keep a plate of width `w` centred at `cx` inside the screen (-1..1) with `margen` to spare; wider than the screen: centred. */
+export function acotarX(cx: number, w: number, margen = MARGEN_PANTALLA): number {
+  const libre = 1 - margen - w / 2;
+  return libre <= 0 ? 0 : Math.min(libre, Math.max(-libre, cx));
+}
 /** Level of each plate: 0 = where it is, n = n plate heights up, -1 = hidden. */
 export type Niveles = Map<string, number>;
 
@@ -17,13 +32,15 @@ export const HUECO_NDC = 0.012;
 const choca = (a: { x0: number; x1: number; y0: number; y1: number }, b: { x0: number; x1: number; y0: number; y1: number }): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
 
 /** Stack plates (any order in; nearest first is decided here). Never mutates its input. Deterministic: ties by key. */
-export function apilar(placas: readonly Placa[], niveles = NIVELES_MAX): Niveles {
+export function apilar(placas: readonly Placa[], niveles = NIVELES_MAX, opc: OpcionesApilar = {}): Niveles {
   const fuera: Niveles = new Map(), puestas: { x0: number; x1: number; y0: number; y1: number }[] = [];
-  for (const p of [...placas].sort((a, b) => a.d - b.d || (a.clave < b.clave ? -1 : 1))) {
+  const dd = (p: Placa) => ((opc.previos?.get(p.clave) ?? -1) >= 0 ? p.d * HISTERESIS : p.d);
+  for (const p of [...placas].sort((a, b) => dd(a) - dd(b) || (a.clave < b.clave ? -1 : 1))) {
     let n = 0;
     for (; n <= niveles; n++) {
       const y0 = p.cy + n * (p.h + HUECO_NDC), r = { x0: p.cx - p.w / 2, x1: p.cx + p.w / 2, y0, y1: y0 + p.h };
-      if (!puestas.some((q) => choca(r, q))) { puestas.push(r); break; }
+      const f = p.figura, tapa = !!f && r.x0 < f.x1 && f.x0 < r.x1 && y0 < f.y1; // would sit over its own figure
+      if (!tapa && !(opc.tope !== undefined && r.y1 > opc.tope) && !puestas.some((q) => choca(r, q))) { puestas.push(r); break; }
     }
     fuera.set(p.clave, n > niveles ? -1 : n);
   }

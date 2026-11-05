@@ -60,7 +60,7 @@ import { createBurbujas } from "./burbujas.ts"; // ia-llamar S9: the action bubb
 import { burbujasMax } from "./burbujas-politica.ts";
 import { createPompas } from "./pompas.ts"; // condiciones/c5: the bubble over someone who is still reading the norms
 import { elegirMirado, escalaAcotada, nombreVisible, NOMBRE_GRADOS_MAX, type Mirable } from "./carteles.ts";
-import { apilar, levantarSobre, escalaPlacaPx, opacidadPlaca, HUECO_NDC, type Placa } from "./rotulos-apilar.ts";
+import { apilar, acotarX, levantarSobre, escalaPlacaPx, opacidadPlaca, HUECO_NDC, MARGEN_PANTALLA, type Placa } from "./rotulos-apilar.ts";
 export { NOMBRE_VISIBLE_M, NOMBRES_DIBUJADOS, BOCADILLO_VISIBLE_M } from "./nombres.ts";
 import { crearCenital } from "./cenital.ts";
 export type { Huella, ImagenCenital } from "./cenital.ts";
@@ -579,6 +579,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   }
   /** mundo-hermes: how far (m) a flat plate that is `siempre` is shown by itself. */
   const PLACA_SIEMPRE_M = 14;
+  let nivelesUlt: Map<string, number> = new Map();
   let placasUltimas: { clave: string; nivel: number; x0: number; x1: number; y0: number; h: number }[] = [];
   const vP = new THREE.Vector3(), planas: { k: string; r: Rotulo; d: number; e: number }[] = [];
   /** mundo-hermes: the flat plates on screen keep clear of their own figure (the plate's bottom rises until it is above the figure's top as the camera sees it)
@@ -587,27 +588,30 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     camera.updateMatrixWorld(); camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
     const pm = camera.projectionMatrix.elements;
     const ndc = (x: number, y: number, z: number): { x: number; y: number; prof: number } | null => { vP.set(x, y, z).applyMatrix4(camera.matrixWorldInverse); const prof = -vP.z; if (prof < 0.2) return null; vP.applyMatrix4(camera.projectionMatrix); return { x: vP.x, y: vP.y, prof }; };
-    const placas: Placa[] = [], subida = new Map<string, number>(), alto = new Map<string, number>();
+    const placas: Placa[] = [], subida = new Map<string, number>(), alto = new Map<string, number>(), ancho = new Map<string, number>();
     for (const { k, r, d, e } of lista) {
       const y0 = r.s.position.y, base = ndc(r.x, y0, r.z);
       if (!base) continue; // behind the camera or on top of it: leave it as it is
       const wM = ROT_ANCHO * ROT_M * e, hM = (r.s.userData.alto as number) * e;
       const w = (wM * pm[0]) / base.prof, h = (hM * pm[5]) / base.prof;
-      let cy = base.y, k0 = 0;
+      let cy = base.y, k0 = 0, figura: Placa["figura"];
+      const cx = acotarX(base.x, w); ancho.set(k, w); // a plate never leaves the screen: it slides sideways (its figure stays where it is)
       if (r.tope !== undefined) { // clear of the figure: raise in 0.1 m steps until the bottom is above the figure's top on the screen
         const techo = ndc(r.x, r.tope, r.z), paso = ndc(r.x, y0 + 0.1, r.z);
-        if (techo && paso) { k0 = levantarSobre(base.y, techo.y, 0.03, paso.y - base.y, 40); cy = base.y + k0 * (paso.y - base.y); }
+        if (techo && paso) { k0 = levantarSobre(base.y, techo.y, 0.03, paso.y - base.y, 40); cy = base.y + k0 * (paso.y - base.y); figura = { x0: base.x - 0.3 * pm[0] / base.prof, x1: base.x + 0.3 * pm[0] / base.prof, y1: techo.y + 0.03 }; }
       }
       subida.set(k, k0 * 0.1); alto.set(k, hM);
-      placas.push({ clave: k, cx: base.x, cy, w, h, d });
+      placas.push({ clave: k, cx, cy, w, h, d, figura });
     }
-    const niveles = apilar(placas);
+    const niveles = apilar(placas, undefined, { tope: 1 - MARGEN_PANTALLA, previos: nivelesUlt }); nivelesUlt = niveles;
     placasUltimas = placas.map((p) => ({ clave: p.clave, nivel: niveles.get(p.clave) ?? 0, x0: p.cx - p.w / 2, x1: p.cx + p.w / 2, y0: p.cy + Math.max(0, niveles.get(p.clave) ?? 0) * (p.h + HUECO_NDC), h: p.h }));
     for (const { k, r } of lista) {
       const n = niveles.get(k);
       if (n === undefined) continue;
       if (n < 0) { r.s.visible = false; continue; }
       r.s.position.y += (subida.get(k) ?? 0) + n * (alto.get(k) ?? 0) * 1.1;
+      const f = ndc(r.x, r.s.position.y, r.z), w = ancho.get(k); // where it ends up (lifted, so deeper or nearer): slide it into the screen from THERE
+      if (f && w) { const dx = ((acotarX(f.x, w) - f.x) * f.prof) / pm[0], m = camera.matrixWorld.elements; r.s.position.x = r.x + m[0]! * dx; r.s.position.z = r.z + m[2]! * dx; } // absolute: x and z are only written when the thing changes
     }
   }
 
