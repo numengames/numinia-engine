@@ -60,7 +60,7 @@ import { createBurbujas } from "./burbujas.ts"; // ia-llamar S9: the action bubb
 import { burbujasMax } from "./burbujas-politica.ts";
 import { createPompas } from "./pompas.ts"; // condiciones/c5: the bubble over someone who is still reading the norms
 import { elegirMirado, escalaAcotada, nombreVisible, NOMBRE_GRADOS_MAX, type Mirable } from "./carteles.ts";
-import { apilar, levantarSobre, HUECO_NDC, type Placa } from "./rotulos-apilar.ts";
+import { apilar, levantarSobre, escalaPlacaPx, opacidadPlaca, HUECO_NDC, type Placa } from "./rotulos-apilar.ts";
 export { NOMBRE_VISIBLE_M, NOMBRES_DIBUJADOS, BOCADILLO_VISIBLE_M } from "./nombres.ts";
 import { crearCenital } from "./cenital.ts";
 export type { Huella, ImagenCenital } from "./cenital.ts";
@@ -566,7 +566,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       if (quiere && r.listo === 0) enlazarRotulo(r); // its program links off the frame; the plate shows when it is done (a few frames)
       r.s.visible = quiere && r.listo === 2;
       if (!r.s.visible) continue;
-      const e = escalaAcotada(1, alto, d, NOMBRE_GRADOS_MAX); // whole plate (mark, trade) shrinks with its name line
+      const opaca = r.plano ? opacidadPlaca(d) : 1; // mundo-hermes: a flat plate fades from 32 m and is gone at 40 m
+      if (opaca <= 0) { r.s.visible = false; continue; }
+      if (r.plano) { r.s.material.transparent = true; r.s.material.opacity = opaca; }
+      const me = camera.matrixWorld.elements, prof = -((r.x - me[12]!) * me[8]! + (r.y - me[13]!) * me[9]! + (r.z - me[14]!) * me[10]!); // depth along the view axis: what the pixels follow
+      const e = r.plano ? escalaPlacaPx(ROT_ANCHO * ROT_M, prof > 0.2 ? prof : d, (camera.projectionMatrix.elements[0] ?? 1) * (renderer.domElement.clientWidth || innerWidth) / 2) // mundo-hermes: a flat plate is 90 to 220 px wide on the screen, whatever the distance
+        : escalaAcotada(1, alto, d, NOMBRE_GRADOS_MAX); // whole plate (mark, trade) shrinks with its name line
       r.s.scale.set(ROT_ANCHO * ROT_M * e, r.s.userData.alto * e, 1);
       if (r.plano) { r.s.position.y = r.y - (ROT_NOMBRE / 2) * ROT_M; planas.push({ k, r, d, e }); }
     }

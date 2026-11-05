@@ -36,3 +36,23 @@ export function levantarSobre(fondoPlaca: number, techoFigura: number, margen: n
   const falta = techoFigura + margen - fondoPlaca;
   return falta <= 0 || !(pasoNdc > 0) ? 0 : Math.min(maxPasos, Math.ceil(falta / pasoNdc));
 }
+
+/** Screen-space size of a flat plate (px wide): never smaller than the minimum (still readable far away) nor larger than the maximum (never a wall over the figures). */
+export const PLACA_MIN_PX = 90, PLACA_MAX_PX = 220;
+/** Beyond this distance (m) a flat plate is not drawn; from `PLACA_DESVANECE_M` it fades out linearly. */
+export const PLACA_VER_M = 40, PLACA_DESVANECE_M = 32;
+
+/** The scale factor (1 = the plate's natural width `anchoM`) that makes the plate `anchoM * e * focalPx / dist` pixels wide, clamped to [minPx, maxPx].
+ *  `focalPx` = projection[0] * viewportWidth / 2. Returns 1 for a distance or focal length that is not positive (nothing sensible to clamp). Pure. */
+export function escalaPlacaPx(anchoM: number, dist: number, focalPx: number, minPx = PLACA_MIN_PX, maxPx = PLACA_MAX_PX): number {
+  if (!(anchoM > 0) || !(dist > 0) || !(focalPx > 0)) return 1;
+  const natural = (anchoM * focalPx) / dist, lo = Math.min(minPx, maxPx), hi = Math.max(minPx, maxPx);
+  return Math.min(hi, Math.max(lo, natural)) / natural;
+}
+
+/** Opacity of a flat plate by distance: 1 up to `desde`, then linearly to 0 at `hasta` (0 = do not draw). Pure. */
+export function opacidadPlaca(dist: number, desde = PLACA_DESVANECE_M, hasta = PLACA_VER_M): number {
+  if (!(dist < hasta)) return 0;
+  if (dist <= desde) return 1;
+  return (hasta - dist) / (hasta - desde);
+}

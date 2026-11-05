@@ -205,6 +205,10 @@ export async function correr() {
         assert.equal(solapa, false, `plates ${a.clave} and ${b.clave} overlap`);
       }
       assert.ok(placas.some((q) => q.nivel === 0 && q.visible), "the nearest plates keep their place");
+      // (b) screen-space size clamp 90..220 px wide (a few % of slack: the plate is projected at its own depth), nothing drawn beyond 40 m
+      const info = await p.evaluate(() => { const n = globalThis.__numinia, s = n.session.selfPosition(1), cs = new Map(n.espejo.cosas().map((c) => [`espejo:${c.tipo}/${c.id}`, c])); return { ancho: innerWidth, s, lejos: n.view.placas().filter((q) => q.visible).map((q) => { const c = cs.get(q.clave); return c ? Math.hypot(c.x - s.x, c.z - s.z) : 0; }) }; });
+      for (const q of vis) { const w = ((q.x1 - q.x0) / 2) * info.ancho; assert.ok(w >= 90 * 0.93 && w <= 220 * 1.07, `plate ${q.clave} is ${w.toFixed(0)} px wide (want 90..220)`); }
+      assert.ok(info.lejos.every((d) => d <= 40), `a plate is drawn beyond 40 m: ${info.lejos.join(", ")}`);
       await p.context().close();
     });
 
