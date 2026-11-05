@@ -96,7 +96,7 @@ export type ServerOptions = {
   aparicion?: SpawnArea | null;  // where people appear (entorno.json `aparicion`, read by the composition root); none = the house square of 40 m
   vuelo?: "nadie" | "constructores" | "todos" | null; // H2: entorno.json `vuelo` (read by the composition root); none = nobody flies
   suelo?: Suelo | null;          // D-045: entorno.json `sueloMinimo` + `vuelta` (read by the composition root); none = no void
-  espejo?: unknown; // mundo-hermes: what the page may know of the espejo (zones, which functions are on: features/espejo `vistaPublica`), told in /status; absent = no mirror
+  espejo?: () => unknown; // mundo-hermes: what the page may know of the espejo (zones, which functions are on: features/espejo `vistaPublica`), told in /status; asked on each request because the features read their file when the instance starts, after these options are made; absent or null = no mirror
   enlaceDardos?: { servidor: string; diana: string } | null; // dardos enlazados (E1): the darts link this world's AR uses (dardos.json `enlace`, read by the composition root), told to the page in /status; null = off; undefined = not said (the page uses the house link)
   dondeCodigo?: string;          // where the administration code can be read (the /mundo page says it; never the code)
   www?: string | null;           // C1: the built page (WWW_DIR) served on / by the engine itself; null = none (Caddy or vite serve it)
@@ -364,7 +364,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
         // t_06071dee: this world has a LEEME-IA.md for AIs (GET /leeme-ia); absent = it has none
         ...(leerLeemeIA(o.aventura ?? null).texto !== null ? { leemeIA: true } : {}),
         // dardos enlazados (E1): where a page of this world sends its AR darts (the Alchemist Tower's board unless dardos.json says otherwise); null = nowhere
-        ...(o.espejo ? { espejo: o.espejo } : {}),
+        ...(o.espejo?.() ? { espejo: o.espejo() } : {}),
         ...(o.enlaceDardos !== undefined ? { dardosEnlace: o.enlaceDardos } : {}), ...(visitas ? { visitas } : {}),
         // E3: the world's own avatars (name, licence, credit): the picker of THIS world offers them; absent when it has none
         ...(avataresMundo.length ? { avatares: avataresMundo } : {}),

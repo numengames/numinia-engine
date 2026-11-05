@@ -193,6 +193,7 @@ const session = new ClientSession(transport, {
     bubble: (e, text, ms) => view.bubble(e === session.entity ? "self" : e, text, ms),
     // J5: a name that stays over a person of the world
     tag: (key, t) => view.tag(key, t),
+    forma: (key, f) => view.forma(key, f), // mundo-hermes: the flat shapes of the espejo
     marcador: (key, t) => view.marcador(key, t), // P4: evidence markers (features/misiones)
     // H4/H8: the zone's environment and its elements (water, fire, smoke, dust)
     entorno: (v) => { view.entorno.aplicar(v); view.cam.mundo(v); }, // P1: the same values carry the world's camera (camaraInicio, camaraMax, llegadaGira, llegadaGiro)

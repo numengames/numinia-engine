@@ -8,3 +8,10 @@
 - Consumo: sin medir · claude-sonnet-5-5.
 - Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
 - Siguiente: el adaptador del plugin (carril P) y la vista de las zonas (dibujo plano en blanco y negro).
+
+## 2026-11-05 15:00 · mundo-hermes · Mundo plano y táctil de Hermes · hecho
+- Qué: la plantilla `hermes` trae su planta (`entorno/espejo.json`: umbral con el panel de interruptores, reloj, sesiones y plaza; solo `salud` nace encendida) y un suelo negro; lo que llega de fuera sin posición se coloca solo en la cuadrícula de su zona (4 m, desde el centro) y la fuente no puede quitar ni cambiar el panel; el cliente dibuja cada cosa como una forma plana en blanco y negro hecha por código (reloj, cubo, losa con una lámpara por interruptor, borde de zona discontinuo si la función está apagada), con su rótulo en castellano; mirar una cosa (E o tocar) abre su ficha con un botón por verbo y confirmación en dos pasos; `/status` cuenta a la página las zonas y los interruptores. Arreglo: el servidor no abría el enlace local porque buscaba la pieza antes de que arrancara.
+- Números: 2865 pruebas en verde, 0 mal; página 628.1 kB gz · 530.4 kB br (tope 536); formas planas en un trozo aparte que solo se baja con la primera cosa; huella de los mundos sin espejo intacta.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: el adaptador del plugin con `pedir` real (carril P) y el dibujo definitivo de la planta (Pablo).

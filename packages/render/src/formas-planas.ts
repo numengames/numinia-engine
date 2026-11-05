@@ -113,7 +113,7 @@ function losa(m: Malla, f: FormaPlana): void {
 
 /** The floor of a zone: the white edge as a flat strip on the ground (dashed: 1 m on, 1 m off). */
 function suelo(m: Malla, f: FormaPlana): void {
-  const w = (f.ancho ?? 10) / 2, d = (f.fondo ?? 10) / 2, e = 0.14, y = 0.03;
+  const w = (f.ancho ?? 10) / 2, d = (f.fondo ?? 10) / 2, e = 0.2, y = 0.05;
   const tira = (x0: number, z0: number, x1: number, z1: number) => { // along the longer axis, the strip lies flat (y up)
     const l = Math.hypot(x1 - x0, z1 - z0), paso = f.discontinuo ? 1 : l;
     for (let t = 0; t < l - 1e-6; t += paso * (f.discontinuo ? 2 : 1)) {
@@ -130,7 +130,7 @@ function suelo(m: Malla, f: FormaPlana): void {
 const HACER = { reloj, cubo, losa, suelo } as const;
 
 export function crearFormas(h: { world: THREE.Object3D }) {
-  const material = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, toneMapped: false, fog: false });
+  const material = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, toneMapped: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }); // the offset: a floor edge 3 cm over the ground must win against it from far away
   const vivas = new Map<string, { malla: THREE.Mesh; firma: string }>();
   let restantes = 0;
   const quitar = (key: string) => { const v = vivas.get(key); if (!v) return; h.world.remove(v.malla); v.malla.geometry.dispose(); vivas.delete(key); restantes = 45; };
