@@ -1,4 +1,5 @@
 // The PP1 page: one plaza, your capsule, everyone else's, and the determinism probe.
+import "./almacen-guarda.ts"; // M7/M8: first of all: in a frame, storage that throws (sandbox) becomes a memory copy before anything else runs; an unframed page loads nothing extra
 import { montarSolReal } from "./sol-real.ts";
 import { alPrimerCuadro, primerCuadroDado } from "./primer-cuadro.ts"; // t_45ef2f70: what the first frame does not need waits for it
 import { ponerFuentes } from "./fuentes.ts";
@@ -67,6 +68,7 @@ import { elementos } from "../../features/elementos/client.ts";
 import { ajusteDeEstado, enlaceVigente } from "../../features/dardos/enlace.ts"; // dardos enlazados (E1): the setting only (a few lines); the connection is its own chunk (./dardos-enlace.ts)
 import { dardos } from "../../features/dardos/client.ts"; // dardos v1: the controller; its throwing view (apps/plaza/dardos.ts) loads with the first board
 import { lucha } from "../../features/lucha/client.ts"; // L1: the controller (golpear); the creature is drawn by view.place like any thing
+import { espejo as espejoCtl, interruptor as interruptorEspejo } from "../../features/espejo/client.ts"; // mundo-hermes: the controller (tiny); its card (apps/plaza/espejo.ts) loads with the first answer to «mirar»
 import { pesca } from "../../features/pesca/client.ts"; // pesca v1: the controller; its HUD (apps/plaza/pesca.ts) and 3D load with the first spot
 import { bienes, comprobar } from "../../features/bienes/client.ts"; // N10: goods that are yours (signed receipt), in the sheet's «Inventario»
 import { montarBienes } from "./bienes.ts";
@@ -149,7 +151,7 @@ let sonarServidor: (s: PeticionSonido) => boolean = (s) => catalogoSonidos.suena
 // del catálogo que suena como cama única en bucle (hoy «ambiente-numinia», el colchón CC0); `ambiente_ganancia` = su
 // volumen (×0,042 por defecto, el que quiso su autor); `ambiente_sintetizado` = las camas y capas SINTETIZADAS que
 // este mundo enciende por nombre (de serie, ninguna).
-type Estado = { dardosEnlace?: unknown; version?: string; nombre?: string; tema?: unknown; interfaz?: unknown; avatar?: string; avatares?: unknown; aforo?: number; conectados?: number;
+type Estado = { temaHud?: unknown; espejo?: unknown; dardosEnlace?: unknown; version?: string; nombre?: string; tema?: unknown; interfaz?: unknown; avatar?: string; avatares?: unknown; aforo?: number; conectados?: number;
   audio?: { ambiente?: string | null; ambiente_ganancia?: number; ambiente_sintetizado?: string[]; avisos?: Record<string, string> } };
 const estadoP: Promise<Estado | null> = fetch(`${activos}/status`).then((r) => r.json() as Promise<Estado>).catch(() => null);
 const estado = await Promise.race([estadoP, new Promise<null>((ok) => setTimeout(() => ok(null), 1500))]);
@@ -192,6 +194,8 @@ const session = new ClientSession(transport, {
     bubble: (e, text, ms) => view.bubble(e === session.entity ? "self" : e, text, ms),
     // J5: a name that stays over a person of the world
     tag: (key, t) => view.tag(key, t),
+    forma: (key, f) => view.forma(key, f), // mundo-hermes: the flat shapes of the espejo
+    moverForma: (key, x, z, r) => view.moverForma(key, x, z, r),
     marcador: (key, t) => view.marcador(key, t), // P4: evidence markers (features/misiones)
     // H4/H8: the zone's environment and its elements (water, fire, smoke, dust)
     entorno: (v) => { view.entorno.aplicar(v); view.cam.mundo(v); }, // P1: the same values carry the world's camera (camaraInicio, camaraMax, llegadaGira, llegadaGiro)
@@ -344,6 +348,7 @@ alPrimerCuadro(() => import("./entorno.ts").then((m) => m.montarEntorno(ambiente
   { id: "asientos", etiqueta: "Asientos", titulo: "Encender o apagar los asientos de este mundo («E» junto a un asiento y te sientas) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en asientos.json. / Turn the seats on or off for the whole world.", encendida: "Asientos encendidos.", apagada: "Asientos apagados.", interruptor: interruptorAsiento },
   { id: "burbujas", etiqueta: "Burbujas de voz", titulo: "Encender o apagar las burbujas de voz de este mundo (dentro de una, solo se oyen entre sí los que están dentro; es privacidad de oído, no cifrado) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en burbujas.json. / Turn the voice bubbles on or off for the whole world.", encendida: "Burbujas de voz encendidas.", apagada: "Burbujas de voz apagadas.", interruptor: interruptorBurbujas },
   { id: "dados", etiqueta: "Dados", titulo: "Encender o apagar los dados de este mundo (la torre de dados y /tirar) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en dados.json. / Turn the dice on or off for the whole world.", encendida: "Dados encendidos.", apagada: "Dados apagados.", interruptor: interruptorDados },
+  { id: "espejo", etiqueta: "Espejo de Hermes", titulo: "Encender o apagar la salud de Hermes, la lámpara maestra del panel de interruptores de este mundo, para todos. Las demás funciones se encienden con las lámparas del panel (E o clic). Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en espejo.json. / Turn Hermes' master health lamp on or off for the whole world.", encendida: "Salud de Hermes encendida.", apagada: "Salud de Hermes apagada.", interruptor: interruptorEspejo },
 ], interruptoresFunciones, { subir: (f, campo) => soltar.subirFondo(f, campo), nivel: () => view.entorno.nivel }))); // t_45ef2f70: the builder's drawer mounts after the first frame. H4b: fondo y HDR subidos; H4/H8: environment and elements, inside the builder's «Entorno» drawer (ux2-dock)
 // H7: the world's settings (title, picture, default avatar, people limit): the form below the switches (only who may), and the title in the tab follows the server
 alPrimerCuadro(() => import("./ficha-mundo.ts").then((m) => m.montarFichaMundo({ ajustes: ajustesMundo, padre: constructorUI.cajon("entorno"), avatares: catalogoAvatares?.modelos.map((x) => ({ id: x.id, nombre: x.nombre })) ?? [] })));
@@ -380,6 +385,19 @@ setTimeout(() => gente.pedir(), 3000); // once after joining: voices you silence
 viajar.alDestello((d) => view.teletransporte.lanzar({ ...d, clave: d.quien === session.entity ? "self" : d.quien }));
 const webPagina = montarWeb({ web: pantallasWeb, view }); // N17: web screens — iframe in the world (PC/phone), card + «Abrir fuera» in VR
 const ancestrosPagina = montarAncestros({ ancestros, view }); // ancestros v1: the hall in 3D, the two panels, and the law + our rule on screen when the hologram answers you
+// ---- mundo-hermes: the zones' floors and the switch lamps (/status `espejo`), and the card that opens when a thing is looked at ----
+// mundo-hermes: entorno.json `tema: "black-and-white"` (told as /status `temaHud`) dresses the HUD; any other world never loads this
+if (estado?.temaHud === "black-and-white") void Promise.all([import("./tema-byn.ts"), import("./mapa.ts")]).then(([t, m]) => { m.temaMapa(true); t.aplicarTemaByn(); }).catch((e) => console.warn(`[tema] no se pudo cargar el tema: ${(e as Error)?.message ?? e}`));
+espejoCtl.configurar(estado?.espejo);
+let espejoCard: Promise<unknown> | null = null;
+// M6 the guide: loaded when the switch `guia` is on (nothing of it is in the start bundle); the frame loop below asks her for her step
+let guiaPagina: { cuadro(dt: number): boolean } | null = null, guiaCarga = false;
+const cargarGuia = (): void => { if (guiaCarga || !espejoCtl.interruptor.activa("guia") || !espejoCtl.vista()?.guia) return; guiaCarga = true; void import("./guia.ts").then((m) => { guiaPagina = m.montarGuia({ espejo: espejoCtl, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), forma: (k, f) => view.forma(k, f), mover: (k, x, z, r) => view.moverForma(k, x, z, r) }); }).catch((e) => { guiaCarga = false; console.warn(`[guia] no se pudo cargar: ${(e as Error)?.message ?? e}`); }); };
+cargarGuia();
+espejoCtl.alCambiar(() => cargarGuia());
+// M7 embed mode: only when the page is framed AND `?embed=1` (or the world's /status says `espejo.embed`); a page that is not framed never downloads the bridge
+if (window.parent !== window && (/[?&]embed=1\b/.test(location.search) || (estado?.espejo as { embed?: boolean } | null | undefined)?.embed)) void import("./espejo-embed.ts").then((m) => m.montarEmbed({ espejo: espejoCtl })).catch((e) => console.warn(`[embed] ${String(e)}`));
+espejoCtl.alCambiar((que) => { if (que === "ficha" && espejoCtl.estado.ficha) espejoCard ??= import("./espejo.ts").then((m) => m.montarEspejo({ espejo: espejoCtl, viaje: viajar, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) })).catch((e) => console.warn(`[espejo] no se pudo cargar la ficha: ${(e as Error)?.message ?? e}`)); });
 // ---- pesca v1: nothing of it is in the start bundle; the HUD and the 3D arrive with the first fishing spot or float ----
 let pescaHud: Promise<unknown> | null = null, pescaPagina: unknown = null; // N4: pescaPagina.manos (VR rod, gamepad) for the e2e
 pesca.alCambiar(() => { if (!pesca.sitios().length) return; /* f2: fishing switched off: nothing to load */ pescaHud ??= import("./pesca.ts").then((m) => (pescaPagina = m.montarPesca({ pesca, view, session, hud: document.getElementById("pesca-hud")!, interaccion: () => interaccion }))).catch((e) => console.warn(`[pesca] no se pudo cargar la página de pesca: ${(e as Error)?.message ?? e}`)); });
@@ -711,6 +729,7 @@ montarNovedades(versionPaquete); // t_bdc2c2db: «qué hay de nuevo», una vez p
 void estadoP.then((st) => {
   if (!st) return;
   if (st.nombre) nombreDelMundo = st.nombre;
+  if (st.espejo && !estado?.espejo) espejoCtl.configurar(st.espejo); // late /status: same
   ajusteEnlace = ajusteDeEstado(st.dardosEnlace); // dardos enlazados: the link this world's server says (late /status: same)
   if (st.nombre) document.title = st.nombre; // ADR-074: the world's name (its aventura/ficha.json), also when Caddy or vite serve the page
   if (st.tema) aplicarTema(st.tema, document.documentElement); // its look: CSS variables tema.css reads; none = the house's
@@ -823,7 +842,8 @@ view.loop((now) => {
   if (probe.done && informe.primerCuadroMs && !informe.entrada) void enviarEntrada();
   // power policy (P2): skip the draw when hidden or when nothing changes; the 20 Hz ticks above never skip
   condicionesXR?.tick(); // condiciones/c4: the bubble inside the headset (nothing to do unless the bubble is up and VR is presenting)
-  const enSecuencia = misiones.cuadro(); // U14 (5): a sequence only this player sees moves its people (no work when none plays)
+  const guiaMueve = guiaPagina?.cuadro(dt) ?? false; // M6: the guide's step (false and free when she is off)
+  const enSecuencia = misiones.cuadro() || guiaMueve; // U14 (5): a sequence only this player sees moves its people (no work when none plays)
   const sig = lastSig; lastSig = signature();
   if (sig !== lastSig || keys.size > 0 || touch || view.vr.active || view.ar.state !== "off" || view.busy() || enSecuencia) lastActive = now;
   const active = now - lastActive < 600;
@@ -884,7 +904,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { pintar, gemelos, ajustesMundo, session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones, medidorVivo: medidorUI };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { pintar, gemelos, ajustesMundo, session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones, medidorVivo: medidorUI, espejo: espejoCtl };
 
 // ---- t_5cff4f06: back to the city — hidden unless this world's mundo.ajustes.json sets ciudadUrl; ux2-barra: an entry
 // of the bar's «Menú» (O), no longer a corner button ----
