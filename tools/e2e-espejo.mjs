@@ -272,6 +272,16 @@ async function correrM6() {
       assert.ok(!fuente.recibidos.some((m) => m.t === "hola" && m.funciones?.includes("guia")), "hola never lists «guia»");
       await p.context().close();
     });
+    if (process.env.E2E_SHOTS) await prueba("M6 captures (only with E2E_SHOTS=<dir>)", async () => {
+      const dir = process.env.E2E_SHOTS, foto = (p, n) => p.screenshot({ path: `${dir}/${n}.png` });
+      const p = await pagina(); await dormir(1500);
+      await irA(p, "z1"); await abrirCosa(p, "documento/guia"); await p.click('#espejo-ficha button[data-verbo="documento.abrir"]');
+      await p.waitForSelector("#visor-doc iframe"); await dormir(1200); await foto(p, "m6-biblioteca-iframe"); await p.keyboard.press("Escape");
+      await dormir(10500); await irA(p, "z4"); await dormir(2500); await foto(p, "m6-taller-habilidades");
+      await dormir(10500); await irA(p, "z9"); await dormir(2500); await foto(p, "m6-tablero");
+      await dormir(10500); await irA(p, "z0"); await abrirPanel(p); await p.click('#espejo-ficha button[data-verbo="funcion:guia"]'); await p.click('#espejo-ficha button[data-verbo="funcion:guia"]'); await p.waitForFunction(() => globalThis.__numinia.view.formas.donde("espejo:guia"), null, { timeout: 8000 }); await dormir(10500); await irA(p, "z1"); await dormir(1200); await p.keyboard.press("Escape"); await foto(p, "m6-guia");
+      await p.context().close();
+    });
   } finally { await nav.cerrar(); fuente.cerrar(); await mundo.parar(); await docs.cerrar(); await colgado.cerrar(); }
 }
 
