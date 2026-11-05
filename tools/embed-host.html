@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- embed-host: a stand-in for the Hermes Desktop plugin page (tools/e2e-embed.mjs, tools/prueba-embed-opaco.mjs). It embeds the world exactly as the
+     Desktop SandboxedFrame does: sandbox="allow-scripts allow-pointer-lock" (NO allow-same-origin), so the world runs with an opaque origin. It keeps
+     every message the world posts in window.__host.recibidos and posts to the world with window.__host.enviar(msg). Served on another loopback port than the world. -->
+<meta charset="utf-8"><title>embed-host</title>
+<style>html,body{margin:0;height:100%;background:#000}iframe{border:0;width:100%;height:100%;display:block}</style>
+<iframe id="mundo" sandbox="allow-scripts allow-pointer-lock"></iframe>
+<script>
+  const q = new URLSearchParams(location.search), f = document.getElementById("mundo");
+  const host = (window.__host = { recibidos: [], origenes: [], enviar: (m) => f.contentWindow.postMessage(m, "*"), alRecibir: null });
+  addEventListener("message", (e) => {
+    if (e.source !== f.contentWindow) return; // only the world
+    host.recibidos.push(e.data); host.origenes.push(e.origin);
+    if (host.alRecibir) host.alRecibir(e.data);
+  });
+  if (q.get("allow")) f.allow = q.get("allow"); // e.g. local-network-access (Chromium blocks loopback from an opaque origin without it)
+  f.src = q.get("mundo"); // the full URL of the world page, with its query and #fragment
+</script>

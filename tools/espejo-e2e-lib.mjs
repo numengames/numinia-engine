@@ -89,7 +89,7 @@ const TIPO_FUNCION = { sesion: "sesiones", perfil: "perfiles", mensaje: "chat", 
 export async function abrirNavegador() {
   process.env.PLAYWRIGHT_BROWSERS_PATH ??= "/var/home/uruk/arkhitektonian-lab/.cache/ms-playwright"; // cron/Hermes shells point HOME at the profile home
   const { chromium } = createRequire(import.meta.url)(process.env.PW_CORE ?? join(RAIZ, "node_modules/playwright-core"));
-  const browser = await chromium.launch({ ...(process.env.CHROME ? { executablePath: process.env.CHROME } : {}), args: ["--enable-unsafe-swiftshader", "--use-angle=swiftshader", "--no-sandbox"] });
+  const browser = await chromium.launch({ ...(process.env.CHROME ? { executablePath: process.env.CHROME } : {}), args: ["--enable-unsafe-swiftshader", "--use-angle=swiftshader", "--no-sandbox", ...(process.env.PW_ARGS ? process.env.PW_ARGS.split(" ") : [])] });
   return {
     browser,
     /** A page on the world with its own visitor. `admin` = the visitor takes the owner role (they may flip switches and ask for verbs). */
