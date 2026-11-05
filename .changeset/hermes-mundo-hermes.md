@@ -43,3 +43,9 @@
 - Consumo: sin medir · claude-sonnet-5-5.
 - Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
 - Siguiente: el verbo `perfil.activar`; el dibujo definitivo de la planta (Pablo).
+## 2026-11-05 · mundo-hermes · Documentos, habilidades, tablero y guía (M6) · hecho
+- Qué: cuatro funciones nuevas, apagadas de fábrica y con su interruptor: `documentos` (estantes en Z1 «La biblioteca»; «Abrir» pone una capa a pantalla completa con un `<iframe>` sandbox sobre una página cuyo origen está en `documentos.origenes`, comprobado en el servidor y otra vez en la página; si no responde en 6 s dice cómo arrancar el visor), `habilidades` (tablillas con lámpara en filas por grupo en Z4 «El taller»; la ficha corta la descripción a 140 caracteres), `kanban` (tablero de tres columnas dibujado por código en Z9, solo lectura) y `guia` (silueta blanca que acompaña a 3 m y dice una frase corta de «usted» al entrar en una zona o tocar una cosa; botón «Ir con la guía»). Cambio de nombres sin efecto aún: `skills`→`habilidades`, `biblioteca`→`documentos`.
+- Números: ver el registro de esta historia (pruebas 2929, tipos 291/300, e2e con las pruebas M6, página 632.6 kB gz · 534.4 kB br de 536); mundos sin espejo y sin tema idénticos a origin/main (`tools/identidad-sin-espejo.mjs`), huella f455ffc1 igual; los trozos `formas-extra`, `documento` y `guia` solo se bajan cuando aparece la cosa.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: que el plugin publique `documento`, `habilidad` y `tablero` (contrato en `docs/EXTENDER.md`); el cuerpo VRM de la guía.
