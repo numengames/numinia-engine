@@ -12,7 +12,7 @@ export type EstadoCosa = "activo" | "programado" | "pausado" | "fallo" | "apagad
 export type Cosa = { clave: string; tipo: string; id: string; titulo: string; subtitulo: string; estado: EstadoCosa; zona: string; x: number; z: number; acciones: string[] };
 /** What /status tells about the mirror (features/espejo/esquema.ts `vistaPublica`). */
 export type Vista = { zonas: { id: string; nombre: string; cartel: string; x: number; z: number; ancho: number; fondo: number; tipos: string[] }[]; funciones: Record<string, boolean> };
-export type Que = "cosas" | "ficha" | "pedido" | "resultado" | "rechazo" | "fuente";
+export type Que = "cosas" | "ficha" | "pedido" | "resultado" | "rechazo" | "fuente" | "funcion";
 type Res = { ok: true } | { ok: false; why: string };
 const SIN: Res = { ok: false, why: "el espejo no está en este servidor" };
 
@@ -23,6 +23,8 @@ export const TEXTO_VERBO: Record<string, string> = {
   "cron.pausar": "Pausar", "cron.reanudar": "Reanudar", "cron.ejecutar": "Ejecutar ahora",
   "sesion.nueva": "Nueva sesión", "sesion.reanudar": "Reanudar sesión", "sesion.abrir": "Abrir sesión",
 };
+/** The words for a function of the switch panel (Spanish); anything not listed is shown as its own name. */
+export const TEXTO_FUNCION: Record<string, string> = { salud: "la salud", cron: "las tareas programadas", sesiones: "las sesiones", chat: "el chat" };
 /** The state of a shape in the house language (off / starting / on / fail), by kind of thing. Pure. */
 export function estadoDeForma(tipo: string, estado: EstadoCosa): "off" | "starting" | "on" | "fail" {
   if (estado === "fallo") return "fail";
@@ -44,7 +46,15 @@ export function crearCliente() {
   const cosas = new Map<string, Cosa>();
   const oyentes = new Set<(que: Que, clave?: string) => void>();
   const avisar = (que: Que, clave?: string) => { for (const fn of oyentes) fn(que, clave); };
-  const e = { ficha: null as { objeto: string; texto: string; cuando: number } | null, pedido: null as { objeto: string; verbo: string; texto: string; cuando: number } | null, resultado: null as { objeto: string; verbo: string; ok: boolean; texto: string; cuando: number } | null, rechazo: "", conectada: null as boolean | null };
+  const e = { ficha: null as { objeto: string; texto: string; cuando: number } | null, pedido: null as { objeto: string; verbo: string; texto: string; cuando: number } | null, resultado: null as { objeto: string; verbo: string; ok: boolean; texto: string; cuando: number } | null, rechazo: "", conectada: null as boolean | null, funcion: null as { funcion: string; activa: boolean; texto: string } | null };
+  // the switch of the Entorno panel and of the slab's lamps: it only asks; `activa` follows what the server told /status and `funcion`
+  const interruptor = {
+    estado: { puede: false, ultimoRechazo: "" },
+    /** Is this function on? (default «salud», the threshold's master lamp: the row of the Entorno panel) */
+    activa: (funcion = "salud"): boolean => vista?.funciones[funcion] === true,
+    poner(activa: boolean, funcion = "salud"): Res { const r = A ? A.send("encender", { funcion, activa }) : SIN; esperaEncender = r.ok; return r; },
+  };
+  let esperaEncender = false;
   const ahora = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
   const leer = (clave: string, v: Msg): Cosa => {
@@ -79,6 +89,7 @@ export function crearCliente() {
     cosas: (): Cosa[] => [...cosas.values()],
     cosa: (clave: string): Cosa | null => cosas.get(clave) ?? null,
     estado: e,
+    interruptor,
     vista: (): Vista | null => vista,
     /** What /status said about the mirror (zones, switches): draws the floors and lamps. Call once the page knows it; safe before the connection. */
     configurar(v: unknown): void {
@@ -107,7 +118,9 @@ export function crearCliente() {
     api.on("ficha", (m) => { e.ficha = { objeto: String(m.objeto), texto: String(m.texto), cuando: ahora() }; e.pedido = null; e.resultado = null; e.rechazo = ""; avisar("ficha", String(m.objeto)); });
     api.on("pedido", (m) => { e.pedido = { objeto: String(m.objeto), verbo: String(m.verbo), texto: String(m.texto), cuando: ahora() }; e.resultado = null; avisar("pedido", String(m.objeto)); });
     api.on("resultado", (m) => { e.resultado = { objeto: String(m.objeto), verbo: String(m.verbo), ok: m.ok === true, texto: String(m.texto), cuando: ahora() }; e.pedido = null; avisar("resultado", String(m.objeto)); });
-    api.on("rechazado", (m) => { e.rechazo = String(m.motivo); avisar("rechazo"); });
+    api.on("rechazado", (m) => { e.rechazo = String(m.motivo); if (esperaEncender) { esperaEncender = false; interruptor.estado.ultimoRechazo = e.rechazo; } avisar("rechazo"); });
+    api.on("permiso", (m) => { interruptor.estado.puede = m.encender === true; });
+    api.on("funcion", (m) => { esperaEncender = false; if (vista) { vista.funciones[String(m.funcion)] = m.activa === true; dibujarZonas(); } e.funcion = { funcion: String(m.funcion), activa: m.activa === true, texto: String(m.texto) }; avisar("funcion"); });
     api.on("aviso", (m) => { e.conectada = m.conectada === true; avisar("fuente"); });
   });
   return { parts: [parte], espejo: controlador };
@@ -115,4 +128,5 @@ export function crearCliente() {
 
 const pagina = crearCliente();
 export const espejo = pagina.espejo;
+export const interruptor = pagina.espejo.interruptor;
 export default pagina.parts[0];

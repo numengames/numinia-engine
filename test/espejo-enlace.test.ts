@@ -250,3 +250,24 @@ test("enlace: the key is made once in enlace.env (600), read back the same, neve
     assert.ok(readdirSync(raiz).includes("enlace.env") && readFileSync(join(raiz, "enlace.env"), "utf8").startsWith("# Clave del enlace"));
   } finally { rmSync(raiz, { recursive: true, force: true }); }
 });
+
+test("enlace: a switch flipped from inside the world reaches the connected source as a `funciones` frame (the new full list), and stops after it disconnects", async () => {
+  const W = await abrir();
+  try {
+    W.persona.chat.decir(`/dueño ${ADMIN}`); W.pump(TICK_HZ + 2);
+    const f = await entrar(W.enlace.puerto);
+    assert.deepEqual((await f.espera("hola")).funciones, ["cron"]);
+    await dormir(20); W.pump(3);
+    assert.equal(W.persona.s.features.send("espejo", "encender", { funcion: "sesiones", activa: true }).ok, true); W.pump(3);
+    const a = await f.espera("funciones");
+    assert.deepEqual(a.funciones, ["cron", "sesiones"]); assert.equal(a.v, 1);
+    assert.equal(W.persona.s.features.send("espejo", "encender", { funcion: "cron", activa: false }).ok, true); W.pump(3);
+    assert.deepEqual((await f.espera("funciones")).funciones, ["sesiones"], "what went off is no longer asked for");
+    // a source that comes back is told the CURRENT list in hola, not the file's old one
+    f.ws.close(); await f.cierre; await dormir(20);
+    assert.equal(W.persona.s.features.send("espejo", "encender", { funcion: "cron", activa: true }).ok, true); W.pump(3);
+    const g = await entrar(W.enlace.puerto);
+    assert.deepEqual((await g.espera("hola")).funciones, ["cron", "sesiones"]);
+    g.ws.close(); await g.cierre;
+  } finally { await W.cerrar(); }
+});

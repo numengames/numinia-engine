@@ -143,7 +143,7 @@ export function crearFormas(h: { world: THREE.Object3D }) {
       quitar(key);
       const m = new Malla(); HACER[f.forma](m, f);
       const malla = new THREE.Mesh(m.geometria(), material);
-      malla.name = `forma:${key}`; malla.userData.sinSombra = true; malla.frustumCulled = true;
+      malla.name = `forma:${key}`; malla.userData.sinSombra = true; malla.userData.pulsable = f.forma !== "suelo" && key.includes(":"); // a click on it (not on a zone's floor) opens its card malla.frustumCulled = true;
       malla.position.set(f.x, 0, f.z); malla.rotation.y = f.rumbo ?? 0;
       malla.geometry.computeBoundingSphere();
       h.world.add(malla); vivas.set(key, { malla, firma }); restantes = 45;

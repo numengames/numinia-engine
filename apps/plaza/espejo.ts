@@ -5,7 +5,7 @@
 //   The card then says «Esperando a Hermes…» and, when the answer arrives (or after 30 s, «Hermes no ha respondido»), what happened.
 // Everything that comes from outside goes in with `textContent`, never as markup. The server decides who may ask; this only offers.
 import type { espejo as Controlador } from "../../features/espejo/client.ts";
-import { TEXTO_ESTADO, TEXTO_VERBO } from "../../features/espejo/client.ts";
+import { TEXTO_ESTADO, TEXTO_FUNCION, TEXTO_VERBO } from "../../features/espejo/client.ts";
 
 type Ctl = typeof Controlador;
 
@@ -43,20 +43,26 @@ export function montarEspejo(o: { espejo: Ctl; doc?: Document }) {
     estado.textContent = `Estado: ${TEXTO_ESTADO[c.estado]}`;
     detalle.textContent = c.subtitulo; detalle.hidden = !c.subtitulo;
     filas.replaceChildren();
-    for (const v of c.acciones) {
-      const b = d.createElement("button"); b.type = "button"; b.dataset.verbo = v;
-      const nombre = TEXTO_VERBO[v] ?? v;
+    /** One big button; the first press asks «¿Seguro?», only the second one does it (what changes the world or outside needs a person's yes). */
+    const boton = (id: string, nombre: string, ir: () => { ok: true } | { ok: false; why: string }): void => {
+      const b = d.createElement("button"); b.type = "button"; b.dataset.verbo = id;
       if (esperando) { b.disabled = true; b.textContent = nombre; }
-      else if (seguro === v) { b.dataset.seguro = "1"; b.textContent = `¿Seguro? Confirmar: ${nombre.toLowerCase()}`; }
+      else if (seguro === id) { b.dataset.seguro = "1"; b.textContent = `¿Seguro? Confirmar: ${nombre.toLowerCase()}`; }
       else b.textContent = nombre;
       b.addEventListener("click", () => {
         if (esperando) return;
-        if (seguro !== v) { seguro = v; pintar(); filas.querySelector<HTMLButtonElement>(`[data-verbo="${CSS_ESCAPE(v)}"]`)?.focus(); return; }
-        seguro = ""; const r = o.espejo.pedir(actual, v);
+        if (seguro !== id) { seguro = id; pintar(); filas.querySelector<HTMLButtonElement>(`[data-verbo="${CSS_ESCAPE(id)}"]`)?.focus(); return; }
+        seguro = ""; const r = ir();
         if (!r.ok) decir(r.why); else { esperando = true; decir("Pedido enviado."); }
         pintar();
       });
       filas.appendChild(b);
+    };
+    for (const v of c.acciones) boton(v, TEXTO_VERBO[v] ?? v, () => o.espejo.pedir(actual, v));
+    // the switch panel: one button per function, shown only to who may (the server checks it again and refuses anyone else)
+    if (c.tipo === "salud" && o.espejo.interruptor.estado.puede) for (const f of Object.keys(o.espejo.vista()?.funciones ?? {})) {
+      const on = o.espejo.interruptor.activa(f);
+      boton(`funcion:${f}`, `${on ? "Apagar" : "Encender"} ${TEXTO_FUNCION[f] ?? f}`, () => o.espejo.interruptor.poner(!on, f));
     }
     if (seguro) { const n = d.createElement("button"); n.type = "button"; n.textContent = "No, cancelar"; n.addEventListener("click", () => { seguro = ""; pintar(); }); filas.appendChild(n); }
     filas.appendChild(cerrar);
@@ -74,6 +80,7 @@ export function montarEspejo(o: { espejo: Ctl; doc?: Document }) {
     if (que === "ficha") abrir();
     else if (que === "pedido") { decir(e.pedido?.texto ?? ""); }
     else if (que === "resultado" && e.resultado && e.resultado.objeto === actual) { esperando = false; decir((e.resultado.ok ? "Hecho. " : "No se hizo. ") + e.resultado.texto); pintar(); }
+    else if (que === "funcion" && !caja.hidden) { esperando = false; decir(e.funcion?.texto ?? ""); pintar(); }
     else if (que === "rechazo" && !caja.hidden) { esperando = false; decir(e.rechazo); pintar(); }
     else if (que === "cosas" && clave === actual && !caja.hidden) pintar(); // the thing changed outside (paused, resumed…): the card follows
   });

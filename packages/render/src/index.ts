@@ -1544,9 +1544,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       if (!r.width || !r.height) return null;
       ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
       ray.setFromCamera(ndc, camera);
-      for (const hit of ray.intersectObjects([...[...things.values()].map((s) => s.group), ...[...tags.values()].map((r) => r.s)], true)) {
+      for (const hit of ray.intersectObjects([...[...things.values()].map((s) => s.group), ...[...tags.values()].map((r) => r.s), ...world.children.filter((c) => c.userData.pulsable === true)], true)) {
         for (let o: THREE.Object3D | null = hit.object; o; o = o.parent) {
           if (o.name.startsWith("objeto:")) return o.name.slice(7);
+          if (o.userData.pulsable === true) return o.name.slice(6); // mundo-hermes: a flat shape of a mirrored thing ("forma:espejo:salud/panel" → "espejo:salud/panel"): a click opens its card
           if (o.name.startsWith("nombre:")) return o.name.slice(7);
         }
       }

@@ -10,7 +10,8 @@ import { esIA } from "../avatar/feature.ts";
 import { espejo as decl, ALCANCE_M, CADUCA_S, PETICIONES_MAX, PETICIONES_POR_PERSONA, RADIO_USO_M } from "./feature.ts";
 
 const TICK_HZ = 20; // the sim's TICK_HZ (features import only core, schema, feature); the clock of the expiry is the server's tick, so a test runs it without waiting
-import { LIMITES, SOLO_LEER, TIPOS, VERBOS, funcionesEncendidas, leerObjeto, limpiar, tiposEncendidos } from "./esquema.ts";
+import { FICHERO, FUNCIONES, LIMITES, SOLO_LEER, TIPOS, VERBOS, funcionesEncendidas, leerEspejo, leerObjeto, limpiar, tiposEncendidos } from "./esquema.ts";
+import type { EntornoMundo } from "../interruptor.ts";
 import type { Espejo, Estado, Funcion, Objeto, Seguridad, Tipo, Verbo } from "./esquema.ts";
 
 /** The key of a thing in the shared state: «<tipo>/<id>» (≤ 11 + 1 + 32 bytes, inside the engine's 64). */
@@ -38,6 +39,8 @@ export type EnlaceEspejo = {
   alPedir(fn: ((p: Peticion) => void) | null): void;
   /** For tests and the link's pulse: how many requests wait. */
   esperando(): number;
+  /** Where a change of the switches goes (the link sets one function; none = no source): called with the functions that are ON after every flip. */
+  alFunciones(fn: ((funciones: Funcion[]) => void) | null): void;
 };
 export type ParteConEspejo = ServerPart & { enlace: EnlaceEspejo };
 export const conEspejo = (p: ServerPart): p is ParteConEspejo => p.feature.id === "espejo" && typeof (p as Partial<ParteConEspejo>).enlace?.alta === "function";
@@ -47,17 +50,18 @@ export type OpcionesEspejo = { espejo?: Espejo | null };
 const TEXTO_ESTADO: Record<Estado, string> = { activo: "activo", programado: "programado", pausado: "en pausa", fallo: "con fallo", apagado: "apagado", desconocido: "sin estado conocido" };
 const minuscula = (t: string): string => (t ? t[0].toLowerCase() + t.slice(1) : t);
 
-export function crearEspejo(opts: OpcionesEspejo = {}): ParteConEspejo {
-  const cfg = opts.espejo && opts.espejo.activa ? opts.espejo : null;
+export function crearEspejo(opts: OpcionesEspejo = {}, io?: EntornoMundo): ParteConEspejo {
+  // a private copy of the switches: flipping one live must not change the object the caller parsed
+  const cfg = opts.espejo && opts.espejo.activa ? { ...opts.espejo, funciones: { ...opts.espejo.funciones } } : null;
   const enlace: Partial<EnlaceEspejo> = {};
   const parte = serverPart(decl, (api: ServerApi) => {
     // ---- inert without a (valid, active) espejo.json: the seam still answers, saying why, so a source that connects anyway is told ----
     const apagado = (): Resultado => ({ ok: false, motivo: "este mundo no tiene el espejo encendido (entorno/espejo.json)" });
     if (!cfg) {
-      Object.assign(enlace, { funciones: () => [], config: () => null, alta: apagado, cambio: apagado, baja: apagado, lote: apagado, conectada: () => {}, resultado: () => false, alPedir: () => {}, esperando: () => 0 } satisfies EnlaceEspejo);
+      Object.assign(enlace, { funciones: () => [], config: () => null, alta: apagado, cambio: apagado, baja: apagado, lote: apagado, conectada: () => {}, resultado: () => false, alPedir: () => {}, esperando: () => 0, alFunciones: () => {} } satisfies EnlaceEspejo);
       return;
     }
-    const encendidos = new Set<string>(tiposEncendidos(cfg));
+    let encendidos = new Set<string>(tiposEncendidos(cfg));
     const puestas = new Map<string, Objeto>(); // key → what the source published (the truth is outside; this is only what we put)
     const propias = new Set<string>(); // things the world itself puts (the switch panel): a source's `lote` never removes them
     const huecos = new Map<string, { zona: string; n: number }>(); // key → the grid slot of a thing that came WITHOUT x/z (the source does not know the map)
@@ -110,6 +114,7 @@ export function crearEspejo(opts: OpcionesEspejo = {}): ParteConEspejo {
       return true;
     };
 
+    let salidaFunciones: ((f: Funcion[]) => void) | null = null;
     const e: EnlaceEspejo = {
       funciones: () => funcionesEncendidas(cfg),
       config: () => cfg,
@@ -176,18 +181,23 @@ export function crearEspejo(opts: OpcionesEspejo = {}): ParteConEspejo {
       },
       alPedir(fn) { salida = fn; },
       esperando: () => esperando.size,
+      alFunciones(fn) { salidaFunciones = fn; },
     };
     Object.assign(enlace, e);
 
-    // ---- the world's own thing: the switch panel on the threshold (the zone that admits «salud»). Read-only here: the switches are the owner's, in espejo.json. ----
+    // ---- the world's own thing: the switch panel on the threshold (the zone that admits «salud»). Its lamps are the controls (`encender`, below);
+    //      it says what is on and off and follows every flip. It stays even when «salud» itself is switched off, so the world can be switched back on from inside. ----
     const zonaPanel = cfg.zonas.find((z) => z.tipos.includes("salud"));
-    if (zonaPanel && encendidos.has("salud")) {
-      const FUNCIONES_DE_ZONAS = [...new Set(cfg.zonas.flatMap((z) => z.tipos.map((t) => TIPOS[t])))] as Funcion[];
+    const FUNCIONES_DE_ZONAS = [...new Set(cfg.zonas.flatMap((z) => z.tipos.map((t) => TIPOS[t])))] as Funcion[];
+    const CLAVE_PANEL = claveDe("salud", "panel");
+    const refrescarPanel = (): void => {
+      if (!zonaPanel || (!encendidos.has("salud") && !propias.has(CLAVE_PANEL))) return;
       const sel = (on: boolean) => FUNCIONES_DE_ZONAS.filter((f) => cfg.funciones[f] === on);
       const lista = (xs: Funcion[]) => (xs.length ? xs.join(", ") : "ninguna");
       const panel: Objeto = { tipo: "salud", id: "panel", titulo: "Panel de interruptores", subtitulo: limpiar(`Encendido: ${lista(sel(true))}. Apagado: ${lista(sel(false))}.`, LIMITES.subtitulo), estado: "activo", zona: zonaPanel.id, x: zonaPanel.x, z: zonaPanel.z - zonaPanel.fondo / 2 + 2.5, luz: true, acciones: [] };
-      if (poner(panel)) propias.add(claveDe(panel.tipo, panel.id));
-    }
+      if (poner(panel)) propias.add(CLAVE_PANEL);
+    };
+    refrescarPanel();
 
     // ---- story 4: usar / pedir. The page only ASKS; the server checks and forwards. It never runs anything. ----
     let conectada = false, salida: ((p: Peticion) => void) | null = null, n = 0;
@@ -214,7 +224,8 @@ export function crearEspejo(opts: OpcionesEspejo = {}): ParteConEspejo {
 
     api.on("usar", (from, msg) => {
       const b = buscar(from, String(msg.objeto)); if (!b) return;
-      const ofrece = b.o.acciones.length ? ` Se le puede pedir: ${b.o.acciones.join(", ")}.` : " No ofrece acciones.";
+      const ofrece = propias.has(b.k) ? (puedePedir(from) === "" ? " Usted puede encender o apagar cada función con su botón." : " Encender o apagar funciones es cosa de quien dirige o manda.")
+        : b.o.acciones.length ? ` Se le puede pedir: ${b.o.acciones.join(", ")}.` : " No ofrece acciones.";
       api.emit("ficha", { objeto: b.k, texto: limpiar(`${b.o.titulo}: ${TEXTO_ESTADO[b.o.estado]}.${b.o.subtitulo ? ` ${b.o.subtitulo}.` : ""}${ofrece}`, 240) }, { to: from });
     });
 
@@ -247,6 +258,44 @@ export function crearEspejo(opts: OpcionesEspejo = {}): ParteConEspejo {
     });
     // a person who leaves takes their waiting requests with them (the answer has nobody to tell)
     api.onLeave((e) => { for (const [id, p] of [...esperando]) if (p.quien.entidad === e) esperando.delete(id); });
+    // ---- the switch panel's lamps are controls: `encender { funcion, activa }` flips `funciones.<funcion>` for the whole world, live ----
+    const decirPermiso = (e: number): void => { api.emit("permiso", { encender: puedePedir(e) === "" }, { to: e }); };
+    api.onJoin(decirPermiso); api.onIdentify(decirPermiso);
+    api.listen("roles", "cambio", (m) => { decirPermiso(Number(m.quien)); return true; });
+
+    /** Write `funciones.<f>` into entorno/espejo.json. "" = done (or there is no folder: it lasts until restart); else why not — and nothing was written.
+     *  The file is read again, the one key changed, the WHOLE result checked with the schema, and only then written (temp file + rename in `escribir`):
+     *  a file somebody broke by hand is never replaced, and a failed write leaves the good one as it was. */
+    const guardarFuncion = (f: Funcion, activa: boolean): string => {
+      if (!io?.escribir) return "";
+      let crudo: unknown;
+      try { crudo = io.leer?.(FICHERO); } catch { crudo = undefined; }
+      if (typeof crudo !== "object" || crudo === null || Array.isArray(crudo)) return `${FICHERO} no se puede leer ahora o no es un objeto JSON: arréglelo a mano; no cambia nada.`;
+      const actual = (crudo as Record<string, unknown>).funciones;
+      if (actual !== undefined && (typeof actual !== "object" || actual === null || Array.isArray(actual))) return `${FICHERO}: «funciones» no es un objeto: arréglelo a mano; no cambia nada.`;
+      const nuevo = { ...(crudo as Record<string, unknown>), funciones: { ...(actual as Record<string, unknown> | undefined), [f]: activa } };
+      const l = leerEspejo(nuevo);
+      if (!l.ok) return limpiar(`${FICHERO} tiene un error (${l.issues[0].path}: ${l.issues[0].message}): arréglelo a mano; no cambia nada.`, 160);
+      try { io.escribir(FICHERO, nuevo); return ""; }
+      catch (err) { api.log(`espejo: no pude escribir ${FICHERO}: ${(err as Error).message}`); return `No he podido guardar ${FICHERO} (${(err as NodeJS.ErrnoException).code ?? "error"}; más en el registro del servidor): no cambia.`; }
+    };
+    api.on("encender", (from, msg) => {
+      const no = puedePedir(from); if (no) return rechazar(from, "Encender o apagar funciones es cosa de una persona identificada que dirige aquí o manda en el mundo.");
+      const nombre = String(msg.funcion ?? ""), activa = msg.activa === true;
+      if (!(FUNCIONES as readonly string[]).includes(nombre)) return rechazar(from, `«${limpiar(nombre, 24)}» no es una función que conozca (son: ${FUNCIONES.join(", ")}).`);
+      const f = nombre as Funcion;
+      if (cfg.funciones[f] === activa) return rechazar(from, `La función «${f}» ya está ${activa ? "encendida" : "apagada"}.`);
+      const fallo = guardarFuncion(f, activa); if (fallo) return rechazar(from, fallo);
+      cfg.funciones[f] = activa; encendidos = new Set<string>(tiposEncendidos(cfg));
+      if (!activa) { // the things of a switched-off function leave the world (the source keeps the truth; the file keeps zones and verbs); what waited on them is closed
+        for (const [k, o] of [...puestas]) if (TIPOS[o.tipo] === f && !propias.has(k)) quitar(k);
+        for (const [id, p] of [...esperando]) if (TIPOS[p.objeto.split("/")[0] as Tipo] === f) cerrar(id, p, false, "La función se apagó mientras tanto: no se hizo.");
+      }
+      refrescarPanel();
+      api.log(`espejo: ${api.who(from)?.nombre ?? from} ${activa ? "enciende" : "apaga"} la función «${f}»${io?.escribir ? "" : " (este mundo no tiene carpeta: dura hasta el reinicio)"}`);
+      api.emit("funcion", { funcion: f, activa, texto: `Función «${f}» ${activa ? "encendida" : "apagada"}.` }, "all");
+      try { salidaFunciones?.(funcionesEncendidas(cfg)); } catch (err) { api.log(`espejo: no pude contarle el cambio a la fuente: ${(err as Error).message}`); }
+    });
     api.log(`espejo: encendido (${funcionesEncendidas(cfg).join(", ") || "ninguna función"}; ${cfg.zonas.length} zona(s))`);
   });
   return Object.assign(parte, { enlace: enlace as EnlaceEspejo });

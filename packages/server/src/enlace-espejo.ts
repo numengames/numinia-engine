@@ -6,6 +6,8 @@
 //   engine → source  { v:1, t:"hola", funciones:[…], zonas:[…], acciones:{…} }  what is ON (what is off is never asked for)
 //   source → engine  lote { objetos[] } · alta/cambio/baja { objeto } · resultado { peticion, ok, texto } · pulso
 //   engine → source  peticion { id, objeto, verbo, seguridad, quien, caduca } · pulso · error { en, motivo }
+//   engine → source  funciones { funciones:[…] }   a person switched a function on or off from inside the world: the NEW full list of what is on
+//                    (what just went off must stop being published; what just came on may now be sent with lote). Same list as hola.funciones.
 // Refused at the door: any address that is not loopback, any request with an `Origin` header (a web page must not talk to it), a second
 // source while one is connected, a message over 16 KB, more than a few messages a second, a wrong or late signature. The engine never
 // interprets what comes in beyond the espejo schema, and never runs anything. The key is the world's own (`MOTOR_ENLACE_CLAVE`, made once
@@ -25,6 +27,8 @@ export type EnlaceEspejo = {
   alta(objeto: unknown): Resultado; cambio(objeto: unknown): Resultado; baja(ref: { tipo: string; id: string }): Resultado; lote(objetos: unknown[]): Resultado;
   conectada(si: boolean): void; resultado(peticion: string, ok: boolean, texto: string): boolean;
   alPedir(fn: ((p: Peticion) => void) | null): void;
+  /** Where a change of the world's switches goes (called with the functions that are ON after each flip). */
+  alFunciones?(fn: ((funciones: string[]) => void) | null): void;
 };
 
 export const V = 1;
@@ -107,6 +111,7 @@ export function abrirEnlace(o: OpcionesEnlace): Promise<EnlaceEscuchando> {
         const cfg = o.enlace.config();
         mandar({ t: "hola", funciones: o.enlace.funciones(), zonas: (cfg?.zonas ?? []).map((z) => ({ id: z.id, tipos: z.tipos })), acciones: cfg?.acciones ?? {} });
         o.enlace.alPedir((p: Peticion) => mandar({ t: "peticion", id: p.id, objeto: p.objeto, verbo: p.verbo, seguridad: p.seguridad, quien: { id: p.quien.id, nombre: p.quien.nombre }, caduca: p.caduca }));
+        o.enlace.alFunciones?.((fs: string[]) => mandar({ t: "funciones", funciones: fs }));
         o.enlace.conectada(true);
         log(`[enlace] conectada la fuente «${String(m.plugin ?? "?").slice(0, 40)}» (${String(m.hermes_version ?? "?").slice(0, 20)})`);
         return;
@@ -127,7 +132,7 @@ export function abrirEnlace(o: OpcionesEnlace): Promise<EnlaceEscuchando> {
     });
     ws.on("close", () => {
       clearTimeout(plazo); clearInterval(latido);
-      if (activo === ws) { activo = null; o.enlace.alPedir(null); o.enlace.conectada(false); log("[enlace] la fuente se desconectó"); }
+      if (activo === ws) { activo = null; o.enlace.alPedir(null); o.enlace.alFunciones?.(null); o.enlace.conectada(false); log("[enlace] la fuente se desconectó"); }
     });
     ws.on("error", () => ws.terminate());
   });

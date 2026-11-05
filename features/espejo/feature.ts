@@ -52,8 +52,16 @@ export const espejo = defineFeature({
       fields: { objeto: OBJ, verbo: { kind: "text", maxBytes: 32 } },
       rate: { perSecond: 1, burst: 3 },
     },
+    encender: {
+      describe: "Encender o apagar una función del espejo (p. ej. «cron») para todo el mundo, desde dentro: las lámparas del panel de interruptores. Solo una persona identificada que dirige aquí o manda (nunca una IA). El servidor escribe `funciones.<nombre>` en entorno/espejo.json (con permiso, atómico y sin sustituir un fichero malo), lo aplica al momento sin reiniciar, quita del mundo las cosas de la función apagada y se lo cuenta a la fuente de fuera.",
+      spoken: "encender o apagar una función del espejo",
+      fields: { funcion: { kind: "text", maxBytes: 24 }, activa: { kind: "bool" } },
+      rate: { perSecond: 1, burst: 4 },
+    },
   },
   events: {
+    permiso: { describe: "A usted solo (al entrar, al identificarse y al cambiar sus roles): si puede encender o apagar funciones del espejo.", fields: { encender: { kind: "bool" } }, announce: "silent" },
+    funcion: { describe: "A todos: una función del espejo se encendió o se apagó (`texto` es lo que se lee).", fields: { funcion: { kind: "text", maxBytes: 24 }, activa: { kind: "bool" }, texto: { kind: "text", maxBytes: 160 } }, announce: { text: "{texto}", sound: "suave", importance: 1 } },
     cambiado: { describe: "Una cosa del espejo cambió (para quien la tiene cerca): `texto` es lo que se lee, p. ej. «Tarea Resumen diario: en pausa».", fields: { objeto: OBJ, texto: { kind: "text", maxBytes: 160 } }, announce: { text: "{texto}", sound: "suave", importance: 0 } },
     ficha: { describe: "A usted solo, tras `usar`: qué es la cosa, cómo está y qué se le puede pedir.", fields: { objeto: OBJ, texto: { kind: "text", maxBytes: 240 } }, announce: { text: "{texto}", sound: "suave", importance: 1 } },
     rechazado: { describe: "A usted solo: no se hizo, y por qué (lejos, sin permiso, verbo que la cosa no ofrece, demasiado rápido, función apagada…).", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
