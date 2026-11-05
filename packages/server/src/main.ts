@@ -105,9 +105,15 @@ if (parteEspejo && cfgEspejo) {
 // systemd, the container (docker stop) and tools/plaza.sh stop the server with SIGTERM: close every connection first
 // so each session that reported gets its closing line written (T1) and the features' data is flushed, then leave;
 // never wait more than 2 s (a container gets 10 s before SIGKILL).
-for (const sig of ["SIGTERM", "SIGINT"] as const) {
-  process.once(sig, () => {
-    setTimeout(() => process.exit(0), 2000).unref();
-    void Promise.all([enlaceEspejo?.close(), srv.close()]).then(() => process.exit(0));
-  });
+const salir = () => {
+  setTimeout(() => process.exit(0), 2000).unref();
+  void Promise.all([enlaceEspejo?.close(), srv.close()]).then(() => process.exit(0));
+};
+for (const sig of ["SIGTERM", "SIGINT"] as const) process.once(sig, salir);
+// M9: MOTOR_SALIR_SI_STDIN_CIERRA=1 (Hermes starts the engine with a pipe on stdin): when the pipe ends (Hermes died or closed it) leave the same way as on
+// SIGTERM, so the engine is never orphaned. Off unless it is exactly "1": stdin is not even read then.
+if (env.MOTOR_SALIR_SI_STDIN_CIERRA === "1") {
+  let yaSale = false;
+  const alCerrar = () => { if (yaSale) return; yaSale = true; log("[motor] stdin cerrado: salgo (MOTOR_SALIR_SI_STDIN_CIERRA=1)"); salir(); };
+  process.stdin.on("end", alCerrar).on("close", alCerrar).on("error", alCerrar).resume();
 }
