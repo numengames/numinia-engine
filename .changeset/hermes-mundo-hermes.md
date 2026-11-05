@@ -49,3 +49,10 @@
 - Consumo: sin medir · claude-sonnet-5-5.
 - Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
 - Siguiente: que el plugin publique `documento`, `habilidad` y `tablero` (contrato en `docs/EXTENDER.md`); el cuerpo VRM de la guía.
+
+## 2026-11-05 · mundo-hermes · Modo embed: el mundo dentro de Hermes Desktop (M7) · hecho
+- Qué: con `embed.activa: true` en `espejo.json` el mundo corre bien en un marco aislado sin `allow-same-origin` (origen opaco): almacén seguro que cae a memoria solo si el navegador lo bloquea, CORS `*` en los ficheros de la página y `POST /espejo/embed` solo con el modo encendido, desde esta máquina y con una credencial `e1.` firmada con la clave del enlace (`Origin: null` nunca basta); un puente `postMessage` (trozo perezoso `espejo-embed`, solo si la página está enmarcada y trae `?embed=1` y la credencial en el fragmento) que lleva `snapshot`/`event`/`funciones` del padre a la misma tubería del enlace local y las `peticion` del mundo al padre; el dueño local queda marcado en `quien`. Contrato en `docs/EXTENDER.md` («Embed (v1)»).
+- Números: ver el registro de esta historia (pruebas, tipos 291/300, e2e con 7 pruebas de embed, página dentro del tope); mundos sin embed idénticos (`tools/identidad-sin-espejo.mjs`).
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: que el plugin publique por `postMessage` (carril P) con la credencial en el fragmento.

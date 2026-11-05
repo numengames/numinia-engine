@@ -2164,6 +2164,41 @@ Cuatro funciones nuevas, todas **apagadas de fábrica** (interruptor compartido 
 
 **Piezas y cuándo se descargan.** `formas-extra` (estante, tableta, tablero, guía) baja con la primera de esas formas; `documento` con el primer «Abrir»; `guia` con el interruptor encendido. Presupuesto de página tras M6: 632.6 kB gz · 534.4 kB br de 536.
 
+### Embed (v1): el mundo dentro de un marco aislado (Hermes Desktop)
+
+Hermes Desktop pone la página en un `SandboxedFrame` con `sandbox="allow-scripts allow-pointer-lock"` y **sin** `allow-same-origin`: la página tiene un **origen opaco** (`window.origin === "null"`, y las peticiones llevan `Origin: null`). Sin `localStorage`, `sessionStorage`, cookies, `caches`, IndexedDB ni service worker (todo eso lanza `SecurityError`), sin ventanas emergentes y sin el flujo de monedero; sí hay WebGL y bloqueo de puntero. El modo embed es el **Camino A**: el complemento (la página del plugin, que es el padre) publica por `postMessage`, sin el enlace HMAC. El Camino B (enlace WebSocket local) sigue igual para los mundos alojados. **Apagado de fábrica**: un mundo sin `embed` sigue idéntico (`tools/identidad-sin-espejo.mjs`).
+
+**Encender.** `entorno/espejo.json`: `"embed": { "activa": true }` (solo ese campo; cualquier otra clave se rechaza). Además hace falta la clave del enlace (`MOTOR_ENLACE_CLAVE` / `enlace.env`): sin ella no hay credenciales y el modo no se activa. `/status` cuenta `espejo.embed: true` solo si está encendido.
+
+**Credencial de embed** (la autenticidad; **nunca** `event.origin`, que desde un origen opaco no se puede conocer ni probar). Texto `e1.<exp>.<nonce>.<hmac>`: `exp` = milisegundos Unix de caducidad (como mucho 24 h desde ahora; el plugin debe usar ~1 h), `nonce` = 16 caracteres base64url, `hmac` = hexadecimal de `HMAC-SHA256(clave del enlace, "numinia-embed@1\n" + exp + "." + nonce)`. El plugin la fabrica con la misma clave que ya tiene del enlace y la pone en el **fragmento** de la URL del mundo: `http://127.0.0.1:<puerto>/?embed=1#embed=<credencial>` (un fragmento no llega a ningún servidor ni registro; la página lo borra de la barra al leerlo). Quien la tiene es, para ese mundo, **el dueño de la máquina** («dueño local»); si se filtra, vale hasta que caduca.
+
+**Amenaza, en claro.** `Origin: null` lo envían **todas** las páginas aisladas o `data:` de cualquier sitio: por sí solo no prueba nada y nunca basta. Entra una petición solo si (a) el mundo tiene `embed.activa`, (b) viene de esta máquina (loopback y sin `X-Forwarded-For`/`Forwarded`) y (c) lleva una credencial válida y vigente. Con el modo apagado `POST /espejo/embed` no existe (404). El socket del juego nunca comprobó `Origin` (un mundo público es público: la identidad allí es un pase, no un origen) y sigue igual. Los ficheros de la página llevan `access-control-allow-origin: *` **solo con el modo encendido** (son públicos y no usan cookies ni credenciales de ambiente; una página con origen opaco los necesita para cargar sus módulos y su hoja de estilo).
+
+**Cuándo carga el puente.** El trozo `espejo-embed` (perezoso; no cuenta en la primera carga) se baja solo si la página está **enmarcada** (`window.parent !== window`) **y** (`?embed=1` o `/status.espejo.embed`); además necesita la credencial en el fragmento. Una página no enmarcada, o sin credencial, no baja nada ni responde a nadie. El almacén seguro (`apps/plaza/almacen-seguro.ts`) cambia a memoria solo lo que lanza `SecurityError`; donde el almacenamiento funciona no hace nada (sin embed, el comportamiento es el de siempre). En un marco aislado el pase de invitado no se conserva entre visitas.
+
+**Mensajes.** Todos son un objeto `{ "v": 1, "kind": "<tipo>", … }`, ≤ 16 KB una vez en JSON, como mucho 20 por segundo (ráfaga de 40). La página **solo** oye a `window.parent` (`event.source === window.parent`); lo de cualquier otra ventana se descarta **sin responder**. Todo lo que pasa lo vuelve a validar el servidor con el mismo esquema, tamaños e interruptores que el enlace local: el puente es un mensajero, no una autoridad.
+
+| Padre → mundo | Campos | Equivale en el enlace local a |
+|---|---|---|
+| `snapshot` | `objetos`: lista (≤ 200) de cosas | `lote` (sustituye todo lo publicado) |
+| `event` | `evento: "alta"` \| `"cambio"` + `objeto` | `alta` / `cambio` |
+| `event` | `evento: "baja"` + `objeto: { tipo, id }` | `baja` |
+| `event` | `evento: "resultado"`, `peticion` (texto), `ok` (booleano), `texto` | `resultado` (la respuesta a una `peticion`) |
+| `funciones` | `funciones`: lista de nombres | **solo información**: no enciende nada; los interruptores son del mundo. Si nombra una que está apagada, el mundo contesta `ack` con `ignoradas` |
+
+| Mundo → padre | Campos | Cuándo |
+|---|---|---|
+| `listo` | — | al montarse el puente (aún sin vincular) |
+| `hola` | `funciones` (lista de las encendidas), `acciones` (`{ "<verbo>": "confirmar" \| "aprobar" }`) | cuando el servidor acepta la credencial; publique su `snapshot` **después** de este mensaje |
+| `peticion` | `id`, `objeto` (clave `tipo/id`), `verbo`, `seguridad`, `quien: { id, nombre }`, `caduca` (tic) | alguien tocó una acción; el padre la lleva a Hermes (`ctx.rest('/action')`) y responde con `event/resultado` |
+| `funciones` | `funciones` (lista nueva y completa) | alguien encendió o apagó una función |
+| `ack` | `en`, y `descartadas` / `ignoradas` / `puestas` / `quitadas` | solo si algo quedó fuera |
+| `error` | `en`, `motivo` (castellano), `problemas` (≤ 5) | mensaje no válido, demasiado grande o demasiado rápido, o el servidor lo rechazó |
+
+**Quién toca.** En modo embed la persona es el dueño de la máquina por construcción: la página que prueba la credencial pasa a ser la **fuente** (recibe las `peticion`) y puede pedir y encender como quien dirige; el servidor marca `quien.nombre` como **«dueño local»** solo para esa conexión. Las demás conexiones del mismo mundo siguen con las reglas normales (rol, identidad, cerca, verbo permitido; STD-050 y el resto). Un enlace local que se conecta desplaza a la página embebida; una credencial válida desplaza a otra página embebida anterior (una pestaña reabierta reemplaza a la vieja).
+
+**Qué no hay.** Ventanas emergentes, monedero y navegación del padre (el marco no puede abrirlos); `allow-same-origin`; IndexedDB. El plugin no debe pedirlos.
+
 ## Avatares propios del mundo (E3): CC0 o CC BY con su crédito, solo en ese mundo
 
 Un mundo (un evento, un patrocinador) puede traer **sus propios avatares** en su zip y que su gente los elija en el selector de ese mundo, sin tocar el catálogo de la casa (`activos/avatares/catalogo.json`, que viaja a todos los mundos y sigue siendo solo CC0). Es una pieza que cualquier mundo enciende con datos (R-1): sin el fichero, todo funciona como antes.
