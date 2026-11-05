@@ -386,7 +386,7 @@ const ancestrosPagina = montarAncestros({ ancestros, view }); // ancestros v1: t
 // ---- mundo-hermes: the zones' floors and the switch lamps (/status `espejo`), and the card that opens when a thing is looked at ----
 espejoCtl.configurar(estado?.espejo);
 let espejoCard: Promise<unknown> | null = null;
-espejoCtl.alCambiar((que) => { if (que === "ficha" && espejoCtl.estado.ficha) espejoCard ??= import("./espejo.ts").then((m) => m.montarEspejo({ espejo: espejoCtl })).catch((e) => console.warn(`[espejo] no se pudo cargar la ficha: ${(e as Error)?.message ?? e}`)); });
+espejoCtl.alCambiar((que) => { if (que === "ficha" && espejoCtl.estado.ficha) espejoCard ??= import("./espejo.ts").then((m) => m.montarEspejo({ espejo: espejoCtl, viaje: viajar })).catch((e) => console.warn(`[espejo] no se pudo cargar la ficha: ${(e as Error)?.message ?? e}`)); });
 // ---- pesca v1: nothing of it is in the start bundle; the HUD and the 3D arrive with the first fishing spot or float ----
 let pescaHud: Promise<unknown> | null = null, pescaPagina: unknown = null; // N4: pescaPagina.manos (VR rod, gamepad) for the e2e
 pesca.alCambiar(() => { if (!pesca.sitios().length) return; /* f2: fishing switched off: nothing to load */ pescaHud ??= import("./pesca.ts").then((m) => (pescaPagina = m.montarPesca({ pesca, view, session, hud: document.getElementById("pesca-hud")!, interaccion: () => interaccion }))).catch((e) => console.warn(`[pesca] no se pudo cargar la página de pesca: ${(e as Error)?.message ?? e}`)); });

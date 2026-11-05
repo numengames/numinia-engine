@@ -23,7 +23,7 @@ const CSS = `
 #espejo-ficha .dicho[hidden] { display: none; }
 `;
 
-export function montarEspejo(o: { espejo: Ctl; doc?: Document }) {
+export function montarEspejo(o: { espejo: Ctl; doc?: Document; /** the teleport piece (R-1): `irAPunto` + whether this world allows it */ viaje?: { activo(): boolean; irAPunto(x: number, z: number, nombre: string): { ok: true } | { ok: false; why: string } } }) {
   const d = o.doc ?? document;
   const estilo = d.createElement("style"); estilo.textContent = CSS; d.head.appendChild(estilo);
   const caja = d.createElement("section"); caja.id = "espejo-ficha"; caja.hidden = true; caja.setAttribute("role", "dialog"); caja.setAttribute("aria-label", "Cosa del espejo");
@@ -63,6 +63,12 @@ export function montarEspejo(o: { espejo: Ctl; doc?: Document }) {
     if (c.tipo === "salud" && o.espejo.interruptor.estado.puede) for (const f of Object.keys(o.espejo.vista()?.funciones ?? {})) {
       const on = o.espejo.interruptor.activa(f);
       boton(`funcion:${f}`, `${on ? "Apagar" : "Encender"} ${TEXTO_FUNCION[f] ?? f}`, () => o.espejo.interruptor.poner(!on, f));
+    }
+    // zone teleport: on the threshold's panel, one button per zone (going somewhere changes nothing outside the world: one press, no «¿Seguro?»)
+    if (c.tipo === "salud" && o.viaje?.activo()) for (const z of o.espejo.destinos()) {
+      const b = d.createElement("button"); b.type = "button"; b.dataset.verbo = `ir:${z.id}`; b.textContent = `Ir a ${z.nombre}`;
+      b.addEventListener("click", () => { const r = o.viaje!.irAPunto(z.x, z.z, z.nombre); if (r.ok) ocultar(); else { decir(r.why); pintar(); } });
+      filas.appendChild(b);
     }
     if (seguro) { const n = d.createElement("button"); n.type = "button"; n.textContent = "No, cancelar"; n.addEventListener("click", () => { seguro = ""; pintar(); }); filas.appendChild(n); }
     filas.appendChild(cerrar);

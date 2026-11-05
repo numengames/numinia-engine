@@ -25,6 +25,9 @@ export const TEXTO_VERBO: Record<string, string> = {
 };
 /** The words for a function of the switch panel (Spanish); anything not listed is shown as its own name. */
 export const TEXTO_FUNCION: Record<string, string> = { salud: "la salud", cron: "las tareas programadas", sesiones: "las sesiones", chat: "el chat" };
+/** Where a visitor can jump to: one per zone, the middle of its floor (the zone's own sign names it). Pure: the page hands each to the teleport piece (`irAPunto`). */
+export type Destino = { id: string; nombre: string; x: number; z: number };
+export function destinosDeZonas(v: Pick<Vista, "zonas"> | null | undefined): Destino[] { return (v?.zonas ?? []).map((z) => ({ id: z.id, nombre: z.cartel || z.nombre, x: z.x, z: z.z })); }
 /** The state of a shape in the house language (off / starting / on / fail), by kind of thing. Pure. */
 export function estadoDeForma(tipo: string, estado: EstadoCosa): "off" | "starting" | "on" | "fail" {
   if (estado === "fallo") return "fail";
@@ -90,6 +93,8 @@ export function crearCliente() {
     cosa: (clave: string): Cosa | null => cosas.get(clave) ?? null,
     estado: e,
     interruptor,
+    /** The zones as teleport destinations (empty without espejo). */
+    destinos: (): Destino[] => destinosDeZonas(vista),
     vista: (): Vista | null => vista,
     /** What /status said about the mirror (zones, switches): draws the floors and lamps. Call once the page knows it; safe before the connection. */
     configurar(v: unknown): void {
