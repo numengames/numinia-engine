@@ -6,8 +6,9 @@
 //   2) `POST /espejo/embed`: the page's bridge hands over what the host's plugin published (the SAME frames the local link carries: lote, alta, cambio,
 //      baja, resultado, pulso) because a snapshot (up to 16 KB) does not fit the game socket (frames over 1 KB are refused there).
 // THREAT, in plain words. `Origin: null` is what EVERY sandboxed or data: page sends, from any site: it proves nothing, so it is never enough on its own.
-// What lets a request in is (a) the world has `embed.activa: true` in its espejo.json, (b) the request comes from this machine (loopback, no proxy header)
-// and (c) it carries a valid, unexpired credential. Without (a) the route does not exist (404, as always); the game socket never checked Origin and still
+// What lets a request in is (a) the world has `embed.activa: true` in its espejo.json, (b) the request comes from this machine (loopback socket, no proxy header,
+// a local Host name against DNS rebinding, Origin absent/«null»/own), (c) JSON content-type and (d) a valid, unexpired credential in the Authorization header
+// (never the query string). A credential is bound to the first identity that proves it on the game socket (features/espejo/server.ts); bad ones are rate-limited. Without (a) the route does not exist (404, as always); the game socket never checked Origin and still
 // does not (a public world is public: identity there is a token, not an origin). CORS `*` on the page's files is harmless: they are public, and nothing
 // here uses cookies or ambient credentials. A leaked credential lets its holder publish fake things and ask for verbs as the owner until it expires:
 // the plugin makes a short one (1 h) on every open; the key itself never travels.
@@ -36,22 +37,39 @@ export function verificarCredencial(clave: string, cred: unknown, ahora = Date.n
 }
 
 type Opciones = { enlace: EnlaceEspejo; clave: () => string; activo: () => boolean; reloj?: () => number; log?: (l: string) => void };
-const CORS = { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization, content-type", "access-control-allow-methods": "POST, OPTIONS", "access-control-max-age": "600" };
+const CORS_BASE = { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization, content-type", "access-control-allow-methods": "POST, OPTIONS", "access-control-max-age": "600" };
+/** CORS `*` only for a caller that is opaque (`Origin: null`) or not a browser (no Origin): a web page of another site never gets to READ an answer. */
+const cors = (origin: string | undefined): Record<string, string> => (origin === undefined || origin === "null" ? CORS_BASE : {});
+const PROXY = ["x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "x-real-ip", "forwarded", "via", "x-client-ip", "cf-connecting-ip", "true-client-ip"];
+/** The Host a loopback visitor uses: localhost, 127.x or [::1] (with or without a port). Anything else is a DNS-rebinding name that merely resolves here. */
+const hostLocal = (host: string | undefined): boolean => { const m = /^(localhost|\[::1\]|127(?:\.\d{1,3}){3})(:\d{1,5})?$/i.exec(host ?? ""); return !!m && (m[1].toLowerCase() === "localhost" || m[1][0] === "[" || esLoopback(m[1])); };
+/** Origin is absent (not a browser), "null" (the sandboxed host frame) or the world's own address; any other site is refused. */
+const origenAdmitido = (origin: string | undefined, host: string | undefined): boolean => origin === undefined || origin === "null" || origin === `http://${host}`;
 
 export function crearEmbedHttp(o: Opciones) {
   const ahora = o.reloj ?? Date.now, log = o.log ?? (() => {});
-  const responder = (res: ServerResponse, code: number, body: Record<string, unknown>) => { res.writeHead(code, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...CORS }); res.end(JSON.stringify({ v: 1, ...body })); };
-  let fichas = RAFAGA, recarga = ahora(); // one bucket for the whole embed (a single owner publishes): the link's own rate
+  const responder = (res: ServerResponse, code: number, body: Record<string, unknown>, origen = (res as { req?: IncomingMessage }).req?.headers.origin) => { res.writeHead(code, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...cors(origen) }); res.end(JSON.stringify({ v: 1, ...body })); };
+  let fichas = RAFAGA, recarga = ahora(), malas = RAFAGA, recargaMalas = ahora(); // `malas`: the same bucket for NOT valid credentials (valid ones never wait on it, so a sandboxed frame of any site cannot lock the owner out)
+   // one bucket for the whole embed (a single owner publishes): the link's own rate
   return {
     /** Answers POST/OPTIONS /espejo/embed; false = not ours (embed off, or another path): the route does not exist then. */
     atender(method: string, path: string, req: IncomingMessage, res: ServerResponse): boolean {
       if (path !== RUTA || !o.activo()) return false;
-      if (method === "OPTIONS") { res.writeHead(204, CORS); res.end(); return true; }
-      if (method !== "POST") { responder(res, 405, { ok: false, motivo: "solo POST" }); return true; }
-      const h = req.headers;
-      if (!esLoopback(req.socket.remoteAddress) || h["x-forwarded-for"] !== undefined || h.forwarded !== undefined) { responder(res, 403, { ok: false, motivo: "el modo embebido solo acepta a esta máquina" }); return true; }
-      const cred = /^Bearer\s+(\S+)$/i.exec(String(h.authorization ?? ""))?.[1];
-      if (!verificarCredencial(o.clave(), cred, ahora())) { responder(res, 401, { ok: false, motivo: "credencial de embed ausente, caducada o no válida" }); return true; }
+      const h = req.headers, mal = (code: number, motivo: string) => { responder(res, code, { ok: false, motivo }); return true; };
+      // 1) who may even be answered: this machine, by a local name, with no proxy in between, from no other site. Checked BEFORE the preflight, so nothing foreign learns the route exists.
+      if (!esLoopback(req.socket.remoteAddress) || PROXY.some((k) => h[k] !== undefined)) return mal(403, "el modo embebido solo acepta a esta máquina");
+      if (!hostLocal(h.host)) return mal(403, "nombre de host no admitido (el modo embebido solo se abre por localhost o 127.0.0.1)");
+      if (!origenAdmitido(h.origin, h.host)) return mal(403, "origen no admitido");
+      if (method === "OPTIONS") { res.writeHead(204, cors(h.origin)); res.end(); return true; }
+      if (method !== "POST") return mal(405, "solo POST");
+      if (!/^application\/json\s*(;|$)/i.test(String(h["content-type"] ?? ""))) return mal(415, "el cuerpo debe ser application/json");
+      if (Number(h["content-length"] ?? 0) > MENSAJE_MAX) { req.resume(); return mal(413, "mensaje de más de 16 KB"); }
+      const cred = /^Bearer\s+(\S+)$/i.exec(String(h.authorization ?? ""))?.[1]; // the header only: a credential in the query string is never read
+      if (!verificarCredencial(o.clave(), cred, ahora())) {
+        const t0 = ahora(); malas = Math.min(RAFAGA, malas + ((t0 - recargaMalas) / 1000) * RITMO); recargaMalas = t0;
+        if (malas < 1) { log("[embed] demasiadas credenciales no válidas seguidas"); return mal(429, "demasiado rápido"); }
+        malas -= 1; return mal(401, "credencial de embed ausente, caducada o no válida");
+      }
       const t = ahora(); fichas = Math.min(RAFAGA, fichas + ((t - recarga) / 1000) * RITMO); recarga = t;
       if (fichas < 1) { responder(res, 429, { ok: false, motivo: "demasiado rápido" }); return true; }
       fichas -= 1;

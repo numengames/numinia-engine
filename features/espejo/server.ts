@@ -257,12 +257,16 @@ export function crearEspejo(opts: OpcionesEspejo = {}, io?: EntornoMundo): Parte
     };
 
     // ---- M7 embed mode: a page that proves the embed credential becomes THE source (requests and switch lists go to it) and counts as the machine's owner ----
+    // A credential is bound to the first PERSON (identity) that proves it: the same page may reconnect with it, another identity replaying a leaked copy is refused until it expires (the nonce is the third segment).
+    const atadas = new Map<string, string>();
+    const atar = (cred: string, id: string): boolean => { const n = cred.split(".")[2] ?? ""; const de = atadas.get(n); if (de !== undefined) return de === id; if (atadas.size >= 64) atadas.delete(atadas.keys().next().value as string); atadas.set(n, id); return true; };
     const desvincular = (): void => { if (dueno < 0) return; dueno = -1; salida = null; salidaFunciones = null; e.conectada(false); };
     api.on("embed", (from, msg) => {
       if (!cfg.embed.activa) return rechazar(from, "Este mundo no tiene el modo embebido encendido (entorno/espejo.json → embed).");
       const quien = api.who(from);
       if (!quien || esIA(quien.id)) return rechazar(from, "Solo una persona identificada puede ser la fuente de fuera.");
       if (!verificar || !verificar(String(msg.credencial ?? ""))) return rechazar(from, "La credencial de embed no es válida o ha caducado.");
+      if (!atar(String(msg.credencial), quien.id)) return rechazar(from, "Esa credencial de embed ya la usa otra identidad: pida otra (se hace una por cada apertura).");
       if (dueno !== from && dueno < 0 && conectada) return rechazar(from, "Ya hay una fuente de fuera conectada.");
       if (dueno !== from && dueno >= 0) desvincular(); // the credential makes this page the owner just as the old one was: a reopened tab takes over a stale one
       dueno = from;

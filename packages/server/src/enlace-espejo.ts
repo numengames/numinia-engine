@@ -56,7 +56,10 @@ export type EnlaceEscuchando = { puerto: number; conectado(): boolean; close(): 
 export const firmarReto = (clave: string, nonce: string): string => createHmac("sha256", clave).update(`numinia-enlace@1\n${nonce}`).digest("hex");
 const igual = (a: string, b: string): boolean => { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); };
 /** Loopback only: IPv4 127.x.x.x, IPv6 ::1, and the IPv4-mapped form. */
-export const esLoopback = (ip: string | undefined): boolean => !!ip && (/^127\.\d+\.\d+\.\d+$/.test(ip) || ip === "::1" || /^::ffff:127\.\d+\.\d+\.\d+$/i.test(ip));
+const OCTETO = "(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)";
+const V4_LOCAL = new RegExp(`^127\\.${OCTETO}\\.${OCTETO}\\.${OCTETO}$`);
+/** Is this a loopback address as Node reports it: 127.x.x.x (octets 0-255), ::1, or the IPv4-mapped forms of those (::ffff:127.0.0.1, ::ffff:7f00:1)? ::ffff:10.0.0.1 is not. */
+export const esLoopback = (ip: string | undefined): boolean => { if (!ip) return false; const m = /^::ffff:(.+)$/i.exec(ip), x = m ? m[1] : ip, h = /^7f[0-9a-f]{2}:[0-9a-f]{1,4}$/i.test(x); return V4_LOCAL.test(x) || h || (!m && x === "::1"); };
 
 export function abrirEnlace(o: OpcionesEnlace): Promise<EnlaceEscuchando> {
   const log = o.log ?? (() => {}), ahora = o.reloj ?? Date.now, host = o.host ?? "127.0.0.1";
