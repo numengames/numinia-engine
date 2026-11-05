@@ -36,3 +36,10 @@
 - Consumo: sin medir · claude-sonnet-5-5.
 - Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
 - Siguiente: que el plugin lea el `ack` y lo muestre.
+
+## 2026-11-05 22:00 · mundo-hermes · Pulido del motor, segunda vuelta (M5) · hecho
+- Qué: los botones de zona dicen «Ir al umbral» y «Ir a la torre de control»; cada función tiene su etiqueta con artículo («Apagar el gasto», «Encender los agentes») y el subtítulo del panel las usa; las placas planas miden 90–220 px en pantalla, se desvanecen de 32 a 40 m y no se dibujan más lejos; en el tema blanco y negro la barra de acciones y el aviso de la casa se esconden mientras hay una ficha abierta (en 360×640 se ven 5 filas de botones, antes 2) y la barra ya no corta «Soltar» a 1280×720; `tools/identidad-sin-espejo.mjs` compara dos copias del motor con un mundo sin espejo ni tema (semilla, `/status`, lo que la página pide).
+- Números: ver el registro de esta historia (pruebas, tipos 291/300, e2e 12 en verde); mundos sin espejo y sin tema: carpeta sembrada y `/status` idénticos a origin/main, huella f455ffc1 igual.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: el verbo `perfil.activar`; el dibujo definitivo de la planta (Pablo).
