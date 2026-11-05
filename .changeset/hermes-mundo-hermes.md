@@ -15,3 +15,10 @@
 - Consumo: sin medir · claude-sonnet-5-5.
 - Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
 - Siguiente: el adaptador del plugin con `pedir` real (carril P) y el dibujo definitivo de la planta (Pablo).
+
+## 2026-11-05 17:00 · mundo-hermes · Palancas, carteles, tema y agentes · hecho
+- Qué: las lámparas del panel del umbral son mandos (`encender`: quien dirige o manda, persona identificada, cambia `funciones.<nombre>` en `espejo.json` con el fichero entero validado y escritura atómica, se aplica sin reiniciar, quita las cosas de la función apagada y avisa a la fuente con la trama `funciones`); botón «Ir a <zona>» en la ficha del panel con la pieza de teletransporte de siempre; `tema: black-and-white` en `entorno.json` (solo la plantilla `hermes`) viste la página y el minimapa de blanco y negro; formas planas y fichas para `perfil` (figura con lámpara) y `uso` (medidor; coste siempre «estimado», caché aparte).
+- Números: ver el registro de puertas de esta rama (pruebas, tipos sin errores nuevos, página dentro del tope); sin `espejo.json` el estado y la huella salen igual.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: zonas `perfil`/`uso` en la plantilla; el verbo `perfil.activar`.
