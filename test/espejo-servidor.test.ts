@@ -116,6 +116,30 @@ test("espejo: cambio updates in place and speaks only a real change; baja remove
   assert.equal(W.enlace.baja({ tipo: "cron", id: "a" }).ok, false);
 });
 
+test("espejo: a lote with a thing for a zone the world does not have keeps the valid ones and reports the dropped ones; schema and size errors still reject it whole", () => {
+  const W = mundo(1, { espejo: ESPEJO });
+  W.poner(W.gente[0], 40, -10); W.pump(3);
+  W.enlace.alta(cron("viejo"));
+  const r = W.enlace.lote([cron("a"), cron("q", { zona: "no-existe" }), { tipo: "sesion", id: "s9", titulo: "Charla", zona: "z7", acciones: [] }, cron("b")]);
+  assert.equal(r.ok, true); if (!r.ok) return;
+  assert.deepEqual([r.puestas, r.quitadas], [2, 1], "the two valid crons are in, the old one left, as for any lote");
+  assert.deepEqual(r.descartadas?.map((d) => [d.tipo, d.id]), [["cron", "q"], ["sesion", "s9"]]);
+  assert.match(r.descartadas![0].motivo, /no hay ninguna zona «no-existe» \(hay: /);
+  assert.match(r.descartadas![1].motivo, /la zona «z7» no admite el tipo «sesion»/);
+  W.pump(3);
+  assert.deepEqual([...W.gente[0].s.features.stateOf("espejo").keys()].sort(), ["cron/a", "cron/b"]);
+  // a clean lote reports nothing dropped
+  assert.equal("descartadas" in (W.enlace.lote([cron("a")]) as object), false);
+  // an object with NO zone (or a zone that is not text) is a schema error: the whole lote is refused and the world keeps what it had
+  W.pump(3); const antes = JSON.stringify([...W.gente[0].s.features.stateOf("espejo")]);
+  for (const mala of [{ tipo: "cron", id: "z", titulo: "Sin zona", estado: "programado", acciones: [] }, cron("z", { zona: 7 as unknown as string })]) {
+    const x = W.enlace.lote([cron("a"), mala]); assert.equal(x.ok, false);
+  }
+  // a dropped thing does not hide a real error beside it
+  assert.equal(W.enlace.lote([cron("q", { zona: "no-existe" }), cron("p"), cron("p")]).ok, false);
+  W.pump(3); assert.equal(JSON.stringify([...W.gente[0].s.features.stateOf("espejo")]), antes);
+});
+
 test("espejo: lote replaces EVERYTHING (adds, changes, removes), is all-or-nothing on a bad one, and caps its size", () => {
   const W = mundo(1, { espejo: ESPEJO });
   W.poner(W.gente[0], 40, -10); W.pump(3);
@@ -128,8 +152,8 @@ test("espejo: lote replaces EVERYTHING (adds, changes, removes), is all-or-nothi
   assert.equal(W.enlace.alta(cron("x")).ok, true); W.pump(3);
   // a bad thing in the batch: nothing changes
   const antes = JSON.stringify([...W.gente[0].s.features.stateOf("espejo")]);
-  const bad = W.enlace.lote([cron("p"), cron("q", { zona: "no-existe" }), cron("p")]);
-  assert.equal(bad.ok, false); assert.match(bad.ok ? "" : bad.motivo, /lote\[1\]\.zona/); assert.ok(!bad.ok && bad.problemas!.some((p) => /repetida/.test(p.message)));
+  const bad = W.enlace.lote([cron("p"), cron("q", { titulo: "" }), cron("p")]);
+  assert.equal(bad.ok, false); assert.match(bad.ok ? "" : bad.motivo, /lote\[1\]/); assert.ok(!bad.ok && bad.problemas!.some((p) => /repetida/.test(p.message)));
   W.pump(3); assert.equal(JSON.stringify([...W.gente[0].s.features.stateOf("espejo")]), antes, "a bad batch changes nothing");
   assert.equal(W.enlace.lote(Array.from({ length: 201 }, (_, i) => cron(`c${i}`))).ok, false);
   assert.equal(W.enlace.lote("no" as unknown as unknown[]).ok, false);

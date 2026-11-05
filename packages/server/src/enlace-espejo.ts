@@ -3,6 +3,7 @@
 // The OUTSIDE source (a Hermes plugin) opens the connection; nothing connects to it. What it says is JSON, one object per message:
 //   engine → source  { v:1, t:"reto", nonce }                                  a fresh random challenge, good for ONE answer
 //   source → engine  { v:1, t:"hola", plugin, hermes_version, firma }          firma = HMAC-SHA256(clave, nonce) in hex; the key itself never travels
+//   engine → source  ack { en:"lote", puestas, quitadas, descartadas:[{ tipo, id, motivo }], mas } — only when a lote left things out (unknown zone / zone without that type)
 //   engine → source  { v:1, t:"hola", funciones:[…], zonas:[…], acciones:{…} }  what is ON (what is off is never asked for)
 //   source → engine  lote { objetos[] } · alta/cambio/baja { objeto } · resultado { peticion, ok, texto } · pulso
 //   engine → source  peticion { id, objeto, verbo, seguridad, quien, caduca } · pulso · error { en, motivo }
@@ -86,7 +87,10 @@ export function abrirEnlace(o: OpcionesEnlace): Promise<EnlaceEscuchando> {
     latido.unref?.();
     mandar({ t: "reto", nonce });
 
-    const responder = (r: { ok: boolean; motivo?: string; problemas?: { path: string; message: string }[] }, t: string) => { if (!r.ok) mandar({ t: "error", en: t, motivo: String(r.motivo ?? "no"), problemas: (r.problemas ?? []).slice(0, 5) }); };
+    const responder = (r: { ok: boolean; motivo?: string; problemas?: { path: string; message: string }[]; puestas?: number; quitadas?: number; descartadas?: { tipo: string; id: string; motivo: string }[] }, t: string) => {
+      if (!r.ok) mandar({ t: "error", en: t, motivo: String(r.motivo ?? "no"), problemas: (r.problemas ?? []).slice(0, 5) });
+      else if (r.descartadas?.length) mandar({ t: "ack", en: t, puestas: r.puestas ?? 0, quitadas: r.quitadas ?? 0, descartadas: r.descartadas.slice(0, 20), mas: Math.max(0, r.descartadas.length - 20) }); // a lote that left things out says which (a clean one stays silent)
+    };
 
     ws.on("message", (data, esBinario) => {
       if (esBinario) return cerrar(CIERRE.PROTOCOLO, "solo texto JSON", "mensaje binario");

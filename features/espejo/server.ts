@@ -18,7 +18,9 @@ import type { Espejo, Estado, Funcion, Objeto, Seguridad, Tipo, Verbo } from "./
 export const claveDe = (tipo: string, id: string): string => `${tipo}/${id}`;
 
 /** What the outside source may do through the seam. Every method returns a result that says why (never throws); texts are untrusted. */
-export type Resultado = { ok: true; puestas?: number; quitadas?: number } | { ok: false; motivo: string; problemas?: { path: string; message: string }[] };
+/** A thing a `lote` left out because of its zone (unknown, or one that does not take its type): its id, kind and the reason. */
+export type Descartada = { tipo: string; id: string; motivo: string };
+export type Resultado = { ok: true; puestas?: number; quitadas?: number; descartadas?: Descartada[] } | { ok: false; motivo: string; problemas?: { path: string; message: string }[] };
 /** A request on its way out: the server forwards it and the source answers with `resultado(id, …)` (or it expires). */
 export type Peticion = { id: string; objeto: string; verbo: Verbo; seguridad: Seguridad; quien: { entidad: number; id: string; nombre: string }; caduca: number };
 export type EnlaceEspejo = {
@@ -147,11 +149,19 @@ export function crearEspejo(opts: OpcionesEspejo = {}, io?: EntornoMundo): Parte
       lote(objetos) {
         if (!Array.isArray(objetos)) return { ok: false, motivo: "un lote es una lista de cosas" };
         if (objetos.length > LIMITES.objetosPorLote) return { ok: false, motivo: `un lote lleva como mucho ${LIMITES.objetosPorLote} cosas (lleva ${objetos.length}); mande menos o pagine` };
-        // all or nothing for the CHECK (one bad thing says which, and the world keeps what it had); then replace everything
+        // All or nothing for schema, size, repeats and the world's own things (one bad thing says which, and the world keeps what it had); then replace everything.
+        // The one exception: a thing whose ZONE the world does not have (or whose zone does not take its type) is DROPPED and reported in `descartadas`, the rest goes in
+        // (a source that publishes to the zones it was told in `hola` may still be a step behind a world whose file was just edited).
+        const descartadas: Descartada[] = [];
+        const soloZona = (ps: { path: string; message: string }[]): boolean => ps.length > 0 && ps.every((q) => /^no hay ninguna zona|^la zona «.*no admite el tipo/.test(q.message));
         const nuevos: Objeto[] = [], autos = new Set<string>(), problemas: { path: string; message: string }[] = [], vistos = new Set<string>(), porZona = new Map<string, number>();
         objetos.forEach((c, i) => {
           const a = admitir(c, `lote[${i}]`);
-          if (!a.ok) { problemas.push(...(a.r.ok ? [] : a.r.problemas ?? [{ path: `lote[${i}]`, message: a.r.motivo }])); return; }
+          if (!a.ok) {
+            const ps = a.r.ok ? [] : a.r.problemas ?? [];
+            const tipoId = typeof c === "object" && c !== null ? c as { tipo?: unknown; id?: unknown } : {};
+            if (soloZona(ps)) { descartadas.push({ tipo: limpiar(tipoId.tipo, 24), id: limpiar(tipoId.id, LIMITES.id), motivo: limpiar(ps[0].message, 160) }); return; }
+            problemas.push(...(a.r.ok ? [] : a.r.problemas ?? [{ path: `lote[${i}]`, message: a.r.motivo }])); return; }
           const k = claveDe(a.o.tipo, a.o.id);
           if (vistos.has(k)) { problemas.push({ path: `lote[${i}]`, message: `«${k}» está repetida en el lote` }); return; }
           if (propias.has(k)) { problemas.push({ path: `lote[${i}]`, message: `«${k}» es de este mundo (el panel de interruptores): la fuente no puede publicarla` }); return; }
@@ -165,7 +175,7 @@ export function crearEspejo(opts: OpcionesEspejo = {}, io?: EntornoMundo): Parte
         for (const k of [...puestas.keys()]) if (!vistos.has(k) && !propias.has(k)) { quitar(k); quitadas++; }
         let n = 0;
         for (const o0 of nuevos) { const k = claveDe(o0.tipo, o0.id), antes = puestas.get(k), o = colocar(o0, autos.has(k)); if (poner(o)) { n++; if (antes) decirCambio(antes, o); } }
-        return { ok: true, puestas: n, quitadas };
+        return { ok: true, puestas: n, quitadas, ...(descartadas.length ? { descartadas } : {}) };
       },
       conectada(si) {
         if (si === conectada) return;

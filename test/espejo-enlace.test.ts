@@ -166,6 +166,10 @@ test("enlace: a bad thing comes back as `error` with the path, the link stays up
     assert.match(String((await f.espera("error")).motivo), /objeto\.tipo|apagada/);
     f.mandar({ t: "lote", objetos: "no" });
     assert.equal((await f.espera("error")).en, "lote");
+    f.mandar({ t: "lote", objetos: [cron("v"), cron("w", { zona: "no-existe" })] });
+    const ack = await f.espera("ack");
+    assert.deepEqual([ack.en, ack.puestas, ack.quitadas, ack.mas], ["lote", 1, 0, 0]);
+    assert.deepEqual((ack.descartadas as { tipo: string; id: string }[]).map((d) => `${d.tipo}/${d.id}`), ["cron/w"]);
     f.mandar({ t: "inventado" });
     assert.match(String((await f.espera("error")).motivo), /mensaje desconocido/);
     f.mandar({ t: "alta", objeto: cron("ok") }); await dormir(30);
