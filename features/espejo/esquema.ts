@@ -100,6 +100,8 @@ export type Espejo = {
   documentos: { origenes: string[] };
   /** M6: the guide's lines (zone id / `tocar:<tipo>` / `saludo` → text ≤ 120 characters, defaults filled in), the tour order (zone ids) and whether the file names her at all. */
   guia: { frases: Record<string, string>; recorrido: string[]; definida: boolean };
+  /** M7: embed mode (the world page inside a sandboxed frame of a host app, e.g. Hermes Desktop). Off unless the file says `embed.activa: true`. */
+  embed: { activa: boolean };
 };
 
 /** A thing as the outside source publishes it (alta / cambio / lote). Checked by `leerObjeto`. */
@@ -154,7 +156,7 @@ const bytes = (s: string) => enc.encode(s).length;
 const num = (v: unknown, min: number, max: number): v is number => typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
 const lista = (xs: readonly string[]) => xs.join(", ");
 
-const CLAVES_RAIZ = ["schema", "activa", "funciones", "fuente", "zonas", "acciones", "documentos", "guia", "notas"];
+const CLAVES_RAIZ = ["schema", "activa", "funciones", "fuente", "zonas", "acciones", "documentos", "guia", "embed", "notas"];
 const CLAVES_ZONA = ["id", "nombre", "centro", "ancho", "fondo", "alto", "tipos", "luz", "cartel"];
 
 /** Read entorno/espejo.json. A missing `funciones` means every function OFF; a missing `acciones` means every verb `aprobar`. */
@@ -163,7 +165,7 @@ export function leerEspejo(json: unknown): Result<Espejo> {
   const issues: Issue[] = [], push = (path: string, message: string) => issues.push({ path, message });
   for (const k of Object.keys(json)) if (!CLAVES_RAIZ.includes(k)) push(`espejo.${k}`, `clave desconocida: quítala o corrige el nombre (las claves son: ${lista(CLAVES_RAIZ)})`);
   if (json.schema !== ESQUEMA) push("espejo.schema", `debe ser "${ESQUEMA}"`);
-  const v: Espejo = { activa: true, funciones: Object.fromEntries(FUNCIONES.map((f) => [f, false])) as Record<Funcion, boolean>, fuente: { tipo: "enlace-local", puerto: 8791 }, zonas: [], acciones: Object.fromEntries(VERBOS_LISTA.map((a) => [a, SEGURIDAD_DEFECTO])) as Record<Verbo, Seguridad>, documentos: { origenes: [ORIGEN_DEFECTO] }, guia: { frases: { ...FRASES_DEFECTO }, recorrido: [], definida: false } };
+  const v: Espejo = { activa: true, funciones: Object.fromEntries(FUNCIONES.map((f) => [f, false])) as Record<Funcion, boolean>, fuente: { tipo: "enlace-local", puerto: 8791 }, zonas: [], acciones: Object.fromEntries(VERBOS_LISTA.map((a) => [a, SEGURIDAD_DEFECTO])) as Record<Verbo, Seguridad>, documentos: { origenes: [ORIGEN_DEFECTO] }, embed: { activa: false }, guia: { frases: { ...FRASES_DEFECTO }, recorrido: [], definida: false } };
 
   if (json.activa !== undefined) { if (typeof json.activa === "boolean") v.activa = json.activa; else push("espejo.activa", "true o false (false apaga el espejo entero sin borrar el fichero)"); }
 
@@ -234,6 +236,15 @@ export function leerEspejo(json: unknown): Result<Espejo> {
           v.documentos.origenes = buenos;
         }
       }
+    }
+  }
+
+  if (json.embed !== undefined) {
+    const m = json.embed;
+    if (!obj(m)) push("espejo.embed", `un objeto { "activa": true } (enciende el modo embebido: la página dentro de un marco aislado, p. ej. Hermes Desktop)`);
+    else {
+      for (const k of Object.keys(m)) if (k !== "activa") push(`espejo.embed.${k}`, "clave desconocida (es: activa)");
+      if (m.activa !== undefined) { if (typeof m.activa === "boolean") v.embed.activa = m.activa; else push("espejo.embed.activa", "true o false"); }
     }
   }
 
@@ -317,7 +328,9 @@ export function leerObjeto(crudo: unknown, e: Pick<Espejo, "zonas"> & Partial<Pi
  *  no verbs: only what is needed to draw the floors and the lamps of the switch panel. `funciones` lists only the functions some zone shows (in F0 order). */
 export type VistaEspejo = { zonas: { id: string; nombre: string; cartel: string; x: number; z: number; ancho: number; fondo: number; tipos: Tipo[] }[]; funciones: Partial<Record<Funcion, boolean>>;
   /** M6: the viewer's allowlist (only when some zone shows documents) and the guide's lines and tour (only when the file names her). */
-  documentos?: { origenes: string[] }; guia?: { frases: Record<string, string>; recorrido: string[] } };
+  documentos?: { origenes: string[] }; guia?: { frases: Record<string, string>; recorrido: string[] };
+  /** M7: present (true) only when the world turned embed mode on; absent = the page never loads the bridge. */
+  embed?: true };
 export function vistaPublica(e: Espejo): VistaEspejo | null {
   if (!e.activa) return null;
   const mostradas = new Set<Funcion>(e.zonas.flatMap((z) => z.tipos.map((t) => TIPOS[t])));
@@ -327,5 +340,6 @@ export function vistaPublica(e: Espejo): VistaEspejo | null {
     funciones: Object.fromEntries(FUNCIONES.filter((f) => mostradas.has(f)).map((f) => [f, e.funciones[f]])),
     ...(mostradas.has("documentos") ? { documentos: { origenes: [...e.documentos.origenes] } } : {}),
     ...(e.guia.definida ? { guia: { frases: { ...e.guia.frases }, recorrido: [...e.guia.recorrido] } } : {}),
+    ...(e.embed.activa ? { embed: true as const } : {}),
   };
 }

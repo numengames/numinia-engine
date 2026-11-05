@@ -25,6 +25,7 @@ import { puertaDeEntorno } from "./condiciones.ts";
 import { intervaloDeEntorno } from "./condiciones-fuente.ts"; // condiciones/w4
 import { pensadorDeCable } from "./cable-ia.ts";
 import { abrirEnlace } from "./enlace-espejo.ts";
+import { crearEmbedHttp, verificarCredencial } from "./embed-espejo.ts";
 import type { ParteConEspejo } from "../../../features/espejo/server.ts";
 import { vistaPublica } from "../../../features/espejo/esquema.ts";
 
@@ -53,7 +54,10 @@ const partes = env.SIN_FUNCIONES === "1" ? [] : leerEntorno ? conMundo(funciones
 
 // found by id, NOT by `conEspejo`: the seam is filled when the instance starts (inside startServer), so before that it has no verbs yet
 const parteEspejo = partes.find((p) => p.feature.id === "espejo") as ParteConEspejo | undefined; // mundo-hermes: the espejo's seam — also what /status tells the page
+let claveEmbed = ""; // M7: the link key, once known (embed mode needs it to check credentials; no key = no embed)
+const embed = parteEspejo ? crearEmbedHttp({ enlace: parteEspejo.enlace, clave: () => claveEmbed, activo: () => !!claveEmbed && parteEspejo.enlace.config?.()?.embed.activa === true, log: (l) => console.log(l) }) : undefined;
 const srv = await startServer({
+  ...(embed ? { embed: { atender: embed.atender, activo: () => !!claveEmbed && parteEspejo?.enlace.config?.()?.embed.activa === true } } : {}),
   espejo: () => { const cfg = parteEspejo?.enlace.config?.() ?? null; return cfg ? vistaPublica(cfg) : null; },
   port: Number(env.PORT ?? 8790),
   host: env.HOST ?? "127.0.0.1",
@@ -92,6 +96,7 @@ if (parteEspejo && cfgEspejo) {
   const clave = claveDeEnlace(env, c, log);
   if (!clave) log("[enlace] el espejo está encendido pero no hay dónde guardar la clave del enlace (use MOTOR_MUNDO o MOTOR_ENLACE_CLAVE): el enlace no se abre");
   else {
+    claveEmbed = clave; parteEspejo.enlace.verificarEmbed((cred) => verificarCredencial(clave, cred));
     try { enlaceEspejo = await abrirEnlace({ enlace: parteEspejo.enlace, clave, puerto: Number(env.MOTOR_ENLACE_PUERTO || cfgEspejo.fuente.puerto), log }); }
     catch (err) { log(`[enlace] no he podido abrir el enlace: ${(err as Error).message}`); }
   }

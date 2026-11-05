@@ -166,6 +166,9 @@ export function crearCliente() {
     /** Ask for an action on a thing (the server only forwards it; the result comes back, or «no ha respondido»). */
     pedir: (clave: string, verbo: string): Res => (A ? A.send("pedir", { objeto: clave, verbo }) : SIN),
     alCambiar(fn: (que: Que, clave?: string) => void): () => void { oyentes.add(fn); return () => oyentes.delete(fn); },
+    /** M7 embed: the bridge (apps/plaza/espejo-embed.ts, a lazy chunk) hears the events meant for the bound source, and binds with its credential. */
+    puente: null as ((ev: string, m: Msg) => void) | null,
+    vincular: (credencial: string): Res => (A ? A.send("embed", { credencial }) : SIN),
     /** Forget the card I was showing (the panel closed). */
     cerrarFicha(): void { e.ficha = null; e.pedido = null; e.resultado = null; e.rechazo = ""; avisar("ficha"); },
   };
@@ -185,6 +188,7 @@ export function crearCliente() {
     api.on("rechazado", (m) => { e.rechazo = String(m.motivo); if (esperaEncender) { esperaEncender = false; interruptor.estado.ultimoRechazo = e.rechazo; } avisar("rechazo"); });
     api.on("permiso", (m) => { interruptor.estado.puede = m.encender === true; });
     api.on("funcion", (m) => { esperaEncender = false; if (vista) { vista.funciones[String(m.funcion)] = m.activa === true; dibujarZonas(); } e.funcion = { funcion: String(m.funcion), activa: m.activa === true, texto: String(m.texto) }; avisar("funcion"); });
+    for (const ev of ["hola", "peticion", "lista"]) api.on(ev, (m) => controlador.puente?.(ev, m));
     api.on("aviso", (m) => { e.conectada = m.conectada === true; avisar("fuente"); });
   });
   return { parts: [parte], espejo: controlador };

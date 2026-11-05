@@ -43,6 +43,8 @@ export type EnlaceEspejo = {
   esperando(): number;
   /** Where a change of the switches goes (the link sets one function; none = no source): called with the functions that are ON after every flip. */
   alFunciones(fn: ((funciones: Funcion[]) => void) | null): void;
+  /** M7: how the embed credential is checked (the composition root hands over the link key's check; none = every credential is refused). */
+  verificarEmbed(fn: ((credencial: string) => boolean) | null): void;
 };
 export type ParteConEspejo = ServerPart & { enlace: EnlaceEspejo };
 export const conEspejo = (p: ServerPart): p is ParteConEspejo => p.feature.id === "espejo" && typeof (p as Partial<ParteConEspejo>).enlace?.alta === "function";
@@ -60,7 +62,7 @@ export function crearEspejo(opts: OpcionesEspejo = {}, io?: EntornoMundo): Parte
     // ---- inert without a (valid, active) espejo.json: the seam still answers, saying why, so a source that connects anyway is told ----
     const apagado = (): Resultado => ({ ok: false, motivo: "este mundo no tiene el espejo encendido (entorno/espejo.json)" });
     if (!cfg) {
-      Object.assign(enlace, { funciones: () => [], config: () => null, alta: apagado, cambio: apagado, baja: apagado, lote: apagado, conectada: () => {}, resultado: () => false, alPedir: () => {}, esperando: () => 0, alFunciones: () => {} } satisfies EnlaceEspejo);
+      Object.assign(enlace, { funciones: () => [], config: () => null, alta: apagado, cambio: apagado, baja: apagado, lote: apagado, conectada: () => {}, resultado: () => false, alPedir: () => {}, esperando: () => 0, alFunciones: () => {}, verificarEmbed: () => {} } satisfies EnlaceEspejo);
       return;
     }
     let encendidos = new Set<string>(tiposEncendidos(cfg));
@@ -208,7 +210,8 @@ export function crearEspejo(opts: OpcionesEspejo = {}, io?: EntornoMundo): Parte
         cerrar(String(id), p, ok === true, limpiar(texto, 120) || (ok ? "Hecho." : "No se pudo."));
         return true;
       },
-      alPedir(fn) { salida = fn; },
+      alPedir(fn) { if (fn && dueno >= 0) desvincular(); salida = fn; }, // a local link that arrives takes the place of an embedded page
+      verificarEmbed(fn) { verificar = fn; },
       esperando: () => esperando.size,
       alFunciones(fn) { salidaFunciones = fn; },
     };
@@ -229,6 +232,7 @@ export function crearEspejo(opts: OpcionesEspejo = {}, io?: EntornoMundo): Parte
     refrescarPanel();
 
     // ---- story 4: usar / pedir. The page only ASKS; the server checks and forwards. It never runs anything. ----
+    let dueno = -1, verificar: ((c: string) => boolean) | null = null; // M7: the one connection bound as the source through the embed credential (-1 = none)
     let conectada = false, salida: ((p: Peticion) => void) | null = null, n = 0;
     const esperando = new Map<string, Peticion & { texto: string }>();
     const rechazar = (from: number, motivo: string) => { api.emit("rechazado", { motivo: limpiar(motivo, 160) }, { to: from }); };
@@ -240,6 +244,7 @@ export function crearEspejo(opts: OpcionesEspejo = {}, io?: EntornoMundo): Parte
     const puedePedir = (e: number): string => {
       const quien = api.who(e);
       if (!quien || esIA(quien.id)) return "Solo una persona identificada puede pedir acciones sobre lo de fuera; una IA o alguien sin identidad no puede.";
+      if (e === dueno) return ""; // M7: the page that proved the embed credential is the owner of this machine
       if (!(api.puede(e, "dirigir") || api.puede(e, "mandar"))) return "Pedir acciones sobre lo de fuera es cosa de quien dirige aquí o de quien manda en el mundo.";
       return "";
     };
@@ -250,6 +255,24 @@ export function crearEspejo(opts: OpcionesEspejo = {}, io?: EntornoMundo): Parte
       if (!api.within(from, k)) { rechazar(from, `Está demasiado lejos: acérquese a «${o.titulo}» (a menos de ${RADIO_USO_M} m).`); return null; }
       return { k, o };
     };
+
+    // ---- M7 embed mode: a page that proves the embed credential becomes THE source (requests and switch lists go to it) and counts as the machine's owner ----
+    const desvincular = (): void => { if (dueno < 0) return; dueno = -1; salida = null; salidaFunciones = null; e.conectada(false); };
+    api.on("embed", (from, msg) => {
+      if (!cfg.embed.activa) return rechazar(from, "Este mundo no tiene el modo embebido encendido (entorno/espejo.json → embed).");
+      const quien = api.who(from);
+      if (!quien || esIA(quien.id)) return rechazar(from, "Solo una persona identificada puede ser la fuente de fuera.");
+      if (!verificar || !verificar(String(msg.credencial ?? ""))) return rechazar(from, "La credencial de embed no es válida o ha caducado.");
+      if (dueno !== from && dueno < 0 && conectada) return rechazar(from, "Ya hay una fuente de fuera conectada.");
+      if (dueno !== from && dueno >= 0) desvincular(); // the credential makes this page the owner just as the old one was: a reopened tab takes over a stale one
+      dueno = from;
+      salida = (p) => api.emit("peticion", { id: p.id, objeto: p.objeto, verbo: p.verbo, seguridad: p.seguridad, quienId: p.quien.id, quienNombre: p.quien.nombre, caduca: p.caduca }, { to: from });
+      salidaFunciones = (fs) => api.emit("lista", { funciones: fs.join(" ") }, { to: from });
+      e.conectada(true);
+      api.emit("hola", { funciones: funcionesEncendidas(cfg).join(" "), confirmar: Object.entries(cfg.acciones).filter(([, s]) => s === "confirmar").map(([v]) => v).join(" "), aprobar: Object.entries(cfg.acciones).filter(([, s]) => s !== "confirmar").map(([v]) => v).join(" ") }, { to: from });
+      decirPermiso(from);
+      api.log(`espejo: una página embebida se vincula como la fuente (dueño local, entidad ${from})`);
+    });
 
     api.on("usar", (from, msg) => {
       const b = buscar(from, String(msg.objeto)); if (!b) return;
@@ -273,7 +296,7 @@ export function crearEspejo(opts: OpcionesEspejo = {}, io?: EntornoMundo): Parte
       const quien = api.who(from)!;
       const id = `p${(++n).toString(36)}-${api.tick().toString(36)}`;
       const seguridad = cfg.acciones[verbo as Verbo];
-      const p: Peticion & { texto: string } = { id, objeto: b.k, verbo: verbo as Verbo, seguridad, quien: { entidad: from, id: quien.id, nombre: limpiar(quien.nombre, 40) }, caduca: api.tick() + CADUCA_S * TICK_HZ, texto: b.o.titulo };
+      const p: Peticion & { texto: string } = { id, objeto: b.k, verbo: verbo as Verbo, seguridad, quien: { entidad: from, id: quien.id, nombre: from === dueno ? "dueño local" : limpiar(quien.nombre, 40) }, caduca: api.tick() + CADUCA_S * TICK_HZ, texto: b.o.titulo };
       esperando.set(id, p);
       try { salida(p); }
       catch (err) { esperando.delete(id); api.log(`espejo: la salida falló: ${(err as Error).message}`); return rechazar(from, "No he podido mandar la petición fuera."); }
@@ -286,7 +309,7 @@ export function crearEspejo(opts: OpcionesEspejo = {}, io?: EntornoMundo): Parte
       for (const [id, p] of [...esperando]) if (t >= p.caduca) cerrar(id, p, false, "Hermes no ha respondido a tiempo: no sé si se hizo.");
     });
     // a person who leaves takes their waiting requests with them (the answer has nobody to tell)
-    api.onLeave((e) => { for (const [id, p] of [...esperando]) if (p.quien.entidad === e) esperando.delete(id); });
+    api.onLeave((e) => { if (e === dueno) desvincular(); for (const [id, p] of [...esperando]) if (p.quien.entidad === e) esperando.delete(id); });
     // ---- the switch panel's lamps are controls: `encender { funcion, activa }` flips `funciones.<funcion>` for the whole world, live ----
     const decirPermiso = (e: number): void => { api.emit("permiso", { encender: puedePedir(e) === "" }, { to: e }); };
     api.onJoin(decirPermiso); api.onIdentify(decirPermiso);

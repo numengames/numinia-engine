@@ -63,8 +63,18 @@ export const espejo = defineFeature({
       fields: { funcion: { kind: "text", maxBytes: 24 }, activa: { kind: "bool" } },
       rate: { perSecond: 1, burst: 4 },
     },
+    embed: {
+      describe: "Modo embebido (Hermes Desktop): la página, dentro de un marco aislado, prueba con una credencial de embed que es la fuente de fuera y el dueño local. Si es válida (y el mundo tiene `embed.activa`), recibe `hola`, sus peticiones y la lista de funciones, y cuenta como quien manda para pedir acciones. Sin credencial válida no pasa nada: solo se le dice por qué.",
+      spoken: "vincular la página como fuente",
+      fields: { credencial: { kind: "text", maxBytes: 160 } },
+      rate: { perSecond: 1, burst: 3 },
+    },
   },
   events: {
+    // M7 embed mode: what the page's bridge hands to the host app. They go ONLY to the one connection that proved the embed credential.
+    hola: { describe: "Solo a la página embebida que se vinculó (intención `embed`): lo que la fuente de fuera debe saber, igual que `hola` del enlace local: las funciones encendidas y los verbos de cada seguridad (todo separado por espacios).", fields: { funciones: { kind: "text", maxBytes: 200 }, confirmar: { kind: "text", maxBytes: 400 }, aprobar: { kind: "text", maxBytes: 400 } }, announce: "silent" },
+    peticion: { describe: "Solo a la página embebida vinculada: una persona pidió una acción sobre una cosa; la página se la pasa a la aplicación que la contiene (que la lleva a Hermes). Igual que `peticion` del enlace local; `caduca` es un número de tic.", fields: { id: { kind: "text", maxBytes: 32 }, objeto: OBJ, verbo: { kind: "text", maxBytes: 32 }, seguridad: { kind: "text", maxBytes: 16 }, quienId: { kind: "text", maxBytes: 40 }, quienNombre: { kind: "text", maxBytes: 40 }, caduca: { kind: "int", min: 0, max: 2000000000 } }, announce: "silent" },
+    lista: { describe: "Solo a la página embebida vinculada: alguien encendió o apagó una función; la lista NUEVA y completa de las encendidas (separadas por espacios), como `funciones` del enlace local.", fields: { funciones: { kind: "text", maxBytes: 200 } }, announce: "silent" },
     permiso: { describe: "A usted solo (al entrar, al identificarse y al cambiar sus roles): si puede encender o apagar funciones del espejo.", fields: { encender: { kind: "bool" } }, announce: "silent" },
     funcion: { describe: "A todos: una función del espejo se encendió o se apagó (`texto` es lo que se lee).", fields: { funcion: { kind: "text", maxBytes: 24 }, activa: { kind: "bool" }, texto: { kind: "text", maxBytes: 160 } }, announce: { text: "{texto}", sound: "suave", importance: 1 } },
     cambiado: { describe: "Una cosa del espejo cambió (para quien la tiene cerca): `texto` es lo que se lee, p. ej. «Tarea Resumen diario: en pausa».", fields: { objeto: OBJ, texto: { kind: "text", maxBytes: 160 } }, announce: { text: "{texto}", sound: "suave", importance: 0 } },

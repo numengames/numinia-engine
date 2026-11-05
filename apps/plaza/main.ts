@@ -1,4 +1,5 @@
 // The PP1 page: one plaza, your capsule, everyone else's, and the determinism probe.
+import "./almacen-seguro.ts"; // M7: first of all: storage that throws (sandboxed frame) becomes a memory copy; storage that works is left alone
 import { montarSolReal } from "./sol-real.ts";
 import { alPrimerCuadro, primerCuadroDado } from "./primer-cuadro.ts"; // t_45ef2f70: what the first frame does not need waits for it
 import { ponerFuentes } from "./fuentes.ts";
@@ -394,6 +395,8 @@ let guiaPagina: { cuadro(dt: number): boolean } | null = null, guiaCarga = false
 const cargarGuia = (): void => { if (guiaCarga || !espejoCtl.interruptor.activa("guia") || !espejoCtl.vista()?.guia) return; guiaCarga = true; void import("./guia.ts").then((m) => { guiaPagina = m.montarGuia({ espejo: espejoCtl, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), forma: (k, f) => view.forma(k, f), mover: (k, x, z, r) => view.moverForma(k, x, z, r) }); }).catch((e) => { guiaCarga = false; console.warn(`[guia] no se pudo cargar: ${(e as Error)?.message ?? e}`); }); };
 cargarGuia();
 espejoCtl.alCambiar(() => cargarGuia());
+// M7 embed mode: only when the page is framed AND `?embed=1` (or the world's /status says `espejo.embed`); a page that is not framed never downloads the bridge
+if (window.parent !== window && (/[?&]embed=1\b/.test(location.search) || (estado?.espejo as { embed?: boolean } | null | undefined)?.embed)) void import("./espejo-embed.ts").then((m) => m.montarEmbed({ espejo: espejoCtl })).catch((e) => console.warn(`[embed] ${String(e)}`));
 espejoCtl.alCambiar((que) => { if (que === "ficha" && espejoCtl.estado.ficha) espejoCard ??= import("./espejo.ts").then((m) => m.montarEspejo({ espejo: espejoCtl, viaje: viajar, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) })).catch((e) => console.warn(`[espejo] no se pudo cargar la ficha: ${(e as Error)?.message ?? e}`)); });
 // ---- pesca v1: nothing of it is in the start bundle; the HUD and the 3D arrive with the first fishing spot or float ----
 let pescaHud: Promise<unknown> | null = null, pescaPagina: unknown = null; // N4: pescaPagina.manos (VR rod, gamepad) for the e2e

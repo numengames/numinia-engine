@@ -97,6 +97,8 @@ export type ServerOptions = {
   temaHud?: "black-and-white" | null; // mundo-hermes: entorno.json `tema`, told in /status as `temaHud` (`tema` there is the ficha's look) so the page can dress its HUD; none = the house look, and /status has no key
   vuelo?: "nadie" | "constructores" | "todos" | null; // H2: entorno.json `vuelo` (read by the composition root); none = nobody flies
   suelo?: Suelo | null;          // D-045: entorno.json `sueloMinimo` + `vuelta` (read by the composition root); none = no void
+  /** M7 embed mode: the `POST /espejo/embed` route (embed-espejo.ts) and whether the world turned the mode on (the page's files then carry CORS `*`, an opaque-origin page needs it). */
+  embed?: { atender(method: string, path: string, req: IncomingMessage, res: ServerResponse): boolean; activo(): boolean };
   espejo?: () => unknown; // mundo-hermes: what the page may know of the espejo (zones, which functions are on: features/espejo `vistaPublica`), told in /status; asked on each request because the features read their file when the instance starts, after these options are made; absent or null = no mirror
   enlaceDardos?: { servidor: string; diana: string } | null; // dardos enlazados (E1): the darts link this world's AR uses (dardos.json `enlace`, read by the composition root), told to the page in /status; null = off; undefined = not said (the page uses the house link)
   dondeCodigo?: string;          // where the administration code can be read (the /mundo page says it; never the code)
@@ -177,7 +179,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const puertaActiva = o.condicionesPuerta ?? normasEscritas ?? condiciones.puerta ?? PUERTA_POR_DEFECTO;
   const puertaCondiciones = crearPuertaCondiciones({ condiciones, activa: puertaActiva, log });
   log(`[condiciones] puerta ${puertaActiva ? "ENCENDIDA: nadie se mueve, habla ni construye hasta aceptar las normas obligatorias" : "apagada (MOTOR_CONDICIONES_PUERTA=si, \"normas\": true en funciones.json o \"puerta\": true en condiciones.json la enciende)"}${o.condicionesPuerta !== undefined ? " · fijada por el entorno del servidor" : normasEscritas !== undefined ? " · según funciones.json" : ""}`);
-  const pagina = o.www ? new Pagina(o.www, { titulo: ficha?.nombre ?? null }) : null; // C1: the page from the engine itself (one port per world)
+  const pagina = o.www ? new Pagina(o.www, { titulo: ficha?.nombre ?? null }) : null; if (pagina && o.embed) pagina.cors = o.embed.activo; // C1: the page from the engine itself (one port per world)
 
   const t0 = performance.now();
   const refHash = replayFingerprint(referenceRecording(REFERENCE.seed, REFERENCE.ticks, REFERENCE.n));
@@ -400,6 +402,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     if (habitantesHttp.atender(method, path, req, res)) return; // the panel manages this world's own AI inhabitants (pass-authenticated)
     if (appsHttp.atender(method, path, req, res)) return; // M20: an admin edits/reloads an app's script (pass or administration code)
     if (method === "GET" && /^\/apps\/?$/.test(path)) return json(res, 200, listaDeApps(apps, ejecutor.estado())); // M19: what the world's apps are (properties, events, card, files); read-only, no disk paths
+    if (o.embed?.atender(method, path, req, res)) return; // M7: the embed bridge's route (only when the world turned embed mode on)
     if (funcionesHttp.atender(method, path, req, res)) return; // e1: the panel switches the world's functions (normas, dardos, pesca) (pass-authenticated)
     if (copia.atender(method, path, req, res)) return; // the world as a zip
     if (pagina?.servir(method, path, req, res)) return; // C1: the page (index.html, assets/) when the engine serves it
