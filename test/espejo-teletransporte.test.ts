@@ -39,9 +39,9 @@ function mundo(archivos: Record<string, unknown> = { "espejo.json": ESPEJO }) {
 }
 const dentro = (p: { x: number; z: number }, z: { x: number; z: number; ancho: number; fondo: number }) => Math.abs(p.x - z.x) <= z.ancho / 2 && Math.abs(p.z - z.z) <= z.fondo / 2;
 
-test("zone teleport: the destinations are the zones (sign text first), and without espejo there are none", () => {
+test("zone teleport: the destinations are the zones (by name), and without espejo there are none", () => {
   const W = mundo();
-  assert.deepEqual(W.e.espejo.destinos().map((d) => [d.id, d.nombre, d.x, d.z]), [["z0", "El umbral", 0, 0], ["z7", "Sala del reloj", 60, -40], ["z3", "Las sesiones", -70, 55]]);
+  assert.deepEqual(W.e.espejo.destinos().map((d) => [d.id, d.nombre, d.x, d.z]), [["z0", "El umbral", 0, 0], ["z7", "El reloj", 60, -40], ["z3", "Las sesiones", -70, 55]]);
   assert.deepEqual(destinosDeZonas(null), []); assert.deepEqual(destinosDeZonas(undefined), []);
   assert.deepEqual(crearClienteEspejo().espejo.destinos(), [], "a page that was never configured offers nowhere to go");
 });

@@ -10,13 +10,13 @@ import { detalleDe, textoEstadoDe, TEXTO_FUNCION, TEXTO_VERBO } from "../../feat
 type Ctl = typeof Controlador;
 
 const CSS = `
-#espejo-ficha { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 6; width: min(94vw, 420px); padding: 12px 14px; background: #000; color: #fff; border: 2px solid #fff; font: 15px/1.45 "DejaVu Sans Mono", "Courier New", monospace; display: grid; gap: 8px; }
+#espejo-ficha { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 6; width: min(94vw, 420px); max-height: calc(100vh - 250px); overflow-y: auto; padding: 10px 12px; background: #000; color: #fff; border: 2px solid #fff; font: 15px/1.45 "DejaVu Sans Mono", "Courier New", monospace; display: grid; gap: 8px; }
 #espejo-ficha[hidden] { display: none; }
 #espejo-ficha h2 { margin: 0; font-size: 16px; letter-spacing: .04em; text-transform: uppercase; overflow-wrap: anywhere; }
 #espejo-ficha p { margin: 0; overflow-wrap: anywhere; }
 #espejo-ficha .estado { font-weight: bold; }
-#espejo-ficha .filas { display: flex; flex-wrap: wrap; gap: 8px; }
-#espejo-ficha button { min-height: 48px; padding: 0 14px; background: #000; color: #fff; border: 2px solid #fff; font: bold 15px "DejaVu Sans Mono", "Courier New", monospace; cursor: pointer; }
+#espejo-ficha .filas { display: flex; flex-wrap: wrap; gap: 6px; }
+#espejo-ficha button { min-height: 44px; padding: 0 10px; background: #000; color: #fff; border: 2px solid #fff; font: bold 15px "DejaVu Sans Mono", "Courier New", monospace; cursor: pointer; }
 #espejo-ficha button:hover, #espejo-ficha button:focus-visible { background: #fff; color: #000; outline: 3px solid #fff; outline-offset: 2px; }
 #espejo-ficha button[data-seguro] { background: #fff; color: #000; }
 #espejo-ficha .dicho { border-top: 2px dashed #fff; padding-top: 8px; font-weight: bold; }
