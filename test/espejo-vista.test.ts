@@ -122,7 +122,7 @@ test("the page draws a flat shape by tipo in the house language of states, with 
   const reloj = g.formas.get("espejo:cron/8bc0")!, cubo = g.formas.get("espejo:sesion/s1")!;
   assert.deepEqual([reloj.forma, reloj.estado], ["reloj", "on"]); assert.deepEqual([cubo.forma, cubo.estado], ["cubo", "on"]);
   assert.deepEqual([g.tags.get("espejo:cron/8bc0")!.text, g.tags.get("espejo:cron/8bc0")!.sub], ["Tarea 8bc0", TEXTO_ESTADO.programado], "the label is the card's name and the state in Spanish");
-  assert.equal(Number(reloj.rumbo), Math.atan2(-Number(reloj.x), -Number(reloj.z)), "the clock faces the threshold");
+  assert.equal(reloj.rumbo, 0, "everything faces +z: the way a visitor looks when it arrives (the default view)");
   W.enlace.cambio(cron("8bc0", { estado: "pausado", acciones: ["cron.reanudar"] })); W.pump(3);
   assert.equal(g.formas.get("espejo:cron/8bc0")!.estado, "off", "paused = outline");
   assert.equal(g.tags.get("espejo:cron/8bc0")!.sub, "en pausa");

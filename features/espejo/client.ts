@@ -52,14 +52,13 @@ export function crearCliente() {
     return { clave, tipo, id: resto.join("/"), titulo: String(v.titulo ?? ""), subtitulo: String(v.subtitulo ?? ""), estado: String(v.estado ?? "desconocido") as EstadoCosa, zona: String(v.zona ?? ""), x: Number(v.x ?? 0), z: Number(v.z ?? 0), acciones: String(v.acciones ?? "").split(" ").filter(Boolean) };
   };
   const luces = (): boolean[] => (vista ? Object.values(vista.funciones) : []);
-  const rumboA0 = (x: number, z: number) => (x === 0 && z === 0 ? 0 : Math.atan2(-x, -z));
   /** Draw (or take away) one thing. */
   const dibujar = (c: Cosa | null, clave: string) => {
     const v = A?.view;
     if (!v) return;
     if (!c) { v.forma?.(`espejo:${clave}`, null); v.tag?.(`espejo:${clave}`, null); return; }
     const forma = c.tipo === "cron" ? "reloj" : c.tipo === "salud" ? "losa" : "cubo";
-    v.forma?.(`espejo:${clave}`, { forma, x: c.x, z: c.z, estado: estadoDeForma(c.tipo, c.estado), rumbo: forma === "cubo" ? 0 : rumboA0(c.x, c.z), ...(forma === "reloj" ? { mano: manoDe(clave) } : {}), ...(forma === "losa" ? { luces: luces() } : {}) });
+    v.forma?.(`espejo:${clave}`, { forma, x: c.x, z: c.z, estado: estadoDeForma(c.tipo, c.estado), rumbo: 0, ...(forma === "reloj" ? { mano: manoDe(clave) } : {}), ...(forma === "losa" ? { luces: luces() } : {}) });
     v.tag?.(`espejo:${clave}`, { text: c.titulo, sub: TEXTO_ESTADO[c.estado], x: c.x, y: ALTO_ROTULO[c.tipo] ?? 3, z: c.z });
   };
   /** The floors of the zones (a white edge on the black ground; dashed when everything the zone shows is switched off) and their signs. */
