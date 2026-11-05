@@ -44,7 +44,7 @@ const PROXY = ["x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "x-re
 /** The Host a loopback visitor uses: localhost, 127.x or [::1] (with or without a port). Anything else is a DNS-rebinding name that merely resolves here. */
 const hostLocal = (host: string | undefined): boolean => { const m = /^(localhost|\[::1\]|127(?:\.\d{1,3}){3})(:\d{1,5})?$/i.exec(host ?? ""); return !!m && (m[1].toLowerCase() === "localhost" || m[1][0] === "[" || esLoopback(m[1])); };
 /** Origin is absent (not a browser), "null" (the sandboxed host frame) or the world's own address; any other site is refused. */
-const origenAdmitido = (origin: string | undefined, host: string | undefined): boolean => origin === undefined || origin === "null" || origin === `http://${host}`;
+export const origenAdmitido = (origin: string | undefined, host: string | undefined): boolean => origin === undefined || origin === "null" || origin === `http://${host}`;
 
 export function crearEmbedHttp(o: Opciones) {
   const ahora = o.reloj ?? Date.now, log = o.log ?? (() => {});

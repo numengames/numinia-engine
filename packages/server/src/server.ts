@@ -3,6 +3,7 @@
 //   GET /sesiones (T1: how each connected player entered; like /metrics, never published by Caddy)
 //   /mundo (download the world as a zip, upload one: mundo-zip.ts; only with the administration code)
 import { createServer } from "node:http";
+import { origenAdmitido } from "./embed-espejo.ts";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { existsSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -357,7 +358,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
         const org = roles.organizacionDeAgente(c.who!.id);
         if (org) agentesDe.organizacion[org] = (agentesDe.organizacion[org] ?? 0) + 1; else agentesDe.habitante++;
       }
-      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "access-control-allow-origin": "*" });
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...(o.embed?.activo() && !origenAdmitido(req.headers.origin, req.headers.host) ? {} : { "access-control-allow-origin": "*" }) }); // M9: embed on = no CORS for a foreign page (same-origin reads need none)
       return void res.end(JSON.stringify({
         uptime: Math.floor((performance.now() - born) / 1000), conectados: personas, agentes: agentesConectados.length,
         total: inst.conns.length, agentesDe, commitHash: motor.commit ?? undefined, version, ...(semver ? { semver } : {}), cerebro: cerebroEstado,
@@ -426,7 +427,13 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
 
   // maxPayload = PASE_MAX (2048, H3b): the one message that needs more than the old 1024 is the world pass (600-1300 B). The library
   // checks the size before anything is read, so the biggest legal frame has to fit here; wsTransport cuts the others at WS_FRAME_MAX as before.
-  const wss = new WebSocketServer({ server: http, maxPayload: PASE_MAX, perMessageDeflate: false });
+  // M9: with embed mode ON the world is a loopback one and any web page open in the browser could reach it: the upgrade then admits only Origin
+  // absent (not a browser), "null" (the sandboxed frame) or the world's own address; the rest gets 403. Embed off or no embed option: no check, as always.
+  const wss = new WebSocketServer({ server: http, maxPayload: PASE_MAX, perMessageDeflate: false,
+    verifyClient: o.embed ? (info: { origin: string; req: IncomingMessage }, cb: (ok: boolean, code?: number, msg?: string) => void) => {
+      const origin = info.req.headers.origin; // the library hands "" for an absent one: read the header itself
+      if (!o.embed!.activo() || origenAdmitido(origin, info.req.headers.host)) cb(true); else cb(false, 403, "origen no admitido");
+    } : undefined });
   wss.on("connection", (ws, req) => {
     // H7: full = the world's aforo (or the engine's capacity): refused at the door with the reason the page shows
     if (inst.conns.length >= aforo()) { counts.rechazadasLlenas++; ws.close(CIERRE_LLENO, `lleno ${inst.conns.length}/${aforo()}`); return; }
