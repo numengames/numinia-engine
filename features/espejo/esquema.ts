@@ -23,6 +23,26 @@ export const FUNCIONES = [
 ] as const;
 export type Funcion = (typeof FUNCIONES)[number];
 
+/** What each function is called for a person, WITH its article (Spanish): «Apagar el gasto», «Encender los agentes». Every function has one: a test keeps it complete. */
+export const TEXTO_FUNCION: Record<Funcion, string> = {
+  salud: "la salud", cron: "las tareas programadas", sesiones: "las sesiones", chat: "el chat", aprobaciones: "las aprobaciones", subagentes: "los subagentes",
+  perfiles: "los agentes", mcp: "las herramientas conectadas", skills: "las habilidades", biblioteca: "la biblioteca", opciones: "las opciones", memoria: "la memoria",
+  journey: "el recorrido", lienzo: "el lienzo", kanban: "el tablero", mensajeria: "la mensajería", plugins: "los complementos", metas: "las metas",
+  archivos: "los archivos", uso: "el gasto", voz: "la voz", navegador: "el navegador",
+};
+/** The label of a function (with article), or its own name when it is not one of ours. */
+export function textoFuncion(f: string): string { return (TEXTO_FUNCION as Record<string, string | undefined>)[f] ?? f; }
+/** The same without the article, for lists: «tareas programadas». */
+export function nombreFuncion(f: string): string { return textoFuncion(f).replace(/^(el|la|los|las) /, ""); }
+/** The label of a button that jumps to a zone, in correct Spanish: «El umbral» → «Ir al umbral», «La torre de control» → «Ir a la torre de control». Pure. */
+export function textoIrA(zona: string): string {
+  const n = zona.trim();
+  const m = /^(El|La|Los|Las)\s+(.+)$/.exec(n);
+  if (!m) return `Ir a ${n}`;
+  const art = m[1]!.toLowerCase(), resto = m[2]!;
+  return art === "el" ? `Ir al ${resto}` : `Ir a ${art} ${resto}`;
+}
+
 /** What a thing IS: each type belongs to one function (the switch that turns it on). `salud` has the master light of the threshold. */
 export const TIPOS = {
   salud: "salud", cron: "cron", sesion: "sesiones", mensaje: "chat", aprobacion: "aprobaciones", subagente: "subagentes", perfil: "perfiles",

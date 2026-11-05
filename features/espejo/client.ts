@@ -7,7 +7,8 @@
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg } from "../../packages/feature/src/index.ts";
 import { espejo as decl } from "./feature.ts";
-import { TIPOS } from "./esquema.ts";
+import { TIPOS, TEXTO_FUNCION, textoFuncion, textoIrA } from "./esquema.ts";
+export { TEXTO_FUNCION, textoFuncion, textoIrA };
 import type { Tipo } from "./esquema.ts";
 
 export type EstadoCosa = "activo" | "programado" | "pausado" | "fallo" | "apagado" | "desconocido";
@@ -25,8 +26,6 @@ export const TEXTO_VERBO: Record<string, string> = {
   "cron.pausar": "Pausar", "cron.reanudar": "Reanudar", "cron.ejecutar": "Ejecutar ahora",
   "sesion.nueva": "Nueva sesión", "sesion.reanudar": "Reanudar sesión", "sesion.abrir": "Abrir sesión",
 };
-/** The words for a function of the switch panel (Spanish); anything not listed is shown as its own name. */
-export const TEXTO_FUNCION: Record<string, string> = { salud: "la salud", cron: "las tareas programadas", sesiones: "las sesiones", chat: "el chat" };
 /** Where a visitor can jump to: one per zone, the middle of its floor (the zone's own sign names it). Pure: the page hands each to the teleport piece (`irAPunto`). */
 export type Destino = { id: string; nombre: string; x: number; z: number };
 export function destinosDeZonas(v: Pick<Vista, "zonas"> | null | undefined): Destino[] { return (v?.zonas ?? []).map((z) => ({ id: z.id, nombre: z.nombre, x: z.x, z: z.z })); }

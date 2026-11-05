@@ -5,7 +5,7 @@
 //   The card then says «Esperando a Hermes…» and, when the answer arrives (or after 30 s, «Hermes no ha respondido»), what happened.
 // Everything that comes from outside goes in with `textContent`, never as markup. The server decides who may ask; this only offers.
 import type { espejo as Controlador } from "../../features/espejo/client.ts";
-import { detalleDe, textoEstadoDe, TEXTO_FUNCION, TEXTO_VERBO } from "../../features/espejo/client.ts";
+import { detalleDe, textoEstadoDe, textoFuncion, textoIrA, TEXTO_VERBO } from "../../features/espejo/client.ts";
 
 type Ctl = typeof Controlador;
 
@@ -87,11 +87,11 @@ export function montarEspejo(o: { espejo: Ctl; doc?: Document; /** the teleport 
     // the switch panel: one button per function, shown only to who may (the server checks it again and refuses anyone else)
     if (c.tipo === "salud" && o.espejo.interruptor.estado.puede) for (const f of Object.keys(o.espejo.vista()?.funciones ?? {})) {
       const on = o.espejo.interruptor.activa(f);
-      boton(grupo("Funciones"), `funcion:${f}`, `${on ? "Apagar" : "Encender"} ${TEXTO_FUNCION[f] ?? f}`, () => o.espejo.interruptor.poner(!on, f));
+      boton(grupo("Funciones"), `funcion:${f}`, `${on ? "Apagar" : "Encender"} ${textoFuncion(f)}`, () => o.espejo.interruptor.poner(!on, f));
     }
     // zone teleport: on the threshold's panel, one button per zone (going somewhere changes nothing outside the world: one press, no «¿Seguro?»)
     if (c.tipo === "salud" && o.viaje?.activo()) for (const z of o.espejo.destinos()) {
-      const b = d.createElement("button"); b.type = "button"; b.dataset.verbo = `ir:${z.id}`; b.textContent = `Ir a ${z.nombre}`;
+      const b = d.createElement("button"); b.type = "button"; b.dataset.verbo = `ir:${z.id}`; b.textContent = textoIrA(z.nombre);
       b.addEventListener("click", () => { const r = o.viaje!.irAPunto(z.x, z.z, z.nombre); if (r.ok) ocultar(); else { decir(r.why); pintar(); } });
       grupo("Ir a una zona").appendChild(b);
     }

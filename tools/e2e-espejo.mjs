@@ -142,7 +142,9 @@ export async function correr() {
       await abrirPanel(p);
       const vista = await p.evaluate(() => globalThis.__numinia.espejo.vista().zonas);
       const botones = await p.locator('#espejo-ficha button[data-verbo^="ir:"]').allInnerTexts();
-      assert.deepEqual(botones, vista.map((z) => `Ir a ${z.nombre}`), "one button per zone, with the zone's plain name");
+      assert.equal(botones.length, vista.length, "one button per zone");
+      for (const t of botones) assert.doesNotMatch(t, /^Ir a (El|La|Las|Los) /, `«${t}» has a capitalised article`);
+      assert.ok(botones.includes("Ir al umbral") && botones.includes("Ir a la torre de control"), botones.join(" | "));
       await p.click('#espejo-ficha button[data-verbo="ir:z6"]');
       const z = vista.find((q) => q.id === "z6");
       await p.waitForFunction((q) => { const s = globalThis.__numinia.session.selfPosition(1); return Math.abs(s.x - q.x) <= q.ancho / 2 && Math.abs(s.z - q.z) <= q.fondo / 2; }, z, { timeout: 15000 });

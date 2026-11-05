@@ -82,7 +82,7 @@ test("encender: the owner switches «cron» on — written to espejo.json (every
   assert.equal(dueno.espejo.interruptor.estado.puede, true, "the owner is told they may (permiso)");
   assert.equal(otro.espejo.interruptor.estado.puede, false, "and the other person is told they may not");
   assert.equal(W.enlace.alta(cron("a")).ok, false, "cron starts off: its things are refused");
-  assert.deepEqual(estado(W).get("salud/panel")?.subtitulo, "Encendido: salud. Apagado: cron, sesiones.");
+  assert.deepEqual(estado(W).get("salud/panel")?.subtitulo, "Encendido: salud. Apagado: tareas programadas, sesiones.");
   assert.equal(dueno.espejo.interruptor.poner(true, "cron").ok, true); W.pump(4);
   // the file: one key changed, the rest verbatim
   assert.equal(W.escritos.length, 1);
@@ -95,7 +95,7 @@ test("encender: the owner switches «cron» on — written to espejo.json (every
   assert.deepEqual(W.enlace.funciones(), ["salud", "cron"]);
   assert.equal(W.enlace.alta(cron("a")).ok, true); W.pump(3);
   assert.ok(estado(W).get("cron/a"));
-  assert.equal(estado(W).get("salud/panel")?.subtitulo, "Encendido: salud, cron. Apagado: sesiones.", "the panel says what is on and off");
+  assert.equal(estado(W).get("salud/panel")?.subtitulo, "Encendido: salud, tareas programadas. Apagado: sesiones.", "the panel says what is on and off");
   // everyone hears it; the page's lamps follow
   for (const p of W.gente) assert.deepEqual([p.ultimo("funcion")?.funcion, p.ultimo("funcion")?.activa], ["cron", true]);
   assert.equal(otro.espejo.interruptor.activa("cron"), true, "the other page's lamp follows the event");
@@ -118,7 +118,7 @@ test("encender: switching OFF removes the things of that function, closes what w
   assert.match(String(dueno.ultimo("resultado")?.texto), /función se apagó/);
   assert.equal(funcionesDe(W).cron, false);
   assert.ok(estado(W).get("salud/panel"), "the panel stays: its lamps are how the world is switched back on");
-  assert.equal(estado(W).get("salud/panel")?.subtitulo, "Encendido: salud. Apagado: cron, sesiones.");
+  assert.equal(estado(W).get("salud/panel")?.subtitulo, "Encendido: salud. Apagado: tareas programadas, sesiones.");
   const rechazada = W.enlace.alta(cron("a")); assert.equal(rechazada.ok, false);
   assert.deepEqual(W.frames.at(-1), ["salud"]);
   // the zones in the file are untouched ("saved data" stays) and switching on again works

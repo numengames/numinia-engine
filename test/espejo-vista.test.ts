@@ -100,7 +100,7 @@ test("the switch panel (salud/panel) is the world's own: it sits on the threshol
   const p = s.get("salud/panel")!;
   assert.ok(p, "the panel is there from the start");
   assert.equal(p.titulo, "Panel de interruptores");
-  assert.equal(p.subtitulo, "Encendido: salud. Apagado: cron, sesiones, chat, perfiles, uso.");
+  assert.equal(p.subtitulo, "Encendido: salud. Apagado: tareas programadas, sesiones, chat, agentes, gasto.");
   assert.deepEqual([p.zona, p.x, p.z], ["z0", 0, -4.5]);
   assert.equal(W.enlace.lote([]).ok, true); W.pump(3);
   assert.ok(s.get("salud/panel"), "an empty lote from the source leaves the panel");

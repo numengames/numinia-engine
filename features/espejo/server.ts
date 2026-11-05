@@ -10,7 +10,7 @@ import { esIA } from "../avatar/feature.ts";
 import { espejo as decl, ALCANCE_M, CADUCA_S, PETICIONES_MAX, PETICIONES_POR_PERSONA, RADIO_USO_M } from "./feature.ts";
 
 const TICK_HZ = 20; // the sim's TICK_HZ (features import only core, schema, feature); the clock of the expiry is the server's tick, so a test runs it without waiting
-import { FICHERO, FUNCIONES, LIMITES, SOLO_LEER, TIPOS, VERBOS, funcionesEncendidas, leerEspejo, leerObjeto, limpiar, tiposEncendidos } from "./esquema.ts";
+import { FICHERO, FUNCIONES, LIMITES, SOLO_LEER, TIPOS, VERBOS, funcionesEncendidas, leerEspejo, leerObjeto, limpiar, nombreFuncion, tiposEncendidos } from "./esquema.ts";
 import type { EntornoMundo } from "../interruptor.ts";
 import type { Espejo, Estado, Funcion, Objeto, Seguridad, Tipo, Verbo } from "./esquema.ts";
 
@@ -203,7 +203,7 @@ export function crearEspejo(opts: OpcionesEspejo = {}, io?: EntornoMundo): Parte
     const refrescarPanel = (): void => {
       if (!zonaPanel || (!encendidos.has("salud") && !propias.has(CLAVE_PANEL))) return;
       const sel = (on: boolean) => FUNCIONES_DE_ZONAS.filter((f) => cfg.funciones[f] === on);
-      const lista = (xs: Funcion[]) => (xs.length ? xs.join(", ") : "ninguna");
+      const lista = (xs: Funcion[]) => (xs.length ? xs.map(nombreFuncion).join(", ") : "ninguna");
       const panel: Objeto = { tipo: "salud", id: "panel", titulo: "Panel de interruptores", subtitulo: limpiar(`Encendido: ${lista(sel(true))}. Apagado: ${lista(sel(false))}.`, LIMITES.subtitulo), estado: "activo", zona: zonaPanel.id, x: zonaPanel.x, z: zonaPanel.z - zonaPanel.fondo / 2 + 2.5, luz: true, acciones: [] };
       if (poner(panel)) propias.add(CLAVE_PANEL);
     };
