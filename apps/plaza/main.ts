@@ -1,5 +1,5 @@
 // The PP1 page: one plaza, your capsule, everyone else's, and the determinism probe.
-import "./almacen-seguro.ts"; // M7: first of all: storage that throws (sandboxed frame) becomes a memory copy; storage that works is left alone
+import "./almacen-guarda.ts"; // M7/M8: first of all: in a frame, storage that throws (sandbox) becomes a memory copy before anything else runs; an unframed page loads nothing extra
 import { montarSolReal } from "./sol-real.ts";
 import { alPrimerCuadro, primerCuadroDado } from "./primer-cuadro.ts"; // t_45ef2f70: what the first frame does not need waits for it
 import { ponerFuentes } from "./fuentes.ts";
