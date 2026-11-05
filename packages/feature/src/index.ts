@@ -1009,7 +1009,7 @@ export type ViewHooks = {
   /** J5: a name that stays over a thing (a person you can talk to), facing whoever looks; `null` takes it away. U14 (4),
    * optional: `sub` = a second, smaller line under the name (a person's trade); `mark` = «!» (something for you now) or
    * «✓» (done) above it. The page redraws a label only when its text or mark changes. */
-  tag?(key: string, t: { text: string; x: number; y: number; z: number; sub?: string; mark?: "!" | "✓" | "" } | null): void;
+  tag?(key: string, t: { text: string; x: number; y: number; z: number; sub?: string; mark?: "!" | "✓" | ""; plano?: boolean; tope?: number; siempre?: boolean } | null): void;
   /** P4: an evidence marker over a thing — a yellow plate with a black number (1–16) that always faces whoever looks, drawn on this
    * page only, from (x, y, z) up (its tip points at that spot); `null` takes it away. Same number = only moved. */
   marcador?(key: string, t: { n: number; x: number; y: number; z: number } | null): void;

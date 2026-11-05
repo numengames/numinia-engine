@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { leerTema, validarEntorno, TEMAS } from "../features/entorno/esquema.ts";
 import { temaDelMundo } from "../features/mundo.ts";
 import { startServer } from "../packages/server/src/server.ts";
-import { aplicarTemaByn, CLASE, CSS } from "../apps/plaza/tema-byn.ts";
+import { aplicarTemaByn, ACENTO, CLASE, CSS } from "../apps/plaza/tema-byn.ts";
 
 const MOTOR = { build: "dev", commit: "0".repeat(40), imagen: "" };
 
@@ -62,10 +62,12 @@ test("tema: the template carries the flag (and ONLY it) — the other templates 
   }
 });
 
-test("tema: the page CSS is flat — only #000 and #fff, no gradients, no translucency (but the backdrop), no shadows left on", () => {
+test("tema: the page CSS is flat — only #000, #fff and the ONE accent, no gradients, no translucency (but the backdrop), no shadows left on", () => {
   const colores = CSS.match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
   assert.ok(colores.length > 10);
-  for (const c of colores) assert.ok(c === "#000" || c === "#fff", `colour ${c}`);
+  for (const c of colores) assert.ok(c === "#000" || c === "#fff" || c.toUpperCase() === ACENTO, `colour ${c}`);
+  assert.equal(ACENTO, "#FFD400");
+  assert.ok(new Set(colores.map((c) => c.toLowerCase())).size <= 3, "black, white and one accent: nothing else");
   assert.equal(/gradient|rgba?\(|hsla?\(/.test(CSS), false);
   assert.match(CSS, /html\.tema-byn #minimapa canvas/);
   assert.match(CSS, /box-shadow: none/);

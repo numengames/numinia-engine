@@ -60,6 +60,7 @@ import { createBurbujas } from "./burbujas.ts"; // ia-llamar S9: the action bubb
 import { burbujasMax } from "./burbujas-politica.ts";
 import { createPompas } from "./pompas.ts"; // condiciones/c5: the bubble over someone who is still reading the norms
 import { elegirMirado, escalaAcotada, nombreVisible, NOMBRE_GRADOS_MAX, type Mirable } from "./carteles.ts";
+import { apilar, levantarSobre, HUECO_NDC, type Placa } from "./rotulos-apilar.ts";
 export { NOMBRE_VISIBLE_M, NOMBRES_DIBUJADOS, BOCADILLO_VISIBLE_M } from "./nombres.ts";
 import { crearCenital } from "./cenital.ts";
 export type { Huella, ImagenCenital } from "./cenital.ts";
@@ -558,14 +559,50 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     nombres.update(now, { todos: verTodos, mirado: mirado?.startsWith("a:") ? (mirado.slice(2) === "self" ? "self" : Number(mirado.slice(2))) : null });
     for (const m of marcadores.values()) m.s.visible = m.listo === 2; // P4: shown once linked, always (no look-at logic)
     const alto = ROT_NOMBRE * ROT_M;
+    planas.length = 0;
     for (const [k, r] of tags) {
       const d = Math.hypot(r.x - ojoC.x, r.y - ojoC.y, r.z - ojoC.z);
-      const quiere = nombreVisible({ todos: verTodos && d <= NOMBRE_VISIBLE_M, mirado: mirado === `t:${k}`, habla: hablando === k }); // (a «!» / «✓» mark does not keep the plate on: the story asks for the one you look at and who speaks)
+      const quiere = nombreVisible({ todos: verTodos && d <= NOMBRE_VISIBLE_M, mirado: mirado === `t:${k}`, habla: hablando === k }) || (r.siempre === true && d <= PLACA_SIEMPRE_M); // (a «!» / «✓» mark does not keep the plate on: the story asks for the one you look at and who speaks) · mundo-hermes: a flat plate with `siempre` is shown when near
       if (quiere && r.listo === 0) enlazarRotulo(r); // its program links off the frame; the plate shows when it is done (a few frames)
       r.s.visible = quiere && r.listo === 2;
       if (!r.s.visible) continue;
       const e = escalaAcotada(1, alto, d, NOMBRE_GRADOS_MAX); // whole plate (mark, trade) shrinks with its name line
       r.s.scale.set(ROT_ANCHO * ROT_M * e, r.s.userData.alto * e, 1);
+      if (r.plano) { r.s.position.y = r.y - (ROT_NOMBRE / 2) * ROT_M; planas.push({ k, r, d, e }); }
+    }
+    if (planas.length) apilarPlacas(planas); else if (placasUltimas.length) placasUltimas = [];
+  }
+  /** mundo-hermes: how far (m) a flat plate that is `siempre` is shown by itself. */
+  const PLACA_SIEMPRE_M = 14;
+  let placasUltimas: { clave: string; nivel: number; x0: number; x1: number; y0: number; h: number }[] = [];
+  const vP = new THREE.Vector3(), planas: { k: string; r: Rotulo; d: number; e: number }[] = [];
+  /** mundo-hermes: the flat plates on screen keep clear of their own figure (the plate's bottom rises until it is above the figure's top as the camera sees it)
+   *  and of each other (nearest first, each one up by whole plate heights; beyond NIVELES_MAX steps a plate is hidden). The rectangles are projected to the screen here; the arithmetic is rotulos-apilar.ts. */
+  function apilarPlacas(lista: { k: string; r: Rotulo; d: number; e: number }[]): void {
+    camera.updateMatrixWorld(); camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+    const pm = camera.projectionMatrix.elements;
+    const ndc = (x: number, y: number, z: number): { x: number; y: number; prof: number } | null => { vP.set(x, y, z).applyMatrix4(camera.matrixWorldInverse); const prof = -vP.z; if (prof < 0.2) return null; vP.applyMatrix4(camera.projectionMatrix); return { x: vP.x, y: vP.y, prof }; };
+    const placas: Placa[] = [], subida = new Map<string, number>(), alto = new Map<string, number>();
+    for (const { k, r, d, e } of lista) {
+      const y0 = r.s.position.y, base = ndc(r.x, y0, r.z);
+      if (!base) continue; // behind the camera or on top of it: leave it as it is
+      const wM = ROT_ANCHO * ROT_M * e, hM = (r.s.userData.alto as number) * e;
+      const w = (wM * pm[0]) / base.prof, h = (hM * pm[5]) / base.prof;
+      let cy = base.y, k0 = 0;
+      if (r.tope !== undefined) { // clear of the figure: raise in 0.1 m steps until the bottom is above the figure's top on the screen
+        const techo = ndc(r.x, r.tope, r.z), paso = ndc(r.x, y0 + 0.1, r.z);
+        if (techo && paso) { k0 = levantarSobre(base.y, techo.y, 0.03, paso.y - base.y, 40); cy = base.y + k0 * (paso.y - base.y); }
+      }
+      subida.set(k, k0 * 0.1); alto.set(k, hM);
+      placas.push({ clave: k, cx: base.x, cy, w, h, d });
+    }
+    const niveles = apilar(placas);
+    placasUltimas = placas.map((p) => ({ clave: p.clave, nivel: niveles.get(p.clave) ?? 0, x0: p.cx - p.w / 2, x1: p.cx + p.w / 2, y0: p.cy + Math.max(0, niveles.get(p.clave) ?? 0) * (p.h + HUECO_NDC), h: p.h }));
+    for (const { k, r } of lista) {
+      const n = niveles.get(k);
+      if (n === undefined) continue;
+      if (n < 0) { r.s.visible = false; continue; }
+      r.s.position.y += (subida.get(k) ?? 0) + n * (alto.get(k) ?? 0) * 1.1;
     }
   }
 
@@ -1030,8 +1067,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // U14 (4): a label may carry a second, smaller line under the name (a person's trade) and a mark above it («!» in a
   // warm colour: something for you now; «✓» in green: done). Its canvas is drawn again only when its text or mark
   // changes — a new position just moves it — so standing still costs nothing (tagDraws() counts the canvases drawn).
-  type Rotulo = { s: THREE.Sprite; firma: string; x: number; y: number; z: number; marca: boolean; /** t_159e18d2: 0 = its pipeline was never asked for, 1 = linking (compileAsync), 2 = linked: a plate is shown only once linked, so no draw ever links one */ listo: 0 | 1 | 2 };
-  type DatosRotulo = { text: string; x: number; y: number; z: number; sub?: string; mark?: "!" | "✓" | "" };
+  type Rotulo = { s: THREE.Sprite; firma: string; x: number; y: number; z: number; marca: boolean; /** mundo-hermes: a flat plate (white outline on black) that keeps clear of its figure (`tope`, m) and stacks with its neighbours; `siempre` = shown when near without looking at it */ plano?: boolean; tope?: number; siempre?: boolean; /** t_159e18d2: 0 = its pipeline was never asked for, 1 = linking (compileAsync), 2 = linked: a plate is shown only once linked, so no draw ever links one */ listo: 0 | 1 | 2 };
+  type DatosRotulo = { text: string; x: number; y: number; z: number; sub?: string; mark?: "!" | "✓" | ""; plano?: boolean; tope?: number; siempre?: boolean };
   const tags = new Map<string, Rotulo>();
   let tagDibujos = 0;
   const ROT_ANCHO = 512, ROT_NOMBRE = 96, ROT_SUB = 48, ROT_MARCA = 160, ROT_M = 2.9 / 512; // px (the name line as before); metres per px
@@ -1115,11 +1152,12 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     const sub = t.sub ?? "", mark = t.mark || "", arriba = mark ? ROT_MARCA : 0;
     const c = document.createElement("canvas"); c.width = ROT_ANCHO; c.height = arriba + ROT_NOMBRE + (sub ? ROT_SUB : 0);
     const g = c.getContext("2d")!;
-    g.fillStyle = "rgba(20,30,40,0.78)"; g.fillRect(0, arriba, ROT_ANCHO, c.height - arriba);
+    if (t.plano) { g.fillStyle = "#000000"; g.fillRect(0, arriba, ROT_ANCHO, c.height - arriba); g.strokeStyle = "#ffffff"; g.lineWidth = 8; g.strokeRect(4, arriba + 4, ROT_ANCHO - 8, c.height - arriba - 8); } // mundo-hermes: pure black plate, white outline (contrast on any ground)
+    else { g.fillStyle = "rgba(20,30,40,0.78)"; g.fillRect(0, arriba, ROT_ANCHO, c.height - arriba); }
     g.textAlign = "center"; g.textBaseline = "middle";
     g.fillStyle = "#ffffff"; g.font = "bold 44px sans-serif";
     g.fillText(t.text.slice(0, 26), ROT_ANCHO / 2, arriba + (sub ? 46 : 50), ROT_ANCHO - 20);
-    if (sub) { g.fillStyle = "#e2edf6"; g.font = "36px sans-serif"; g.fillText(sub.slice(0, 40), ROT_ANCHO / 2, arriba + ROT_NOMBRE + 4, ROT_ANCHO - 24); }
+    if (sub) { g.fillStyle = t.plano ? "#ffffff" : "#e2edf6"; g.font = "36px sans-serif"; g.fillText(sub.slice(0, 40), ROT_ANCHO / 2, arriba + ROT_NOMBRE + 4, ROT_ANCHO - 24); }
     if (mark) dibujarMarca(g, mark, ROT_ANCHO / 2, arriba / 2, arriba - 16);
     tagDibujos++;
     return c;
@@ -1509,15 +1547,15 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
      * name's was (just over the head): a trade or a mark grow it upwards. Same text and mark = only moved. */
     tag(key: string, t: DatosRotulo | null): void {
       if (!t) { dropTag(key); return; }
-      const firma = `${t.mark || ""}\n${t.text}\n${t.sub ?? ""}`, y = t.y - (ROT_NOMBRE / 2) * ROT_M, antes = tags.get(key);
-      if (antes && antes.firma === firma) { antes.s.position.set(t.x, y, t.z); antes.x = t.x; antes.y = t.y; antes.z = t.z; return; }
+      const firma = `${t.mark || ""}\n${t.text}\n${t.sub ?? ""}\n${t.plano ? "p" : ""}`, y = t.y - (ROT_NOMBRE / 2) * ROT_M, antes = tags.get(key);
+      if (antes && antes.firma === firma) { antes.s.position.set(t.x, y, t.z); antes.x = t.x; antes.y = t.y; antes.z = t.z; antes.tope = t.tope; antes.siempre = t.siempre; return; }
       dropTag(key);
       const c = dibujarRotulo(t), tex = new THREE.CanvasTexture(c);
       tex.colorSpace = THREE.SRGBColorSpace;
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
       s.name = `nombre:${key}`; s.center.set(0.5, 0); s.userData.alto = c.height * ROT_M; s.scale.set(ROT_ANCHO * ROT_M, c.height * ROT_M, 1); s.position.set(t.x, y, t.z); s.renderOrder = 10;
       s.visible = false; // U22: shown by updateRotulos (looked at, speaking, marked, or «todos»)
-      world.add(s); tags.set(key, { s, firma, x: t.x, y: t.y, z: t.z, marca: !!t.mark, listo: 0 });
+      world.add(s); tags.set(key, { s, firma, x: t.x, y: t.y, z: t.z, marca: !!t.mark, listo: 0, ...(t.plano ? { plano: true, tope: t.tope, siempre: t.siempre } : {}) });
     },
     /** P4: an evidence marker (yellow plate, black number 1–16) over a thing, for this page alone; `null` takes it away. A new
      * number swaps the plate; the same number is only moved. */
@@ -1536,6 +1574,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     marcadores(): [string, number][] { return [...marcadores].map(([k, m]) => [k, m.n]); },
     /** J5: names over things alive right now (for checks). */
     tagCount(): number { return tags.size; },
+    /** mundo-hermes (for checks): the flat plates the last frame stacked — key, level (-1 = hidden to declutter), and its rectangle on the screen (NDC: x0..x1, y0..y0+h). */
+    placas(): { clave: string; nivel: number; x0: number; x1: number; y0: number; y1: number; visible: boolean }[] { return placasUltimas.map((p) => ({ clave: p.clave, nivel: p.nivel, x0: p.x0, x1: p.x1, y0: p.y0, y1: p.y0 + p.h, visible: p.nivel >= 0 && (tags.get(p.clave)?.s.visible ?? false) })); },
     /** U14 (4): label canvases drawn since the page started (for checks: it must not grow while nothing changes). */
     tagDraws(): number { return tagDibujos; },
     /** J4: the key of the placed thing (or of the thing whose name it is) under a screen point, nearest first; null if none. */

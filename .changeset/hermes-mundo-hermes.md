@@ -22,3 +22,17 @@
 - Consumo: sin medir · claude-sonnet-5-5.
 - Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
 - Siguiente: zonas `perfil`/`uso` en la plantilla; el verbo `perfil.activar`.
+
+## 2026-11-05 18:30 · mundo-hermes · Pulido del motor y pruebas con navegador (M4) · hecho
+- Qué: la plantilla `hermes` trae las zonas `perfil` (Z6, la torre de control) y `uso` (Z2, la sala de máquinas) con sus interruptores apagados; la ficha cabe en cualquier pantalla desde 360×640 (dos columnas, desplazamiento propio, nunca sobre la barra de acciones); los rótulos del espejo son placas negras con contorno blanco que se apartan de su figura y se apilan por distancia; el tema blanco y negro cubre todo el HUD con un solo acento; `npm run test:e2e` prueba el mundo con un navegador de verdad.
+- Números: ver el registro de esta historia en el chat de Ursa (pruebas, tipos, e2e); mundos sin espejo y sin `tema` intactos.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: el verbo `perfil.activar`; el dibujo definitivo de la planta (Pablo).
+
+## 2026-11-05 19:00 · mundo-hermes · Un lote con una zona desconocida ya no se rechaza entero · hecho
+- Qué: `lote` deja fuera las cosas cuya zona no existe (o no admite su tipo), acepta el resto y lo cuenta (`descartadas` en la costura; trama `ack` por el enlace solo si algo quedó fuera); la forma, el tamaño, los repetidos y las cosas del mundo siguen siendo todo o nada; `hola.zonas` no cambia.
+- Números: ver el registro de esta historia (espejo-servidor y espejo-enlace en verde).
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: que el plugin lea el `ack` y lo muestre.

@@ -85,7 +85,9 @@ export function manoDe(clave: string): number {
   let h = 2166136261; for (let i = 0; i < clave.length; i++) { h ^= clave.charCodeAt(i); h = Math.imul(h, 16777619); }
   return ((h >>> 0) % 1000) / 1000;
 }
-const ALTO_ROTULO: Record<string, number> = { cron: 3.1, sesion: 2.9, salud: 2.9, perfil: 2.7, uso: 3.1 };
+const ALTO_ROTULO: Record<string, number> = { cron: 3.1, sesion: 2.9, salud: 2.9, perfil: 3.0, uso: 3.1 };
+/** The height (m) of the figure under each label: the label keeps clear of it on the screen (a camera that looks down from behind sees a label «over the head» drawn over the body). */
+const TOPE_FIGURA: Record<string, number> = { cron: 2.7, sesion: 2.4, salud: 2.3, perfil: 2.4, uso: 2.8 };
 
 /** One per page (tests make one per client). */
 export function crearCliente() {
@@ -119,7 +121,7 @@ export function crearCliente() {
     v.forma?.(`espejo:${clave}`, { forma, x: c.x, z: c.z, estado: estadoDeForma(c.tipo, c.estado), rumbo: 0, ...(forma === "reloj" ? { mano: manoDe(clave) } : {}), ...(forma === "losa" ? { luces: luces() } : {}), ...(forma === "perfil" && c.estado === "apagado" ? { discontinuo: true } : {}), ...(forma === "uso" ? { nivel: nivelDeUso(c, cosas.values()) ?? 0 } : {}) });
     // a spend meter is labelled with its tokens (what it measures); anything else with its state, in the house words
     const pie = c.tipo === "uso" ? leerUso(c.subtitulo).tokensTexto || textoEstadoDe(c.tipo, c.estado) : textoEstadoDe(c.tipo, c.estado);
-    v.tag?.(`espejo:${clave}`, { text: c.titulo, sub: pie, x: c.x, y: ALTO_ROTULO[c.tipo] ?? 3, z: c.z });
+    v.tag?.(`espejo:${clave}`, { text: c.titulo, sub: pie, x: c.x, y: ALTO_ROTULO[c.tipo] ?? 3, z: c.z, plano: true, tope: TOPE_FIGURA[c.tipo] ?? 2.4, siempre: true });
   };
   /** The floors of the zones (a white edge on the black ground; dashed when everything the zone shows is switched off) and their signs. */
   const dibujarZonas = () => {
@@ -128,7 +130,7 @@ export function crearCliente() {
     for (const z of vista.zonas) {
       const encendida = z.tipos.some((t) => vista!.funciones[TIPOS[t as Tipo] ?? t] === true);
       v.forma?.(`espejo:zona:${z.id}`, { forma: "suelo", x: z.x, z: z.z, estado: encendida ? "on" : "off", ancho: z.ancho, fondo: z.fondo, discontinuo: !encendida });
-      v.tag?.(`espejo:zona:${z.id}`, { text: z.cartel || z.nombre, sub: encendida ? "" : "apagada", x: z.x, y: 3.6, z: z.z + z.fondo / 2 - 0.5 });
+      v.tag?.(`espejo:zona:${z.id}`, { text: z.cartel || z.nombre, sub: encendida ? "" : "apagada", x: z.x, y: 3.6, z: z.z + z.fondo / 2 - 0.5, plano: true });
     }
     for (const c of cosas.values()) if (c.tipo === "salud") dibujar(c, c.clave); // the panel's lamps follow the switches
   };
