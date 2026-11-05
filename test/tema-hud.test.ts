@@ -96,3 +96,18 @@ test("tema: the minimap palette (mapa.ts imports CSS, so it is read as source he
   assert.match(fuente, /SUELO = byn \? "#000" : "#b7c6ab"/);
   assert.match(fuente, /const tinta = \(c: string\): string => \(BYN \? "#fff" : c\)/);
 });
+
+test("tema: while a card of the espejo is open (`ficha-espejo` on the root) the theme hides the action bar and the prompt; the rule is scoped to the theme and to that class", () => {
+  const regla = CSS.split("\n").find((l) => l.includes("ficha-espejo"));
+  assert.ok(regla, "the theme has the rule");
+  assert.match(regla!, /^html\.tema-byn\.ficha-espejo :is\(#acciones, #interactuar\) \{ display: none !important; \}/);
+  assert.equal(CSS.split("\n").filter((l) => l.includes("ficha-espejo")).length, 1, "one rule, nothing else keyed to the class");
+  assert.equal(CSS.split("\n").some((l) => /^#acciones|^\.ficha-espejo|^html\.ficha-espejo/.test(l)), false, "never outside the theme's own selector");
+});
+
+test("tema: the action bar grows with its chips (height auto) so the second row is not cut; scoped to the theme", () => {
+  const regla = CSS.split("\n").find((l) => l.startsWith("html.tema-byn[data-densidad-nivel] body #acciones"));
+  assert.ok(regla, "the theme has the rule");
+  assert.match(regla!, /\{ height: auto !important; \}/);
+  assert.equal(CSS.split("\n").some((l) => /^#acciones|^html body #acciones/.test(l)), false);
+});

@@ -170,12 +170,35 @@ export async function correr() {
         assert.ok(m.cerrar.t >= m.r.t && m.cerrar.b <= m.r.b, "«Cerrar» is always inside the card");
         if (m.acciones && ancho >= 1280 && alto >= 720) assert.ok(m.r.b <= m.acciones.t, `the card (bottom ${m.r.b}) stays over the action bar (top ${m.acciones.t})`);
         const medio = Math.max(...m.anchoBoton); assert.ok(medio < (m.r.rr - m.r.l) * 0.6, `two columns: the widest button is ${medio}px of a ${m.r.rr - m.r.l}px card`);
+        // (c) in the hermes theme the house action bar and prompt are hidden while the card is open, so a phone sees at least 4 rows of buttons
+        const casa = await p.evaluate(() => ({ clase: document.documentElement.classList.contains("ficha-espejo"), acciones: getComputedStyle(document.getElementById("acciones")).display, interactuar: getComputedStyle(document.getElementById("interactuar")).display, filas: (() => { const c = document.querySelector("#espejo-ficha .cuerpo").getBoundingClientRect(); return new Set([...document.querySelectorAll("#espejo-ficha .grupo button")].filter((b) => { const r = b.getBoundingClientRect(); return r.top >= c.top - 1 && r.bottom <= c.bottom + 1; }).map((b) => Math.round(b.getBoundingClientRect().top))).size; })() }));
+        console.log(`    ${ancho}×${alto}: visible button rows ${casa.filas}`);
+        assert.equal(casa.clase, true, "the page root says a card is open");
+        assert.equal(casa.acciones, "none", "the house action bar is hidden while the card is open");
+        assert.equal(casa.interactuar, "none", "the house prompt is hidden while the card is open");
+        assert.ok(casa.filas >= 4, `only ${casa.filas} rows of buttons are visible without scrolling`);
+        await p.click('#espejo-ficha button[data-verbo="cerrar"]');
+        assert.equal(await p.evaluate(() => document.documentElement.classList.contains("ficha-espejo")), false, "closing the card gives the page root its class back");
         // the last button of the list can be reached by scrolling the card's body, and a press there keeps the scroll
+        await p.evaluate(() => globalThis.__numinia.espejo.usar("salud/panel"));
+        await p.waitForSelector("#espejo-ficha:not([hidden])", { timeout: 8000 });
         await p.locator('#espejo-ficha button[data-verbo="ir:z2"]').scrollIntoViewIfNeeded();
         assert.ok(await p.locator('#espejo-ficha button[data-verbo="ir:z2"]').isVisible());
         await p.context().close();
       });
     }
+
+    // ---- (d) the house action bar: every chip («Soltar» too) is inside the screen and inside the bar's box, at 1280×720 ----
+    await prueba("1280×720: every chip of the house action bar is inside the viewport and inside the bar (the second row «Soltar» is not cut)", async () => {
+      const p = await nav.pagina(mundo, { ancho: 1280, alto: 720, query: "?webgl2" });
+      await p.waitForFunction(() => globalThis.__numinia.espejo.cosas().length >= 1, null, { timeout: 15000 });
+      await caminarA(p, 0, -4.5, 3);
+      await p.waitForFunction(() => document.querySelectorAll("#acciones button:not([hidden])").length >= 5, null, { timeout: 8000 });
+      const m = await p.evaluate(() => { const a = document.getElementById("acciones"), r = a.getBoundingClientRect(); return { vh: innerHeight, vw: innerWidth, r: { t: r.top, b: r.bottom }, chips: [...a.querySelectorAll("button:not([hidden])")].map((b) => { const q = b.getBoundingClientRect(); return { n: b.textContent.trim().slice(0, 14), t: q.top, b: q.bottom, l: q.left, rr: q.right }; }) }; });
+      assert.ok(m.chips.length >= 5, "the bar has its chips");
+      for (const c of m.chips) assert.ok(c.t >= m.r.t - 1 && c.b <= m.r.b + 1 && c.b <= m.vh && c.l >= 0 && c.rr <= m.vw, `chip «${c.n}» sticks out: ${JSON.stringify(c)} bar ${JSON.stringify(m.r)} viewport ${m.vw}×${m.vh}`);
+      await p.context().close();
+    });
 
     // ---- the HUD in the hermes theme ----
     await prueba("HUD colours in the hermes theme: every visible panel is only black, white or the one accent (computed colours; no greys, translucent fills, shadows or gradients)", async () => {

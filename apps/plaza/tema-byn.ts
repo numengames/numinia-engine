@@ -27,6 +27,8 @@ html.tema-byn #hud, html.tema-byn #ajustes, html.tema-byn #panel-construir, html
 html.tema-byn #minimapa button, html.tema-byn .panel-j5 button { background: #000 !important; color: #fff !important; border: 2px solid #fff !important; border-radius: 0 !important; box-shadow: none !important; text-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; opacity: 1 !important; }
 html.tema-byn #hud b, html.tema-byn .panel-j5 h2, html.tema-byn .panel-j5 h3, html.tema-byn .panel-j5 dt, html.tema-byn #ajustes .estado, html.tema-byn .panel-j5 li.bien .nombre { color: #fff !important; font-weight: 700 !important; }
 html.tema-byn #minimapa button[aria-pressed="true"], html.tema-byn .panel-j5 button:hover, html.tema-byn #acciones button:hover, html.tema-byn #minimapa button:hover { background: #fff !important; color: #000 !important; }
+html.tema-byn[data-densidad-nivel] body #acciones { height: auto !important; } /* the house lays the bar as a 360×80 box; with the chips on two rows («Soltar» wraps) the second row fell out of the screen: the box grows upward (it is anchored by its bottom) */
+html.tema-byn.ficha-espejo :is(#acciones, #interactuar) { display: none !important; } /* a card of the espejo is open: it is the only thing to press (a phone has no room for both) */
 html.tema-byn :focus-visible { outline: 3px solid #fff !important; outline-offset: 2px !important; }
 html.tema-byn #minimapa canvas { border-radius: 0 !important; border: 2px solid #fff; box-shadow: none !important; }
 html.tema-byn .panel-j5::backdrop { background: #000; opacity: .6; }

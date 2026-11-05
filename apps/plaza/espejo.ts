@@ -50,7 +50,9 @@ export function montarEspejo(o: { espejo: Ctl; doc?: Document; /** the teleport 
   d.defaultView?.addEventListener("resize", ajustar);
 
   let actual = "", seguro = "", esperando = false;
-  const ocultar = () => { caja.hidden = true; actual = ""; seguro = ""; esperando = false; o.espejo.cerrarFicha(); };
+  /** Show or hide the card; while it is open the page root carries `ficha-espejo` (the black-and-white theme hides the house action bar and prompt then: the card is the only thing to press). */
+  const mostrar = (v: boolean): void => { caja.hidden = !v; d.documentElement.classList.toggle("ficha-espejo", v); };
+  const ocultar = () => { mostrar(false); actual = ""; seguro = ""; esperando = false; o.espejo.cerrarFicha(); };
   const decir = (t: string) => { dicho.textContent = t; dicho.hidden = !t; };
 
   function pintar(): void {
@@ -103,8 +105,8 @@ export function montarEspejo(o: { espejo: Ctl; doc?: Document; /** the teleport 
 
   const abrir = () => {
     const e = o.espejo.estado;
-    if (!e.ficha) { if (!caja.hidden) caja.hidden = true; return; }
-    actual = e.ficha.objeto; seguro = ""; esperando = false; decir(""); caja.hidden = false; pintar();
+    if (!e.ficha) { if (!caja.hidden) mostrar(false); return; }
+    actual = e.ficha.objeto; seguro = ""; esperando = false; decir(""); mostrar(true); pintar();
     (cuerpo.querySelector("button") as HTMLButtonElement | null ?? cerrar).focus();
   };
   const quitar = o.espejo.alCambiar((que, clave) => {
