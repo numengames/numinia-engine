@@ -6,27 +6,15 @@
 // Everything is kept in centimetres (positions), tenths of a degree and tenths of a second, so the text the server sends rebuilds
 // EXACTLY the plan it uses itself.
 
+import { MODOS_RONDA, RONDA, r1, r2, redondeaPunto } from "./formato.ts"; // the limits and the rounding stay in formato.ts, in the start bundle
+export { MODOS_RONDA, RONDA, redondeaPunto };
+
 /** One stop of a round. `y` absent = the ground at that x, z (the server puts the number in before it sends anything); `giro` absent =
  * she faces the way she arrived; `pausa` = seconds she stands there (0 = she walks through). */
 export type PuntoRonda = { x: number; z: number; y?: number; giro?: number; pausa: number };
 export type ModoRonda = "vuelta" | "ida_y_vuelta";
 /** A round as an author writes it (and as the file reader returns it, already rounded). */
 export type Ronda = { puntos: PuntoRonda[]; velocidad: number; modo: ModoRonda };
-
-export const RONDA = {
-  puntosMin: 2, puntosMax: 8,
-  pausaMax: 60,            // s
-  velMin: 0.3, velMax: 1.4, // m/s: never faster than the page's calm walk (render/vida.ts CAMINA_MS)
-  velDefecto: 1.1,         // m/s
-  lejosM: 30,              // m: every stop within this of the person's own place (the page knows her only near it)
-  cicloMaxS: 7200,         // s: the `rt` field of the event holds up to this; the limits above can never reach it (8 pauses of 60 s + 8 legs of 60 m at 0.3 m/s = 2080 s)
-  texto: 300,              // bytes of the stops as the event carries them
-} as const;
-export const MODOS_RONDA: readonly ModoRonda[] = ["vuelta", "ida_y_vuelta"];
-
-const r2 = (n: number) => Math.round(n * 100) / 100, r1 = (n: number) => Math.round(n * 10) / 10;
-/** The numbers of a stop as the wire keeps them: x, z, y in cm, giro in 0.1°, pausa in 0.1 s. */
-export const redondeaPunto = (p: PuntoRonda): PuntoRonda => ({ x: r2(p.x), z: r2(p.z), ...(p.y === undefined ? {} : { y: r2(p.y) }), ...(p.giro === undefined ? {} : { giro: r1(p.giro) }), pausa: r1(p.pausa) });
 
 /** A round ready to be asked: the stops in the order they are visited (a back-and-forth visits the middle ones twice), when each
  * pause begins, and the way she faces on each leg. Build it once (`compilar`) and ask as often as you like. */

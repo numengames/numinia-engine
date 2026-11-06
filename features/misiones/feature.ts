@@ -3,8 +3,7 @@
 //   misiones  your quest book (only to you, saved by guest) and the quest things in the world (take or use)
 // What exists (quests, people, things) comes from the adventure's text files (formato.ts; docs/EXTENDER.md).
 import { defineFeature, SOUNDS } from "../../packages/feature/src/index.ts";
-import { ACCIONES_PAGINA, ALTURA_MAX, ESPERA_MAX, LIM, LIM_SECUENCIA, MUNDO, TIPOS_PASO, TIPOS_PISTA } from "./formato.ts";
-import { RONDA } from "./ronda.ts";
+import { ACCIONES_PAGINA, ALTURA_MAX, ESPERA_MAX, LIM, LIM_SECUENCIA, MUNDO, RONDA, TIPOS_PASO, TIPOS_PISTA } from "./formato.ts";
 
 const ID = { kind: "text", maxBytes: LIM.id } as const;
 const X = { kind: "fixed", min: -MUNDO, max: MUNDO, step: 0.01 } as const;
@@ -47,7 +46,7 @@ export const pnj = defineFeature({
       announce: "silent",
     },
     ronda: {
-      describe: "La ronda que hace para ti una persona (pnj@1 `posiciones[].ronda`): sus puntos (x,z,y,giro,pausa separados por «;»; el giro vacío = mira hacia donde viene), a qué velocidad anda (m/s), si al llegar al último vuelve por el mismo camino (ida) y cuántos segundos de la ronda han pasado (rt). Con `quieta` está parada (habla contigo) y rt no avanza hasta que vuelva a llegar. La página calcula con ello dónde está en cada momento, igual que el servidor. Solo te llega a ti, justo después del `sitio` que la acompaña.",
+      describe: "La ronda que anda para ti una persona (pnj@1 `posiciones[].ronda`): la calcula la página igual que el servidor. Solo te llega a ti, tras el `sitio`.",
       fields: { pnj: ID, puntos: { kind: "text", maxBytes: RONDA.texto }, vel: { kind: "fixed", min: RONDA.velMin, max: RONDA.velMax, step: 0.01, default: RONDA.velDefecto }, ida: { kind: "bool", default: false }, rt: { kind: "fixed", min: 0, max: RONDA.cicloMaxS, step: 0.001, default: 0 }, quieta: { kind: "bool", default: false }, giro: GIRO },
       announce: "silent",
     },

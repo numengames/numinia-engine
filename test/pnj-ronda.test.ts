@@ -179,16 +179,20 @@ function plaza(pnj: { id: string; [k: string]: unknown }[]) {
   const pasa = (s: number) => { T += s * 1000; };
   return { abrir, pump, ir, eventos, pasa, ahora: () => T };
 }
-const acepta = (W: ReturnType<typeof plaza>, p: ReturnType<ReturnType<typeof plaza>["abrir"]>) => { W.ir(p, 1, 0); p.m.hablar("pietro"); W.pump(2); p.m.elegir(1); W.pump(3); };
+const libre = () => new Promise<void>((r) => setImmediate(r)); // the page loads the maths of a round the first time one comes (a lazy chunk): let it finish
+const acepta = async (W: ReturnType<typeof plaza>, p: ReturnType<ReturnType<typeof plaza>["abrir"]>, esperar = true) => { W.ir(p, 1, 0); p.m.hablar("pietro"); W.pump(2); p.m.elegir(1); W.pump(3); if (esperar) await libre(); };
 const donde = (p: { m: ReturnType<typeof crearCliente>["misiones"] }, k = "cosimo") => { const r = p.m.rondaDe(k); return r && [r.x, r.z, r.andando, r.quieta]; };
 
-test("over the plug: the clock starts when the entry begins to hold for THAT player; the page walks the same round as the server computes", () => {
+test("over the plug: the clock starts when the entry begins to hold for THAT player; the page walks the same round as the server computes", async () => {
   const W = plaza([PIETRO, BIANCA, COSIMO_RONDA]);
   const a = W.abrir(), b = W.abrir();
   W.pump(4);
   assert.equal(W.eventos(a, "ronda").length + W.eventos(b, "ronda").length, 0, "no round until the quest says so");
   assert.equal(a.m.rondaDe("cosimo"), null);
-  acepta(W, a);
+  await acepta(W, a, false);
+  assert.equal(a.m.rondaDe("cosimo"), null, "the first round of the process waits for the page code (a chunk of its own) to load…");
+  await libre();
+  assert.ok(a.m.rondaDe("cosimo"), "…and then walks it; from then on the code is there and the next page does it at once");
   assert.equal(W.eventos(a, "ronda").length, 1, "A hears the round");
   assert.equal(W.eventos(b, "ronda").length, 0, "B's phase did not change: no round for B");
   const ev = W.eventos(a, "ronda")[0].msg;
@@ -215,11 +219,11 @@ test("over the plug: the clock starts when the entry begins to hold for THAT pla
   assert.equal(a.ultimo("pnj:cosimo")!.vida?.andando, false);
 });
 
-test("over the plug: «E: hablar» and the server's reach use where she is NOW; she stops while you talk and the time stood talking does not count", () => {
+test("over the plug: «E: hablar» and the server's reach use where she is NOW; she stops while you talk and the time stood talking does not count", async () => {
   const W = plaza([PIETRO, BIANCA, COSIMO_RONDA]);
   const k = keeper();
   const a = W.abrir(k);
-  W.pump(4); acepta(W, a);
+  W.pump(4); await acepta(W, a);
   W.pasa(7); a.m.cuadro(); // she is at (13.3, 0), walking
   const ahora = SEG(7);
   // the starting point is out of reach now, the place she is at is not
@@ -257,10 +261,10 @@ test("over the plug: «E: hablar» and the server's reach use where she is NOW; 
   assert.ok(Math.abs(Number(ev2.rt) - 10) < 0.002 && ev2.quieta === false, `rt ${ev2.rt}: 7 s before + 3 s after, the 120 s talking not counted`);
 });
 
-test("over the plug: the conversation of one player does not stop her for another (each has his own round)", () => {
+test("over the plug: the conversation of one player does not stop her for another (each has his own round)", async () => {
   const W = plaza([PIETRO, BIANCA, COSIMO_RONDA]);
   const a = W.abrir(), b = W.abrir();
-  W.pump(4); acepta(W, a); acepta(W, b);
+  W.pump(4); await acepta(W, a); await acepta(W, b);
   W.pasa(5);
   W.ir(a, 11, 0); a.m.hablar("cosimo"); W.pump(3);
   assert.equal(a.m.dialogo()?.nombre, "Cosimo");
@@ -270,10 +274,10 @@ test("over the plug: the conversation of one player does not stop her for anothe
   assert.equal(donde(b)![0] !== donde(a)![0], true);
 });
 
-test("over the plug: a world WITHOUT `ronda` is as it was — no `ronda` event, the same `sitio`, the same drawing", () => {
+test("over the plug: a world WITHOUT `ronda` is as it was — no `ronda` event, the same `sitio`, the same drawing", async () => {
   const COSIMO = { ...base, id: "cosimo", nombre: "Cosimo", posiciones: [{ si: [{ mision: "vuelo", estado: "activa" }], posicion: { x: 30, z: 0 }, giro: 90 }] };
   const W = plaza([PIETRO, BIANCA, COSIMO]);
-  const a = W.abrir(); W.pump(4); acepta(W, a);
+  const a = W.abrir(); W.pump(4); await acepta(W, a);
   assert.equal(W.eventos(a, "ronda").length, 0);
   assert.deepEqual(W.eventos(a, "sitio").map((e) => e.msg), [{ pnj: "cosimo", x: 10, z: 0, y: 0, giro: 0 }, { pnj: "cosimo", x: 30, z: 0, y: 0, giro: 90 }]);
   const d = a.ultimo("pnj:cosimo")!;

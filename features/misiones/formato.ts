@@ -37,8 +37,24 @@ const CON_CABLE: readonly string[] = ["crea_cable", "edita_cable", "borra_cable"
 /** The sha256 of a library model by its id (`bloque`, `farolillo`…), or "" when the library has none. */
 export const shaDeBiblioteca = (id: string): string => biblioteca.modelos.find((m) => m.id === id)?.modelo ?? "";
 export const ESTADOS = ["sin_empezar", "disponible", "activa", "hecha"] as const;
-import { MODOS_RONDA, RONDA, compilar, redondeaPunto } from "./ronda.ts"; // P16: a person's round
+// P16: a person's round. Its limits and rounding live HERE (not in ronda.ts): the page loads the maths of ronda.ts only when a round comes
 import type { ModoRonda, PuntoRonda, Ronda } from "./ronda.ts";
+
+export const RONDA = {
+  puntosMin: 2, puntosMax: 8,
+  pausaMax: 60,            // s
+  velMin: 0.3, velMax: 1.4, // m/s: never faster than the page's calm walk (render/vida.ts CAMINA_MS)
+  velDefecto: 1.1,         // m/s
+  lejosM: 30,              // m: every stop within this of the person's own place (the page knows her only near it)
+  cicloMaxS: 7200,         // s: the `rt` field of the event holds up to this; the limits above can never reach it (8 pauses of 60 s + 8 legs of 60 m at 0.3 m/s = 2080 s)
+  texto: 300,              // bytes of the stops as the event carries them
+} as const;
+export const MODOS_RONDA: readonly ModoRonda[] = ["vuelta", "ida_y_vuelta"];
+
+export const r2 = (n: number) => Math.round(n * 100) / 100, r1 = (n: number) => Math.round(n * 10) / 10;
+/** The numbers of a stop as the wire keeps them: x, z, y in cm, giro in 0.1°, pausa in 0.1 s. */
+export const redondeaPunto = (p: PuntoRonda): PuntoRonda => ({ x: r2(p.x), z: r2(p.z), ...(p.y === undefined ? {} : { y: r2(p.y) }), ...(p.giro === undefined ? {} : { giro: r1(p.giro) }), pausa: r1(p.pausa) });
+
 export const ACCIONES = ["dar_mision", "avanzar_paso", "entregar", "despedir"] as const;
 /** The voices a person can have (pnj@1 `voz`): the house's NPC voice takes, a short wordless greeting when you start
  *  talking and a farewell when you stop (features/sonido/catalogo.json: `pnj-saludo-<voz>`, `pnj-despedida-<voz>`). New
@@ -537,8 +553,8 @@ function leerRonda(v: unknown, path: string, base: { x: number; z: number }, is:
   if (o.modo !== undefined) { if (MODOS_RONDA.includes(o.modo as ModoRonda)) modo = o.modo as ModoRonda; else is.push({ path: en(path, "modo"), message: `uno de: ${MODOS_RONDA.join(", ")} (sin «modo», vuelta: al último punto vuelve al primero)` }); }
   if (is.length > antes) return undefined;
   const ronda: Ronda = { puntos, velocidad: Math.round(velocidad * 100) / 100, modo };
-  const ciclo = compilar(ronda).ciclo;
-  if (!(ciclo > 0)) { is.push({ path, message: "la ronda no tiene ni recorrido ni pausas: pon puntos distintos o alguna «pausa»" }); return undefined; }
+  // a round with no length: every stop in the same place and none with a pause (the same test as `compilar(ronda).ciclo > 0`)
+  if (puntos.every((q) => q.pausa === 0 && q.x === puntos[0].x && q.z === puntos[0].z)) { is.push({ path, message: "la ronda no tiene ni recorrido ni pausas: pon puntos distintos o alguna «pausa»" }); return undefined; }
   return ronda;
 }
 
