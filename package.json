@@ -1,7 +1,7 @@
 {
   "name": "numinia-engine",
   "private": true,
-  "version": "0.104.1",
+  "version": "0.105.0",
   "license": "AGPL-3.0-only",
   "type": "module",
   "engines": {
@@ -23,6 +23,7 @@
     "novedades": "node tools/novedades-generar.mjs",
     "cambios:juntar": "node tools/juntar-cambios.mjs",
     "e2e": "node tools/e2e.mjs",
+    "test:e2e": "node tools/e2e-espejo.mjs && node tools/e2e-embed.mjs",
     "gates": "node tools/gates.mjs",
     "tipos": "node tools/tipos.ts",
     "tamano": "node tools/tamano.mjs",

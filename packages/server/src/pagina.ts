@@ -39,6 +39,8 @@ export class Pagina {
   titulo: string | null;
   /** MIS-265: the world's cover as this server serves it (`/a/<sha256>.<ext>`), read on every page; null = none. */
   portada: () => string | null = () => null;
+  /** M7: true while the world's embed mode is on: every file then carries `access-control-allow-origin: *` (a page with an opaque origin, inside a sandboxed frame, may only load module scripts and styles that say so). */
+  cors: () => boolean = () => false;
   private readonly raiz: string;
   private readonly comprimidos = new Map<string, Comprimido>(); // file -> its gzip/brotli, for one etag
 
@@ -113,6 +115,7 @@ export class Pagina {
       "cache-control": path.startsWith("/assets/") ? "public, max-age=31536000, immutable" : "no-cache",
       etag, "last-modified": st.mtime.toUTCString(), "x-content-type-options": "nosniff",
       ...(comprimible ? { vary: "accept-encoding" } : {}),
+      ...(this.cors() ? { "access-control-allow-origin": "*" } : {}),
     };
     const inm = req.headers["if-none-match"], ims = req.headers["if-modified-since"];
     if ((inm && inm.split(",").some((t) => t.trim() === etag)) || (!inm && ims && Date.parse(ims) >= Math.floor(st.mtimeMs / 1000) * 1000)) {
