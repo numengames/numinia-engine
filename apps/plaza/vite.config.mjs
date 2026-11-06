@@ -36,7 +36,19 @@ const basis = {
 
 // The comments and the indentation of apps/plaza/index.html are for the people who read the source; the browser needs neither (no <pre>, no inline script in
 // the page), and they were ~0.7 kB of the first load in brotli. Line breaks stay, so the text still reads the same.
-const sinComentarios = { name: "numinia-html-sin-comentarios", enforce: "post", transformIndexHtml: (html) => html.replace(/<!--[\s\S]*?-->/g, "").replace(/\n\s+/g, "\n") };
+// Cut by position (indexOf), not by a replace pattern: the page is our own file, and a scan has no leftover «<!--» to worry about.
+const sinComentariosHtml = (html) => {
+  let fuera = "", desde = 0;
+  for (;;) {
+    const abre = html.indexOf("<!--", desde);
+    if (abre < 0) return (fuera + html.slice(desde)).replace(/\n\s+/g, "\n");
+    const cierra = html.indexOf("-->", abre + 4);
+    if (cierra < 0) throw new Error("index.html: a comment is never closed");
+    fuera += html.slice(desde, abre);
+    desde = cierra + 3;
+  }
+};
+const sinComentarios = { name: "numinia-html-sin-comentarios", enforce: "post", transformIndexHtml: sinComentariosHtml };
 
 export default defineConfig({
   root,
