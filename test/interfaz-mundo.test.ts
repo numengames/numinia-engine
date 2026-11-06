@@ -15,8 +15,11 @@ const tmp = (p: string) => mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), p));
 const MOTOR = { build: "dev", commit: "0".repeat(40), imagen: "" };
 const ACCIONES = [
   { feature: "gestos", id: "saludar", label: "Saludar" }, { feature: "gestos", id: "bailar", label: "Bailar" },
-  { feature: "pesca", id: "recoger", label: "Recoger" }, { feature: "dados", id: "tirar", label: "Tirar dados" },
+  { feature: "pesca", id: "recoger", label: "Recoger" }, { feature: "cogibles", id: "soltar", label: "Soltar" },
+  { feature: "baculo", id: "soltar", label: "Soltar el báculo" }, { feature: "dados", id: "tirar", label: "Tirar dados" },
 ];
+const NADA = new Set<(typeof OCULTABLES)[number]>(), GESTOS = new Set<(typeof OCULTABLES)[number]>(["gestos"]);
+const MANO = new Set<(typeof OCULTABLES)[number]>(["recoger-soltar"]), AMBOS = new Set<(typeof OCULTABLES)[number]>(["gestos", "recoger-soltar"]);
 
 test("leerInterfaz: «gestos» is kept; nothing or an empty list = the page as ever", () => {
   assert.deepEqual(leerInterfaz({ ocultar: ["gestos"] }), { interfaz: { ocultar: ["gestos"] }, problemas: [] });
@@ -65,14 +68,30 @@ test("ocultosDe: the page does not trust the wire", () => {
 });
 
 test("accionesVisibles: hiding «gestos» takes Saludar and Bailar only; without it every action stays, in order", () => {
-  assert.deepEqual(accionesVisibles(ACCIONES, false), ACCIONES);
-  assert.deepEqual(accionesVisibles(ACCIONES, true).map((a) => a.id), ["recoger", "tirar"]);
-  assert.deepEqual(accionesVisibles([], true), []);
+  assert.deepEqual(accionesVisibles(ACCIONES, NADA), ACCIONES);
+  assert.deepEqual(accionesVisibles(ACCIONES, GESTOS).map((a) => a.id), ["recoger", "soltar", "soltar", "tirar"]);
+  assert.deepEqual(accionesVisibles([], GESTOS), []);
+});
+
+test("P15 b: «recoger-soltar» takes the player's Recoger (pesca) and Soltar (cogibles) buttons, nothing else", () => {
+  assert.deepEqual(accionesVisibles(ACCIONES, MANO).map((a) => `${a.feature}:${a.id}`), ["gestos:saludar", "gestos:bailar", "baculo:soltar", "dados:tirar"]);
+  assert.deepEqual(accionesVisibles(ACCIONES, AMBOS).map((a) => `${a.feature}:${a.id}`), ["baculo:soltar", "dados:tirar"]);
+});
+
+test("P15 b: the name is known to the server and the page, read from the ficha, and a world without it hides no hand button", () => {
+  assert.ok(INTERFAZ_OCULTABLES.includes("recoger-soltar" as never));
+  assert.deepEqual(leerInterfaz({ ocultar: ["recoger-soltar"] }), { interfaz: { ocultar: ["recoger-soltar"] }, problemas: [] });
+  assert.deepEqual(leerInterfaz({ ocultar: ["gestos", "recoger-soltar", "gestos"] }).interfaz, { ocultar: ["gestos", "recoger-soltar"] });
+  assert.deepEqual([...ocultosDe({ ocultar: ["recoger-soltar", "chat"] })], ["recoger-soltar"]);
+  assert.deepEqual(accionesVisibles(ACCIONES, ocultosDe(undefined)), ACCIONES, "no field = every button as before");
 });
 
 test("the phone's «…» menu: with the gestures hidden it offers Saltar and the other actions, no Saludar / Bailar", () => {
-  const con = entradasDelMenu(accionesVisibles(ACCIONES, false), []).map((e) => e.id);
-  const sin = entradasDelMenu(accionesVisibles(ACCIONES, true), []).map((e) => e.id);
-  assert.deepEqual(con, ["saltar", "saludar", "bailar", "tirar"]);
-  assert.deepEqual(sin, ["saltar", "tirar"]);
+  const con = entradasDelMenu(accionesVisibles(ACCIONES, NADA), []).map((e) => e.id);
+  const sin = entradasDelMenu(accionesVisibles(ACCIONES, GESTOS), []).map((e) => e.id);
+  assert.ok(con.includes("saludar") && con.includes("bailar"));
+  assert.ok(!sin.includes("saludar") && !sin.includes("bailar") && sin.includes("saltar") && sin.includes("tirar"));
+  const sinMano = entradasDelMenu(accionesVisibles(ACCIONES, MANO), []).map((e) => e.id);
+  assert.ok(sinMano.includes("saludar") && sinMano.includes("tirar"));
+  assert.equal(sinMano.filter((i) => i === "soltar").length, 1, "only the staff's Soltar is left");
 });

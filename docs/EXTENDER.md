@@ -527,14 +527,22 @@ se ignora. Va en `GET /status` (`tema`) y la página lo vuelca en las variables 
 "#ff8ebe", "mayusculas": true, "forma": "pildora" }`.
 
 **`interfaz`** (opcional, dentro de la ficha): qué botones quita ESTE mundo de la pantalla. Hoy un solo campo, `ocultar`, una
-lista de grupos; el único grupo que existe es `"gestos"` = «Saludar», «Bailar» y «Movimientos» (la barra de abajo en
-escritorio, el menú «…» del móvil y el botón «Movimientos» de la pantalla táctil). Pensado para un simulador de formación,
-donde esos botones sobran: `"interfaz": { "ocultar": ["gestos"] }`. **Solo quita botones**: las teclas (G para la rueda, H
-para bailar) siguen funcionando, y el «Saludar» de la tarjeta de una persona también (es otra cosa: saludar a alguien). Un nombre
-que no existe se deja fuera y se dice en el registro (`[ficha] interfaz.ocultar: «chat» no existe…`); el resto se aplica; una
-clave desconocida se ignora. Va en `GET /status` (`interfaz`, solo si hay algo que ocultar) y la página lo lee en
-`apps/plaza/interfaz-mundo.ts`. Sin el campo, nada cambia: ni `/status` ni la pantalla. Fuente: `leerInterfaz`
-(`packages/server/src/aventura.ts`); prueba: `test/interfaz-mundo.test.ts`.
+lista de grupos. Hay dos:
+- `"gestos"` = «Saludar», «Bailar» y «Movimientos» (la barra de abajo en escritorio, el menú «…» del móvil y el botón
+  «Movimientos» de la pantalla táctil). Pensado para un simulador de formación, donde esos botones sobran:
+  `"interfaz": { "ocultar": ["gestos"] }`.
+- `"recoger-soltar"` = el «Recoger» de la pesca (F) y el «Soltar» de lo que lleva el jugador (Q), en la barra de abajo y en el menú
+  «…» del móvil. Para un mundo donde no se pesca y las cosas se cogen con «E» (una aventura de investigación):
+  `"interfaz": { "ocultar": ["gestos", "recoger-soltar"] }`. **No** quita el «Soltar el báculo» ni el «Pasar el báculo» (son de quien
+  dirige), ni la forma de coger: coger una cosa con «E» (o manteniéndola) es la tarjeta de la propia cosa, no un botón de la barra, y
+  sigue igual. Ojo en móvil: allí no hay tecla Q, así que quien oculta «Soltar» en un mundo que se visita en móvil deja a la gente
+  sin forma de soltar lo que lleva; úselo solo si la cosa vuelve a su sitio por otra vía (se entrega, se usa o se guarda).
+
+**Solo quita botones**: las teclas (G para la rueda, H para bailar, F y Q) siguen funcionando, y el «Saludar» de la tarjeta de una
+persona también (es otra cosa: saludar a alguien). Un nombre que no existe se deja fuera y se
+dice en el registro (`[ficha] interfaz.ocultar: «chat» no existe…`); el resto se aplica; una clave desconocida se ignora. Va en
+`GET /status` (`interfaz`, solo si hay algo que ocultar) y la página lo lee en `apps/plaza/interfaz-mundo.ts`. Sin el campo, nada
+cambia: ni `/status` ni la pantalla. Fuente: `leerInterfaz` (`packages/server/src/aventura.ts`); prueba: `test/interfaz-mundo.test.ts`.
 
 Reglas para quien escribe (persona o LLM):
 - **Ids** en minúsculas, cifras y guiones (`primeros-pasos`); cada fichero, un `formato` en su primera línea. Un campo
