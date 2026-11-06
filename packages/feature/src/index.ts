@@ -1069,8 +1069,11 @@ export type Announcement = { feature: string; event: string; text: string; sound
 export type CardView = { feature: string; key: string; role: Role; name: string; description?: string; importance: Importance; actions: string[]; at?: { x: number; z: number } };
 /** J4: a thing in reach as the page offers it: «E: <prompt>»; `use(feature, key)` sends its intent.
  * `hold` (seconds, J4 mantener-pulsado): undefined/0 = fires at once; otherwise the page must hold the key/button/
- * trigger that long (showing a progress ring) before it sends the intent. */
-export type Reachable = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number; hold?: number };
+ * trigger that long (showing a progress ring) before it sends the intent.
+ * `at` (P15): where the thing is for THIS player (metres; `y` only when its state has a numeric `y`), so the page can pick the one
+ * the player looks at (apps/plaza/interactuar-mirada.ts) and mark it in the world;
+ * `role` = its card's role (a person is circled at the chest, a thing near its base). */
+export type Reachable = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number; hold?: number; at?: { x: number; z: number; y?: number }; role?: Role };
 /** Fill `{field}` holes with the values (`{key}` = the state key). Unknown holes stay as they are. */
 export const fillTemplate = (t: string, values: Record<string, unknown>): string => t.replace(/\{([a-zA-Z0-9]+)\}/g, (all, k) => (values[k] === undefined ? all : String(values[k])));
 /** `disponible`: asked by the page when the state changes; false = the button is not shown (the `hidden` attribute), because the action is not possible now. None = always shown. */
@@ -1198,10 +1201,11 @@ export class ClientRuntime {
       for (const [key, v] of this.mirror.get(f.id) ?? []) {
         const r = typeof it.radius === "number" ? it.radius : Number(v[it.radius]);
         const L = this.lugares.size ? this.lugares.get(`${f.id}:${key}`) : undefined; // P2: where THIS player finds it
-        const d = L ? Math.hypot(L.x - x, L.z - z) : Math.hypot(Number(v[c.at[0]]) - x, Number(v[c.at[1]]) - z);
+        const ax = L ? L.x : Number(v[c.at[0]]), az = L ? L.z : Number(v[c.at[1]]), ay = L?.y ?? v.y;
+        const d = Math.hypot(ax - x, az - z);
         if (!(r > 0 && d <= r) || (y !== undefined && !alAlcanceEnAltura(y, L?.y ?? v.y))) continue; // J4: a thing whose radius field is 0 is not offered (e.g. carried)
         const vals = { key, ...v };
-        out.push({ feature: f.id, key, intent: it.intent, prompt: fillTemplate(it.prompt, vals), name: fillTemplate(c.name, vals).trim(), distance: d, ...(it.hold ? { hold: it.hold } : {}) });
+        out.push({ feature: f.id, key, intent: it.intent, prompt: fillTemplate(it.prompt, vals), name: fillTemplate(c.name, vals).trim(), distance: d, role: c.role, ...(it.hold ? { hold: it.hold } : {}), at: { x: ax, z: az, ...(typeof ay === "number" && Number.isFinite(ay) ? { y: ay } : {}) } });
       }
     }
     return out.sort((a, b) => a.distance - b.distance);
