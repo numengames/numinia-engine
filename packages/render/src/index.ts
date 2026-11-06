@@ -48,7 +48,7 @@ export type { Movimiento } from "./avatares-politica.ts";
 export type { CatalogoAvatares } from "./avatares.ts";
 import type { CatalogoAvatares } from "./avatares.ts";
 import { createNombres, NOMBRE_VISIBLE_M } from "./nombres.ts";
-import { createMarcaMirada, type Marca } from "./marca-mirada.ts"; // P15: the one ring over the thing «E: …» speaks about (lazy, one mesh)
+import { createMarcaMirada, centroEnMundo, type Marca } from "./marca-mirada.ts"; // P15: the one ring over the thing «E: …» speaks about (lazy, one mesh)
 import { createAros } from "./aros.ts"; // ia-visible S5: a green ring on the floor under every AI (pooled, one shared geometry)
 import { arosMax } from "./ia-marca.ts";
 import { createOjosIA } from "./ojos-ia.ts"; // t_5096d6f4: the eyes of an AI say the size of its model (one mesh per near AI, shared geometry and material)
@@ -633,7 +633,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   type EstadoVida = { fase: Fase; giro: Giro; rep: Reposo; ca: { dx: number; dz: number }; clip: boolean; anda: boolean; gestos?: { acciones: Partial<Record<Gesto, THREE.AnimationAction>>; actual: Gesto } };
   type Slot = { vida?: EstadoVida; group: THREE.Group; want: Thing; model: string; loaded: boolean; failed: boolean; mixer?: THREE.AnimationMixer; medio?: Medio; color?: string; horneado?: boolean;
     /** N12: the baked parts (copies of one model share them: a lote draws them), and a sphere round the group's origin that holds the model (m, before scale). */
-    partes?: Parte[]; radio?: number; tam?: number;
+    partes?: Parte[]; radio?: number; tam?: number; /** P15: the middle of that sphere, in the model's own space (m, before scale and turn) */ cen?: { x: number; y: number; z: number };
     /** J14: a baked figure's two LODs (cerca = its baked parts, lejos = one piece) */
     piezaCerca?: Pieza[]; piezaLejos?: Pieza; lod?: "cerca" | "lejos";
     /** B3: set while this copy's shaders are being prepared (precompilar.ts); a new model or pose for the slot drops it. */
@@ -646,6 +646,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   /** N12: the radius (m, before the copy's scale) of a sphere round the origin that holds `o`, a copy not yet in the world. */
   /** P15: the radius of the sphere that holds the model on its own (not counting how far its origin is from its middle, which `radioDe` does for the cull): the size the interaction ring is drawn to. */
   const tamDe = (o: THREE.Object3D): number => { o.updateMatrixWorld(true); tmpBox.setFromObject(o); if (tmpBox.isEmpty()) return 0; tmpBox.getBoundingSphere(esferaTmp); return esferaTmp.radius; };
+  const centroDe = (o: THREE.Object3D): { x: number; y: number; z: number } | undefined => { o.updateMatrixWorld(true); tmpBox.setFromObject(o); if (tmpBox.isEmpty()) return undefined; tmpBox.getBoundingSphere(esferaTmp); const c = esferaTmp.center; return { x: c.x, y: c.y, z: c.z }; };
   const radioDe = (o: THREE.Object3D): number => { o.updateMatrixWorld(true); tmpBox.setFromObject(o); if (tmpBox.isEmpty()) return 1; tmpBox.getBoundingSphere(esferaTmp); return esferaTmp.center.length() + esferaTmp.radius; };
   let verOcultos = false; // U10: while building, hidden spheres of sound are drawn
   const fichero = (t: Thing) => `${t.model}.${t.kind && t.kind !== "modelo" ? t.ext ?? "glb" : "glb"}`; // what a slot draws
@@ -976,7 +977,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
           // J14's LODs are set only now: actualizarLOD() must not show the copy before its shaders are ready
           if (quieto) { now.piezaCerca = quieto; now.piezaLejos = pieza ?? undefined; now.lod = lod; }
           now.horneado = !!quieto; now.partes = partes;
-          now.radio = radioDe(copy) * (anima ? 1.5 : 1); now.tam = tamDe(copy); // an animation may reach out of its rest pose
+          now.radio = radioDe(copy) * (anima ? 1.5 : 1); now.tam = tamDe(copy); now.cen = centroDe(copy); // an animation may reach out of its rest pose
           if (now.mejorando) { now.group.clear(); now.mejorando = false; } // H13: the whole model replaces the level it was showing, in the same frame
           if (!anima) congelarMatrices(copy); // a still model never recomposes its node matrices again (congelar.ts: measured in tools/medir-recorrido.mjs)
           now.group.add(copy);
@@ -1012,7 +1013,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     p.then((m) => {
       const now = things.get(key);
       if (!now || now.model !== model || now.loaded) { m.soltar(); return; }
-      now.radio = radioDe(m.obj); now.tam = tamDe(m.obj); now.group.add(m.obj); now.medio = m; now.loaded = true;
+      now.radio = radioDe(m.obj); now.tam = tamDe(m.obj); now.cen = centroDe(m.obj); now.group.add(m.obj); now.medio = m; now.loaded = true;
     }).catch((e) => {
       const now = things.get(key);
       if (now && now.model === model) now.failed = true;
@@ -1791,6 +1792,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     marcar(p: Marca | null): void { marcaMirada.poner(p); },
     /** P15: about how big a placed thing is (m: radius of the sphere that holds its model on its own, times its scale), or undefined while it is not placed or not loaded yet. */
     tamano(key: string): number | undefined { const s = things.get(key); return s?.loaded && s.tam ? s.tam * Math.max(Math.abs(s.want.sx), Math.abs(s.want.sy), Math.abs(s.want.sz)) : undefined; },
+    /** P15: where the middle of a placed thing's model is in the world (m), or undefined while it is not placed or not loaded yet. The ring goes there. */
+    centro(key: string): { x: number; y: number; z: number } | undefined { const s = things.get(key); return s?.loaded && s.cen ? centroEnMundo(s.cen, s.want) : undefined; },
     /** P15 (for checks): is the mark drawn, where, and how many meshes ever existed (never more than 1). */
     marcaMirada() { return marcaMirada.estado(); },
     /** ia-visible S5 (for checks): who has a ring, whether it is drawn, and how much the rings share (one geometry, one material per state). */

@@ -376,7 +376,9 @@ Una cosa del mundo que se usa de cerca declara **cómo** en su ficha: `state.car
     marca:** una persona lleva un aro pequeño (0,4 m de radio) tumbado en el suelo, a sus pies (el aro alrededor del cuerpo
     la tapaba); una cosa lleva un aro que mira a la cámara y es tan ancho como ella como mucho el doble (la página pregunta a
     `view.tamano("<función>:<clave>")` lo grande que es el modelo ya cargado; entre 5 cm y 0,45 m de radio; 0,2 m si todavía no
-    se sabe), a media altura de la cosa (usa su `y` si el estado la trae). Es igual en escritorio y en móvil.
+    se sabe), centrado en el medio de su modelo (`view.centro("<función>:<clave>")`: una pieza cuyo origen no está en su medio, como
+    el cuchillo con su tabla y su verdura, queda rodeada entera y no con el aro por encima; si todavía no se sabe, media altura sobre
+    su `y`). Es igual en escritorio y en móvil.
   - `features.reachable()` entrega ahora, en cada oferta, `at` (`x`, `z` y, si el estado trae `y`, la altura) y `role` (el de su
     ficha): campos nuevos al final, nada de formato ni de huella cambia.
   - *VR:* la lógica de los mandos no cambia (apuntan con su rayo). La elección por mirada usa la cámara de escritorio/móvil; con

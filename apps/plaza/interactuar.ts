@@ -19,7 +19,8 @@ export type Cerca = { feature: string; key: string; intent: string; prompt: stri
 type Sesion = { entity: number; selfPosition(alpha: number): { x: number; y: number; z: number }; features: { reachable(x: number, z: number, y?: number): Cerca[]; use(feature: string, key: string): Res } };
 type Vista = { renderer: { domElement: HTMLElement }; pickThing?(x: number, y: number): string | null; cam?: { modo?(): string; yaw?(): number };
   /** P15: ring over the offered thing (centre in metres, radius; `suelo`: lying on the floor), or null. */ marcar?(p: { x: number; y: number; z: number; r: number; suelo?: boolean } | null): void;
-  /** P15: about how big a placed thing is (m), by its `<feature>:<key>` place; undefined = not known (yet). */ tamano?(key: string): number | undefined; vr?: { active: boolean } };
+  /** P15: about how big a placed thing is (m), by its `<feature>:<key>` place; undefined = not known (yet). */ tamano?(key: string): number | undefined;
+  /** P15: where the middle of a placed thing's model is (m), by its `<feature>:<key>` place; undefined = not known (yet). */ centro?(key: string): { x: number; y: number; z: number } | undefined; vr?: { active: boolean } };
 
 /** True while the person types in a text box: global keys must not fire (J3's one rule, apps/plaza/escribiendo.ts). */
 import { escribiendo } from "./escribiendo.ts";
@@ -32,13 +33,14 @@ export const construyendo = (view: Vista): boolean => !(document.getElementById(
 const conMayuscula = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** P15: the ring over the offered thing (metres). A person never gets a ring round the body (it hid them): a small one lies on the floor at
  *  their feet. A thing gets a ring about as big as it is (`tam`, its size when the page knows it; never above 2× the size, never above 0.45 m
- *  radius, 0.2 m when unknown), centred at half its height. */
+ *  radius, 0.2 m when unknown), centred on the middle of its model when the page knows it (`centro`), else half a radius over its place. */
 export const RADIO_PERSONA = 0.4, RADIO_MAX = 0.45, RADIO_MIN = 0.05, RADIO_COSA = 0.2;
-export const marcaDe = (c: Cerca, pies: number, tam?: number): { x: number; y: number; z: number; r: number; suelo?: boolean } | null => {
+export const marcaDe = (c: Cerca, pies: number, tam?: number, centro?: { x: number; y: number; z: number }): { x: number; y: number; z: number; r: number; suelo?: boolean } | null => {
   if (!c.at) return null;
   const y = c.at.y ?? pies;
   if (c.role === "persona") return { x: c.at.x, y: y + 0.03, z: c.at.z, r: RADIO_PERSONA, suelo: true };
   const r = tam !== undefined && tam > 0 ? Math.min(RADIO_MAX, Math.max(RADIO_MIN, Math.round(tam * 100) / 100)) : RADIO_COSA;
+  if (centro) return { x: centro.x, y: centro.y, z: centro.z, r }; // the middle of the model itself (a flat piece whose origin is at one edge is ringed round what it is)
   return { x: c.at.x, y: y + Math.round(r * 50) / 100, z: c.at.z, r };
 };
 /** Pure: 0..1, how much of `holdS` seconds has elapsed between `desde` and `ahora` (both ms); no hold (0/undefined) = done at once. */
@@ -98,7 +100,7 @@ export function montarInteraccion(o: {
   // the ring in the world follows what is offered (moves with a walking person, goes when nothing is offered); `poner` ignores the same place twice
   let marcado = false;
   const marcar = (c: Cerca | null, pies: number) => {
-    const m = c && !o.view.vr?.active ? marcaDe(c, pies, c.role === "persona" ? undefined : o.view.tamano?.(`${c.feature}:${c.key}`)) : null;
+    const m = c && !o.view.vr?.active ? marcaDe(c, pies, c.role === "persona" ? undefined : o.view.tamano?.(`${c.feature}:${c.key}`), c.role === "persona" ? undefined : o.view.centro?.(`${c.feature}:${c.key}`)) : null;
     if (!m && !marcado) return;
     marcado = !!m;
     o.view.marcar?.(m);

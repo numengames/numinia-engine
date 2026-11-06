@@ -97,6 +97,33 @@ test("P15 marcaDe: a person gets a small ring on the floor at their feet (never 
   assert.equal(marcaDe({ ...base }, 0), null);
 });
 
+test("P15 a: the ring of a flat thing is centred on the model's middle, not half a radius above its origin (the knife, board and vegetables of the v4 kitchen)", () => {
+  const base = { feature: "cosas", key: "cuchillo", intent: "i", prompt: "inspeccionar", name: "Cuchillo", distance: 1, role: "objeto", at: { x: 2.805, z: -0.38, y: 0.93 } };
+  // the v4 piece: origin at the board's centre, model box x −0.2…0.143, y 0…0.061, z −0.251…0.087 → sphere centre (−0.0285, 0.0305, −0.082), radius ≈ 0.24
+  const antes = marcaDe(base, 0, 0.24)!;
+  assert.equal(antes.y, 0.93 + 0.12, "without the model's middle: the old rule, half a radius over the origin (12 cm above a 6 cm tall piece)");
+  const centro = { x: 2.805 - 0.0285, y: 0.93 + 0.0305, z: -0.38 - 0.082 };
+  const a = marcaDe(base, 0, 0.24, centro)!;
+  assert.deepEqual(a, { x: centro.x, y: centro.y, z: centro.z, r: 0.24 }, "with it: the ring sits on the middle of the model (the board, the vegetables and the knife all inside)");
+  assert.ok(a.y - 0.93 < 0.05, "a ring round a 6 cm tall piece is not 12 cm over it");
+  // a person never uses it; a thing without a place gets none; the radius rules are the same
+  const p = marcaDe({ ...base, role: "persona" }, 0, 0.24, centro)!;
+  assert.deepEqual([p.x, p.z, p.r, p.suelo], [2.805, -0.38, RADIO_PERSONA, true]);
+  assert.ok(Math.abs(p.y - 0.96) < 1e-9);
+  assert.equal(marcaDe({ ...base, at: undefined }, 0, 0.24, centro), null);
+  assert.equal(marcaDe(base, 0, 3, centro)!.r, RADIO_MAX);
+});
+
+test("P15 a: centroEnMundo puts the model's middle where the placed thing really is (offset turned and scaled like the thing)", () => {
+  const T = { x: 10, y: 1, z: 20, rx: 0, ry: 0, rz: 0, sx: 1, sy: 1, sz: 1 };
+  const cen = { x: 0.5, y: 0.25, z: -1 };
+  const cerca = (a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) < 1e-9;
+  assert.ok(cerca(centroEnMundo(cen, T), { x: 10.5, y: 1.25, z: 19 }), "no turn, no scale: origin + offset");
+  assert.ok(cerca(centroEnMundo(cen, { ...T, sx: 2, sy: 2, sz: 2 }), { x: 11, y: 1.5, z: 18 }), "scaled with the thing");
+  assert.ok(cerca(centroEnMundo(cen, { ...T, ry: 90 }), { x: 9, y: 1.25, z: 19.5 }), "a quarter turn about y (degrees, as a Thing keeps them): (0.5,−1) → (−1,−0.5)");
+  assert.ok(cerca(centroEnMundo({ x: 0, y: 0, z: 0 }, T), { x: 10, y: 1, z: 20 }), "a model centred on its origin: the origin");
+});
+
 // ---- the page piece, with a stub DOM -------------------------------------------------------------------------------------------
 type Cosa = { key: string; x: number; z: number; r: number; role?: string };
 function montarFalso(cosas: Cosa[], yo: { x: number; z: number; yaw: number }, tamanos: Record<string, number> = {}) {
@@ -192,7 +219,7 @@ test("P15 reachable(): every offer carries where the thing is (`at`) and its car
 
 // ---- the ring in the world (packages/render/src/marca-mirada.ts): one mesh, made late, reused, asks for frames only when it changes --------
 import * as THREE from "three/webgpu";
-import { createMarcaMirada } from "../packages/render/src/marca-mirada.ts";
+import { createMarcaMirada, centroEnMundo } from "../packages/render/src/marca-mirada.ts";
 
 test("P15 marca-mirada: nothing is made until something is offered; one mesh is reused; the same place twice asks for nothing", () => {
   const world = new THREE.Group(), camera = new THREE.PerspectiveCamera();
