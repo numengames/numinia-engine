@@ -109,7 +109,7 @@ import { FAVORITOS_INICIALES } from "../../features/gestos/movimientos.ts";
 import { montarRueda } from "./rueda.ts";
 import { montarXR } from "./xr.ts";
 import { aplicarTema } from "./tema-mundo.ts"; // a world's look (ficha@1 `tema`): an event's colours and title face
-import { ocultosDe } from "./interfaz-mundo.ts"; // a world's hidden buttons (ficha@1 `interfaz.ocultar`): «gestos» = Saludar, Bailar, Movimientos
+import type { Ocultable } from "./interfaz-mundo.ts"; // a world's hidden buttons (ficha@1 `interfaz.ocultar`): «gestos» = Saludar, Bailar, Movimientos; «recoger-soltar» = Recoger, Soltar. The code is fetched only by a world that has an `interfaz`
 import { montarFotoPuerta } from "./foto-puerta.ts"; // t_45ef2f70: the button now, the mode (foto.ts) after the first frame or at once for a photo's link. N13: photo mode (P): hide the interface, frame, filter, PNG, share, a link to the place
 import { esTactil, perfil, montarMarco } from "./perfil-aparato.ts"; // U25: the device profile (touch, small screen, VR), one answer for the whole page
 import { montarNovedades } from "./novedades.ts"; // t_bdc2c2db: «qué hay de nuevo» card, once per version
@@ -156,7 +156,8 @@ type Estado = { temaHud?: unknown; espejo?: unknown; dardosEnlace?: unknown; ver
   audio?: { ambiente?: string | null; ambiente_ganancia?: number; ambiente_sintetizado?: string[]; avisos?: Record<string, string> } };
 const estadoP: Promise<Estado | null> = fetch(`${activos}/status`).then((r) => r.json() as Promise<Estado>).catch(() => null);
 const estado = await Promise.race([estadoP, new Promise<null>((ok) => setTimeout(() => ok(null), 1500))]);
-let sinGestos = ocultosDe(estado?.interfaz).has("gestos"); // P7: the world took «Saludar», «Bailar» and «Movimientos» off the screen (ficha.json → interfaz.ocultar); none = all there, as ever
+let interfazMundo: typeof import("./interfaz-mundo.ts") | null = estado?.interfaz ? await import("./interfaz-mundo.ts") : null; // a world without `interfaz` never fetches it (the start bundle has a cap)
+let ocultos: ReadonlySet<Ocultable> = interfazMundo?.ocultosDe(estado?.interfaz) ?? new Set(); // P7/P15: the buttons the world took off the screen (ficha.json → interfaz.ocultar: «gestos», «recoger-soltar»); none = all there, as ever
 ponerAvisosMundo(estado?.audio?.avisos); // t_d7411a07: the sound of each quest notice the world picked (ficha.json → audio.avisos)
 void estadoP.then((e) => ponerAvisosMundo(e?.audio?.avisos)); // a slow /status (past the 1.5 s) still sets them
 // H4: a world with an espacio base shows the line mesh drawing itself on the loading screen (apps/plaza/carga.ts); any other keeps the moon
@@ -229,6 +230,7 @@ const session = new ClientSession(transport, {
       if (a.feature === "chat") return; // J3: the chat box's own list (role=log, polite) reads the chat
       if (a.feature === "director" && a.event === "narracion") return; // N6: the narrator's banner (a live region) reads it
       if (a.feature === "misiones" && a.event === "completada") return; // U14 (6): the «Misión completada» banner (a live region) reads it
+      if (a.feature === "misiones" && a.event === "abrirEvaluacion") return; // P13: the end card says it itself (misiones.ts), with how to close it
       const box = document.getElementById(a.importance >= 3 ? "avisos-urgentes" : "avisos")!;
       const p = document.createElement("p"); p.textContent = a.text; box.appendChild(p);
       while (box.childElementCount > 3) box.firstElementChild!.remove();
@@ -286,7 +288,7 @@ const refrescarAcciones = (): void => {
   const v = session.features.stateVersion;
   if (v === versionAcciones) return;
   versionAcciones = v;
-  for (const { a, b } of botonesAccion) { const oculto = (sinGestos && a.feature === "gestos") || (a.disponible ? !a.disponible() : false); if (b.hidden !== oculto) b.hidden = oculto; }
+  for (const { a, b } of botonesAccion) { const oculto = (ocultos.size > 0 && interfazMundo!.accionOculta(a, ocultos)) || (a.disponible ? !a.disponible() : false); if (b.hidden !== oculto) b.hidden = oculto; }
 };
 setInterval(refrescarAcciones, 250);
 addEventListener("keydown", (e) => { if (!e.repeat && !escribiendo(e)) acts.find((a) => a.key === e.code)?.run(); }); // J3: typing in a box is not an action
@@ -485,6 +487,7 @@ montarLibro(misiones, {
   nota: document.getElementById("mision-nota")!, view, here: () => (session.entity >= 0 ? session.selfPosition(1) : null),
   oir: (fn) => session.features.tap(fn), ajuste: leerAjuste, // U14 (3): it opens by itself on accepting; a step done = a short sound
   banner: document.getElementById("mision-completada")!, // U14 (6): «Misión completada»
+  evaluacion: document.getElementById("evaluacion")!, // P13: the end evaluation card
 });
 
 // ---- Y1: the Inventario panel (L, «Inventario»): what you carry and your Reserva; the sheet shows its summary ----
@@ -507,28 +510,10 @@ const mapa = montarMapaPuerta({ session, view, otros,
   /* MIS-240: a thing of the world picked on the map: «Editar» opens Construir on it (only when you may build and it is an object, not a person or a mission) */
   puedeEditar: (donde) => { const id = idDeObjeto(donde.id); return id !== "" && constructorUI.puedeEditar(id); }, alEditar: (donde) => constructorUI.editar(idDeObjeto(donde.id)), teletransporte: { activo: () => viajar.activo(), ir: (x, z, nombre) => viajar.irAPunto(x, z, nombre) } });
 // ---- N13: photo mode (P or the camera button): the photo owns the screen and the keys; your avatar stands still ----
-/** MIS-265: upload a picture and make it the world's cover, keeping every other setting as the server has it; resolves when
- * the server has saved it (or said no). A world without a name has no ficha to write: the owner names it first. */
-async function ponerPortada(f: File): Promise<{ ok: true } | { ok: false; why: string }> {
-  const a = ajustesMundo.actual();
-  if (!a) return { ok: false, why: "este servidor no tiene ajustes del mundo" };
-  if (!a.nombre.trim()) return { ok: false, why: "ponle antes un nombre al mundo (Construir › Entorno › Ajustes del mundo)" };
-  const subida = await soltar.subirImagen(f);
-  if (!subida.ok) return subida;
-  const antes = ajustesMundo.estado.cambios;
-  ajustesMundo.estado.ultimoRechazo = "";
-  const pedido = ajustesMundo.guardar({ nombre: a.nombre, portada: subida.nombre, avatar: a.avatar, aforo: a.aforo });
-  if (!pedido.ok) return pedido;
-  for (let t = 0; t < 50; t++) { // the same wait as the settings form (ficha-mundo.ts): the server answers by state or by refusal
-    await new Promise((ok) => setTimeout(ok, 100));
-    if (ajustesMundo.estado.cambios > antes && ajustesMundo.actual()?.portada === subida.nombre) return { ok: true };
-    if (ajustesMundo.estado.ultimoRechazo) { const why = ajustesMundo.estado.ultimoRechazo; ajustesMundo.estado.ultimoRechazo = ""; return { ok: false, why: why.replace(/\.$/, "") }; }
-  }
-  return { ok: false, why: "el servidor no contestó a tiempo; mira la imagen en Ajustes del mundo" };
-}
 const foto = montarFotoPuerta({ view, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), mapa, boton: document.getElementById("foto-abrir") as HTMLButtonElement, volverA: () => document.getElementById("camara-abrir"), ocupado: () => dardos.tirando(), registrar: (d) => acciones.registrar("foto", d),
+  misiones, // P10: a quest's `foto` step hears the camera's pose (the server decides); a world without one never hears of it
   aparecer: { puede: () => (viajar.estado.recibido ? viajar.foto() : null), pedir: (s) => { viajar.aparecerEnFoto(s.x, s.y, s.z); } }, // N16: the world may put you at the photo's place
-  portada: { puede: () => ajustesMundo.estado.puede && ajustesMundo.actual() !== null, usar: ponerPortada }, // MIS-265: the photo as the world's cover
+  portada: { puede: () => ajustesMundo.estado.puede && ajustesMundo.actual() !== null, usar: (f) => import("./foto-portada.ts").then((m) => m.ponerPortada(ajustesMundo, soltar.subirImagen, f)) }, // MIS-265: the photo as the world's cover
   decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); } });
 montarObjetivo({ lucha, interaccion });
 montarCombate({ lucha }); // combate nivel 2: the three skill slots (keys 1–3) — hidden until the page hears of fighting
@@ -543,7 +528,7 @@ const ficha = montarFicha({ session, view, desde: () => informe.bienvenidaMs, ot
   ...(catalogoAvatares?.modelos.length ? { cambiarAvatar: () => avatarUI?.abrir() } : {}) }, botonFicha);
 montarBienes({ bienes, comprobar, ficha, boton: botonFicha, vitrina: (cv, model) => view.vitrina(cv, model) }); // N10: the sheet's «Inventario» = your goods, their receipts
 // ---- U24: the phone layout (six controls while playing): only a phone profile loads it, desktop and VR never see it ----
-if (enMovil) import("./movil.ts").then((m) => m.montarMovil({ interaccion, acciones: acts, sinGestos: () => sinGestos, saltar: pedirSalto, cajaChat, mapa, misiones, pesca, nombres, simulada: perfil().forzado && !matchMedia("(pointer: coarse)").matches })).catch((e) => console.warn(`[movil] no se pudo montar la disposición móvil: ${(e as Error)?.message ?? e}`));
+if (enMovil) import("./movil.ts").then((m) => m.montarMovil({ interaccion, acciones: acts, ocultos: () => ocultos, saltar: pedirSalto, cajaChat, mapa, misiones, pesca, nombres, simulada: perfil().forzado && !matchMedia("(pointer: coarse)").matches })).catch((e) => console.warn(`[movil] no se pudo montar la disposición móvil: ${(e as Error)?.message ?? e}`));
 
 // ---- determinism probe: replay the reference run here and compare with the server's number ----
 const probe = { browser: -1, server: -1, ms: 0, done: false };
@@ -592,13 +577,14 @@ const rueda = montarRueda({ gestos: gestosDePagina, favoritosIniciales: FAVORITO
   // t_3f0e5846: the files of the move being pointed at are fetched while the person decides, so the first time it plays it does not wait
   alVer: (id) => view.precargarMovimientos(gestosDePagina.lista.find((m) => m.id === id)?.clips ?? []) });
 
-/** P7: the touch «Movimientos» button and the bar's «Saludar»/«Bailar» follow the world's `interfaz.ocultar` (the keys G and H still work). */
-const ponerSinGestos = (si: boolean): void => {
-  sinGestos = si;
-  const rb = document.getElementById("rueda-boton"); if (rb && rb.hidden !== si) rb.hidden = si;
+/** P7/P15: the touch «Movimientos» button and the bar's buttons («Saludar», «Bailar», «Recoger», «Soltar») follow the world's `interfaz.ocultar` (the keys G, H, F and Q still work). */
+const ponerOcultos = (nuevos: ReadonlySet<Ocultable>): void => {
+  ocultos = nuevos;
+  const si = ocultos.has("gestos"), rb = document.getElementById("rueda-boton"); if (rb && rb.hidden !== si) rb.hidden = si;
+  if (interfazMundo) document.getElementById("mas")?.setAttribute("aria-label", interfazMundo.rotuloMas(nuevos)); // P15 c: the phone's «…» names only what it offers, also when a late /status hides the gestures after it was built
   versionAcciones = -1; refrescarAcciones();
 };
-ponerSinGestos(sinGestos);
+ponerOcultos(ocultos);
 
 /** MIS-257: is a hand on the controls (a key, the touch stick, the pad, the headset's stick, a jump)? Then the walk-by-itself gives way. */
 function manoEnMandos(): boolean {
@@ -740,7 +726,7 @@ void estadoP.then((st) => {
   ajusteEnlace = ajusteDeEstado(st.dardosEnlace); // dardos enlazados: the link this world's server says (late /status: same)
   if (st.nombre) document.title = st.nombre; // ADR-074: the world's name (its aventura/ficha.json), also when Caddy or vite serve the page
   if (st.tema) aplicarTema(st.tema, document.documentElement); // its look: CSS variables tema.css reads; none = the house's
-  { const si = ocultosDe(st.interfaz).has("gestos"); if (si !== sinGestos) ponerSinGestos(si); } // a /status that came after the 1.5 s wait: the same buttons go away now
+  if (st.interfaz) void import("./interfaz-mundo.ts").then((m) => { interfazMundo = m; const nuevos = m.ocultosDe(st.interfaz); if (nuevos.size !== ocultos.size || [...nuevos].some((g) => !ocultos.has(g))) ponerOcultos(nuevos); }); // a /status that came after the 1.5 s wait: the same buttons go away now
   if (versionMotor && st.version) versionMotor.title = `build ${st.version}`;
 }).catch(() => {});
 

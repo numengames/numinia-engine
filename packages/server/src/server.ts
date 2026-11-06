@@ -167,7 +167,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   for (const p of fichaMal) log(`[ficha] no se carga: ${p}`);
   const { tema, problemas: temaMal } = leerTema(ficha?.tema); // how its page looks (an event's colours and titles); a bad value drops only itself
   for (const p of temaMal) log(`[ficha] ${p}: lo dejo fuera`);
-  const { interfaz, problemas: interfazMal } = leerInterfaz(ficha?.interfaz); // which buttons it takes off the page (ocultar: ["gestos"]); a bad name drops only itself
+  const { interfaz, problemas: interfazMal } = leerInterfaz(ficha?.interfaz); // which buttons it takes off the page (ocultar: ["gestos", "recoger-soltar"]); a bad name drops only itself
   for (const p of interfazMal) log(`[ficha] ${p}: lo dejo fuera`);
   // C1: its conditions of entry, from aventura/condiciones.json; none or broken = the house example (said in the log)
   const { condiciones, deFichero: condicionesPropias, problemas: condicionesMal } = leerCondiciones(o.aventura ?? null);

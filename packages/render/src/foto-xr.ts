@@ -18,6 +18,9 @@ export function centroDeOjos(ojos: readonly P3[]): P3 {
   return { x: s.x / ojos.length, y: s.y / ojos.length, z: s.z / ojos.length };
 }
 
+/** P10: where the headset's camera was for the last photo and which way it looked (metres, unit vector, vertical fov in degrees, width / height). */
+export type PoseXR = { x: number; y: number; z: number; fx: number; fy: number; fz: number; fov: number; aspecto: number };
+
 export type FotoXR = {
   /** Asks for a photo; it is drawn right after the next XR frame. Rejects when no frame comes (visor off, session ended). */
   sacar(): Promise<HTMLCanvasElement>;
@@ -30,7 +33,7 @@ export type FotoXR = {
 export function crearFotoXR(o: { renderer: THREE.WebGPURenderer; scene: THREE.Scene; backend: "WebGPU" | "WebGL2"; ocultar: () => (THREE.Object3D | null | undefined)[] }): FotoXR {
   const { renderer, scene } = o;
   type Espera = { promesa: Promise<HTMLCanvasElement>; ok: (c: HTMLCanvasElement) => void; mal: (e: Error) => void; listo: boolean; leyendo: boolean; rt: THREE.RenderTarget | null; cam: THREE.PerspectiveCamera | null; reloj: ReturnType<typeof setTimeout> | null };
-  let espera: Espera | null = null;
+  let espera: Espera | null = null, ultima: PoseXR | null = null;
   const cerrar = (e: Espera) => { if (e.reloj) clearTimeout(e.reloj); e.rt?.dispose(); e.rt = null; if (espera === e) espera = null; };
   return {
     pendiente: () => !!espera,
@@ -62,6 +65,8 @@ export function crearFotoXR(o: { renderer: THREE.WebGPURenderer; scene: THREE.Sc
       const q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3();
       xr[0].matrixWorld.decompose(p, q, s); // the eyes look the same way; the left one's turn is the head's
       cam.position.set(c.x, c.y, c.z); cam.quaternion.copy(q); cam.scale.set(1, 1, 1); cam.updateMatrixWorld(true);
+      const mira = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion); // P10: the pose this photo is taken from
+      ultima = { x: c.x, y: c.y, z: c.z, fx: mira.x, fy: mira.y, fz: mira.z, fov: FOTO_XR.fov, aspecto: FOTO_XR.ancho / FOTO_XR.alto };
       const ocultos = o.ocultar().filter((x): x is THREE.Object3D => !!x && x.visible);
       for (const x of ocultos) x.visible = false;
       const destino = renderer.getRenderTarget();
@@ -72,7 +77,7 @@ export function crearFotoXR(o: { renderer: THREE.WebGPURenderer; scene: THREE.Sc
         const img = new ImageData(FOTO_XR.ancho, FOTO_XR.alto);
         pasarPixeles(d as Uint8Array, FOTO_XR.ancho, FOTO_XR.alto, o.backend === "WebGL2", img.data);
         lienzo.getContext("2d")!.putImageData(img, 0, 0);
-        cerrar(e); e.ok(lienzo);
+        cerrar(e); e.ok(Object.assign(lienzo, { pose: ultima })); // P10: the pose of this photo rides on the canvas (nothing eager on the view)
       }).catch((err) => { cerrar(e); e.mal(err instanceof Error ? err : new Error(String(err))); });
     },
   };

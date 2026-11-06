@@ -296,9 +296,9 @@ test("vidaPnj: the flags of the state, atiende and camina only when asked", () =
   assert.deepEqual(vidaPnj("x", { radio: 2.5, reposo: false, mira: false }, true, true), { id: "x", reposo: false, mira: 0, atiende: true, camina: true });
 });
 
-test("the declarations: pnj v5 has `reposo`, `mira` and the per-player event `sitio`", () => {
+test("the declarations: pnj v6 has `reposo`, `mira` and the per-player event `sitio`", () => {
   assert.deepEqual(pnjDecl.issues, []);
-  assert.equal(pnjDecl.version, 5);
+  assert.equal(pnjDecl.version, 6);
   assert.deepEqual([pnjDecl.state!.fields.reposo, pnjDecl.state!.fields.mira], [{ kind: "bool", default: true }, { kind: "bool", default: true }]);
   assert.deepEqual(Object.keys(pnjDecl.events!.sitio.fields), ["pnj", "x", "z", "y", "giro"]);
   assert.equal(pnjDecl.events!.sitio.announce, "silent");
