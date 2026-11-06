@@ -189,7 +189,7 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | O4 | Seguridad: billete firmado para entrar a una instancia, tope de conexiones por IP, exportar y borrar lo tuyo | pendiente | sí |
 | O3 | Observabilidad: panel y alertas sobre `/metrics` del servidor real | espera a X3 | sí |
 | M17 | Voz por cercanía: trozo 1 hecho (tope 8 voces + modo escenario en el relé actual); trozo 2 = LiveKit (diseño en ../mmo-browser-study/VOZ-Y-PANTALLA-COMPARTIDA.md) | pendiente | no |
-| V13 | Subtítulos del chat de voz (con quién habla y desde dónde) + texto que habla | espera a M17 | sí |
+| V13 | Subtítulos del chat de voz (con quién habla y desde dónde) + texto que habla. Pauta: `docs/V13-SUBTITULOS-VOZ.md`. **Trozo 1 hecho (0.105.0):** columna, dirección, estados, `[habla · sin subtítulos]`, ajuste `subtitulosVoz`, región `#subtitulos-lector`, insignia CC (sin el aviso del servidor). Faltan: aviso al que habla (servidor), trozo 2 (texto que habla por el chat), trozo 3 (transcripción, decide Pablo), la e2e de dos páginas | pendiente | sí |
 | X1 | Probar en Quest 3 y Pico 4 | pendiente | no |
 | X2 | Probar Safari de verdad (iPhone o Mac) | pendiente | no |
 | X3 | Montarlo en un servidor pequeño real y medir sus límites (con Pablo, 15-10) | pendiente | no |

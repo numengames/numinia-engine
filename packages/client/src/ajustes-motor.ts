@@ -191,6 +191,10 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
   },
   { grupo: "accesibilidad", id: "textoGrande", tipo: "bool", nombre: "Texto grande", describe: "Letra más grande en paneles, botones y avisos (18 px en vez de 13).", defecto: false },
   {
+    grupo: "accesibilidad", id: "subtitulosVoz", tipo: "bool", nombre: "Subtítulos de voz",
+    describe: "Muestra lo que dice la gente que oyes, con su nombre y desde dónde habla. Quien habla verá que alguien lee sus palabras.", defecto: false,
+  },
+  {
     grupo: "accesibilidad", id: "altoContraste", tipo: "bool", nombre: "Alto contraste",
     describe: "Paneles negros con letra blanca y bordes marcados. Empieza como lo tenga tu sistema.",
     defecto: { valor: false, si: [{ requiere: ["masContraste"], valor: true }] },

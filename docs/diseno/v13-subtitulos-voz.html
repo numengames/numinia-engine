@@ -1,0 +1,108 @@
+<!doctype html>
+<!-- V13 · maqueta de los subtítulos de voz (Galatea, 2026-10-30). No es código del motor: es la referencia visual de
+     docs/V13-SUBTITULOS-VOZ.md. Los valores (tokens, medidas, clases) son los que doulos copia a apps/plaza/.
+     Ábrela tal cual en un navegador; ?movil=1 la estrecha a 390 px, ?alto=1 pone alto contraste, ?grande=1 texto grande. -->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V13 · subtítulos de voz · maqueta</title>
+<style>
+:root {
+  --n-fondo: #14110F; --n-texto: #F9EBDC; --n-texto2: #C4B5A6; --n-linea: #3A332D; --n-verdemar: #A6DAD5; --n-ambar: #EFA517; --n-turquesa: #018EA1;
+  /* V13: los únicos valores nuevos (dueña: Galatea; razón en docs/V13-SUBTITULOS-VOZ.md §2) */
+  --sub-caja: rgba(20, 17, 15, .88);
+  --sub-letra: 18px; --sub-ancho: 42ch; --sub-abajo: 96px;
+}
+html.grande { --sub-letra: 24px; --sub-ancho: 32ch; }
+html.alto { --sub-caja: #000; --n-texto: #fff; --n-texto2: #fff; --n-verdemar: #fff; --n-linea: #fff; }
+html, body { margin: 0; height: 100%; font-family: "Geist", system-ui, sans-serif; }
+/* la escena de prueba: cielo blanco arriba (el peor caso para un texto claro), suelo medio, sombra abajo */
+body { background: linear-gradient(#fff 0 40%, #bcd 40% 55%, #7a8a6a 55% 85%, #2b2a24 85%); overflow: hidden; }
+.escena-nota { position: fixed; top: 8px; left: 8px; font: 12px/1.3 ui-monospace, monospace; color: #333; background: #fff8; padding: 4px 6px; border-radius: 6px; }
+.avatar { position: fixed; width: 34px; height: 90px; border-radius: 17px 17px 6px 6px; background: #556; }
+.avatar .chip { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 6px; white-space: nowrap; font: 600 13px/1 system-ui; padding: 4px 8px; border-radius: 6px; background: rgba(20,30,40,.85); color: #ffd27a; }
+
+/* ======== V13 · la columna de subtítulos ======== */
+#subtitulos {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: var(--sub-abajo);
+  width: min(calc(var(--sub-ancho) + 32px), calc(100vw - 24px)); box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 6px; align-items: stretch; pointer-events: none; z-index: 5;
+  font-size: var(--sub-letra); line-height: 1.35;
+}
+.sub { background: var(--sub-caja); color: var(--n-texto); border-radius: 8px; padding: 6px 12px 8px; border-left: 4px solid var(--n-linea); }
+.sub.lejos { border-left-style: dashed; }
+.sub.escenario { border-left-color: var(--n-ambar); }
+.sub-cab { display: flex; align-items: center; gap: 6px; font-size: max(.78em, 13px); line-height: 1.2; margin-bottom: 2px; }
+.sub-quien { font-weight: 600; color: var(--n-verdemar); letter-spacing: .01em; }
+.sub-donde { color: var(--n-texto2); margin-left: auto; white-space: nowrap; }
+.sub-flecha { width: 1.1em; height: 1.1em; flex: none; color: var(--n-texto); }
+.sub-flecha[data-sector="0"] { transform: rotate(0deg); }   .sub-flecha[data-sector="1"] { transform: rotate(45deg); }
+.sub-flecha[data-sector="2"] { transform: rotate(90deg); }  .sub-flecha[data-sector="3"] { transform: rotate(135deg); }
+.sub-flecha[data-sector="4"] { transform: rotate(180deg); } .sub-flecha[data-sector="5"] { transform: rotate(225deg); }
+.sub-flecha[data-sector="6"] { transform: rotate(270deg); } .sub-flecha[data-sector="7"] { transform: rotate(315deg); }
+/* dos líneas como mucho; lo nuevo empuja lo viejo hacia arriba (las últimas dos líneas quedan a la vista) */
+.sub-texto { margin: 0; max-height: calc(2 * 1.35em); overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
+.sub-texto > .lineas { display: block; }
+.sub[hidden] { display: none; }
+.sub-texto .provisional { color: var(--n-texto2); }
+.sub-sin-texto { color: var(--n-texto2); font-style: normal; }
+.sub-marca { font-size: .9em; padding: 0 5px; border: 1px solid currentColor; border-radius: 6px; color: var(--n-texto2); line-height: 1.3; }
+html.alto .sub { border: 2px solid #fff; border-left-width: 4px; }
+html.alto .sub.lejos { border-left-style: dashed; }
+html.alto .sub-texto .provisional { text-decoration: underline dotted; text-underline-offset: 3px; }
+/* el aviso a quien habla: junto al botón del micrófono */
+#microfono-maqueta { position: fixed; right: 16px; bottom: 16px; display: flex; gap: 8px; align-items: center; font: 13px system-ui; color: var(--n-texto); background: var(--sub-caja); padding: 6px 10px; border-radius: 8px; }
+#microfono-maqueta .cc { font: 600 11px/1 ui-monospace, monospace; padding: 3px 5px; border: 1.5px solid currentColor; border-radius: 6px; }
+.solo-lector { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+html.movil body { width: 390px; height: 844px; margin: 0 auto; position: relative; outline: 1px solid #000; }
+html.movil { --sub-letra: 16px; --sub-ancho: 34ch; --sub-abajo: 246px; } /* encima del chat, el joystick y el botón de acción */
+html.movil.grande { --sub-letra: 20px; --sub-ancho: 28ch; }
+html.movil #subtitulos { position: absolute; width: calc(100% - 24px); }
+html.movil #microfono-maqueta { position: absolute; }
+</style>
+</head>
+<body>
+<p class="escena-nota">maqueta V13 · cielo blanco = peor caso de contraste</p>
+<div class="avatar" style="left: 58%; top: 47%;"><span class="chip">habla</span></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="flecha" viewBox="0 0 24 24"><path d="M12 3 L20 13 H15 V21 H9 V13 H4 Z" fill="currentColor"/></symbol>
+  <symbol id="altavoz" viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3z M15 8c2 2 2 6 0 8 M18 5c4 4 4 10 0 14" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+</svg>
+
+<section id="subtitulos" aria-label="Subtítulos de voz">
+  <!-- escenario: siempre arriba de la pila, sin dirección (suena igual en todas partes) -->
+  <div class="sub escenario" data-en="1">
+    <div class="sub-cab"><svg class="sub-flecha" aria-hidden="true"><use href="#altavoz"/></svg><span class="sub-quien">Christian</span><span class="sub-donde">escenario</span></div>
+    <p class="sub-texto"><span class="lineas">Bienvenidas a la plaza. En cinco minutos empieza la visita guiada.</span></p>
+  </div>
+  <!-- lejos y fuera de la vista: flecha + palabra + borde discontinuo -->
+  <div class="sub lejos" data-en="2">
+    <div class="sub-cab"><svg class="sub-flecha" data-sector="5" aria-hidden="true"><use href="#flecha"/></svg><span class="sub-quien">Marta</span><span class="sub-donde">detrás izq. · lejos</span></div>
+    <p class="sub-texto"><span class="lineas sub-sin-texto">[habla · sin subtítulos]</span></p>
+  </div>
+  <!-- texto que habla (escrito, dicho por una voz sintética) -->
+  <div class="sub" data-en="1">
+    <div class="sub-cab"><svg class="sub-flecha" data-sector="6" aria-hidden="true"><use href="#flecha"/></svg><span class="sub-quien">Leo</span><span class="sub-marca" title="Escrito y leído por una voz sintética">escrito</span><span class="sub-donde">izquierda</span></div>
+    <p class="sub-texto"><span class="lineas">¿Alguien sabe dónde está la salida al bosque?</span></p>
+  </div>
+  <!-- cercano y a la vista: sin flecha ni palabra (lo ves); lo provisional en el segundo color -->
+  <div class="sub" data-en="1 2">
+    <div class="sub-cab"><span class="sub-quien">Ana</span></div>
+    <p class="sub-texto"><span class="lineas">Está detrás de la fuente, sigue el camino de piedra hasta el arco <span class="provisional">y luego a la</span></span></p>
+  </div>
+</section>
+<p class="solo-lector" role="log" aria-live="polite" aria-relevant="additions">Leo, escrito, a tu izquierda: ¿Alguien sabe dónde está la salida al bosque?</p>
+
+<div id="microfono-maqueta"><span class="cc" title="Alguien cerca lee subtítulos de tu voz">CC</span><span>Micrófono abierto</span></div>
+<script>
+const q = new URLSearchParams(location.search), h = document.documentElement;
+for (const [k, c] of [["movil", "movil"], ["alto", "alto"], ["grande", "grande"]]) if (q.get(k) === "1") h.classList.add(c);
+// ?estado=1 (por defecto): escenario + escrito + cercano · ?estado=2: lejos sin subtítulos + cercano
+const estado = q.get("estado") ?? "1";
+for (const s of document.querySelectorAll(".sub")) s.hidden = !s.dataset.en.split(" ").includes(estado);
+</script>
+</body>
+</html>
