@@ -206,7 +206,7 @@ test("without `evaluacion` nothing changes byte for byte: no key in the progress
   assert.doesNotMatch(json, /t0|tb|evaluaciones|desmarcados_correctos/, json);
   assert.equal(JSON.stringify(leerProgreso(JSON.parse(json))), json, "reading and saving it again gives the same text");
   assert.equal(evaluacionDe(p, "escena"), undefined);
-  assert.equal(misionesDecl.version, 11);
+  assert.equal(misionesDecl.version, 12);
   assert.deepEqual(misionesDecl.issues, []);
   for (const ev of ["evaluacion", "evaluacionFila"]) assert.equal(misionesDecl.events![ev].announce, "silent", ev);
   assert.notEqual(misionesDecl.events!.abrirEvaluacion.announce, "silent", "the card is announced to agents and screen readers");

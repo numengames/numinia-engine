@@ -57,9 +57,13 @@ export type PasoVista = { n: number; texto: string; tipo: string; hecho: boolean
 /** `pistas` (P3): false = this quest points at nothing (no place on the map, no beacon, no arrow, no nearest target in the top line). */
 export type MisionVista = { id: string; titulo: string; descripcion: string; estado: "activa" | "hecha"; paso: number; pasos: number; seguida: boolean; recompensa: string; lista: PasoVista[]; pistas?: false;
   /** P4: the counters of a quest with a `marca` step (marks made, marks of things the step does not ask for, unmarks); absent otherwise. */
-  cuenta?: { marcas: number; marcas_erroneas: number; desmarcados: number };
+  cuenta?: Cuenta;
   /** P13: its end card, once completed (only quests that carry `evaluacion`). */
   evaluacion?: EvaluacionVista };
+/** P4 + P10: a quest's counters; `fotos_erroneas` (P10) only in a quest with a `foto` step (any other counter by name may come too, P13). */
+export type Cuenta = { marcas: number; marcas_erroneas: number; desmarcados: number; fotos_erroneas?: number; [otro: string]: number | undefined };
+/** P10: where the photo camera was and which way it looked (metres, unit direction, vertical fov in degrees, width / height): features/misiones/foto.ts `PoseFoto`. */
+export type PoseDeFoto = { x: number; y: number; z: number; fx: number; fy: number; fz: number; fov: number; aspecto: number };
 /** P13: one row of a quest's end card — the time of the whole quest (`tiempo`), of one block (`fase`) or a counter. `texto` = the value as it is written
  *  («14 min 05 s», «2»); `valor` = seconds or times; `resta` = the points that row took. */
 export type FilaEvaluacion = { tipo: "tiempo" | "fase" | "contador"; clave: string; etiqueta: string; texto: string; valor: number; resta: number };
@@ -206,9 +210,11 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
   };
 
   /** P4: the counters of a `mision` event (kept only when the quest has used them; a `marca` step brings the zeros, see the `paso` handler). */
-  const cuentaDe = (m: Msg): { cuenta?: { marcas: number; marcas_erroneas: number; desmarcados: number } } => {
-    const c = { marcas: Number(m.marcas) || 0, marcas_erroneas: Number(m.erroneas) || 0, desmarcados: Number(m.desmarcados) || 0 };
-    return c.marcas || c.marcas_erroneas || c.desmarcados ? { cuenta: c } : {};
+  const cuentaDe = (m: Msg): { cuenta?: Cuenta } => {
+    const c: Cuenta = { marcas: Number(m.marcas) || 0, marcas_erroneas: Number(m.erroneas) || 0, desmarcados: Number(m.desmarcados) || 0 };
+    const fotos = Number(m.fotos) || 0; // P10: only once a photo missed (the zeros of a quest that photographs come with its steps)
+    if (fotos) c.fotos_erroneas = fotos;
+    return c.marcas || c.marcas_erroneas || c.desmarcados || fotos ? { cuenta: c } : {};
   };
   // P4: what this player marked as evidence, in order (the server says; a thing's number is its place + 1). Each one wears a yellow
   // numbered plate over it on this page alone. Drawn again when the list changes (a number moves up when an earlier one is unmarked)
@@ -235,7 +241,7 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     /** P13: the end card of a completed quest (null while it is not done or when the quest has none). Same data as `libro()[i].evaluacion`. */
     evaluacion: (id: string): EvaluacionVista | null => libro.get(id)?.evaluacion ?? null,
     /** Where each active quest's steps to do now point — every one of its current block (for the map: mapa reads this). */
-    objetivos: (): Objetivo[] => [...libro.values()].flatMap((m) => ahoraDe(m).filter((s) => s.tipo !== "hace" && s.tipo !== "marca").map((s) => ({ mision: m.id, paso: s.n, nombre: s.donde, texto: s.texto, x: s.x, z: s.z, seguida: m.seguida }))),
+    objetivos: (): Objetivo[] => [...libro.values()].flatMap((m) => ahoraDe(m).filter((s) => s.tipo !== "hace" && s.tipo !== "marca" && s.tipo !== "foto").map((s) => ({ mision: m.id, paso: s.n, nombre: s.donde, texto: s.texto, x: s.x, z: s.z, seguida: m.seguida }))),
     /** P3: the objectives that point at something: those of the quests that do not say `pistas: false` (the map, the beacon and the
      * top line read this; the book keeps `objetivos()` to tell the step to do now from the locked ones). */
     senalados: (): Objetivo[] => misiones.objetivos().filter((o) => libro.get(o.mision)?.pistas !== false),
@@ -270,6 +276,9 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     },
     /** T1: the id of the page button the arrow should point at for the step to do now of the followed quest (or the first active one with `senala`); "" = none. */
     senala: (): string => { const todas = [...libro.values()].filter((m) => m.pistas !== false).sort((a, b) => Number(b.seguida) - Number(a.seguida)); for (const m of todas) for (const s of ahoraDe(m)) if (s.senala) return s.senala; return ""; },
+    /** P10: tell the server a photo was just taken, from this camera pose; it decides whether a corner is in the shot (nothing comes back
+     * for a miss: the quest only counts it). The page asks `pideFoto(libro())` (features/misiones/foto.ts) first, in the photo chunk. */
+    foto: (pose: PoseDeFoto): Res => M?.send("foto", pose) ?? sin("la página aún no ha arrancado"),
     usar: (cosa: string): Res => M?.send("usar", { cosa }) ?? sin("la página aún no ha arrancado"),
     /** Whether the page should offer «E: …» for a thing: quest things only while a step to do now needs them (U14 (5):
      * also while that step still waits — trying it says how long is left). */
@@ -383,6 +392,7 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
       const s: PasoVista = { n: Number(m.n), texto: String(m.texto), tipo: String(m.tipo), hecho: m.hecho === true, x: Number(m.x), z: Number(m.z), donde: String(m.donde), que: String(m.que ?? ""), grupo: String(m.grupo ?? ""), espera, listoEn: espera ? reloj() + espera * 1000 : 0, accion: String(m.accion ?? ""), senala: String(m.senala ?? "") };
       mv.lista = [...mv.lista.filter((x) => x.n !== s.n), s].sort((p, q) => p.n - q.n);
       if (s.tipo === "marca" && !mv.cuenta) mv.cuenta = { marcas: 0, marcas_erroneas: 0, desmarcados: 0 }; // P4: a quest that marks always shows its counters, zeros included
+      if (s.tipo === "foto") { mv.cuenta ??= { marcas: 0, marcas_erroneas: 0, desmarcados: 0 }; mv.cuenta.fotos_erroneas ??= 0; } // P10: and one that photographs shows its missed photos, zero included
       avisar("libro");
       revisarUsadas(); // U14 (6): the book's last step has arrived → the used looks
     });
