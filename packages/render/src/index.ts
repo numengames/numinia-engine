@@ -49,7 +49,7 @@ export type { CatalogoAvatares } from "./avatares.ts";
 import type { CatalogoAvatares } from "./avatares.ts";
 import { createNombres, NOMBRE_VISIBLE_M } from "./nombres.ts";
 import type { Marca } from "./marca-mirada.ts";
-import { centroEnMundo } from "./centro-mundo.ts"; // P15: where the middle of a placed model is (the ring goes there)
+import { medidaEnMundo } from "./centro-mundo.ts"; // P15: where a placed model is and how big (the ring goes there)
 import { createAros } from "./aros.ts"; // ia-visible S5: a green ring on the floor under every AI (pooled, one shared geometry)
 import { arosMax } from "./ia-marca.ts";
 import { createOjosIA } from "./ojos-ia.ts"; // t_5096d6f4: the eyes of an AI say the size of its model (one mesh per near AI, shared geometry and material)
@@ -644,7 +644,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   type EstadoVida = { fase: Fase; giro: Giro; rep: Reposo; ca: { dx: number; dz: number }; clip: boolean; anda: boolean; gestos?: { acciones: Partial<Record<Gesto, THREE.AnimationAction>>; actual: Gesto } };
   type Slot = { vida?: EstadoVida; group: THREE.Group; want: Thing; model: string; loaded: boolean; failed: boolean; mixer?: THREE.AnimationMixer; medio?: Medio; color?: string; horneado?: boolean;
     /** N12: the baked parts (copies of one model share them: a lote draws them), and a sphere round the group's origin that holds the model (m, before scale). */
-    partes?: Parte[]; radio?: number; tam?: number;
+    partes?: Parte[]; radio?: number;
     /** J14: a baked figure's two LODs (cerca = its baked parts, lejos = one piece) */
     piezaCerca?: Pieza[]; piezaLejos?: Pieza; lod?: "cerca" | "lejos";
     /** B3: set while this copy's shaders are being prepared (precompilar.ts); a new model or pose for the slot drops it. */
@@ -655,8 +655,6 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     imgPx?: number };
   const esferaTmp = new THREE.Sphere();
   /** N12: the radius (m, before the copy's scale) of a sphere round the origin that holds `o`, a copy not yet in the world. */
-  /** P15: the radius of the sphere that holds the model on its own (not counting how far its origin is from its middle, which `radioDe` does for the cull): the size the interaction ring is drawn to. */
-  const tamDe = (o: THREE.Object3D): number => { o.updateMatrixWorld(true); tmpBox.setFromObject(o); if (tmpBox.isEmpty()) return 0; tmpBox.getBoundingSphere(esferaTmp); return esferaTmp.radius; };
   const radioDe = (o: THREE.Object3D): number => { o.updateMatrixWorld(true); tmpBox.setFromObject(o); if (tmpBox.isEmpty()) return 1; tmpBox.getBoundingSphere(esferaTmp); return esferaTmp.center.length() + esferaTmp.radius; };
   let verOcultos = false; // U10: while building, hidden spheres of sound are drawn
   const fichero = (t: Thing) => `${t.model}.${t.kind && t.kind !== "modelo" ? t.ext ?? "glb" : "glb"}`; // what a slot draws
@@ -987,7 +985,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
           // J14's LODs are set only now: actualizarLOD() must not show the copy before its shaders are ready
           if (quieto) { now.piezaCerca = quieto; now.piezaLejos = pieza ?? undefined; now.lod = lod; }
           now.horneado = !!quieto; now.partes = partes;
-          now.radio = radioDe(copy) * (anima ? 1.5 : 1); now.tam = tamDe(copy); // an animation may reach out of its rest pose
+          now.radio = radioDe(copy) * (anima ? 1.5 : 1); // an animation may reach out of its rest pose
           if (now.mejorando) { now.group.clear(); now.mejorando = false; } // H13: the whole model replaces the level it was showing, in the same frame
           if (!anima) congelarMatrices(copy); // a still model never recomposes its node matrices again (congelar.ts: measured in tools/medir-recorrido.mjs)
           now.group.add(copy);
@@ -1023,7 +1021,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     p.then((m) => {
       const now = things.get(key);
       if (!now || now.model !== model || now.loaded) { m.soltar(); return; }
-      now.radio = radioDe(m.obj); now.tam = tamDe(m.obj); now.group.add(m.obj); now.medio = m; now.loaded = true;
+      now.radio = radioDe(m.obj); now.group.add(m.obj); now.medio = m; now.loaded = true;
     }).catch((e) => {
       const now = things.get(key);
       if (now && now.model === model) now.failed = true;
@@ -1041,7 +1039,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     let hay = false;
     for (const [k, s] of things) {
       if (s.want.kind !== "imagen" || !s.loaded || !((s.imgPx ?? 0) > IMAGEN_PX[nv])) continue;
-      s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.radio = undefined; s.tam = undefined; s.loaded = false; s.failed = false; waiting.add(k); hay = true;
+      s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.radio = undefined; s.loaded = false; s.failed = false; waiting.add(k); hay = true;
     }
     if (hay) pumpPronto();
   }
@@ -1676,7 +1674,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       const antes = s.want; s.want = t; if (!editor.retiene(key, t) && !llevados.has(key)) placeGroup(s);
       vivirPlace(s, antes, t);
       pintar(s);
-      if (s.model !== fichero(t) || (s.horneado && t.animate)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.partes = undefined; s.radio = undefined; s.tam = undefined; s.horneado = false; s.piezaCerca = undefined; s.piezaLejos = undefined; s.lod = undefined; if (s.vida) s.vida.clip = false; s.preparando = undefined; s.nivel = undefined; s.mejorando = false; s.sinNivel = false; s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpPronto(); } // a baked copy cannot move: load it whole
+      if (s.model !== fichero(t) || (s.horneado && t.animate)) { s.mixer?.stopAllAction(); s.mixer = undefined; s.medio?.soltar(); s.medio = undefined; s.group.clear(); s.partes = undefined; s.radio = undefined; s.horneado = false; s.piezaCerca = undefined; s.piezaLejos = undefined; s.lod = undefined; if (s.vida) s.vida.clip = false; s.preparando = undefined; s.nivel = undefined; s.mejorando = false; s.sinNivel = false; s.model = fichero(t); s.loaded = false; s.failed = false; waiting.add(key); pumpPronto(); } // a baked copy cannot move: load it whole
       else if (!t.animate && s.mixer && !s.vida?.clip) { s.mixer.stopAllAction(); s.mixer = undefined; }
     },
     /** Lote 5: the little hop of a clicked thing (reaccion.ts) for each key given; the keys not placed are ignored. Local: nothing is sent. */
@@ -1800,31 +1798,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     orbesIA() { return orbesIA.lista(); },
     /** P15: mark the thing the «E: …» prompt is about (a ring facing the camera at `x y z`, radius `r` metres), or `null` for none. */
     marcar(p: Marca | null): void { marcaMirada.poner(p); },
-    /** P15: about how big a placed thing is (m: radius of the sphere that holds its model on its own, times its scale), or undefined while it is not placed or not loaded yet. */
-    tamano(key: string): number | undefined { const s = things.get(key); return s?.loaded && s.tam ? s.tam * Math.max(Math.abs(s.want.sx), Math.abs(s.want.sy), Math.abs(s.want.sz)) : undefined; },
-    /** P15: where the middle of a placed thing's model is in the world (m), or undefined while it is not placed or not loaded yet. The ring goes there. */
-    centro(key: string): { x: number; y: number; z: number } | undefined { const s = things.get(key); return s?.loaded ? centroEnMundo(s.group) : undefined; },
-    /** ia-visible S5 (for checks): who has a ring, whether it is drawn, and how much the rings share (one geometry, one material per state). */
-    aros() { return { lista: aros.lista(), ...aros.compartidos() }; },
-    /** t_5096d6f4 (for checks): who has eyes (colour and shape), whether they are drawn, and how much the eyes share (one geometry per shape, one material per colour). */
-    ojosIA() { return { lista: ojosIA.lista(), ...ojosIA.compartidos() }; },
-    /** ia-llamar S9: this AI has an action bubble of this shape, radius and visibility (`null`: it has none now); `dormida` = it sleeps (dim, dashed). */
-    burbuja(t: Target, cfg: { forma: "esfera" | "cupula" | "cilindro" | "caja"; radio: number; visible: "siempre" | "al-acercarte" | "nunca" } | null, dormida = false): void { burbujas.poner(t, cfg, dormida); },
-    /** ia-llamar S9: you have just entered this AI's bubble: it lights up for a moment (not when its keeper chose «nunca»). */
-    burbujaDestello(t: Target): void { burbujas.destellar(t, performance.now()); },
-    /** ia-llamar S9 (for checks): who has a bubble (shape, radius, visibility, drawn or not, level) and how much the bubbles share. */
-    burbujas() { return { lista: burbujas.lista(), ...burbujas.compartidos() }; },
-    bubbles() { return nombres.bubbles(); },
-    /** condiciones/c5: this avatar is (`true`) or is no longer (`false`: it accepted, it bursts) inside a bubble reading the world's norms; its plate says so
-     * («<name> · <etiqueta>»). Cheap: one shared sphere and material; nothing is drawn for a world with nobody reading. */
-    leyendo(entidad: number, si: boolean, etiqueta?: string): void { nombres.leyendo(entidad, si, etiqueta); pompas.poner(entidad, si, performance.now()); rotulosPendiente = true; },
-    /** condiciones/c5 (for checks): who has a bubble, whether it is drawn, who is bursting, and how much the bubbles share. */
-    pompas() { return { lista: pompas.lista(), ...pompas.compartidos() }; },
-    /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
-    /** U10: draw hidden spheres of sound (while building) or not (while playing). */
-    verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
-    /** MIS-200 (t_9687b5fc): the world still loads models or shaders: the entry buttons wait (the same gate as the VR entry, not busy()). */
-    cargando(): boolean { return loading > 0 || precompilar.pendientes() > 0; },
+    /** P15: where a placed thing's model is in the world and how big: the sphere (m) that holds it, or undefined while it is not placed or not loaded yet. The ring goes there. */
+    medida(key: string): { x: number; y: number; z: number; r: number } | undefined { const s = things.get(key); return s?.loaded ? medidaEnMundo(s.group) : undefined; },
     busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || vivosCerca || reacciones.size > 0 || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || marcaMirada.busy() || ojosIA.busy() || orbesIA.busy() || burbujas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || dados3d.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ) || formas.ocupado(); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); power.paron(2); }, // B4: the next frames pay the resize

@@ -114,19 +114,20 @@ test("P15 a: the ring of a flat thing is centred on the model's middle, not half
   assert.equal(marcaDe(base, 0, 3, centro)!.r, RADIO_MAX);
 });
 
-test("P15 a: centroEnMundo is the middle of the placed model's box in the world (the origin may be anywhere in the model; place, turn, scale and a moved parent all count)", () => {
+test("P15 a: medidaEnMundo is the sphere that holds the placed model's box in the world (the origin may be anywhere in the model; place, turn, scale and a moved parent all count)", () => {
   // a flat piece like the v4 knife-with-board: its origin is at one edge (box x 0…0.4, y 0…0.06, z 0…0.3), the middle is not at the origin
   const modelo = (x: number, y: number, z: number, ryGrados: number, esc: number) => {
     const g = new THREE.Group(), m = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.06, 0.3).translate(0.2, 0.03, 0.15));
     g.add(m); g.position.set(x, y, z); g.rotation.set(0, ryGrados * Math.PI / 180, 0, "YXZ"); g.scale.set(esc, esc, esc); return g;
   };
-  const cerca = (a: { x: number; y: number; z: number } | undefined, b: { x: number; y: number; z: number }) => !!a && Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) < 1e-6;
-  assert.ok(cerca(centroEnMundo(modelo(10, 1, 20, 0, 1)), { x: 10.2, y: 1.03, z: 20.15 }), "no turn, no scale: origin + the middle of the box");
-  assert.ok(cerca(centroEnMundo(modelo(10, 1, 20, 0, 2)), { x: 10.4, y: 1.06, z: 20.3 }), "scaled with the thing");
-  assert.ok(cerca(centroEnMundo(modelo(10, 1, 20, 90, 1)), { x: 10.15, y: 1.03, z: 19.8 }), "a quarter turn about y: (0.2, 0.15) → (0.15, −0.2)");
+  const cerca = (a: { x: number; y: number; z: number; r: number } | undefined, b: { x: number; y: number; z: number }, r?: number) => !!a && Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) < 1e-6 && (r === undefined || Math.abs(a.r - r) < 1e-6);
+  const R = Math.hypot(0.4, 0.06, 0.3) / 2;
+  assert.ok(cerca(medidaEnMundo(modelo(10, 1, 20, 0, 1)), { x: 10.2, y: 1.03, z: 20.15 }, R), "no turn, no scale: origin + the middle of the box");
+  assert.ok(cerca(medidaEnMundo(modelo(10, 1, 20, 0, 2)), { x: 10.4, y: 1.06, z: 20.3 }, 2 * R), "scaled with the thing");
+  assert.ok(cerca(medidaEnMundo(modelo(10, 1, 20, 90, 1)), { x: 10.15, y: 1.03, z: 19.8 }), "a quarter turn about y: (0.2, 0.15) → (0.15, −0.2) (a box turned a quarter keeps its middle)");
   const padre = new THREE.Group(); padre.position.set(100, 0, 0); padre.add(modelo(1, 0, 0, 0, 1));
-  assert.ok(cerca(centroEnMundo(padre.children[0]), { x: 101.2, y: 0.03, z: 0.15 }), "inside a moved parent: world coordinates");
-  assert.equal(centroEnMundo(new THREE.Group()), undefined, "nothing to measure yet: unknown (the ring falls back to the old rule)");
+  assert.ok(cerca(medidaEnMundo(padre.children[0]), { x: 101.2, y: 0.03, z: 0.15 }), "inside a moved parent: world coordinates");
+  assert.equal(medidaEnMundo(new THREE.Group()), undefined, "nothing to measure yet: unknown (the ring falls back to the old rule)");
 });
 
 // ---- the page piece, with a stub DOM -------------------------------------------------------------------------------------------
@@ -145,7 +146,7 @@ function montarFalso(cosas: Cosa[], yo: { x: number; z: number; yaw: number }, t
   let consultas = 0;
   const i = montarInteraccion({
     session: { entity: 1, selfPosition: () => ({ x: yo.x, y: 0, z: yo.z }), features: { reachable: (x: number, z: number) => { consultas++; return reachable(x, z); }, use: () => ({ ok: true }) } },
-    view: { renderer: { domElement: { addEventListener() {} } as unknown as HTMLElement }, cam: { yaw: () => yo.yaw }, marcar: (p: unknown) => marcas.push(p), tamano: (k: string) => tamanos[k] },
+    view: { renderer: { domElement: { addEventListener() {} } as unknown as HTMLElement }, cam: { yaw: () => yo.yaw }, marcar: (p: unknown) => marcas.push(p), medida: (k: string) => { const c = cosas.find((z) => `f:${z.key}` === k); return c && k in tamanos ? { x: c.x, y: tamanos[k] / 2, z: c.z, r: tamanos[k] } : undefined; } },
     boton: boton as unknown as HTMLButtonElement, ofrece: () => true, ocupado: () => false,
   });
   const restaurar = () => { g.document = viejo.document; g.addEventListener = viejo.addEventListener; g.setInterval = viejo.setInterval; };
@@ -229,7 +230,7 @@ test("P15 reachable(): every offer carries where the thing is (`at`) and its car
 // ---- the ring in the world (packages/render/src/marca-mirada.ts): one mesh, made late, reused, asks for frames only when it changes --------
 import * as THREE from "three/webgpu";
 import { createMarcaMirada } from "../packages/render/src/marca-mirada.ts";
-import { centroEnMundo } from "../packages/render/src/centro-mundo.ts";
+import { medidaEnMundo } from "../packages/render/src/centro-mundo.ts";
 
 test("P15 marca-mirada: nothing is made until something is offered; one mesh is reused; the same place twice asks for nothing", () => {
   const world = new THREE.Group(), camera = new THREE.PerspectiveCamera();

@@ -19,8 +19,7 @@ export type Cerca = { feature: string; key: string; intent: string; prompt: stri
 type Sesion = { entity: number; selfPosition(alpha: number): { x: number; y: number; z: number }; features: { reachable(x: number, z: number, y?: number): Cerca[]; use(feature: string, key: string): Res } };
 type Vista = { renderer: { domElement: HTMLElement }; pickThing?(x: number, y: number): string | null; cam?: { modo?(): string; yaw?(): number };
   /** P15: ring over the offered thing (centre in metres, radius; `suelo`: lying on the floor), or null. */ marcar?(p: { x: number; y: number; z: number; r: number; suelo?: boolean } | null): void;
-  /** P15: about how big a placed thing is (m), by its `<feature>:<key>` place; undefined = not known (yet). */ tamano?(key: string): number | undefined;
-  /** P15: where the middle of a placed thing's model is (m), by its `<feature>:<key>` place; undefined = not known (yet). */ centro?(key: string): { x: number; y: number; z: number } | undefined; vr?: { active: boolean } };
+  /** P15: where a placed thing's model is and how big (m: the sphere that holds it), by its `<feature>:<key>` place; undefined = not known (yet). */ medida?(key: string): { x: number; y: number; z: number; r: number } | undefined; vr?: { active: boolean } };
 
 /** True while the person types in a text box: global keys must not fire (J3's one rule, apps/plaza/escribiendo.ts). */
 import { escribiendo } from "./escribiendo.ts";
@@ -92,7 +91,7 @@ export function montarInteraccion(o: {
   // the ring in the world follows what is offered (moves with a walking person, goes when nothing is offered); `poner` ignores the same place twice
   let marcado = false;
   const marcar = (c: Cerca | null, pies: number) => {
-    const m = c && mirada && !o.view.vr?.active ? mirada.marcaDe(c, pies, c.role === "persona" ? undefined : o.view.tamano?.(`${c.feature}:${c.key}`), c.role === "persona" ? undefined : o.view.centro?.(`${c.feature}:${c.key}`)) : null;
+    const md = c && o.view.medida?.(`${c.feature}:${c.key}`), m = c && mirada && !o.view.vr?.active ? mirada.marcaDe(c, pies, md?.r, md) : null; // a person's ring ignores the size (marcaDe)
     if (!m && !marcado) return;
     marcado = !!m;
     o.view.marcar?.(m);
