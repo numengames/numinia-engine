@@ -34,3 +34,8 @@ export const accionOculta = (a: Accion, ocultos: ReadonlySet<Ocultable>): boolea
 export function accionesVisibles<A extends Accion>(acciones: readonly A[], ocultos: ReadonlySet<Ocultable>): A[] {
   return acciones.filter((a) => !accionOculta(a, ocultos));
 }
+
+/** P15 c: the screen-reader name of the phone's «…» button. It names only what the menu offers: «saludar, bailar» are left out when the world hid the gestures. */
+export function rotuloMas(ocultos: ReadonlySet<Ocultable>): string {
+  return `Más acciones: ${ocultos.has("gestos") ? "saltar" : "saltar, saludar, bailar"}…`;
+}

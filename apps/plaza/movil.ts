@@ -8,7 +8,7 @@ import "./movil.css"; // U24: every rule is scoped to html[data-aparato^="movil"
 import { icono } from "./iconos.ts";
 import { iconoDe, nombreDe } from "../../packages/render/src/menu-secciones.ts"; // v2 paridad: the same names and icons as the bar and the VR menu
 import { perfil } from "./perfil-aparato.ts";
-import { accionesVisibles } from "./interfaz-mundo.ts"; // P7: a world may hide the gestures (P15: and Recoger / Soltar)
+import { accionesVisibles, rotuloMas } from "./interfaz-mundo.ts"; // P7: a world may hide the gestures (P15: and Recoger / Soltar)
 import type { Ocultable } from "./interfaz-mundo.ts";
 import { anunciar } from "./paneles.ts";
 import { PULSACION_LARGA_MS, PULSACION_LARGA_TOLERANCIA, ZONA_SEGURA_SIMULADA, elegirAccion, entradasDelMenu, esPulsacionLarga, siguienteChat, ultimaLinea } from "../../packages/client/src/movil.ts";
@@ -94,7 +94,9 @@ export function montarMovil(o: Opciones): void {
   refrescarAccion();
 
   // ---- 2 · «…» : Saltar, Saludar, Bailar and, behind «más», the rest of what the icon bar held ----
-  const mas = el<HTMLButtonElement>("button", { id: "mas", clase: "tocable", html: icono("dots-three", 26), etiqueta: "Más acciones: saltar, saludar, bailar…" });
+  const mas = el<HTMLButtonElement>("button", { id: "mas", clase: "tocable", html: icono("dots-three", 26), etiqueta: rotuloMas(o.ocultos?.() ?? SIN_OCULTOS) });
+  const rotular = () => { const r = rotuloMas(o.ocultos?.() ?? SIN_OCULTOS); if (mas.getAttribute("aria-label") !== r) mas.setAttribute("aria-label", r); };
+  setInterval(rotular, 250); // P15 c: «…» names only what it offers; a /status that arrives late can hide the gestures after the button exists
   mas.setAttribute("aria-expanded", "false"); mas.setAttribute("aria-haspopup", "menu");
   const menu = el("div", { id: "mas-menu" }); menu.setAttribute("role", "menu"); menu.hidden = true;
   body.append(mas, menu); noJoystick(mas); noJoystick(menu);

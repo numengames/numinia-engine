@@ -539,7 +539,8 @@ lista de grupos. Hay dos:
   sin forma de soltar lo que lleva; úselo solo si la cosa vuelve a su sitio por otra vía (se entrega, se usa o se guarda).
 
 **Solo quita botones**: las teclas (G para la rueda, H para bailar, F y Q) siguen funcionando, y el «Saludar» de la tarjeta de una
-persona también (es otra cosa: saludar a alguien). Un nombre que no existe se deja fuera y se
+persona también (es otra cosa: saludar a alguien). El botón «…» del móvil solo nombra, para el lector de pantalla, lo que ofrece
+(«Más acciones: saltar, saludar, bailar…»; con `gestos` oculto, «Más acciones: saltar…»). Un nombre que no existe se deja fuera y se
 dice en el registro (`[ficha] interfaz.ocultar: «chat» no existe…`); el resto se aplica; una clave desconocida se ignora. Va en
 `GET /status` (`interfaz`, solo si hay algo que ocultar) y la página lo lee en `apps/plaza/interfaz-mundo.ts`. Sin el campo, nada
 cambia: ni `/status` ni la pantalla. Fuente: `leerInterfaz` (`packages/server/src/aventura.ts`); prueba: `test/interfaz-mundo.test.ts`.

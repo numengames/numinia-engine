@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { INTERFAZ_OCULTABLES, leerInterfaz } from "../packages/server/src/aventura.ts";
 import { startServer } from "../packages/server/src/server.ts";
-import { OCULTABLES, accionesVisibles, ocultosDe } from "../apps/plaza/interfaz-mundo.ts";
+import { OCULTABLES, accionesVisibles, ocultosDe, rotuloMas } from "../apps/plaza/interfaz-mundo.ts";
 import { entradasDelMenu } from "../packages/client/src/movil.ts";
 
 const tmp = (p: string) => mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), p));
@@ -94,4 +94,11 @@ test("the phone's «…» menu: with the gestures hidden it offers Saltar and th
   const sinMano = entradasDelMenu(accionesVisibles(ACCIONES, MANO), []).map((e) => e.id);
   assert.ok(sinMano.includes("saludar") && sinMano.includes("tirar"));
   assert.equal(sinMano.filter((i) => i === "soltar").length, 1, "only the staff's Soltar is left");
+});
+
+test("P15 c: «Más acciones» names only what the menu offers (screen reader label follows the hidden groups)", () => {
+  assert.equal(rotuloMas(NADA), "Más acciones: saltar, saludar, bailar…", "the label a world without the field has always had");
+  assert.equal(rotuloMas(GESTOS), "Más acciones: saltar…");
+  assert.equal(rotuloMas(MANO), "Más acciones: saltar, saludar, bailar…", "the hand buttons were never named");
+  assert.ok(!/saludar|bailar/.test(rotuloMas(AMBOS)));
 });
