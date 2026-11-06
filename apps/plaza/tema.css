@@ -69,7 +69,7 @@ html, body { font-family: "Geist", system-ui, sans-serif; }
 html.alto-contraste #interactuar { background: #000 !important; color: #fff !important; border-color: #fff; }
 html.alto-contraste #interactuar kbd { background: #fff; color: #000; border-color: #fff; }
 #interactuar:not(:has(kbd:not([hidden]))) { padding-left: 20px; } /* touch: no key cap, the words only */
-#interactuar::before { position: static; translate: none; flex: none; display: none; width: 22px; height: 22px;
+#interactuar::before { content: ""; border-radius: 50%; flex: none; display: none; width: 22px; height: 22px; /* J4 mantener-pulsado: grows clockwise (--progreso 0..1) while E / the button / the VR trigger is held */
   background: conic-gradient(var(--n-enfasis-tinta, var(--n-fondo)) calc(var(--progreso, 0) * 360deg), rgba(20, 17, 15, .25) 0); }
 #interactuar.manteniendo::before { display: block; }
 #interactuar:focus-visible { outline: 3px solid var(--n-texto); outline-offset: 3px; }

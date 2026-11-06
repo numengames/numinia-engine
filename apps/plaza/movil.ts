@@ -95,8 +95,6 @@ export function montarMovil(o: Opciones): void {
 
   // ---- 2 · «…» : Saltar, Saludar, Bailar and, behind «más», the rest of what the icon bar held ----
   const mas = el<HTMLButtonElement>("button", { id: "mas", clase: "tocable", html: icono("dots-three", 26), etiqueta: rotuloMas(o.ocultos?.() ?? SIN_OCULTOS) });
-  const rotular = () => { const r = rotuloMas(o.ocultos?.() ?? SIN_OCULTOS); if (mas.getAttribute("aria-label") !== r) mas.setAttribute("aria-label", r); };
-  setInterval(rotular, 250); // P15 c: «…» names only what it offers; a /status that arrives late can hide the gestures after the button exists
   mas.setAttribute("aria-expanded", "false"); mas.setAttribute("aria-haspopup", "menu");
   const menu = el("div", { id: "mas-menu" }); menu.setAttribute("role", "menu"); menu.hidden = true;
   body.append(mas, menu); noJoystick(mas); noJoystick(menu);

@@ -4,8 +4,8 @@
 // features.reachable hands the page where each thing is (`at`) and what it is (`role`).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { elegirMirada, anguloA, difAngulo, MIRADA_MAX_RAD, EMPATE_RAD, type Candidato } from "../apps/plaza/interactuar-mirada.ts";
-import { montarInteraccion, marcaDe, RADIO_PERSONA, RADIO_MAX, RADIO_MIN, RADIO_COSA } from "../apps/plaza/interactuar.ts";
+import { elegirMirada, anguloA, difAngulo, marcaDe, MIRADA_MAX_RAD, EMPATE_RAD, RADIO_PERSONA, RADIO_MAX, RADIO_MIN, RADIO_COSA, type Candidato } from "../apps/plaza/interactuar-mirada.ts";
+import { montarInteraccion } from "../apps/plaza/interactuar.ts";
 import { Instance } from "../packages/instance/src/index.ts";
 import { ClientSession } from "../packages/client/src/index.ts";
 import type { GuestKeeper } from "../packages/client/src/index.ts";
@@ -114,14 +114,19 @@ test("P15 a: the ring of a flat thing is centred on the model's middle, not half
   assert.equal(marcaDe(base, 0, 3, centro)!.r, RADIO_MAX);
 });
 
-test("P15 a: centroEnMundo puts the model's middle where the placed thing really is (offset turned and scaled like the thing)", () => {
-  const T = { x: 10, y: 1, z: 20, rx: 0, ry: 0, rz: 0, sx: 1, sy: 1, sz: 1 };
-  const cen = { x: 0.5, y: 0.25, z: -1 };
-  const cerca = (a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) < 1e-9;
-  assert.ok(cerca(centroEnMundo(cen, T), { x: 10.5, y: 1.25, z: 19 }), "no turn, no scale: origin + offset");
-  assert.ok(cerca(centroEnMundo(cen, { ...T, sx: 2, sy: 2, sz: 2 }), { x: 11, y: 1.5, z: 18 }), "scaled with the thing");
-  assert.ok(cerca(centroEnMundo(cen, { ...T, ry: 90 }), { x: 9, y: 1.25, z: 19.5 }), "a quarter turn about y (degrees, as a Thing keeps them): (0.5,−1) → (−1,−0.5)");
-  assert.ok(cerca(centroEnMundo({ x: 0, y: 0, z: 0 }, T), { x: 10, y: 1, z: 20 }), "a model centred on its origin: the origin");
+test("P15 a: centroEnMundo is the middle of the placed model's box in the world (the origin may be anywhere in the model; place, turn, scale and a moved parent all count)", () => {
+  // a flat piece like the v4 knife-with-board: its origin is at one edge (box x 0…0.4, y 0…0.06, z 0…0.3), the middle is not at the origin
+  const modelo = (x: number, y: number, z: number, ryGrados: number, esc: number) => {
+    const g = new THREE.Group(), m = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.06, 0.3).translate(0.2, 0.03, 0.15));
+    g.add(m); g.position.set(x, y, z); g.rotation.set(0, ryGrados * Math.PI / 180, 0, "YXZ"); g.scale.set(esc, esc, esc); return g;
+  };
+  const cerca = (a: { x: number; y: number; z: number } | undefined, b: { x: number; y: number; z: number }) => !!a && Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) < 1e-6;
+  assert.ok(cerca(centroEnMundo(modelo(10, 1, 20, 0, 1)), { x: 10.2, y: 1.03, z: 20.15 }), "no turn, no scale: origin + the middle of the box");
+  assert.ok(cerca(centroEnMundo(modelo(10, 1, 20, 0, 2)), { x: 10.4, y: 1.06, z: 20.3 }), "scaled with the thing");
+  assert.ok(cerca(centroEnMundo(modelo(10, 1, 20, 90, 1)), { x: 10.15, y: 1.03, z: 19.8 }), "a quarter turn about y: (0.2, 0.15) → (0.15, −0.2)");
+  const padre = new THREE.Group(); padre.position.set(100, 0, 0); padre.add(modelo(1, 0, 0, 0, 1));
+  assert.ok(cerca(centroEnMundo(padre.children[0]), { x: 101.2, y: 0.03, z: 0.15 }), "inside a moved parent: world coordinates");
+  assert.equal(centroEnMundo(new THREE.Group()), undefined, "nothing to measure yet: unknown (the ring falls back to the old rule)");
 });
 
 // ---- the page piece, with a stub DOM -------------------------------------------------------------------------------------------
@@ -147,9 +152,10 @@ function montarFalso(cosas: Cosa[], yo: { x: number; z: number; yaw: number }, t
   return { i, boton, marcas, restaurar, mirar: () => tics.forEach((f) => f()), consultas: () => consultas, tics };
 }
 
-test("P15 page: the prompt appears inside the radius, names the thing looked at, and is gone the moment you step out", () => {
+test("P15 page: the prompt appears inside the radius, names the thing looked at, and is gone the moment you step out", async () => {
   const yo = { x: 0, z: 0, yaw: 0 };
   const W = montarFalso([{ key: "vaso", x: 0, z: -1.0, r: 1.1 }, { key: "movil", x: -0.9, z: -0.3, r: 1.1 }], yo);
+  await W.i.precargar();
   try {
     W.i.mirar();
     assert.equal(W.boton.hidden, false);
@@ -167,9 +173,10 @@ test("P15 page: the prompt appears inside the radius, names the thing looked at,
   } finally { W.restaurar(); }
 });
 
-test("P15 page: the ring fits what it marks — a person's is on the floor, a thing's as big as the thing (asked of the view by its place), unknown = 0.2 m", () => {
+test("P15 page: the ring fits what it marks — a person's is on the floor, a thing's as big as the thing (asked of the view by its place), unknown = 0.2 m", async () => {
   const yo = { x: 0, z: 0, yaw: 0 };
   const W = montarFalso([{ key: "vaso", x: 0, z: -1.0, r: 1.1 }, { key: "sargento", x: -0.9, z: -0.3, r: 1.8, role: "persona" }, { key: "caja", x: 0.9, z: -0.3, r: 1.1 }], yo, { "f:vaso": 0.1, "f:sargento": 1.8 });
+  await W.i.precargar();
   try {
     W.i.mirar();
     assert.deepEqual(W.marcas.at(-1), { x: 0, y: 0.05, z: -1, r: 0.1 }, "the glass: a ring the size of the glass, at half its height");
@@ -180,9 +187,10 @@ test("P15 page: the ring fits what it marks — a person's is on the floor, a th
   } finally { W.restaurar(); }
 });
 
-test("P15 page: the limit is the radius itself (no slack on the page: the server's 1.5 m margin is only for the server)", () => {
+test("P15 page: the limit is the radius itself (no slack on the page: the server's 1.5 m margin is only for the server)", async () => {
   const yo = { x: 0, z: 1.09, yaw: 0 };
   const W = montarFalso([{ key: "vaso", x: 0, z: 0, r: 1.1 }], yo);
+  await W.i.precargar();
   try {
     W.i.mirar(); assert.equal(W.i.actual()?.key, "vaso");
     yo.z = 1.11; W.i.mirar(); assert.equal(W.i.actual(), null, "1.11 m > 1.1 m: gone");
@@ -190,9 +198,10 @@ test("P15 page: the limit is the radius itself (no slack on the page: the server
   } finally { W.restaurar(); }
 });
 
-test("P15 page: with nothing near nothing changes — no ring call, button stays hidden, however often it looks", () => {
+test("P15 page: with nothing near nothing changes — no ring call, button stays hidden, however often it looks", async () => {
   const yo = { x: 50, z: 50, yaw: 0 };
   const W = montarFalso([{ key: "vaso", x: 0, z: 0, r: 1.1 }], yo);
+  await W.i.precargar();
   try {
     for (let n = 0; n < 25; n++) { yo.yaw += 0.3; W.mirar(); }
     assert.equal(W.marcas.length, 0, "the view is never asked to mark anything");
@@ -219,7 +228,8 @@ test("P15 reachable(): every offer carries where the thing is (`at`) and its car
 
 // ---- the ring in the world (packages/render/src/marca-mirada.ts): one mesh, made late, reused, asks for frames only when it changes --------
 import * as THREE from "three/webgpu";
-import { createMarcaMirada, centroEnMundo } from "../packages/render/src/marca-mirada.ts";
+import { createMarcaMirada } from "../packages/render/src/marca-mirada.ts";
+import { centroEnMundo } from "../packages/render/src/centro-mundo.ts";
 
 test("P15 marca-mirada: nothing is made until something is offered; one mesh is reused; the same place twice asks for nothing", () => {
   const world = new THREE.Group(), camera = new THREE.PerspectiveCamera();

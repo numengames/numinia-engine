@@ -26,23 +26,10 @@ type Vista = { renderer: { domElement: HTMLElement }; pickThing?(x: number, y: n
 import { escribiendo } from "./escribiendo.ts";
 import { esTactil, perfil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
 import { glifoDe } from "../../packages/client/src/movil.ts"; // U24: the glyph each device names (touch: none)
-import { elegirMirada } from "./interactuar-mirada.ts"; // P15: the thing looked at, not just the nearest
 export { escribiendo };
 /** Building: the build panel is open or the camera is in build mode (there clicks select things and digits are tools). */
 export const construyendo = (view: Vista): boolean => !(document.getElementById("panel-construir")?.hidden ?? true) || view.cam?.modo?.() === "construir";
 const conMayuscula = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-/** P15: the ring over the offered thing (metres). A person never gets a ring round the body (it hid them): a small one lies on the floor at
- *  their feet. A thing gets a ring about as big as it is (`tam`, its size when the page knows it; never above 2× the size, never above 0.45 m
- *  radius, 0.2 m when unknown), centred on the middle of its model when the page knows it (`centro`), else half a radius over its place. */
-export const RADIO_PERSONA = 0.4, RADIO_MAX = 0.45, RADIO_MIN = 0.05, RADIO_COSA = 0.2;
-export const marcaDe = (c: Cerca, pies: number, tam?: number, centro?: { x: number; y: number; z: number }): { x: number; y: number; z: number; r: number; suelo?: boolean } | null => {
-  if (!c.at) return null;
-  const y = c.at.y ?? pies;
-  if (c.role === "persona") return { x: c.at.x, y: y + 0.03, z: c.at.z, r: RADIO_PERSONA, suelo: true };
-  const r = tam !== undefined && tam > 0 ? Math.min(RADIO_MAX, Math.max(RADIO_MIN, Math.round(tam * 100) / 100)) : RADIO_COSA;
-  if (centro) return { x: centro.x, y: centro.y, z: centro.z, r }; // the middle of the model itself (a flat piece whose origin is at one edge is ringed round what it is)
-  return { x: c.at.x, y: y + Math.round(r * 50) / 100, z: c.at.z, r };
-};
 /** Pure: 0..1, how much of `holdS` seconds has elapsed between `desde` and `ahora` (both ms); no hold (0/undefined) = done at once. */
 export const fraccionMantenida = (desde: number, ahora: number, holdS?: number): number => (!holdS ? 1 : Math.min(1, Math.max(0, (ahora - desde) / (holdS * 1000))));
 
@@ -71,6 +58,10 @@ export function montarInteraccion(o: {
     o.boton.style.setProperty("--progreso", String(frac));
     if (frac >= 1) { const c = manteniendo.c; cancelarMantener(); usar(c); }
   }, 40);
+  // P15: choosing by gaze and placing the ring (interactuar-mirada.ts) are fetched when the first thing comes within reach, not with the first
+  // frame (the start bundle has a cap); until it is in, the nearest is offered, as before P15, and no ring is drawn.
+  let mirada: typeof import("./interactuar-mirada.ts") | null = null, pidiendo: Promise<void> | null = null;
+  const precargar = (): Promise<void> => (pidiendo ??= import("./interactuar-mirada.ts").then((m) => { mirada = m; }, () => { pidiendo = null; }));
   let pies = 0;
   const mirar = () => {
     let c: Cerca | null = null;
@@ -80,7 +71,8 @@ export function montarInteraccion(o: {
       const lista = [...de, ...(o.locales?.(p.x, p.z, p.y) ?? [])];
       // in VR the head is not the desktop camera: there the nearest wins as before (the controllers aim with their own ray)
       const yaw = o.view.vr?.active ? undefined : o.view.cam?.yaw?.();
-      c = yaw === undefined ? lista.sort((a, b) => a.distance - b.distance)[0] ?? null : elegirMirada(lista, { x: p.x, z: p.z, yaw }, actual);
+      if (lista.length && !mirada) void precargar();
+      c = yaw === undefined || !mirada ? lista.sort((a, b) => a.distance - b.distance)[0] ?? null : mirada.elegirMirada(lista, { x: p.x, z: p.z, yaw }, actual);
       pies = p.y;
     }
     const antes = actual;
@@ -100,7 +92,7 @@ export function montarInteraccion(o: {
   // the ring in the world follows what is offered (moves with a walking person, goes when nothing is offered); `poner` ignores the same place twice
   let marcado = false;
   const marcar = (c: Cerca | null, pies: number) => {
-    const m = c && !o.view.vr?.active ? marcaDe(c, pies, c.role === "persona" ? undefined : o.view.tamano?.(`${c.feature}:${c.key}`), c.role === "persona" ? undefined : o.view.centro?.(`${c.feature}:${c.key}`)) : null;
+    const m = c && mirada && !o.view.vr?.active ? mirada.marcaDe(c, pies, c.role === "persona" ? undefined : o.view.tamano?.(`${c.feature}:${c.key}`), c.role === "persona" ? undefined : o.view.centro?.(`${c.feature}:${c.key}`)) : null;
     if (!m && !marcado) return;
     marcado = !!m;
     o.view.marcar?.(m);
@@ -133,7 +125,7 @@ export function montarInteraccion(o: {
     if (o.ofrece(feature, key)) usar({ feature, key, intent: "", prompt: "", name: "", distance: 0 });
   });
   return {
-    actual: () => actual, ultimo: () => ultimo, usar: () => usar(actual), mirar,
+    actual: () => actual, ultimo: () => ultimo, usar: () => usar(actual), mirar, /** P15: resolves when the gaze choice and the ring maths are in (for checks; the page never waits for it) */ precargar,
     // J4 VR: the trigger is a press-and-hold like E and the mobile button (xr.ts starts/cancels it on selectstart/selectend)
     mantener: { empezar: () => { if (actual?.hold) empezarMantener(actual); else if (actual) usar(actual); }, soltar: cancelarMantener },
   };

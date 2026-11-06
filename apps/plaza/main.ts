@@ -109,7 +109,7 @@ import { FAVORITOS_INICIALES } from "../../features/gestos/movimientos.ts";
 import { montarRueda } from "./rueda.ts";
 import { montarXR } from "./xr.ts";
 import { aplicarTema } from "./tema-mundo.ts"; // a world's look (ficha@1 `tema`): an event's colours and title face
-import { accionOculta, ocultosDe } from "./interfaz-mundo.ts"; // a world's hidden buttons (ficha@1 `interfaz.ocultar`): «gestos» = Saludar, Bailar, Movimientos; «recoger-soltar» = Recoger, Soltar
+import type { Ocultable } from "./interfaz-mundo.ts"; // a world's hidden buttons (ficha@1 `interfaz.ocultar`): «gestos» = Saludar, Bailar, Movimientos; «recoger-soltar» = Recoger, Soltar. The code is fetched only by a world that has an `interfaz`
 import { montarFotoPuerta } from "./foto-puerta.ts"; // t_45ef2f70: the button now, the mode (foto.ts) after the first frame or at once for a photo's link. N13: photo mode (P): hide the interface, frame, filter, PNG, share, a link to the place
 import { esTactil, perfil, montarMarco } from "./perfil-aparato.ts"; // U25: the device profile (touch, small screen, VR), one answer for the whole page
 import { montarNovedades } from "./novedades.ts"; // t_bdc2c2db: «qué hay de nuevo» card, once per version
@@ -156,7 +156,8 @@ type Estado = { temaHud?: unknown; espejo?: unknown; dardosEnlace?: unknown; ver
   audio?: { ambiente?: string | null; ambiente_ganancia?: number; ambiente_sintetizado?: string[]; avisos?: Record<string, string> } };
 const estadoP: Promise<Estado | null> = fetch(`${activos}/status`).then((r) => r.json() as Promise<Estado>).catch(() => null);
 const estado = await Promise.race([estadoP, new Promise<null>((ok) => setTimeout(() => ok(null), 1500))]);
-let ocultos = ocultosDe(estado?.interfaz); // P7/P15: the buttons the world took off the screen (ficha.json → interfaz.ocultar: «gestos», «recoger-soltar»); none = all there, as ever
+let interfazMundo: typeof import("./interfaz-mundo.ts") | null = estado?.interfaz ? await import("./interfaz-mundo.ts") : null; // a world without `interfaz` never fetches it (the start bundle has a cap)
+let ocultos: ReadonlySet<Ocultable> = interfazMundo?.ocultosDe(estado?.interfaz) ?? new Set(); // P7/P15: the buttons the world took off the screen (ficha.json → interfaz.ocultar: «gestos», «recoger-soltar»); none = all there, as ever
 ponerAvisosMundo(estado?.audio?.avisos); // t_d7411a07: the sound of each quest notice the world picked (ficha.json → audio.avisos)
 void estadoP.then((e) => ponerAvisosMundo(e?.audio?.avisos)); // a slow /status (past the 1.5 s) still sets them
 // H4: a world with an espacio base shows the line mesh drawing itself on the loading screen (apps/plaza/carga.ts); any other keeps the moon
@@ -286,7 +287,7 @@ const refrescarAcciones = (): void => {
   const v = session.features.stateVersion;
   if (v === versionAcciones) return;
   versionAcciones = v;
-  for (const { a, b } of botonesAccion) { const oculto = accionOculta(a, ocultos) || (a.disponible ? !a.disponible() : false); if (b.hidden !== oculto) b.hidden = oculto; }
+  for (const { a, b } of botonesAccion) { const oculto = (ocultos.size > 0 && interfazMundo!.accionOculta(a, ocultos)) || (a.disponible ? !a.disponible() : false); if (b.hidden !== oculto) b.hidden = oculto; }
 };
 setInterval(refrescarAcciones, 250);
 addEventListener("keydown", (e) => { if (!e.repeat && !escribiendo(e)) acts.find((a) => a.key === e.code)?.run(); }); // J3: typing in a box is not an action
@@ -593,9 +594,10 @@ const rueda = montarRueda({ gestos: gestosDePagina, favoritosIniciales: FAVORITO
   alVer: (id) => view.precargarMovimientos(gestosDePagina.lista.find((m) => m.id === id)?.clips ?? []) });
 
 /** P7/P15: the touch «Movimientos» button and the bar's buttons («Saludar», «Bailar», «Recoger», «Soltar») follow the world's `interfaz.ocultar` (the keys G, H, F and Q still work). */
-const ponerOcultos = (nuevos: typeof ocultos): void => {
+const ponerOcultos = (nuevos: ReadonlySet<Ocultable>): void => {
   ocultos = nuevos;
   const si = ocultos.has("gestos"), rb = document.getElementById("rueda-boton"); if (rb && rb.hidden !== si) rb.hidden = si;
+  if (interfazMundo) document.getElementById("mas")?.setAttribute("aria-label", interfazMundo.rotuloMas(nuevos)); // P15 c: the phone's «…» names only what it offers, also when a late /status hides the gestures after it was built
   versionAcciones = -1; refrescarAcciones();
 };
 ponerOcultos(ocultos);
@@ -740,7 +742,7 @@ void estadoP.then((st) => {
   ajusteEnlace = ajusteDeEstado(st.dardosEnlace); // dardos enlazados: the link this world's server says (late /status: same)
   if (st.nombre) document.title = st.nombre; // ADR-074: the world's name (its aventura/ficha.json), also when Caddy or vite serve the page
   if (st.tema) aplicarTema(st.tema, document.documentElement); // its look: CSS variables tema.css reads; none = the house's
-  { const nuevos = ocultosDe(st.interfaz); if (nuevos.size !== ocultos.size || [...nuevos].some((g) => !ocultos.has(g))) ponerOcultos(nuevos); } // a /status that came after the 1.5 s wait: the same buttons go away now
+  if (st.interfaz) void import("./interfaz-mundo.ts").then((m) => { interfazMundo = m; const nuevos = m.ocultosDe(st.interfaz); if (nuevos.size !== ocultos.size || [...nuevos].some((g) => !ocultos.has(g))) ponerOcultos(nuevos); }); // a /status that came after the 1.5 s wait: the same buttons go away now
   if (versionMotor && st.version) versionMotor.title = `build ${st.version}`;
 }).catch(() => {});
 

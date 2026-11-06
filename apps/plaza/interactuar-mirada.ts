@@ -1,4 +1,5 @@
 // P15: which of the things in reach does «E: …» speak about? The one the player LOOKS at.
+// Loaded on demand by interactuar.ts (the first time something is within reach), not with the first frame: the start bundle has a cap.
 // Pure (no DOM, no three.js): a list of candidates + where the player stands + where the camera looks → the chosen one.
 //
 // The rule, in the order it is applied:
@@ -54,3 +55,16 @@ export function elegirMirada<T extends Candidato>(lista: readonly T[], desde: De
   const p = previo ? lista.find((c) => mismo(c, previo)) : undefined;
   return p && p.distance - cerca.distance <= HISTERESIS_M ? p : cerca;
 }
+
+/** P15: the ring over the offered thing (metres). A person never gets a ring round the body (it hid them): a small one lies on the floor at
+ *  their feet. A thing gets a ring about as big as it is (`tam`, its size when the page knows it; never above 2× the size, never above 0.45 m
+ *  radius, 0.2 m when unknown), centred on the middle of its model when the page knows it (`centro`), else half a radius over its place. */
+export const RADIO_PERSONA = 0.4, RADIO_MAX = 0.45, RADIO_MIN = 0.05, RADIO_COSA = 0.2;
+export const marcaDe = (c: { at?: { x: number; z: number; y?: number }; role?: string }, pies: number, tam?: number, centro?: { x: number; y: number; z: number }): { x: number; y: number; z: number; r: number; suelo?: boolean } | null => {
+  if (!c.at) return null;
+  const y = c.at.y ?? pies;
+  if (c.role === "persona") return { x: c.at.x, y: y + 0.03, z: c.at.z, r: RADIO_PERSONA, suelo: true };
+  const r = tam !== undefined && tam > 0 ? Math.min(RADIO_MAX, Math.max(RADIO_MIN, Math.round(tam * 100) / 100)) : RADIO_COSA;
+  if (centro) return { x: centro.x, y: centro.y, z: centro.z, r }; // the middle of the model itself (a flat piece whose origin is at one edge is ringed round what it is)
+  return { x: c.at.x, y: y + Math.round(r * 50) / 100, z: c.at.z, r };
+};

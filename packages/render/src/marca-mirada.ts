@@ -9,15 +9,6 @@ import * as THREE from "three/webgpu";
 export const MARCA_COLOR = 0xEFA517;       // --n-ambar, the house emphasis
 export const MARCA_GROSOR = 0.14;          // ring thickness as a share of its radius
 export type Marca = { x: number; y: number; z: number; r: number; /** lying flat on the floor (a person's feet) instead of facing the camera */ suelo?: boolean };
-const RAD = Math.PI / 180;
-const _v = new THREE.Vector3(), _e = new THREE.Euler();
-/** Where the middle of a placed model really is: the middle measured on the model alone (its sphere's centre, before scale and turn), scaled and
- * turned like the thing (`Thing` keeps degrees, Euler order YXZ as `placeGroup` sets it) and moved to its place. The ring sits there, not at the
- * origin: a piece whose origin is not its middle (the v4 kitchen's knife, board and vegetables: origin at the board) is ringed round what it is. */
-export function centroEnMundo(cen: { x: number; y: number; z: number }, t: { x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number }): { x: number; y: number; z: number } {
-  _v.set(cen.x * t.sx, cen.y * t.sy, cen.z * t.sz).applyEuler(_e.set(t.rx * RAD, t.ry * RAD, t.rz * RAD, "YXZ"));
-  return { x: t.x + _v.x, y: t.y + _v.y, z: t.z + _v.z };
-}
 const PLANO = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2); // the ring is born facing +z; this lays it on the floor, face up
 
 export function createMarcaMirada(o: { world: THREE.Object3D; camera: THREE.Camera }) {
