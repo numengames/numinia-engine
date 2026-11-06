@@ -110,17 +110,17 @@ export const misiones = defineFeature({
       announce: "silent",
     },
     evaluacion: {
-      describe: "P13: la evaluación de una misión hecha que la lleva (con tu libro, solo a ti): la puntuación (puntos de base como mucho, minimo como menos) y el resumen en una línea; detrás vienen sus filas.",
+      describe: "P13: evaluación de tu misión hecha (con tu libro): puntos entre minimo y base; luego sus filas.",
       fields: { mision: ID, titulo: { kind: "text", maxBytes: LIM.titulo }, puntos: { kind: "int", min: 0, max: 9999 }, base: { kind: "int", min: 1, max: 9999 }, minimo: { kind: "int", min: 0, max: 9999, default: 0 }, filas: { kind: "int", min: 0, max: 32 }, resumen: { kind: "text", maxBytes: 200, default: "" } },
       announce: "silent",
     },
     evaluacionFila: {
-      describe: "P13: una fila de la evaluación de una misión hecha: el tiempo de toda la misión, el de cada fase o un contador (etiqueta = cómo se llama, texto = su valor escrito, valor = segundos o cuántas veces, resta = los puntos que quitó).",
+      describe: "P13: una fila de la evaluación (texto = valor escrito, valor = segundos o veces, resta = puntos que quitó).",
       fields: { mision: ID, n: { kind: "int", min: 0, max: 31 }, tipo: { kind: "enum", values: ["tiempo", "fase", "contador"] }, clave: { kind: "text", maxBytes: 32 }, etiqueta: { kind: "text", maxBytes: 80 }, texto: { kind: "text", maxBytes: 40 }, valor: { kind: "int", min: 0, max: 360000 }, resta: { kind: "int", min: 0, max: 99999 } },
       announce: "silent",
     },
     abrirEvaluacion: {
-      describe: "P13: acabas de completar una misión con evaluación: tu página abre su tarjeta (ya llegó con el libro). Solo a ti.",
+      describe: "P13: tu página abre la tarjeta de la misión que completaste.",
       fields: { mision: ID, titulo: { kind: "text", maxBytes: LIM.titulo }, puntos: { kind: "int", min: 0, max: 9999 }, resumen: { kind: "text", maxBytes: 200, default: "" } },
       announce: { text: "{titulo}: {puntos} puntos. {resumen}", sound: "suave", importance: 2 },
     },

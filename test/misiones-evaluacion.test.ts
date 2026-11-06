@@ -395,3 +395,10 @@ test("machine: with `fases` the card shows the quest's time and the time of each
   // it round-trips through the store
   assert.deepEqual(evaluacionDe(leerProgreso(JSON.parse(JSON.stringify(a.p))), "cuatro")!.fases, [20_000, 60_000, 50_000]);
 });
+
+test("page: the foot of the end card names the «J» key only where there is a keyboard — on a touch screen it names none (P13 b)", async () => {
+  const { pieDeTarjeta } = await import("../apps/plaza/evaluacion-tarjeta.ts");
+  assert.match(pieDeTarjeta(false), /libro de misiones \(J\)\.$/);
+  assert.equal(pieDeTarjeta(true), "Puede volver a verla desde el libro de misiones.");
+  assert.doesNotMatch(pieDeTarjeta(true), /\(J\)|\bJ\b/);
+});

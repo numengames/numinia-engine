@@ -34,9 +34,13 @@ const basis = {
   },
 };
 
+// The comments and the indentation of apps/plaza/index.html are for the people who read the source; the browser needs neither (no <pre>, no inline script in
+// the page), and they were ~0.7 kB of the first load in brotli. Line breaks stay, so the text still reads the same.
+const sinComentarios = { name: "numinia-html-sin-comentarios", enforce: "post", transformIndexHtml: (html) => html.replace(/<!--[\s\S]*?-->/g, "").replace(/\n\s+/g, "\n") };
+
 export default defineConfig({
   root,
-  plugins: [basis],
+  plugins: [basis, sinComentarios],
   server: {
     host: process.env.PLAZA_HOST ?? "127.0.0.1",
     port: Number(process.env.PLAZA_PORT ?? 5173),

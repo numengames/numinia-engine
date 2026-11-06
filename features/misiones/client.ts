@@ -389,14 +389,13 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     a.on("evaluacion", (m) => { // P13: the end card of a completed quest, with the book; its rows follow
       const mv = libro.get(String(m.mision));
       if (!mv) return;
-      mv.evaluacion = { titulo: String(m.titulo), puntos: Number(m.puntos), base: Number(m.base), minimo: Number(m.minimo) || 0, resumen: String(m.resumen ?? ""), filas: [] };
+      mv.evaluacion = { titulo: String(m.titulo), puntos: Number(m.puntos), base: Number(m.base), minimo: Number(m.minimo), resumen: String(m.resumen), filas: [] }; // the plug fills the defaults (minimo 0, resumen "")
       avisar("libro");
     });
     a.on("evaluacionFila", (m) => {
       const ev = libro.get(String(m.mision))?.evaluacion;
       if (!ev) return;
-      const tipo = m.tipo === "tiempo" || m.tipo === "fase" ? m.tipo : "contador";
-      ev.filas[Number(m.n)] = { tipo, clave: String(m.clave), etiqueta: String(m.etiqueta), texto: String(m.texto), valor: Number(m.valor) || 0, resta: Number(m.resta) || 0 };
+      ev.filas[Number(m.n)] = { tipo: m.tipo as FilaEvaluacion["tipo"], clave: String(m.clave), etiqueta: String(m.etiqueta), texto: String(m.texto), valor: Number(m.valor), resta: Number(m.resta) };
       avisar("libro");
     });
     a.on("aceptada", (m) => nota(`Misión nueva: ${String(m.titulo)}`));
