@@ -215,6 +215,10 @@ reordena. Estados: `pendiente` · `en curso` · `hecho` · `bloqueada` (con moti
 | FM4 | Física del mundo, capa 4b: material del suelo (agarre, freno, rebote) por superficie; resuelve S6f-6 para los pasos | espera a FM1 | sí |
 | FM5 | Física del mundo, capa VR: altura de cámara estable en saltos largos + «salto cómodo»; el tope se mide con Pablo en el Quest 3S | espera a FM2 | no |
 | FM6 | Física del mundo en la Torre (solo local o servidor 3): una sala «Luna» y un charco de hielo | espera a FM3 | sí |
+| Y48 | `sucesos` piece (world event, from the study `APRENDIZAJE-DISENO-JUEGOS.md`): announced to whoever is near, advances alone, has no failure (the result chains another event), the whole reward to every participant, scaled by participants with integers and the integer RNG. Slice 1 done: `features/sucesos`, `sucesos.json` (`numinia-engine/sucesos@1`), verbs `mirar`/`lanzar`, `/evento`, server-only events `otorga`/`cadena`, `test/sucesos.test.ts`. Not the facts book `evento@1` | hecho (slice 1; the rest is Y48b–Y48d) | sí |
+| Y48b | Sucesos: «Sucesos» switch in Entorno (`features/interruptor.ts`, like `dados`/`baculo`: intent `encender`, event `permiso`, entry in `piezas`) and a template world with an example `sucesos.json`; an event card/sign in the plaza (`apps/plaza/`) showing progress and who helps | pendiente | sí |
+| Y48c | Sucesos: make `inventario` and `bienes` hear `otorga` and hand out the reward for real (`cosa`, `cuanto`); let the cable (`disparadores`) launch an event by name | espera a Y48b | sí |
+| Y48d | Sucesos: persist phase and progress across restarts (`state.persist` + RNG in `store`), periodic repetition declared in the file (`cadaSegundos`), and the cap of simultaneous active events in `limits.json` / the spec sheet | espera a Y48b | sí |
 
 **Punto de parada «accesible» (como los PP de `CONSTRUIR.md`):** con V1, V3, V4, V5, V6 y V7 hechas, una
 persona ciega entra en la plaza desde el ordenador con su lector de pantalla, pregunta qué hay cerca, sigue

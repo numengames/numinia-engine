@@ -27,6 +27,7 @@ import naturaleza from "./naturaleza/client.ts"; // N4: relief, trees and grass 
 import espacioBase from "./espaciobase/client.ts"; // H2: the espacio base — an empty night world whose ground is a luminous line mesh (packages/render/src/espacio-base/)
 import vuelo from "./vuelo/client.ts"; // H2: fly with permission (the refusal is read aloud; the server decides)
 import suelo from "./suelo/client.ts"; // D-045: the fade when the server puts you back on a safe spot
+import sucesos from "./sucesos/client.ts"; // Y48: world events (announcement, progress, your reward; spoken by the announce path)
 import contadores from "./contadores/client.ts"; // D-044: timers and counters (the sign is a label sprite; the panel lives in apps/plaza/contadores.ts)
 import disparadores from "./disparadores/client.ts"; // D-041: the cable — a button on its post; the page only asks `pulsar`
 import cerradura from "./cerradura/client.ts"; // D-042: the lock's data and its keypad (apps/plaza/cerradura.ts)
@@ -41,5 +42,5 @@ import sonido from "./sonido/client.ts"; // S6: the sounds of the house — the 
 import interruptores from "./funciones/client.ts"; // f1: the world's feature switches (`__numinia.funciones`; the panel is f3/v3)
 import fichaMundo from "./ficha-mundo/client.ts"; // H7: the world's settings (title, picture, default avatar, people limit)
 import espejo from "./espejo/client.ts"; // mundo-hermes: things from outside drawn as flat black-and-white shapes; the card to touch them is apps/plaza/espejo.ts (lazy)
-const funciones: ClientPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, vuelo, naturaleza, espacioBase, fichaMundo, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido, espejo];
+const funciones: ClientPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, vuelo, naturaleza, espacioBase, fichaMundo, interruptores, sucesos, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido, espejo];
 export default funciones;
