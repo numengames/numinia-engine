@@ -18,15 +18,20 @@ import { FILTROS, filtro, valoresSvg, aplicarMatriz, marco, nombreArchivo, enlac
 import { escribiendo } from "./escribiendo.ts";
 import { icono } from "./iconos.ts";
 import "./foto.css";
+import { pideFoto } from "../../features/misiones/foto.ts"; // P10: pure; it travels with this chunk
 import { esTactil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
 
 type Punto = { x: number; y: number; z: number };
+/** P10: where the camera was and which way it looked (features/misiones/foto.ts `PoseFoto`). */
+type PoseDeFoto = { x: number; y: number; z: number; fx: number; fy: number; fz: number; fov: number; aspecto: number };
 type Vista = {
   renderer: { domElement: HTMLCanvasElement; getPixelRatio(): number; setPixelRatio(r: number): void; setSize(w: number, h: number): void };
   draw(dt: number): void; applyPixelRatio(): void;
   vr: { active: boolean }; ar: { state: string };
   /** MIS-222: one picture of what the headset sees (packages/render/src/foto-xr.ts); rejects outside XR or when no frame comes. */
-  fotoVR?: { sacar(): Promise<HTMLCanvasElement> };
+  fotoVR?: { sacar(): Promise<HTMLCanvasElement & { pose?: PoseDeFoto | null }> };
+  /** P10: the engine's camera (three.js): the pose of a photo is read from its world matrix. Optional: a test's fake view has none. */
+  camera?: { fov: number; aspect: number; updateWorldMatrix(padres: boolean, hijos: boolean): void; matrixWorld: { elements: ArrayLike<number> } };
   /** MIS-265: runs the function with name plates and speech bubbles hidden (packages/render nombres.sinRotulos). */
   sinRotulos?<T>(f: () => T): T;
   cam: { modo(m?: "juego" | "construir" | "foto"): string; desplazar(d: number, a: number, h?: number): void; mirarHacia(yaw: number, pitch?: number): void; yaw(): number;
@@ -42,6 +47,8 @@ export type FotoOpts = {
   volverA?: () => HTMLElement | null;                       // where the focus goes back on leaving (the «Cámara» button)
   ocupado?: () => boolean;                                  // something else holds the keys (a dartboard in hand)
   registrar?: (d: { detalle?: string }) => void;            // the session log: a picture was taken (`detalle`: «vr» when inside the headset)
+  /** P10: the quests' client (`misiones` of features/misiones/client.ts): a picture taken (flat page and VR alike) tells its `foto` steps the camera's pose when one asks for a photo now (the server decides). */
+  misiones?: { libro(): readonly { estado: string; lista: readonly { tipo: string; hecho: boolean }[] }[]; foto(pose: PoseDeFoto): unknown };
   /** N16: whether this world puts you at a photo's place (null = not known yet) and the asking (the server decides). */
   aparecer?: { puede(): boolean | null; pedir(s: Sitio): void };
   /** MIS-265: make the picture the world's cover — offered only when `puede()` (the server lets you change the settings). */
@@ -246,6 +253,16 @@ export function montarFoto(o: FotoOpts) {
   /** MIS-222 — inside VR: one picture of the headset's view, with the frame and the world's name (no filters, no free camera
    * yet). The PNG is kept as «the last one» and offered for download at once (best effort: a headset browser may refuse a
    * download in a session); on leaving VR it is on screen with the share / save buttons. */
+  /** P10: tell the quests (only when a step of the player's asks for a photo now) from which pose a picture was just taken. */
+  const alFoto = (pose: PoseDeFoto): void => { if (o.misiones && pideFoto(o.misiones.libro())) o.misiones.foto(pose); };
+  /** P10: the pose of the engine's camera as it is now (what the picture just drawn saw); null when the view has no camera. */
+  function poseDeCamara(): PoseDeFoto | null {
+    const c = view.camera;
+    if (!c) return null;
+    c.updateWorldMatrix(true, false);
+    const m = c.matrixWorld.elements, l = Math.hypot(m[8], m[9], m[10]); // a camera looks along its -z
+    return l > 0 ? { x: m[12], y: m[13], z: m[14], fx: -m[8] / l, fy: -m[9] / l, fz: -m[10] / l, fov: c.fov, aspecto: c.aspect } : null;
+  }
   async function dispararVR(): Promise<Resultado> {
     if (!view.fotoVR) return { ok: false, error: "este motor no saca fotos dentro de VR" };
     try {
@@ -254,6 +271,7 @@ export function montarFoto(o: FotoOpts) {
       const yo = o.yo(), e = view.cam.estado(); // where you stand and the way you look: the link leads there
       await guardarHecha(c, enlaceSitio(location, { x: yo?.x ?? e.pivote.x, y: yo?.y ?? e.pivote.y, z: yo?.z ?? e.pivote.z, yaw: view.cam.yaw(), pitch: 0, dist: 0 }));
       deVR = true; o.registrar?.({ detalle: "vr" });
+      if (c.pose) alFoto(c.pose); // P10
       try { const a = document.createElement("a"); a.href = hecha!.url; a.download = hecha!.nombre; document.body.appendChild(a); a.click(); a.remove(); } catch { /* the picture waits on the page */ }
       o.decir("Foto hecha en VR: al salir la tienes en la página para compartirla.");
       return resultado(c, { deVR: true });
@@ -269,6 +287,7 @@ export function montarFoto(o: FotoOpts) {
     try {
       if (!document.documentElement.classList.contains("menos-movimiento")) { destello.classList.remove("ya"); void destello.offsetWidth; destello.classList.add("ya"); }
       const c = capturar();
+      const pose = poseDeCamara(); // P10: the camera as the picture just saw it
       await componer(c, filtro(filtroId));
       // MIS-265: a cover is public, so whoever may set one gets a second drawing of the frame with no names over the people
       let cSin: HTMLCanvasElement | null = null;
@@ -276,6 +295,7 @@ export function montarFoto(o: FotoOpts) {
       await guardarHecha(c, enlace());
       if (cSin) sinNombres = await new Promise<Blob | null>((ok) => cSin!.toBlob(ok, "image/png"));
       mostrarHecha(); o.registrar?.({});
+      if (pose) alFoto(pose); // P10
       return resultado(c);
     } catch (e) {
       const t = `No pude hacer la foto: ${(e as Error)?.message ?? e}.`;
