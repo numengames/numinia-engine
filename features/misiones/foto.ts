@@ -51,3 +51,8 @@ export function enEncuadre(pose: PoseFoto, o: EsferaFoto, distancia: number = FO
   const x = vx * rx + vz * rz, y = vx * ux + vy * uy + vz * uz;
   return Math.abs(x) <= z * ancho && Math.abs(y) <= z * alto ? d : null;
 }
+
+/** Whether a step of yours asks for a photo now: the page sends a camera pose only then (a world without `foto` steps never hears of it).
+ * Reads the book as `misiones.libro()` gives it; the server has the last word. */
+export const pideFoto = (libro: readonly { estado: string; lista: readonly { tipo: string; hecho: boolean }[] }[]): boolean =>
+  libro.some((m) => m.estado === "activa" && m.lista.some((s) => s.tipo === "foto" && !s.hecho));

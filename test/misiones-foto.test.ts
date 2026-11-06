@@ -15,7 +15,7 @@ import { cargarAventura, leerMision, TIPOS_PASO } from "../features/misiones/for
 import type { Aventura, Fichero } from "../features/misiones/formato.ts";
 import { aceptar, cuentaDe, fotografiar, leerProgreso, nuevoProgreso, pasosFoto, registrar } from "../features/misiones/maquina.ts";
 import type { Progreso } from "../features/misiones/maquina.ts";
-import { enEncuadre, FOTO_ALCANCE_M, FOTO_CAMARA_MAX_M, FOTO_DISTANCIA_M, FOTO_LEJOS_M, FOTO_MARGEN_M, FOTO_OJO_M, poseInvalida } from "../features/misiones/foto.ts";
+import { enEncuadre, pideFoto, FOTO_ALCANCE_M, FOTO_CAMARA_MAX_M, FOTO_DISTANCIA_M, FOTO_LEJOS_M, FOTO_MARGEN_M, FOTO_OJO_M, poseInvalida } from "../features/misiones/foto.ts";
 import type { EsferaFoto, PoseFoto } from "../features/misiones/foto.ts";
 import { misiones as misionesDecl } from "../features/misiones/feature.ts";
 import { crearMisiones } from "../features/misiones/server.ts";
@@ -209,11 +209,10 @@ const pose = (p: PoseFoto) => ({ x: p.x, y: p.y, z: p.z, fx: p.fx, fy: p.fy, fz:
 test("over the plug: the page asks only while a step photographs; the server decides; a miss is counted silently; the whole quest finishes", () => {
   const W = plaza(), a = W.abrir();
   W.pump(3);
-  assert.equal(a.m.pideFoto(), false, "no quest yet: no step asks for a photo");
-  assert.equal(a.m.foto(pose(NORTE)).ok, false, "refused here, nothing sent");
+  assert.equal(pideFoto(a.m.libro()), false, "no quest yet: no step asks for a photo (the photo chunk sends nothing)");
   W.empezar(a);
   W.ir(a, 0, 0);
-  assert.equal(a.m.pideFoto(), true);
+  assert.equal(pideFoto(a.m.libro()), true);
   assert.equal(a.m.libro()[0].cuenta?.fotos_erroneas, 0, "a quest that photographs shows its counter, zero included");
   assert.deepEqual(a.m.libro()[0].lista.filter((s) => s.tipo === "foto").length, 2);
   // a miss (looking south)
@@ -228,7 +227,7 @@ test("over the plug: the page asks only while a step photographs; the server dec
   assert.equal(a.m.libro()[0].lista.filter((s) => s.tipo === "foto" && s.hecho).length, 1, "the near corner");
   W.pasar(1100);
   assert.ok(a.m.foto(pose(mira(0, -2))).ok); W.pump(3);
-  assert.equal(a.m.pideFoto(), false, "both done: the page stops sending poses");
+  assert.equal(pideFoto(a.m.libro()), false, "both done: the page stops sending poses");
   assert.equal(a.m.libro()[0].cuenta?.fotos_erroneas, 1);
   W.ir(a, 1, 0); a.m.hablar("jefa"); W.pump(3); a.m.adios(); W.pump(3);
   assert.equal(a.m.libro()[0].estado, "hecha");

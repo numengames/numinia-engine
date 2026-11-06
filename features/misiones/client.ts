@@ -267,14 +267,9 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     },
     /** T1: the id of the page button the arrow should point at for the step to do now of the followed quest (or the first active one with `senala`); "" = none. */
     senala: (): string => { const todas = [...libro.values()].filter((m) => m.pistas !== false).sort((a, b) => Number(b.seguida) - Number(a.seguida)); for (const m of todas) for (const s of ahoraDe(m)) if (s.senala) return s.senala; return ""; },
-    /** P10: whether a step of yours to do now asks for a photo (the page sends the camera's pose only then: a world without `foto` steps never hears of it). */
-    pideFoto: (): boolean => [...libro.values()].some((m) => porHacer(m).some((s) => s.tipo === "foto")),
     /** P10: tell the server a photo was just taken, from this camera pose; it decides whether a corner is in the shot (nothing comes back
-     * for a miss: the quest only counts it). Refused here, with nothing sent, when no step asks for a photo now. */
-    foto: (pose: PoseDeFoto): Res => {
-      if (!misiones.pideFoto()) return sin("ningún paso de tus misiones pide una foto ahora");
-      return M?.send("foto", { x: pose.x, y: pose.y, z: pose.z, fx: pose.fx, fy: pose.fy, fz: pose.fz, fov: pose.fov, aspecto: pose.aspecto }) ?? sin("la página aún no ha arrancado");
-    },
+     * for a miss: the quest only counts it). The page asks `pideFoto(libro())` (features/misiones/foto.ts) first, in the photo chunk. */
+    foto: (pose: PoseDeFoto): Res => M?.send("foto", pose) ?? sin("la página aún no ha arrancado"),
     usar: (cosa: string): Res => M?.send("usar", { cosa }) ?? sin("la página aún no ha arrancado"),
     /** Whether the page should offer «E: …» for a thing: quest things only while a step to do now needs them (U14 (5):
      * also while that step still waits — trying it says how long is left). */

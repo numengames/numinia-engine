@@ -22,8 +22,6 @@ export function centroDeOjos(ojos: readonly P3[]): P3 {
 export type PoseXR = { x: number; y: number; z: number; fx: number; fy: number; fz: number; fov: number; aspecto: number };
 
 export type FotoXR = {
-  /** P10: the pose of the last photo drawn (null before the first): the page tells the server's `foto` steps with it. */
-  pose(): PoseXR | null;
   /** Asks for a photo; it is drawn right after the next XR frame. Rejects when no frame comes (visor off, session ended). */
   sacar(): Promise<HTMLCanvasElement>;
   /** True while a photo is waiting for its frame. */
@@ -38,7 +36,6 @@ export function crearFotoXR(o: { renderer: THREE.WebGPURenderer; scene: THREE.Sc
   let espera: Espera | null = null, ultima: PoseXR | null = null;
   const cerrar = (e: Espera) => { if (e.reloj) clearTimeout(e.reloj); e.rt?.dispose(); e.rt = null; if (espera === e) espera = null; };
   return {
-    pose: () => ultima,
     pendiente: () => !!espera,
     sacar() {
       if (espera) return espera.promesa;
@@ -80,7 +77,7 @@ export function crearFotoXR(o: { renderer: THREE.WebGPURenderer; scene: THREE.Sc
         const img = new ImageData(FOTO_XR.ancho, FOTO_XR.alto);
         pasarPixeles(d as Uint8Array, FOTO_XR.ancho, FOTO_XR.alto, o.backend === "WebGL2", img.data);
         lienzo.getContext("2d")!.putImageData(img, 0, 0);
-        cerrar(e); e.ok(lienzo);
+        cerrar(e); e.ok(Object.assign(lienzo, { pose: ultima })); // P10: the pose of this photo rides on the canvas (nothing eager on the view)
       }).catch((err) => { cerrar(e); e.mal(err instanceof Error ? err : new Error(String(err))); });
     },
   };

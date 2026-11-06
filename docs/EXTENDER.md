@@ -933,7 +933,7 @@ estos números a `CAMARA`), mira como mucho **una foto por segundo** y el intent
 objetivo, no de la cámara. **Límite conocido:** una cámara de foto que quede al otro lado de una pared que el jugador no tiene
 entre sí y el rincón puede ver el rincón a través de ella, y un mundo sin malla de colisión (ni terreno) no tiene paredes que
 cuenten; `api.rayo` además gasta del cubo del jugador (4/s, ráfaga 8), y si se agota la foto cuenta como sin pared. **Accesible:**
-el verbo `foto` (`spoken`: «hacer una foto para una misión»); `misiones.pideFoto()` dice si algún paso lo pide ahora y
+el verbo `foto` (`spoken`: «hacer una foto para una misión»); `pideFoto(misiones.libro())` (`features/misiones/foto.ts`) dice si algún paso lo pide ahora y
 `misiones.foto(pose)` manda una pose (un agente puede hacer «una foto desde donde estoy mirando» con la suya); el cumplimiento
 sale por los avisos del paso. Plugs: misiones **v11** (intento `foto`; en el evento `mision`, `fotos`, el contador de fotos
 erróneas). Un mundo sin pasos `foto` no cambia: ni el estado, ni los eventos, ni lo que se guarda.
