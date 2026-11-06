@@ -78,7 +78,7 @@ export const lucha = defineFeature({
     reaparece: { describe: "Una persona aletargada ha vuelto a su último punto seguro, con el Estado en ninguno y todo lo suyo intacto (objetivo `p:<entidad>`). A quien está a 40 m.", fields: { objetivo: ID }, announce: { text: "Alguien reaparece.", sound: "aviso", importance: 1 } },
     rechazado: { describe: "Lo que pediste no se hizo, y por qué.", fields: { motivo: { kind: "text", maxBytes: 160 } }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
     jugadorHerido: { describe: "L2 trozo 1: la criatura te golpea de vuelta cuando la golpeas: cuánto daño y cuánta vida te queda (en memoria del servidor, sin HUD aún). Solo a ti.", fields: { dano: DANO, vida: VIDA }, announce: { text: "Te golpean: −{dano}, te quedan {vida}.", sound: "paso", importance: 1 } },
-    jugadorCaido: { describe: "Tu vida llega a 0: caes. No puedes golpear hasta que te recuperes. Solo a ti.", fields: {}, announce: { text: "Caes.", sound: "error", importance: 2 } },
+    jugadorCaido: { describe: "Tu vida llega a 0: caes. No puedes golpear hasta que te recuperes (a los 5 s, o, si el mundo tiene encendido el estado derribado, cuando te levantan o reapareces). `quien` = tu entidad (lo oye la pieza derribado). Solo a ti.", fields: { quien: QUIEN }, announce: { text: "Caes.", sound: "error", importance: 2 } },
     jugadorVuelve: { describe: "Te recuperas del todo tras caer. Solo a ti.", fields: {}, announce: { text: "Te recuperas.", sound: "aviso", importance: 1 } },
   },
 });
