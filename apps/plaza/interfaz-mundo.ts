@@ -2,11 +2,20 @@
 // A training simulator has no use for «Saludar», «Bailar» and «Movimientos»: the world says `"interfaz": { "ocultar": ["gestos"] }`
 // and those buttons are not drawn (bottom bar, the phone's «…» menu, the touch «Movimientos» button). The server checked the
 // names (packages/server/src/aventura.ts leerInterfaz); the page checks them again, because the wire is not trusted.
+// P15 b: a second group, "recoger-soltar", takes the player's «Recoger» (fishing's reel, F) and «Soltar» (what you carry, Q) buttons off the
+// bar: a world that never fishes and whose things are picked up with «E» has no use for them. The keys keep working.
 // No DOM here: main.ts does the hiding with what this returns. Without the field nothing changes.
 
 /** The groups a world may hide (the same list as the server's `INTERFAZ_OCULTABLES`). */
-export const OCULTABLES = ["gestos"] as const;
+export const OCULTABLES = ["gestos", "recoger-soltar"] as const;
 export type Ocultable = (typeof OCULTABLES)[number];
+type Accion = { feature?: string; id?: string };
+/** What each group is: «gestos» = the `gestos` feature's actions; «recoger-soltar» = fishing's «Recoger» and the carried thing's «Soltar»
+ * (not the staff's: «Soltar el báculo» / «Pasar el báculo» are the conductor's). Picking a thing up with «E» is the thing's own card, not an action: it stays. */
+const GRUPO: Record<Ocultable, (a: Accion) => boolean> = {
+  gestos: (a) => a.feature === "gestos",
+  "recoger-soltar": (a) => (a.feature === "pesca" && a.id === "recoger") || (a.feature === "cogibles" && a.id === "soltar"),
+};
 
 /** `/status`'s `interfaz` → the set of groups to hide. Anything that is not `{ ocultar: [known names] }` hides nothing. */
 export function ocultosDe(interfaz: unknown): Set<Ocultable> {
@@ -18,7 +27,15 @@ export function ocultosDe(interfaz: unknown): Set<Ocultable> {
   return fuera;
 }
 
-/** The actions a page offers once the world's hidden groups are taken out. The «gestos» group is the `gestos` feature's actions. */
-export function accionesVisibles<A extends { feature?: string }>(acciones: readonly A[], sinGestos: boolean): A[] {
-  return sinGestos ? acciones.filter((a) => a.feature !== "gestos") : [...acciones];
+/** Is this action's button one the world took away? */
+export const accionOculta = (a: Accion, ocultos: ReadonlySet<Ocultable>): boolean => { for (const g of ocultos) if (GRUPO[g](a)) return true; return false; };
+
+/** The actions a page offers once the world's hidden groups are taken out. */
+export function accionesVisibles<A extends Accion>(acciones: readonly A[], ocultos: ReadonlySet<Ocultable>): A[] {
+  return acciones.filter((a) => !accionOculta(a, ocultos));
+}
+
+/** P15 c: the screen-reader name of the phone's «…» button. It names only what the menu offers: «saludar, bailar» are left out when the world hid the gestures. */
+export function rotuloMas(ocultos: ReadonlySet<Ocultable>): string {
+  return `Más acciones: ${ocultos.has("gestos") ? "saltar" : "saltar, saludar, bailar"}…`;
 }
