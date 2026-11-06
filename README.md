@@ -103,6 +103,10 @@ and pull request titles are in English.
 ## Licence
 
 [AGPL-3.0-only](LICENSE). Dependencies stay permissive (MIT, Apache-2.0, BSD, ISC); bundled world assets are CC0
-or CC-BY with credit.
+or CC-BY with credit. The documentation is CC-BY-4.0. The few third-party pieces that live in this tree keep their own
+licence and copyright holder (fonts: OFL-1.1; Phosphor Icons and two foliage sources: MIT).
+
+The licence of every file is declared in [`REUSE.toml`](REUSE.toml) (checked with `reuse lint`); the full texts are in
+[`LICENSES/`](LICENSES/). The licences cover copyright, not the names or marks: see [`TRADEMARKS.md`](TRADEMARKS.md).
 
 *"numinia-engine" is a working name.*

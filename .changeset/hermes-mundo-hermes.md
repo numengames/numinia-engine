@@ -1,0 +1,58 @@
+---
+"numinia-engine": minor
+---
+
+## 2026-11-05 14:00 · mundo-hermes · Pieza espejo y enlace local · hecho
+- Qué: `MOTOR_PLANTILLA` (el mundo nuevo nace de la plantilla que se elija; por defecto `taller`) y la plantilla cerrada `hermes`; la pieza `espejo` (`entorno/espejo.json`, `numinia-engine/espejo@1`): cosas de fuera puestas en el mundo con ficha y lugar, interruptores por función, `usar` y `pedir` (solo una persona identificada que dirige o manda, cerca, verbo permitido, ritmo), petición hacia fuera y respuesta o caducidad a los 30 s; y el enlace local WebSocket en 127.0.0.1 con reto HMAC, rechazo de `Origin`, 16 KB y ritmo por conexión, y `hola.funciones`.
+- Números: 2860 pruebas en verde, 0 mal; huella 7e630965 intacta; sin `espejo.json` el estado compartido y la simulación salen igual que sin la pieza; el enlace no abre ningún puerto sin espejo.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: el adaptador del plugin (carril P) y la vista de las zonas (dibujo plano en blanco y negro).
+
+## 2026-11-05 15:00 · mundo-hermes · Mundo plano y táctil de Hermes · hecho
+- Qué: la plantilla `hermes` trae su planta (`entorno/espejo.json`: umbral con el panel de interruptores, reloj, sesiones y plaza; solo `salud` nace encendida) y un suelo negro; lo que llega de fuera sin posición se coloca solo en la cuadrícula de su zona (4 m, desde el centro) y la fuente no puede quitar ni cambiar el panel; el cliente dibuja cada cosa como una forma plana en blanco y negro hecha por código (reloj, cubo, losa con una lámpara por interruptor, borde de zona discontinuo si la función está apagada), con su rótulo en castellano; mirar una cosa (E o tocar) abre su ficha con un botón por verbo y confirmación en dos pasos; `/status` cuenta a la página las zonas y los interruptores. Arreglo: el servidor no abría el enlace local porque buscaba la pieza antes de que arrancara.
+- Números: 2865 pruebas en verde, 0 mal; página 628.1 kB gz · 530.4 kB br (tope 536); formas planas en un trozo aparte que solo se baja con la primera cosa; huella de los mundos sin espejo intacta.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: el adaptador del plugin con `pedir` real (carril P) y el dibujo definitivo de la planta (Pablo).
+
+## 2026-11-05 17:00 · mundo-hermes · Palancas, carteles, tema y agentes · hecho
+- Qué: las lámparas del panel del umbral son mandos (`encender`: quien dirige o manda, persona identificada, cambia `funciones.<nombre>` en `espejo.json` con el fichero entero validado y escritura atómica, se aplica sin reiniciar, quita las cosas de la función apagada y avisa a la fuente con la trama `funciones`); botón «Ir a <zona>» en la ficha del panel con la pieza de teletransporte de siempre; `tema: black-and-white` en `entorno.json` (solo la plantilla `hermes`) viste la página y el minimapa de blanco y negro; formas planas y fichas para `perfil` (figura con lámpara) y `uso` (medidor; coste siempre «estimado», caché aparte).
+- Números: ver el registro de puertas de esta rama (pruebas, tipos sin errores nuevos, página dentro del tope); sin `espejo.json` el estado y la huella salen igual.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: zonas `perfil`/`uso` en la plantilla; el verbo `perfil.activar`.
+
+## 2026-11-05 18:30 · mundo-hermes · Pulido del motor y pruebas con navegador (M4) · hecho
+- Qué: la plantilla `hermes` trae las zonas `perfil` (Z6, la torre de control) y `uso` (Z2, la sala de máquinas) con sus interruptores apagados; la ficha cabe en cualquier pantalla desde 360×640 (dos columnas, desplazamiento propio, nunca sobre la barra de acciones); los rótulos del espejo son placas negras con contorno blanco que se apartan de su figura y se apilan por distancia; el tema blanco y negro cubre todo el HUD con un solo acento; `npm run test:e2e` prueba el mundo con un navegador de verdad.
+- Números: ver el registro de esta historia en el chat de Ursa (pruebas, tipos, e2e); mundos sin espejo y sin `tema` intactos.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: el verbo `perfil.activar`; el dibujo definitivo de la planta (Pablo).
+
+## 2026-11-05 19:00 · mundo-hermes · Un lote con una zona desconocida ya no se rechaza entero · hecho
+- Qué: `lote` deja fuera las cosas cuya zona no existe (o no admite su tipo), acepta el resto y lo cuenta (`descartadas` en la costura; trama `ack` por el enlace solo si algo quedó fuera); la forma, el tamaño, los repetidos y las cosas del mundo siguen siendo todo o nada; `hola.zonas` no cambia.
+- Números: ver el registro de esta historia (espejo-servidor y espejo-enlace en verde).
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: que el plugin lea el `ack` y lo muestre.
+
+## 2026-11-05 22:00 · mundo-hermes · Pulido del motor, segunda vuelta (M5) · hecho
+- Qué: los botones de zona dicen «Ir al umbral» y «Ir a la torre de control»; cada función tiene su etiqueta con artículo («Apagar el gasto», «Encender los agentes») y el subtítulo del panel las usa; las placas planas miden 90–220 px en pantalla, se desvanecen de 32 a 40 m y no se dibujan más lejos; en el tema blanco y negro la barra de acciones y el aviso de la casa se esconden mientras hay una ficha abierta (en 360×640 se ven 5 filas de botones, antes 2) y la barra ya no corta «Soltar» a 1280×720; `tools/identidad-sin-espejo.mjs` compara dos copias del motor con un mundo sin espejo ni tema (semilla, `/status`, lo que la página pide).
+- Números: ver el registro de esta historia (pruebas, tipos 291/300, e2e 12 en verde); mundos sin espejo y sin tema: carpeta sembrada y `/status` idénticos a origin/main, huella f455ffc1 igual.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: el verbo `perfil.activar`; el dibujo definitivo de la planta (Pablo).
+## 2026-11-05 · mundo-hermes · Documentos, habilidades, tablero y guía (M6) · hecho
+- Qué: cuatro funciones nuevas, apagadas de fábrica y con su interruptor: `documentos` (estantes en Z1 «La biblioteca»; «Abrir» pone una capa a pantalla completa con un `<iframe>` sandbox sobre una página cuyo origen está en `documentos.origenes`, comprobado en el servidor y otra vez en la página; si no responde en 6 s dice cómo arrancar el visor), `habilidades` (tablillas con lámpara en filas por grupo en Z4 «El taller»; la ficha corta la descripción a 140 caracteres), `kanban` (tablero de tres columnas dibujado por código en Z9, solo lectura) y `guia` (silueta blanca que acompaña a 3 m y dice una frase corta de «usted» al entrar en una zona o tocar una cosa; botón «Ir con la guía»). Cambio de nombres sin efecto aún: `skills`→`habilidades`, `biblioteca`→`documentos`.
+- Números: ver el registro de esta historia (pruebas 2929, tipos 291/300, e2e con las pruebas M6, página 632.6 kB gz · 534.4 kB br de 536); mundos sin espejo y sin tema idénticos a origin/main (`tools/identidad-sin-espejo.mjs`), huella f455ffc1 igual; los trozos `formas-extra`, `documento` y `guia` solo se bajan cuando aparece la cosa.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: que el plugin publique `documento`, `habilidad` y `tablero` (contrato en `docs/EXTENDER.md`); el cuerpo VRM de la guía.
+
+## 2026-11-05 · mundo-hermes · Modo embed: el mundo dentro de Hermes Desktop (M7) · hecho
+- Qué: con `embed.activa: true` en `espejo.json` el mundo corre bien en un marco aislado sin `allow-same-origin` (origen opaco): almacén seguro que cae a memoria solo si el navegador lo bloquea, CORS `*` en los ficheros de la página y `POST /espejo/embed` solo con el modo encendido, desde esta máquina y con una credencial `e1.` firmada con la clave del enlace (`Origin: null` nunca basta); un puente `postMessage` (trozo perezoso `espejo-embed`, solo si la página está enmarcada y trae `?embed=1` y la credencial en el fragmento) que lleva `snapshot`/`event`/`funciones` del padre a la misma tubería del enlace local y las `peticion` del mundo al padre; el dueño local queda marcado en `quien`. Contrato en `docs/EXTENDER.md` («Embed (v1)»).
+- Números: ver el registro de esta historia (pruebas, tipos 291/300, e2e con 7 pruebas de embed, página dentro del tope); mundos sin embed idénticos (`tools/identidad-sin-espejo.mjs`).
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: que el plugin publique por `postMessage` (carril P) con la credencial en el fragmento.

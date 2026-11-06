@@ -38,6 +38,24 @@ const CON_CABLE: readonly string[] = ["crea_cable", "edita_cable", "borra_cable"
 /** The sha256 of a library model by its id (`bloque`, `farolillo`…), or "" when the library has none. */
 export const shaDeBiblioteca = (id: string): string => biblioteca.modelos.find((m) => m.id === id)?.modelo ?? "";
 export const ESTADOS = ["sin_empezar", "disponible", "activa", "hecha"] as const;
+// P16: a person's round. Its limits and rounding live HERE (not in ronda.ts): the page loads the maths of ronda.ts only when a round comes
+import type { ModoRonda, PuntoRonda, Ronda } from "./ronda.ts";
+
+export const RONDA = {
+  puntosMin: 2, puntosMax: 8,
+  pausaMax: 60,            // s
+  velMin: 0.3, velMax: 1.4, // m/s: never faster than the page's calm walk (render/vida.ts CAMINA_MS)
+  velDefecto: 1.1,         // m/s
+  lejosM: 30,              // m: every stop within this of the person's own place (the page knows her only near it)
+  cicloMaxS: 7200,         // s: the `rt` field of the event holds up to this; the limits above can never reach it (8 pauses of 60 s + 8 legs of 60 m at 0.3 m/s = 2080 s)
+  texto: 300,              // bytes of the stops as the event carries them
+} as const;
+export const MODOS_RONDA: readonly ModoRonda[] = ["vuelta", "ida_y_vuelta"];
+
+export const r2 = (n: number) => Math.round(n * 100) / 100, r1 = (n: number) => Math.round(n * 10) / 10;
+/** The numbers of a stop as the wire keeps them: x, z, y in cm, giro in 0.1°, pausa in 0.1 s. */
+export const redondeaPunto = (p: PuntoRonda): PuntoRonda => ({ x: r2(p.x), z: r2(p.z), ...(p.y === undefined ? {} : { y: r2(p.y) }), ...(p.giro === undefined ? {} : { giro: r1(p.giro) }), pausa: r1(p.pausa) });
+
 export const ACCIONES = ["dar_mision", "avanzar_paso", "entregar", "despedir"] as const;
 /** The voices a person can have (pnj@1 `voz`): the house's NPC voice takes, a short wordless greeting when you start
  *  talking and a farewell when you stop (features/sonido/catalogo.json: `pnj-saludo-<voz>`, `pnj-despedida-<voz>`). New
@@ -126,7 +144,10 @@ export type Marcable = { marcar: string; desechar: string; desmarcar: string; de
 export const MARCABLE_POR_DEFECTO: Marcable = { marcar: "Marcar", desechar: "Desechar", desmarcar: "Desmarcar", dejar: "Dejar marcado", offset: { x: 0, y: 0.6, z: 0 } };
 /** One entry of pnj@1 `posiciones`: where the person stands for the player whose quests meet `si` (empty = always), and the yaw it
  * keeps there (`giro`: absent = the person's own). `sinY` as for `posicion`. */
-export type Lugar = { si: Condicion[]; posicion: { x: number; z: number; y: number }; sinY?: true; giro?: number };
+export type Lugar = { si: Condicion[]; posicion: { x: number; z: number; y: number }; sinY?: true; giro?: number;
+  /** P16: instead of standing still, she walks this round (from stop to stop, pausing at each) while this entry holds; `posicion` is then
+   * the first stop unless the file says otherwise. Absent = she stands at `posicion`, exactly as before. */
+  ronda?: Ronda };
 /** A thing's `posicion.y` (optional, absolute metres: a thing on a table or held up at chest height, reachable
  * with a hand in VR) and `apariencia.color` (optional «#rrggbb»: the house block in a colour, so two things differ).
  * `apariencia.usada` (optional, U14 (6)): how it looks for a player once THEY did the step that uses it (`usa`/`coge`)
@@ -523,6 +544,32 @@ function leerDialogo(v: unknown, path: string, is: Issue[], cosa = false): Dialo
   return { entradas, nodos };
 }
 
+/** P16: `ronda` of a `posiciones` entry: `{ "puntos": [{ "x", "z", "y"?, "giro"?, "pausa"? }, …2–8], "velocidad"?: m/s, "modo"?: "vuelta" | "ida_y_vuelta" }`.
+ * Returns the round with its numbers rounded as the wire keeps them (cm, 0.1°, 0.1 s), or undefined when it has errors. */
+function leerRonda(v: unknown, path: string, base: { x: number; z: number }, is: Issue[]): Ronda | undefined {
+  const o = objeto(v, path, is);
+  if (!o) return undefined;
+  const antes = is.length;
+  campos(o, ["puntos", "velocidad", "modo"], path, is);
+  const puntos = lista(o.puntos, en(path, "puntos"), RONDA.puntosMin, RONDA.puntosMax, is).map((x, i): PuntoRonda => {
+    const p = en(en(path, "puntos"), i), po = objeto(x, p, is) ?? {};
+    campos(po, ["x", "z", "y", "giro", "pausa"], p, is);
+    const q: PuntoRonda = { x: numero(po.x, en(p, "x"), -MUNDO, MUNDO, is), z: numero(po.z, en(p, "z"), -MUNDO, MUNDO, is), pausa: numero(po.pausa, en(p, "pausa"), 0, RONDA.pausaMax, is, 0) };
+    if (po.y !== undefined) q.y = numero(po.y, en(p, "y"), 0, ALTURA_MAX, is);
+    if (po.giro !== undefined) q.giro = numero(po.giro, en(p, "giro"), -180, 180, is);
+    if (po.x !== undefined && po.z !== undefined && Math.hypot(q.x - base.x, q.z - base.z) > RONDA.lejosM) is.push({ path: p, message: `a ${RONDA.lejosM} m o menos de la «posicion» de la persona (la página sabe de ella solo mientras estás cerca)` });
+    return redondeaPunto(q);
+  });
+  const velocidad = o.velocidad === undefined ? RONDA.velDefecto : numero(o.velocidad, en(path, "velocidad"), RONDA.velMin, RONDA.velMax, is);
+  let modo: ModoRonda = "vuelta";
+  if (o.modo !== undefined) { if (MODOS_RONDA.includes(o.modo as ModoRonda)) modo = o.modo as ModoRonda; else is.push({ path: en(path, "modo"), message: `uno de: ${MODOS_RONDA.join(", ")} (sin «modo», vuelta: al último punto vuelve al primero)` }); }
+  if (is.length > antes) return undefined;
+  const ronda: Ronda = { puntos, velocidad: Math.round(velocidad * 100) / 100, modo };
+  // a round with no length: every stop in the same place and none with a pause (the same test as `compilar(ronda).ciclo > 0`)
+  if (puntos.every((q) => q.pausa === 0 && q.x === puntos[0].x && q.z === puntos[0].z)) { is.push({ path, message: "la ronda no tiene ni recorrido ni pausas: pon puntos distintos o alguna «pausa»" }); return undefined; }
+  return ronda;
+}
+
 /** One person's file, on its own. The LAST entrada usually has no `si`: it is what the person says when nothing else applies. If
  * it has one (P3), the person has nothing to say outside that phase: no «E» offered and the server refuses the talk. */
 export function leerPnj(v: unknown): Result<Pnj> {
@@ -536,11 +583,15 @@ export function leerPnj(v: unknown): Result<Pnj> {
   const base = { ...posicion(o.posicion, "posicion", is, ["y"]), y: altura(o.posicion, is, ALTURA_MAX) };
   const posiciones = lista(o.posiciones, "posiciones", 1, LIM.lugares, is, true).map((x, i): Lugar => {
     const p = `posiciones[${i}]`, lo = objeto(x, p, is) ?? {};
-    campos(lo, ["si", "posicion", "giro"], p, is);
-    const pos = { ...posicion(lo.posicion, `${p}.posicion`, is, ["y"]), y: altura(lo.posicion, is, ALTURA_MAX, `${p}.posicion.y`) };
+    campos(lo, ["si", "posicion", "giro", "ronda"], p, is);
+    const ronda = lo.ronda === undefined ? undefined : leerRonda(lo.ronda, `${p}.ronda`, base, is); // P16
+    const primero = ronda?.puntos[0]; // with a round, `posicion` may be left out: she starts at the first stop
+    const dePrimero = lo.posicion === undefined && primero ? { posicion: { x: primero.x, z: primero.z, y: primero.y ?? 0 } } : null;
+    const pos = dePrimero ? dePrimero.posicion : { ...posicion(lo.posicion, `${p}.posicion`, is, ["y"]), y: altura(lo.posicion, is, ALTURA_MAX, `${p}.posicion.y`) };
     if (lo.posicion !== undefined && Math.hypot(pos.x - base.x, pos.z - base.z) > LUGAR_LEJOS_M) is.push({ path: `${p}.posicion`, message: `a ${LUGAR_LEJOS_M} m o menos de su «posicion» (la página sabe de una persona solo mientras estás cerca de ella)` });
-    const out: Lugar = { si: condiciones(lo.si, `${p}.si`, is), posicion: pos, ...sinY(lo.posicion) };
+    const out: Lugar = { si: condiciones(lo.si, `${p}.si`, is), posicion: pos, ...(dePrimero ? (primero?.y === undefined ? { sinY: true as const } : {}) : sinY(lo.posicion)) };
     if (lo.giro !== undefined) out.giro = numero(lo.giro, `${p}.giro`, -180, 180, is);
+    if (ronda) out.ronda = ronda;
     return out;
   });
   posiciones.forEach((l, i) => { if (!l.si.length && i < posiciones.length - 1) is.push({ path: `posiciones[${i}].si`, message: "una entrada sin «si» vale siempre: solo puede ser la última (las de después nunca se verían)" }); });

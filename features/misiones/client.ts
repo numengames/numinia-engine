@@ -8,13 +8,17 @@ import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
 import { ACCIONES_PAGINA } from "./formato.ts";
 import biblioteca from "../objetos/biblioteca.json" with { type: "json" };
 import type { Escenario, Pose, SecuenciaVista, SucesoSecuencia } from "./secuencia.ts"; // U14 (5): a moment only you see (loaded when one comes)
+import type { crearRondas } from "./ronda-pagina.ts"; // P16: the round a person walks: loaded (with its maths, the same as the server's) when the first one comes
 
+let codigoRonda: typeof import("./ronda-pagina.ts") | null = null; // P16: loaded the first time a `ronda` comes (most worlds never have one)
 const modelo = (id: string) => biblioteca.modelos.find((m) => m.id === id)?.modelo ?? "";
 const ROBOT = modelo("robot"), BLOQUE = modelo("bloque");
 /** The house robot is ~4.6 m tall as it comes; people of the world stand ~1.8 m. */
 export const ESCALA_ROBOT = 0.4;
 /** Where a person's name floats: above the head of a 1.8 m figure, scaled with it. */
 export const ALTO_NOMBRE = 2.25;
+/** P16: farther than this from where she was drawn, a new `sitio` for a person on a round is a move to walk (not a stop or a restart). */
+const CAMINA_SI_M = 1.5;
 
 /** How a person of the world looks TODAY: a library model at its place (the house robot by default) and at its height
  * (`y`: the floor it stands on; 0 = the ground), still (no idle animation: phones stay cool). The avatar branch (VRM)
@@ -29,8 +33,8 @@ export function aspectoPnj(v: Msg, marca: Marca = "", vida?: Vida): { cuerpo: Pl
 }
 /** P2: how a person lives on this page, from its state: it breathes unless `reposo` is false, turns toward you within its `radio` unless `mira`
  * is false (`mira: 0` = never), keeps facing you while you talk (`atiende`), and walks to a new place when the world moved it (`camina`). */
-export const vidaPnj = (id: string, v: Msg, atiende = false, camina = false): Vida =>
-  ({ id, reposo: v.reposo !== false, mira: v.mira === false ? 0 : Number(v.radio) || 0, ...(atiende ? { atiende: true } : {}), ...(camina ? { camina: true } : {}) });
+export const vidaPnj = (id: string, v: Msg, atiende = false, camina = false, andando?: boolean): Vida =>
+  ({ id, reposo: v.reposo !== false, mira: v.mira === false ? 0 : Number(v.radio) || 0, ...(atiende ? { atiende: true } : {}), ...(camina ? { camina: true } : {}), ...(andando === undefined ? {} : { andando }) }); // P16: `andando` only for a person on a round: the page moves her every frame and says whether she is walking
 /** How a quest thing looks: its model, or the house block (a small crate); at its height (y) and in its colour. U14 (6):
  * `usada` = this player has used it (usadasDe): then its used look (cosa@1 apariencia.usada — the chest open), if any. */
 export const aspectoCosa = (v: Msg, usada = false): PlacedObject & { color?: string } => {
@@ -112,10 +116,15 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
   const sitios = new Map<string, { x: number; z: number; y: number; giro: number }>();
   let atendiendo = ""; // the person whose conversation is open: it keeps facing you
   const colocado = (key: string, v: Msg): Msg => { const t = sitios.get(key); return t ? { ...v, x: t.x, z: t.z, y: t.y, giro: t.giro } : v; };
+  // P16: people on a round for THIS player (events `sitio` + `ronda`). The code that walks them (ronda-pagina.ts and the maths of ronda.ts) is a
+  // chunk the page loads when the first `ronda` comes; `esperaRonda` holds the event meanwhile (a later `sitio` for her cancels it).
+  let rondas: ReturnType<typeof crearRondas> | null = null;
+  const esperaRonda = new Map<string, Msg>();
+  let cargaRonda: Promise<unknown> | null = null;
   /** Draw (or move) a person and its label where this player finds it; `camina`: it was moved just now, so it walks there. */
   const dibujarPnj = (a: ClientApi, key: string, v: Msg, camina = false, rotulo = true): void => {
     const pose = rep?.poseDe(key) ?? null, w = conPose(colocado(key, v), pose); // U14 (5): a sequence playing keeps it where it has it (and it does not turn: the sequence owns its body)
-    const look = aspectoPnj(w, marcaDe("pnj", key), pose ? undefined : vidaPnj(key, v, atendiendo === key, camina));
+    const look = aspectoPnj(w, marcaDe("pnj", key), pose ? undefined : vidaPnj(key, v, atendiendo === key, camina, rondas?.andando(key)));
     a.view.place?.(`pnj:${key}`, look.cuerpo);
     if (rotulo) a.view.tag?.(`pnj:${key}`, look.nombre);
   };
@@ -284,7 +293,12 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     secuencia: (): SecuenciaVista | null => rep?.ahora() ?? null,
     /** U14 (5): advance the sequence to now. The page calls it every frame and keeps drawing while it answers true; with
      * none playing it answers false at once and does nothing. It never touches the camera. */
-    cuadro: (): boolean => rep?.cuadro() ?? false,
+    cuadro: (): boolean => {
+      const secuencia = rep?.cuadro() ?? false;
+      return (rondas && P ? rondas.cuadro(P) : false) || secuencia; // P16: people on a round (none in most worlds: nothing here)
+    },
+    /** P16: a person on a round, as this page has her now (null = no round for you): where she is, whether she walks or is stopped to talk. */
+    rondaDe: (pnj: string) => rondas?.de(pnj) ?? null,
     /** U14 (5): hear a sequence start, say a line, ask for a house sound and end; returns how to stop. */
     alSecuencia: (fn: (s: SucesoSecuencia) => void) => { oyentesSec.add(fn); return () => oyentesSec.delete(fn); },
 
@@ -324,11 +338,25 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     });
     a.on("sitio", (m) => { // P2: where I find this person now; it walks there if I was looking at it
       const key = String(m.pnj), antes = sitios.get(key), t = { x: Number(m.x), z: Number(m.z), y: Number(m.y) || 0, giro: Number(m.giro) || 0 };
-      if (antes && antes.x === t.x && antes.z === t.z && antes.y === t.y && antes.giro === t.giro) return;
+      esperaRonda.delete(key);
+      const era = rondas?.termina(key); // P16: she was on a round: the `ronda` that goes with this `sitio` (if she still is) comes next and brings her back
+      if (!era && antes && antes.x === t.x && antes.z === t.z && antes.y === t.y && antes.giro === t.giro) return;
       sitios.set(key, t);
       a.lugar(key, { x: t.x, z: t.z, y: t.y }); // the range checks, «E: hablar» and the map use it from now on
       const v = a.state.get(key);
-      if (v) dibujarPnj(a, key, v, antes !== undefined);
+      // P16: from a round, only a real move is walked (stopping to talk or going on moves her by what the network took, a few cm)
+      if (v) dibujarPnj(a, key, v, antes !== undefined && (!era || Math.hypot(t.x - era.x, t.z - era.z) > CAMINA_SI_M));
+    });
+    a.on("ronda", (m) => { // P16: the round she walks for me; right after the `sitio` that says where she is in it now
+      if (rondas) { rondas.recibir(a, m); return; } // the code is there: at once, as every other event
+      esperaRonda.set(String(m.pnj), m);
+      const montar = (x: typeof import("./ronda-pagina.ts")): void => {
+        rondas = x.crearRondas({ reloj, sitios, dibujar: (api, key, v) => dibujarPnj(api, key, v), secuencia: (key) => !!rep?.poseDe(key) });
+        for (const e of esperaRonda.values()) rondas.recibir(a, e);
+        esperaRonda.clear();
+      };
+      if (codigoRonda) montar(codigoRonda); // another page of this process loaded it already
+      else cargaRonda ??= import("./ronda-pagina.ts").then((x) => montar((codigoRonda = x))).catch((e) => { cargaRonda = null; esperaRonda.clear(); console.warn(`[misiones] no se pudo cargar la ronda: ${(e as Error)?.message ?? e}`); });
     });
     a.on("dialogo", (m) => {
       dialogo = { pnj: String(m.pnj), nombre: String(m.nombre), oficio: String(a.state.get(String(m.pnj))?.oficio ?? ""), texto: String(m.texto), opciones: [m.o1, m.o2, m.o3, m.o4].map(String).filter(Boolean) };

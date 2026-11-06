@@ -1000,6 +1000,10 @@ export type ViewHooks = {
   place?(key: string, o: PlacedObject | null): void;
   /** H1: where this player is now (metres), so a feature can put things in front of them. */
   here?(): { x: number; y: number; z: number } | null;
+  /** mundo-hermes: a flat black-and-white shape made by code at a world point — a clock, a cube, a slab or a zone's floor — in a state (off / starting / on / fail); `null` takes it away. */
+  forma?(key: string, f: { forma: "reloj" | "cubo" | "losa" | "suelo" | "perfil" | "uso" | "estante" | "tableta" | "tablero" | "guia"; x: number; z: number; estado: "off" | "starting" | "on" | "fail"; rumbo?: number; mano?: number; ancho?: number; fondo?: number; discontinuo?: boolean; luces?: boolean[]; nivel?: number; columnas?: { n: number; top: string[] }[] } | null): void;
+  /** mundo-hermes M6: move a flat shape that is already there (the guide walks) without rebuilding it. */
+  moverForma?(key: string, x: number, z: number, rumbo: number): void;
   /** J3: the name over an avatar (null takes it away). The page decides from how far it is drawn. */
   nameTag?(entity: number, text: string | null): void;
   /** J3: a speech bubble over an avatar for `ms` (several lines; the latest replaces the one before). */
@@ -1007,7 +1011,7 @@ export type ViewHooks = {
   /** J5: a name that stays over a thing (a person you can talk to), facing whoever looks; `null` takes it away. U14 (4),
    * optional: `sub` = a second, smaller line under the name (a person's trade); `mark` = «!» (something for you now) or
    * «✓» (done) above it. The page redraws a label only when its text or mark changes. */
-  tag?(key: string, t: { text: string; x: number; y: number; z: number; sub?: string; mark?: "!" | "✓" | "" } | null): void;
+  tag?(key: string, t: { text: string; x: number; y: number; z: number; sub?: string; mark?: "!" | "✓" | ""; plano?: boolean; tope?: number; siempre?: boolean } | null): void;
   /** P4: an evidence marker over a thing — a yellow plate with a black number (1–16) that always faces whoever looks, drawn on this
    * page only, from (x, y, z) up (its tip points at that spot); `null` takes it away. Same number = only moved. */
   marcador?(key: string, t: { n: number; x: number; y: number; z: number } | null): void;
@@ -1054,8 +1058,10 @@ export type PlacedObject = { model: string; x: number; y: number; z: number; rx:
  * own phase (never in sync with the next); `reposo`: breathes and shifts its weight (or plays the model's idle clip); `mira`: turns its
  * body toward you when you are within this many metres (0 = never; the yaw it was placed with is where it goes back to); `atiende`:
  * keeps facing you whatever the distance (a conversation is open); `camina`: if this placement moves it a short way (≤ 10 m), it walks
- * there at ≤ 1.4 m/s instead of popping. */
-export type Vida = { id: string; reposo: boolean; mira: number; atiende?: boolean; camina?: boolean };
+ * there at ≤ 1.4 m/s instead of popping. `andando` (P16, a person on a round): the page places her again every frame she moves, so the render does
+ * not walk her itself or snap her yaw on each placement; `true` while she walks (the walking clip and the turn toward where she goes), `false`
+ * while she stands. Absent = as before. */
+export type Vida = { id: string; reposo: boolean; mira: number; atiende?: boolean; camina?: boolean; andando?: boolean };
 export const NO_VIEW: ViewHooks = { label() {}, bounce() {} };
 /** An event as a person hears and reads it (V1). `at` in metres; `who` = the entity it is about. */
 export type Announcement = { feature: string; event: string; text: string; sound: Sound; importance: Importance; at?: { x: number; z: number }; who?: number };

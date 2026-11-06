@@ -65,6 +65,8 @@ export function validarEntorno(json: unknown, base: Plano = porDefecto()): Resul
   if (!su.ok) issues.push(...su.issues);
   const vu = leerVuelo(json);
   if (!vu.ok) issues.push(...vu.issues);
+  const te = leerTema(json);
+  if (!te.ok) issues.push(...te.issues);
   const plano: Plano = { ...base };
   for (const [campo, ruta, color] of RUTAS) {
     const v = leer(json, ruta);
@@ -176,6 +178,16 @@ export function leerVuelo(json: unknown): Result<VueloMundo | null> {
   if (o.vuelo === undefined) return { ok: true, value: null };
   if (typeof o.vuelo === "string" && (VUELOS as readonly string[]).includes(o.vuelo)) return { ok: true, value: o.vuelo as VueloMundo };
   return { ok: false, issues: [{ path: "entorno.vuelo", message: `uno de ${VUELOS.map((v) => `«${v}»`).join(", ")}: quién puede volar en este mundo (sin la clave, nadie)` }] };
+}
+
+/** mundo-hermes: `tema: "black-and-white"` makes the PAGE's HUD (panels, buttons, minimap) pure black and white. Absent = the house look. Any other value is an issue, said once. */
+export const TEMAS = ["black-and-white"] as const;
+export type TemaMundo = (typeof TEMAS)[number];
+export function leerTema(json: unknown): Result<TemaMundo | null> {
+  const o = typeof json === "object" && json !== null && !Array.isArray(json) ? (json as Record<string, unknown>) : {};
+  if (o.tema === undefined) return { ok: true, value: null };
+  if (typeof o.tema === "string" && (TEMAS as readonly string[]).includes(o.tema)) return { ok: true, value: o.tema as TemaMundo };
+  return { ok: false, issues: [{ path: "entorno.tema", message: `${TEMAS.map((t) => `«${t}»`).join(", ")}: el aspecto de los paneles de la página (sin la clave, el de siempre)` }] };
 }
 
 /**
