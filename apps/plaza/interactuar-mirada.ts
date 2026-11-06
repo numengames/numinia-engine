@@ -1,5 +1,5 @@
 // P15: which of the things in reach does «E: …» speak about? The one the player LOOKS at.
-// Loaded on demand by interactuar.ts (the first time something is within reach), not with the first frame: the start bundle has a cap.
+// Loaded on demand with interactuar-pieza.ts (the first time something is within reach), not with the first frame: the start bundle has a cap.
 // Pure (no DOM, no three.js): a list of candidates + where the player stands + where the camera looks → the chosen one.
 //
 // The rule, in the order it is applied:
@@ -67,16 +67,4 @@ export const marcaDe = (c: { at?: { x: number; z: number; y?: number }; role?: s
   const r = tam !== undefined && tam > 0 ? Math.min(RADIO_MAX, Math.max(RADIO_MIN, Math.round(tam * 100) / 100)) : RADIO_COSA;
   if (centro) return { x: centro.x, y: centro.y, z: centro.z, r }; // the middle of the model itself (a flat piece whose origin is at one edge is ringed round what it is)
   return { x: c.at.x, y: y + Math.round(r * 50) / 100, z: c.at.z, r };
-};
-
-/** The ring in the world for what the page offers: asks the view where the thing's model is and how big (`medida`), places the ring
- *  (`marcaDe`) and tells the view only when it changes (`marcar(null)` once when nothing is offered any more). No ring in VR. */
-export const crearMarcador = (view: { medida?(key: string): { x: number; y: number; z: number; r: number } | undefined; marcar?(p: ReturnType<typeof marcaDe>): void; vr?: { active: boolean } }) => {
-  let marcado = false;
-  return (c: { feature: string; key: string; at?: { x: number; z: number; y?: number }; role?: string } | null, pies: number): void => {
-    const md = c ? view.medida?.(`${c.feature}:${c.key}`) : undefined, m = c && !view.vr?.active ? marcaDe(c, pies, md?.r, md) : null; // a person's ring ignores the size (marcaDe)
-    if (!m && !marcado) return;
-    marcado = !!m;
-    view.marcar?.(m);
-  };
 };

@@ -132,6 +132,7 @@ test("P15 a: medidaEnMundo is the sphere that holds the placed model's box in th
 
 // ---- the page piece, with a stub DOM -------------------------------------------------------------------------------------------
 type Cosa = { key: string; x: number; z: number; r: number; role?: string };
+const aprox = (a: unknown, b: Record<string, number>) => Object.keys(b).every((k) => Math.abs((a as Record<string, number>)[k] - b[k]) < 1e-9);
 function montarFalso(cosas: Cosa[], yo: { x: number; z: number; yaw: number }, tamanos: Record<string, number> = {}) {
   const g = globalThis as Record<string, unknown>, viejo = { document: g.document, addEventListener: g.addEventListener, setInterval: g.setInterval };
   const tics: (() => void)[] = [];
@@ -146,7 +147,7 @@ function montarFalso(cosas: Cosa[], yo: { x: number; z: number; yaw: number }, t
   let consultas = 0;
   const i = montarInteraccion({
     session: { entity: 1, selfPosition: () => ({ x: yo.x, y: 0, z: yo.z }), features: { reachable: (x: number, z: number) => { consultas++; return reachable(x, z); }, use: () => ({ ok: true }) } },
-    view: { renderer: { domElement: { addEventListener() {} } as unknown as HTMLElement }, cam: { yaw: () => yo.yaw }, marcar: (p: unknown) => marcas.push(p), medida: (k: string) => { const c = cosas.find((z) => `f:${z.key}` === k); return c && k in tamanos ? { x: c.x, y: tamanos[k] / 2, z: c.z, r: tamanos[k] } : undefined; } },
+    view: { renderer: { domElement: { addEventListener() {} } as unknown as HTMLElement }, cam: { yaw: () => yo.yaw }, marcar: (p: unknown) => marcas.push(p), cosa: (k: string) => { const c = cosas.find((z) => `f:${z.key}` === k); if (!c || !(k in tamanos)) return undefined; const g = new THREE.Group(), r = tamanos[k]; g.add(new THREE.Mesh(new THREE.BoxGeometry(2 * r / Math.sqrt(3), 2 * r / Math.sqrt(3), 2 * r / Math.sqrt(3)))); g.position.set(c.x, r / 2, c.z); return g; } },
     boton: boton as unknown as HTMLButtonElement, ofrece: () => true, ocupado: () => false,
   });
   const restaurar = () => { g.document = viejo.document; g.addEventListener = viejo.addEventListener; g.setInterval = viejo.setInterval; };
@@ -180,7 +181,7 @@ test("P15 page: the ring fits what it marks — a person's is on the floor, a th
   W.i.mirar(); await new Promise((ok) => setTimeout(ok, 40)); // the first look starts fetching the gaze code
   try {
     W.i.mirar();
-    assert.deepEqual(W.marcas.at(-1), { x: 0, y: 0.05, z: -1, r: 0.1 }, "the glass: a ring the size of the glass, at half its height");
+    assert.ok(aprox(W.marcas.at(-1), { x: 0, y: 0.05, z: -1, r: 0.1 }), "the glass: a ring the size of the glass, at half its height");
     yo.yaw = 70 * G; W.i.mirar();
     assert.deepEqual(W.marcas.at(-1), { x: -0.9, y: 0.03, z: -0.3, r: 0.4, suelo: true }, "the person: small, on the floor, whatever size the view says");
     yo.yaw = -70 * G; W.i.mirar();
