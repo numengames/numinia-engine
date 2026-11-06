@@ -858,6 +858,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   function vivirPlace(s: Slot, antes: Thing, t: Thing): void {
     if (!t.vida) { if (s.vida) { s.vida = undefined; placeGroup(s); } return; }
     const v = (s.vida ??= nuevaVida(t));
+    if (t.vida.andando !== undefined) return; // P16: a person on a round is placed again every frame she moves: no walk to add, and her yaw is smoothed in `vivir`, not snapped here
     const mx = antes.x - t.x, mz = antes.z - t.z;
     if (mx === 0 && mz === 0 && antes.y === t.y) return;
     if (t.vida.camina && s.loaded && vaACaminar(Math.hypot(v.ca.dx + mx, v.ca.dz + mz))) { v.ca.dx += mx; v.ca.dz += mz; }
@@ -880,13 +881,13 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   function vivir(k: string, s: Slot, dt: number, ahora: number, d2: number, delante: boolean): void {
     const v = s.vida!, w = s.want, vd = w.vida!;
     if (llevados.has(k) || editor.retiene(k, w) || s.failed) return;
-    const anda = v.ca.dx !== 0 || v.ca.dz !== 0;
+    const enMarcha = v.ca.dx !== 0 || v.ca.dz !== 0, anda = enMarcha || vd.andando === true; // P16: `andando` = walking her round (the page moves her)
     const nota = !!selfXZ && noto(d2, vd.mira, vd.atiende);
     const cerca = d2 <= LEJOS_REPOSO_M * LEJOS_REPOSO_M && delante;
     if (v.gestos) cambiaGesto(v.gestos, gestoDe(vd.atiende, anda)); // its own clips: standing, talking to you, walking
     // where the body points: toward where it is walking, else toward you if you are near (or it is talking to you), else its own yaw
     let objetivo = w.ry, suave = GIRO_VUELTA_S;
-    if (anda) { objetivo = Math.atan2(-v.ca.dx, -v.ca.dz) * 57.29577951308232; suave = GIRO_HACIA_S; }
+    if (anda) { if (enMarcha) objetivo = Math.atan2(-v.ca.dx, -v.ca.dz) * 57.29577951308232; suave = GIRO_HACIA_S; } // on a round, w.ry is the way she is going
     else if (nota && selfXZ) { objetivo = rumboHacia(w.x, w.z, selfXZ.x, selfXZ.z, w.ry); suave = GIRO_HACIA_S; }
     const girando = Math.abs(envuelve(v.giro.yaw - objetivo)) > 0.05 || Math.abs(v.giro.vel) > 0.05;
     const respira = vd.reposo && !v.clip && cerca;

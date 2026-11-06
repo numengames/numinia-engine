@@ -777,6 +777,46 @@ paso. La insignia queda en su ficha (I) y en su libro.
     "reposo": true, "mira": true, "dialogo": { "entradas": [{ "nodo": "hola" }], "nodos": { "hola": { "texto": "Aquí estoy.", "opciones": [{ "texto": "Adiós.", "accion": { "tipo": "despedir" } }] } } } }
   ```
   Una página que no conozca `sitio` ve a la persona en su `posicion` de siempre (el estado compartido no cambia).
+  - **Ronda (P16).** En vez de quedarse quieta, una entrada de `posiciones` puede hacer que la persona **ande por la casa**
+    mientras su `si` valga: `"ronda": { "puntos": [...], "velocidad": 1,1, "modo": "vuelta" }`. `puntos` (2–8) son los sitios que
+    visita, en orden; cada uno lleva `x`, `z` (a 30 m o menos de la `posicion` de la persona), `y` (opcional, como `posicion.y`: sin
+    ella, pisa el suelo), `giro` (opcional, grados: hacia dónde mira mientras está parada; sin él, mira hacia donde venía) y
+    `pausa` (segundos que se queda parada, 0–60; sin ella, 0 = pasa de largo). Va de un punto al siguiente **en línea recta**, con su
+    clip de caminar, y en cada parada se queda con su reposo. `velocidad` en m/s (0,3–1,4; sin ella, 1,1). `modo`: `"vuelta"` (sin
+    él; del último punto vuelve al primero) o `"ida_y_vuelta"` (del último vuelve por los mismos puntos). Una entrada con `ronda`
+    puede no llevar `posicion`: vale el primer punto (y es la que usa la flecha del mapa antes de que ande). Sin `ronda`, todo es
+    como antes, byte a byte.
+    - **Todos calculan lo mismo.** Dónde está la persona a los *t* ms de empezar la ronda es una función pura
+      (`rondaEn`, `features/misiones/ronda.ts`) que usan el servidor y la página con los mismos números (centímetros, décimas de
+      grado y de segundo). El servidor fija el instante de inicio **cuando ese `si` empieza a valer para ese jugador** (un reloj por
+      jugador y persona; dos jugadores no ven a la persona en el mismo punto de su ronda) y manda un solo evento `ronda` justo
+      después del `sitio` (`pnj`, `puntos` = `x,z,y,giro,pausa;…`, `vel`, `ida`, `rt` = segundos de ronda transcurridos, `quieta`,
+      `giro`); la página anda por su cuenta, sin más mensajes mientras camina. «E: hablar con…», el alcance del servidor
+      (`api.within`), el mapa y la baliza usan **el punto de la ronda en ese instante**; si anda mientras se acerca, el aviso la
+      sigue (la página avisa de su sitio cada ~0,4 m).
+    - **Al hablar con ella se para.** Al abrir la conversación el servidor congela el reloj de esa persona *para ese jugador*
+      (`quieta: true`, `rt` = dónde iba) y la página la deja donde estaba, mirándole; al cerrarla, el servidor **suma al inicio el
+      tiempo que estuvo parada** (el reloj sigue donde se quedó) y manda otro `ronda` con `quieta: false`. Si dos pestañas del
+      mismo jugador hablan con ella, sigue parada hasta que cierren las dos. La conversación de un jugador no detiene a la
+      persona de otro.
+    - **Los tramos son rectos y no se validan contra paredes**: el motor no tiene colisión barata para esto. Trace los
+      puntos de modo que ninguna recta cruce un muro (en una casa: un punto en cada puerta). Los puntos son absolutos: si el
+      suelo cambia de altura entre dos puntos, ponga la `y` de cada uno.
+    - **Coste**: nada por cuadro para una persona sin `ronda`, ni para una parada (la página no vuelve a calcular hasta que
+      acaba la pausa) ni para una lejana (la página solo conoce a la persona cerca). Mientras anda, un cálculo de ~1 µs y
+      moverla; sin `ronda` el reloj ni existe. El reloj de la ronda vive en la memoria del servidor: tras reiniciarlo, cada
+      ronda empieza de nuevo por su primer punto.
+  ```json
+  { "formato": "pnj@1", "id": "cabo", "nombre": "Cabo", "posicion": { "x": 10, "z": 0 }, "giro": 0, "radio": 3,
+    "posiciones": [
+      { "si": { "mision": "inspeccion", "estado": "activa" },
+        "ronda": { "velocidad": 1, "modo": "vuelta", "puntos": [
+          { "x": 10, "z": 0, "pausa": 8 },
+          { "x": 14, "z": 0 },
+          { "x": 14, "z": 6, "giro": 90, "pausa": 10 },
+          { "x": 6, "z": 6, "pausa": 5 } ] } } ],
+    "dialogo": { "entradas": [{ "nodo": "hola" }], "nodos": { "hola": { "texto": "Buenas.", "opciones": [{ "texto": "Adiós.", "accion": { "tipo": "despedir" } }] } } } }
+  ```
 
 **Marcas sobre las personas y las cosas («!» y «✓», U14 (4))** — las decide el servidor para cada jugador, con su
 progreso, y le llegan **solo a él** (a todas sus pestañas) tras cada libro (evento `marcas`). La aventura no escribe

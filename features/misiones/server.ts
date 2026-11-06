@@ -6,7 +6,9 @@ import { adoptarClaves, alAlcanceEnAltura, INTERACT_SLACK_M, serverPart } from "
 import type { ServerApi, ServerPart } from "../../packages/feature/src/index.ts";
 import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
 import { ACCIONES_PAGINA, cargarAventura, corta, LIM } from "./formato.ts";
-import type { Accion, Aventura, Cosa, Dialogo, Fichero, Mision, Nodo, Opcion, Paso, Pnj } from "./formato.ts";
+import type { Accion, Aventura, Cosa, Dialogo, Fichero, Lugar, Mision, Nodo, Opcion, Paso, Pnj } from "./formato.ts";
+import { aTexto, compilar, redondeaPunto, rondaEn } from "./ronda.ts"; // P16: a person's round
+import type { Plan, Ronda } from "./ronda.ts";
 import { leerCatalogo } from "../inventario/objeto.ts"; // Y3: the objeto@1 a `coge` step may hand over
 import type { ObjetoAventura } from "../inventario/objeto.ts";
 import { abandonar, aceptar, asentar, bloqueados, callan, cogePendiente, cuentaDe, desmarcar, enTexto, esperaLlegada, HECHAS_MAX, leerProgreso, marcablesAhora, marcados as marcadosDe, marcar, marcas, lugarDe, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
@@ -54,6 +56,13 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   const sobreSuelo = (suelo: { altura: (x: number, z: number) => number }, o: { posicion: { x: number; z: number; y: number }; sinY?: true }) => alSuelo(suelo.altura(o.posicion.x, o.posicion.z), o.posicion.y, o.sinY === true);
   let cargada = false;
   const enviadoSitio = new Map<number, Map<string, string>>(); // P2: connection -> person -> the place last sent to it
+  // P16: where each player is in each round. One clock per (player, person), made when the `posiciones` entry with a `ronda` begins to hold
+  // for that player (the first time the server looks after the change: the book going out) and thrown away when it stops holding or the
+  // player leaves. Elapsed time = now - desde - parado; while someone of that player talks to her `paro` holds the instant she stopped and
+  // time does not run. Kept in memory only: after a restart a round begins again.
+  type RelojRonda = { lugar: number; desde: number; parado: number; paro: number; quienes: Set<number> };
+  const rondas = new Map<string, Map<string, RelojRonda>>(); // progress key -> person -> clock
+  const planes = new WeakMap<Lugar, { clave: string; ronda: Ronda; plan: Plan }>(); // a round with its heights put on the ground (per ground)
   const progresos = new Map<string, Progreso>();      // "g:<guest>" (saved) or "e<entity>" (no identity: memory only)
   const claveDe = new Map<number, string>();          // entity -> its progress key (who() is gone by onLeave)
   const abiertos = new Map<number, { pnj: string; vistas: Vista[] }>(); // open conversations
@@ -84,16 +93,61 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   const guardar = (e: number, p: Progreso) => { const w = M?.who(e); if (w && M && !M.store.set(`p:${w.id}`, p)) M.log(`no pude guardar el progreso de ${w.id}`); };
   /** Every connection of the same guest (two tabs of one browser share the book); just this one without identity. */
   const suyos = (e: number): number[] => { const k = claveDe.get(e) ?? clave(e); return k.startsWith("g:") ? (M?.players() ?? []).filter((x) => claveDe.get(x) === k) : [e]; };
-  /** P2: where this person stands for THIS player, as the world's ground puts it (`posiciones`, else its own place). */
-  const sitioPara = (suelo: { altura: (x: number, z: number) => number }, n: Pnj, p: Progreso): { x: number; z: number; y: number; giro: number; propio: boolean } => {
+  /** P16: the key under which a connection's progress (and so its rounds) is kept. */
+  const kx = (e: number) => claveDe.get(e) ?? clave(e);
+  /** P16: a round with each stop's height put on the ground at its x, z (a stop without `y` stands on it; one with `y` is absolute, never below it). */
+  const planDe = (suelo: { altura: (x: number, z: number) => number; clave: string }, l: Lugar, n: Pnj) => {
+    const c = planes.get(l);
+    if (c && c.clave === suelo.clave) return c;
+    const puntos = l.ronda!.puntos.map((q) => redondeaPunto({ ...q, y: alSuelo(suelo.altura(q.x, q.z), q.y ?? 0, q.y === undefined) }));
+    const ronda: Ronda = { ...l.ronda!, puntos }, nuevo = { clave: suelo.clave, ronda, plan: compilar(ronda, l.giro ?? n.giro) };
+    planes.set(l, nuevo);
+    return nuevo;
+  };
+  const relojDe = (k: string, n: Pnj, lugar: number): RelojRonda => {
+    let por = rondas.get(k);
+    if (!por) rondas.set(k, (por = new Map()));
+    let r = por.get(n.id);
+    if (!r || r.lugar !== lugar) por.set(n.id, (r = { lugar, desde: ahora(), parado: 0, paro: 0, quienes: new Set() }));
+    return r;
+  };
+  /** P16: ms of her round that have run for this player (time standing talking does not count). */
+  const transcurrido = (r: RelojRonda) => Math.max(0, (r.paro || ahora()) - r.desde - r.parado);
+  /** P2: where this person stands for THIS player, as the world's ground puts it (`posiciones`, else its own place). P16: with a `ronda` and the
+   * connection's progress key `k`, where she is on her round at this very moment (and what the page needs to walk it too). */
+  const sitioPara = (suelo: { altura: (x: number, z: number) => number; clave: string }, n: Pnj, p: Progreso, k?: string): { x: number; z: number; y: number; giro: number; propio: boolean; ronda?: { texto: string; vel: number; ida: boolean; rt: number; quieta: boolean; giro: number; firma: string } } => {
     const l = n.posiciones.length ? lugarDe(n, p, A) : null;
+    if (l?.ronda && k !== undefined) {
+      const { ronda, plan } = planDe(suelo, l, n), rel = relojDe(k, n, n.posiciones.indexOf(l)), ms = transcurrido(rel), pose = rondaEn(plan, ms);
+      const rt = plan.ciclo > 0 ? Math.round(ms % (plan.ciclo * 1000)) / 1000 : 0, quieta = rel.paro !== 0;
+      return { x: pose.x, z: pose.z, y: pose.y, giro: pose.giro, propio: false, ronda: { texto: aTexto(ronda.puntos), vel: ronda.velocidad, ida: ronda.modo === "ida_y_vuelta", rt, quieta, giro: l.giro ?? n.giro, firma: `r|${rel.lugar}|${rel.desde}|${rel.parado}|${quieta ? 1 : 0}|${suelo.clave}` } };
+    }
+    if (k !== undefined && rondas.size) rondas.get(k)?.delete(n.id); // not on a round any more (or yet): the next one begins at its start
     return l ? { x: l.posicion.x, z: l.posicion.z, y: sobreSuelo(suelo, l), giro: l.giro ?? n.giro, propio: false } : { x: n.posicion.x, z: n.posicion.z, y: sobreSuelo(suelo, n), giro: n.giro, propio: true };
+  };
+  /** P16: a conversation with her opens (or goes on): her clock for this player stops where she stands, facing the page's new `ronda`. */
+  const pararRonda = (e: number, n: Hablante) => {
+    if (!esPersona(n) || !n.posiciones.length) return;
+    const p = prog(e), l = lugarDe(n, p, A);
+    if (!l?.ronda) return;
+    const rel = relojDe(kx(e), n, n.posiciones.indexOf(l));
+    if (rel.quienes.has(e)) return;
+    rel.quienes.add(e);
+    if (!rel.paro) rel.paro = ahora();
+    for (const x of suyos(e)) enviarSitios(x, prog(x));
+  };
+  /** P16: the conversation with her closed: her round goes on from where she stopped, the time she stood talking not counted. */
+  const soltarRonda = (e: number, pnj: string, aviso = true) => {
+    const k = claveDe.get(e), rel = k ? rondas.get(k)?.get(pnj) : undefined;
+    if (!rel || !rel.quienes.delete(e)) return;
+    if (!rel.quienes.size && rel.paro) { rel.parado += ahora() - rel.paro; rel.paro = 0; }
+    if (aviso) for (const x of suyos(e)) enviarSitios(x, prog(x));
   };
   /** P2: is this player within reach of this person, where THIS player finds it? A person without `posiciones` (or standing at its own
    * place for this player) is api.within, exactly as before; elsewhere the same rule runs on the place the player's quests give it. */
   const cerca = (api: ServerApi, e: number, n: Pnj): boolean => {
     if (!n.posiciones.length) return api.within(e, n.id);
-    const s = sitioPara(sueloAhora(api), n, prog(e));
+    const s = sitioPara(sueloAhora(api), n, prog(e), kx(e));
     if (s.propio) return api.within(e, n.id);
     const me = api.position(e);
     if (!me) return false;
@@ -192,12 +246,13 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     for (const n of A.pnjs.values()) {
       if (!n.posiciones.length) continue;
       suelo ??= sueloAhora(M);
-      const s = sitioPara(suelo, n, p), firma = `${s.x},${s.z},${s.y},${s.giro}`;
+      const s = sitioPara(suelo, n, p, kx(to)), firma = s.ronda ? s.ronda.firma : `${s.x},${s.z},${s.y},${s.giro}`; // P16: a round is sent when it begins, stops or goes on, never as she walks (the page walks it)
       let vistos = enviadoSitio.get(to);
       if (vistos?.get(n.id) === firma) continue;
       if (!vistos) enviadoSitio.set(to, (vistos = new Map()));
       vistos.set(n.id, firma);
       P.emit("sitio", { pnj: n.id, x: s.x, z: s.z, y: s.y, giro: s.giro }, { to });
+      if (s.ronda) P.emit("ronda", { pnj: n.id, puntos: s.ronda.texto, vel: s.ronda.vel, ida: s.ronda.ida, rt: s.ronda.rt, quieta: s.ronda.quieta, giro: s.ronda.giro }, { to });
     }
   };
   /** U14 (6): a quest with rewards completed by someone with identity: ONE grant record (concesion.ts), written only if
@@ -264,6 +319,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     try { return corta(o.frasear?.({ pnj: n.id, nodo, texto, jugador: M?.who(e)?.nombre ?? "" }) || texto, LIM.linea); } catch { return texto; } // the written line is the fallback
   };
   const abrir = (e: number, n: Hablante, nodo: string) => {
+    pararRonda(e, n); // P16: she stands still while you talk (before the card goes out)
     const p = prog(e), marcando = !esPersona(n) && n.marcable !== undefined && marcablesAhora(p, A, ahora()).includes(n.id);
     let vistas: Vista[] = opcionesDe(nodoDe(n, nodo), p, A);
     if (marcando) { // P4: the card of a marcable thing ends with its two buttons (the author's options are at most two: formato.ts checks it)
@@ -273,7 +329,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     abiertos.set(e, { pnj: n.id, vistas });
     P?.emit("dialogo", { pnj: n.id, nombre: n.nombre, texto: decir(e, n, nodo), o1: vistas[0]?.texto ?? "", o2: vistas[1]?.texto ?? "", o3: vistas[2]?.texto ?? "", o4: vistas[3]?.texto ?? "" }, { to: e });
   };
-  const cerrar = (e: number, n: Hablante) => { abiertos.delete(e); P?.emit("fin", { pnj: n.id, nombre: n.nombre }, { to: e }); };
+  const cerrar = (e: number, n: Hablante) => { abiertos.delete(e); soltarRonda(e, n.id); P?.emit("fin", { pnj: n.id, nombre: n.nombre }, { to: e }); };
   const hacer = (e: number, n: Hablante, ac: Exclude<Accion, { tipo: "despedir" }>): { ok: true } | { ok: false; motivo: string } => {
     const m = A.misiones.get(ac.mision);
     if (!m) return { ok: false, motivo: "Esa misión ya no existe." };
@@ -345,8 +401,8 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       if (op.accion?.tipo === "despedir" || !op.ir) return cerrar(e, n);
       abrir(e, n, op.ir);
     });
-    api.on("adios", (e, msg) => { if (abiertos.get(e)?.pnj === String(msg.pnj)) abiertos.delete(e); });
-    api.onLeave((e) => { abiertos.delete(e); });
+    api.on("adios", (e, msg) => { if (abiertos.get(e)?.pnj === String(msg.pnj)) { abiertos.delete(e); soltarRonda(e, String(msg.pnj)); } });
+    api.onLeave((e) => { const d = abiertos.get(e); abiertos.delete(e); if (d) soltarRonda(e, d.pnj, false); });
   });
 
   const misionesPart = serverPart(misionesDecl, (api) => {
@@ -375,7 +431,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     api.onLeave((e) => {
       const k = claveDe.get(e);
       claveDe.delete(e); llegadas.delete(e); esperas.delete(e); avisosAntes.delete(e); enviadoSitio.delete(e);
-      if (k && ![...claveDe.values()].includes(k)) progresos.delete(k); // saved in the store already
+      if (k && ![...claveDe.values()].includes(k)) { progresos.delete(k); rondas.delete(k); } // saved in the store already
     });
     // T1: step `hace`. Nothing here runs per tick: a builder's action reaches us as an event another piece already emits
     // (objetos `hizo`, disparadores `hizo` and `senal`; only the author's entity counts) and is turned into a Suceso; the
@@ -505,7 +561,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       }
       for (const [e, d] of abiertos) {
         if ((e + t) % LLEGADA_CADA !== 0) continue;
-        const n = hablante(d.pnj), pos = api.position(e), st = n ? (esPersona(n) && n.posiciones.length ? sitioPara(sueloAhora(api), n, prog(e)) : n.posicion) : null; // P2: where this player finds it
+        const n = hablante(d.pnj), pos = api.position(e), st = n ? (esPersona(n) && n.posiciones.length ? sitioPara(sueloAhora(api), n, prog(e), kx(e)) : n.posicion) : null; // P2: where this player finds it (P16: on her round, where she stands, which is still while you talk)
         if (n && st && pos && (pos.x - st.x) ** 2 + (pos.z - st.z) ** 2 <= (n.radio + ALEJARSE_M) ** 2) continue;
         if (n) cerrar(e, n); else abiertos.delete(e);
       }
