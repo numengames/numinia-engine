@@ -230,6 +230,7 @@ const session = new ClientSession(transport, {
       if (a.feature === "chat") return; // J3: the chat box's own list (role=log, polite) reads the chat
       if (a.feature === "director" && a.event === "narracion") return; // N6: the narrator's banner (a live region) reads it
       if (a.feature === "misiones" && a.event === "completada") return; // U14 (6): the «Misión completada» banner (a live region) reads it
+      if (a.feature === "misiones" && a.event === "abrirEvaluacion") return; // P13: the end card says it itself (misiones.ts), with how to close it
       const box = document.getElementById(a.importance >= 3 ? "avisos-urgentes" : "avisos")!;
       const p = document.createElement("p"); p.textContent = a.text; box.appendChild(p);
       while (box.childElementCount > 3) box.firstElementChild!.remove();
@@ -486,6 +487,7 @@ montarLibro(misiones, {
   nota: document.getElementById("mision-nota")!, view, here: () => (session.entity >= 0 ? session.selfPosition(1) : null),
   oir: (fn) => session.features.tap(fn), ajuste: leerAjuste, // U14 (3): it opens by itself on accepting; a step done = a short sound
   banner: document.getElementById("mision-completada")!, // U14 (6): «Misión completada»
+  evaluacion: document.getElementById("evaluacion")!, // P13: the end evaluation card
 });
 
 // ---- Y1: the Inventario panel (L, «Inventario»): what you carry and your Reserva; the sheet shows its summary ----

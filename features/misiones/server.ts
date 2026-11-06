@@ -11,7 +11,8 @@ import { aTexto, compilar, redondeaPunto, rondaEn } from "./ronda.ts"; // P16: a
 import type { Plan, Ronda } from "./ronda.ts";
 import { leerCatalogo } from "../inventario/objeto.ts"; // Y3: the objeto@1 a `coge` step may hand over
 import type { ObjetoAventura } from "../inventario/objeto.ts";
-import { abandonar, aceptar, asentar, bloqueados, callan, cogePendiente, cuentaDe, desmarcar, enTexto, esperaLlegada, HECHAS_MAX, leerProgreso, marcablesAhora, marcados as marcadosDe, marcar, marcas, lugarDe, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
+import { filas as filasEvaluacion, resumen as resumenEvaluacion } from "./evaluacion.ts";
+import { abandonar, aceptar, asentar, bloqueados, callan, cogePendiente, cuentaDe, desmarcar, evaluacionDe, evaluar, enTexto, esperaLlegada, HECHAS_MAX, leerProgreso, marcablesAhora, marcados as marcadosDe, marcar, marcas, lugarDe, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
 import type { Hecho, Progreso } from "./maquina.ts";
 import { esperando, faltaEspera, pendiente, proximaEspera } from "./maquina.ts"; // U14 (5): steps that wait
 import { fotografiar, pasosFoto } from "./maquina.ts"; // P10: the step `foto`
@@ -227,6 +228,14 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       M!.emit("paso", { mision: m.id, n, texto: s.texto, tipo: s.tipo, hecho: hecha || pasoHecho(m, act, n), x: ob.x, z: ob.z, donde: corta(ob.nombre, LIM.lugar), que: ob.que, grupo: s.grupo ?? "", espera, accion: s.tipo === "hace" ? s.accion : "", senala: s.senala ?? "" }, { to });
     });
   };
+  /** P13: the end card of a completed quest that has `evaluacion` — one `evaluacion` and its rows, right after the quest's own messages. */
+  const enviarEvaluacion = (to: number, p: Progreso, m: Mision) => {
+    const ev = m.evaluacion, r = ev && evaluacionDe(p, m.id);
+    if (!ev || !r || p.activas[m.id]) return;
+    const fs = filasEvaluacion(m, ev, r);
+    M!.emit("evaluacion", { mision: m.id, titulo: corta(ev.titulo, LIM.titulo), puntos: r.puntos, base: ev.base, minimo: ev.minimo, filas: Math.min(32, fs.length), resumen: resumenEvaluacion(fs) }, { to });
+    fs.slice(0, 32).forEach((f, n) => M!.emit("evaluacionFila", { mision: m.id, n, tipo: f.tipo, clave: corta(f.clave, 32), etiqueta: corta(f.etiqueta, 80), texto: corta(f.texto, 40), valor: Math.min(360000, f.valor), resta: Math.min(99999, f.resta) }, { to }));
+  };
   const conMarcables = () => [...A.cosas.values()].some((c) => c.marcable);
   const enviarLibro = (e: number, solo = false) => {
     if (!M) return;
@@ -237,7 +246,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     const marcasMsg = { tiene: enTexto(mk.tiene, lim), hecho: enTexto(mk.hecho, lim), cosas: enTexto(mk.cosas, lim), callan: enTexto(callan(p, A), lim) };
     for (const x of solo ? [e] : suyos(e)) {
       M.emit("libro", { activas: activas.length, hechas: hechas.length }, { to: x });
-      for (const m of [...activas, ...hechas]) enviarMision(x, p, m, t);
+      for (const m of [...activas, ...hechas]) { enviarMision(x, p, m, t); enviarEvaluacion(x, p, m); }
       M.emit("marcas", marcasMsg, { to: x });
       if (conMarcables()) M.emit("marcados", { ids: enTexto(marcadosDe(p, A), lim) }, { to: x }); // P4: what is marked, in order (its place = its number); only in a world with marcable things
       enviarSitios(x, p);
@@ -278,6 +287,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   const tras = (e: number, p: Progreso, hechos: Hecho[]) => {
     guardar(e, p);
     let abrirLibro = false; // P3: a `coge` step with abreLibro was done
+    const tarjetas: Mision[] = []; // P13: quests completed now that have an end card
     for (const h of hechos) {
       const m = A.misiones.get(h.mision)!, s = m.pasos[h.paso];
       const texto = s.tipo === "recibe" ? corta(`Has recibido: ${A.cosas.get(s.cosa)?.nombre ?? s.cosa}`, LIM.textoPaso) : s.texto;
@@ -290,8 +300,13 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
         if (h.completada) M!.emit("completada", { mision: m.id, titulo: m.titulo, texto: m.textos.completada, recompensa: recompensa(m) }, { to: x });
       }
       if (h.completada) otorgar(e, m);
+      if (h.completada && m.evaluacion && evaluacionDe(p, m.id)) tarjetas.push(m);
     }
     enviarLibro(e);
+    for (const m of tarjetas) { // P13: after the book, so the card is whole on the page when it is told to open
+      const ev = m.evaluacion!, r = evaluacionDe(p, m.id)!;
+      for (const x of suyos(e)) M!.emit("abrirEvaluacion", { mision: m.id, titulo: corta(ev.titulo, LIM.titulo), puntos: r.puntos, resumen: resumenEvaluacion(filasEvaluacion(m, ev, r)) }, { to: x });
+    }
     if (abrirLibro) for (const x of suyos(e)) M!.emit("abrirLibro", {}, { to: x }); // P3: after the book, so the page opens it whole
     revisarLlegadas(e);
     revisarEsperas(e); // U14 (5): a new block may start a wait
@@ -489,6 +504,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       act.paso = destino; act.hechos = [];
       const completada = destino >= mis.pasos.length;
       if (completada) {
+        evaluar(p, mis, act, ahora()); // P13: the card of a quest with `evaluacion` (the block times it did not see are left out)
         delete p.activas[mis.id];
         if (!p.hechas.includes(mis.id)) p.hechas.push(mis.id);
         if (p.hechas.length > HECHAS_MAX) p.hechas.splice(0, p.hechas.length - HECHAS_MAX);

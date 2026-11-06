@@ -72,7 +72,7 @@ export const MARCOS_PLAZA: readonly MarcoDensidad[] = [
 ];
 /** Not governed by the dial, on purpose: events and what you asked for (mission banner, narrator, dice, summons, the open
  *  book, the settings), the statistics (their own setting, `graficos.estadisticas`) and the screen-reader notices. */
-export const FUERA_DEL_DIAL: readonly string[] = ["#mision-completada", "#narrador", "#mision-nota", "#convocatorias", "#dados-carta", "#dialogo", "#libro", "#hud", "#avisos", "#avisos-urgentes"];
+export const FUERA_DEL_DIAL: readonly string[] = ["#mision-completada", "#narrador", "#mision-nota", "#convocatorias", "#dados-carta", "#dialogo", "#libro", "#evaluacion", "#hud", "#avisos", "#avisos-urgentes"];
 
 export const esDensidad = (v: unknown): v is Densidad => typeof v === "string" && (DENSIDADES as readonly string[]).includes(v);
 /** Any stored or typed value → a level (anything unknown is the default). */

@@ -852,3 +852,6 @@ html[data-aparato^="movil"] #ficha-objeto .acciones { margin-top: 10px; }
   html:not([data-aparato^="movil"]) #panel-construir { left: auto; right: 387px; transform: none; align-items: flex-end; width: min(560px, calc(100% - 403px)); }
   html:not([data-aparato^="movil"]) body.construyendo #hud-personaje { visibility: hidden; }
 }
+
+/* P13: the «Ver evaluación» button in the book (the card's own look is in evaluacion.css, a lazy chunk) */
+#libro li.paso > button.ver-evaluacion { grid-column: 2; justify-self: start; margin-top: 4px; padding: 2px 10px; font-size: 12px; }

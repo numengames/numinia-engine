@@ -57,11 +57,18 @@ export type PasoVista = { n: number; texto: string; tipo: string; hecho: boolean
 /** `pistas` (P3): false = this quest points at nothing (no place on the map, no beacon, no arrow, no nearest target in the top line). */
 export type MisionVista = { id: string; titulo: string; descripcion: string; estado: "activa" | "hecha"; paso: number; pasos: number; seguida: boolean; recompensa: string; lista: PasoVista[]; pistas?: false;
   /** P4: the counters of a quest with a `marca` step (marks made, marks of things the step does not ask for, unmarks); absent otherwise. */
-  cuenta?: Cuenta };
-/** P4 + P10: a quest's counters; `fotos_erroneas` (P10) only in a quest with a `foto` step. */
-export type Cuenta = { marcas: number; marcas_erroneas: number; desmarcados: number; fotos_erroneas?: number };
+  cuenta?: Cuenta;
+  /** P13: its end card, once completed (only quests that carry `evaluacion`). */
+  evaluacion?: EvaluacionVista };
+/** P4 + P10: a quest's counters; `fotos_erroneas` (P10) only in a quest with a `foto` step (any other counter by name may come too, P13). */
+export type Cuenta = { marcas: number; marcas_erroneas: number; desmarcados: number; fotos_erroneas?: number; [otro: string]: number | undefined };
 /** P10: where the photo camera was and which way it looked (metres, unit direction, vertical fov in degrees, width / height): features/misiones/foto.ts `PoseFoto`. */
 export type PoseDeFoto = { x: number; y: number; z: number; fx: number; fy: number; fz: number; fov: number; aspecto: number };
+/** P13: one row of a quest's end card — the time of the whole quest (`tiempo`), of one block (`fase`) or a counter. `texto` = the value as it is written
+ *  («14 min 05 s», «2»); `valor` = seconds or times; `resta` = the points that row took. */
+export type FilaEvaluacion = { tipo: "tiempo" | "fase" | "contador"; clave: string; etiqueta: string; texto: string; valor: number; resta: number };
+/** P13: the end card of a completed quest that has `evaluacion`: `puntos` out of `base` (never below `minimo`), the rows in the author's order and the same in one line. */
+export type EvaluacionVista = { titulo: string; puntos: number; base: number; minimo: number; resumen: string; filas: FilaEvaluacion[] };
 export type Objetivo = { mision: string; paso: number; nombre: string; texto: string; x: number; z: number; seguida: boolean };
 export type Dialogo = { pnj: string; nombre: string; oficio: string; texto: string; opciones: string[] };
 type Res = { ok: true } | { ok: false; why: string };
@@ -231,6 +238,8 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     estado,
     /** The book as it arrived: active quests first, then the completed ones. */
     libro: (): MisionVista[] => [...libro.values()],
+    /** P13: the end card of a completed quest (null while it is not done or when the quest has none). Same data as `libro()[i].evaluacion`. */
+    evaluacion: (id: string): EvaluacionVista | null => libro.get(id)?.evaluacion ?? null,
     /** Where each active quest's steps to do now point — every one of its current block (for the map: mapa reads this). */
     objetivos: (): Objetivo[] => [...libro.values()].flatMap((m) => ahoraDe(m).filter((s) => s.tipo !== "hace" && s.tipo !== "marca" && s.tipo !== "foto").map((s) => ({ mision: m.id, paso: s.n, nombre: s.donde, texto: s.texto, x: s.x, z: s.z, seguida: m.seguida }))),
     /** P3: the objectives that point at something: those of the quests that do not say `pistas: false` (the map, the beacon and the
@@ -386,6 +395,18 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
       if (s.tipo === "foto") { mv.cuenta ??= { marcas: 0, marcas_erroneas: 0, desmarcados: 0 }; mv.cuenta.fotos_erroneas ??= 0; } // P10: and one that photographs shows its missed photos, zero included
       avisar("libro");
       revisarUsadas(); // U14 (6): the book's last step has arrived → the used looks
+    });
+    a.on("evaluacion", (m) => { // P13: the end card of a completed quest, with the book; its rows follow
+      const mv = libro.get(String(m.mision));
+      if (!mv) return;
+      mv.evaluacion = { titulo: String(m.titulo), puntos: Number(m.puntos), base: Number(m.base), minimo: Number(m.minimo), resumen: String(m.resumen), filas: [] }; // the plug fills the defaults (minimo 0, resumen "")
+      avisar("libro");
+    });
+    a.on("evaluacionFila", (m) => {
+      const ev = libro.get(String(m.mision))?.evaluacion;
+      if (!ev) return;
+      ev.filas[Number(m.n)] = { tipo: m.tipo as FilaEvaluacion["tipo"], clave: String(m.clave), etiqueta: String(m.etiqueta), texto: String(m.texto), valor: Number(m.valor), resta: Number(m.resta) };
+      avisar("libro");
     });
     a.on("aceptada", (m) => nota(`Misión nueva: ${String(m.titulo)}`));
     a.on("avance", (m) => nota(`✓ ${String(m.texto)}`));

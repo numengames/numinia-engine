@@ -18,6 +18,8 @@
 // Evidence markers (P4, optional): a cosa may be `marcable` (its card gets «Marcar»/«Desechar» while a `marca` step is the one to do;
 // a marked thing shows a numbered marker for that player only) and a step of type `marca` ({ cosas: [...] }) is done when the player has
 // marked EXACTLY those things. Counters per quest (wrong marks, unmarks) are kept in the progress (maquina.ts `cuenta`).
+// End evaluation (P13, optional): a mision@1 may carry `evaluacion` — the card the player gets when the quest is completed: the time of the
+// whole quest and of each block, any counter by name, and a score (base minus integer weights; see evaluacion.ts for the arithmetic).
 // The recipe for authors (people or LLMs) is docs/EXTENDER.md «Misiones y PNJ». Every check returns Result with paths
 // that say how to fix each problem; nothing here throws, touches the network or the world.
 import type { Issue, Result } from "../../packages/core/src/index.ts";
@@ -113,7 +115,32 @@ export type ColorSemilla = (typeof COLORES_SEMILLA)[number];
 export type Mision = {
   formato: "mision@1"; id: string; titulo: string; descripcion: string; requisitos: { misiones: string[] }; pasos: Paso[];
   recompensas: Recompensa[]; textos: { aceptada: string; completada: string }; repetible: boolean; pistas?: false;
+  /** P13 (optional): the evaluation card shown when the quest is completed. Absent = nothing of it anywhere. */
+  evaluacion?: Evaluacion;
 };
+
+// ---------- evaluacion (P13): the end-of-quest card ----------
+/** The counters the engine keeps and how the card calls them (formal «usted» wording is for sentences; these are labels). Any other name is
+ *  a counter too (a piece may add its own: `fotos_erroneas` from the photo step), and then the author gives its label in `etiquetas`. */
+export const CONTADORES_CONOCIDOS: Readonly<Record<string, string>> = {
+  marcas: "Marcas hechas", marcas_erroneas: "Marcas erróneas", desmarcados: "Marcas retiradas", desmarcados_correctos: "Indicios correctos desmarcados", fotos_erroneas: "Fotos no relevantes",
+};
+/** The counters kept by the `marca` steps (maquina.ts `cuenta`): only a quest with such a step has them. */
+export const CONTADORES_DE_MARCA = ["marcas", "marcas_erroneas", "desmarcados", "desmarcados_correctos"] as const;
+export const TITULO_EVALUACION = "Evaluación";
+export const ETIQUETA_TIEMPO = "Tiempo de la misión";
+export const LIM_EVAL = { titulo: 80, etiqueta: 40, contadores: 12, tope: 9999, minutos: 999 } as const; // bytes / counts / points and weights / minutes
+/** `resta`: points taken for each unit of a counter (integers, no formulas). `tiempo`: from `referencia_min` minutes on, `resta_por_minuto` for each whole
+ *  minute over. `muestra`: the rows of the card, in order (`"tiempo"` or a counter); `etiquetas`: the author's own wording of a row. All resolved
+ *  (a missing `muestra` is the time, if it counts, and every counter that takes points). */
+export type Evaluacion = {
+  titulo: string; base: number; minimo: number; resta: Record<string, number>; tiempo?: { referencia_min: number; resta_por_minuto: number };
+  muestra: string[]; etiquetas: Record<string, string>;
+  /** Named phases (optional): each runs from the end of the one before (or from accepting the quest) until the block holding the step `hasta` is done.
+   *  With them the card shows these rows under the time instead of one per block. */
+  fases?: { nombre: string; hasta: string }[];
+};
+export const LIM_FASES = 8; // most named phases of a card
 /** True when every listed fact holds for this player. `paso` and `tiene` only with estado "activa"; `paso` = that step is
  * to do now (inside a grupo: one of the block's steps not done yet). */
 export type Condicion = { mision: string; estado: Estado; paso?: string; tiene?: string };
@@ -346,7 +373,7 @@ export function leerMision(v: unknown): Result<Mision> {
   const is: Issue[] = [];
   const o = objeto(v, "", is);
   if (!o) return resultado(is, null as never);
-  campos(o, ["formato", "id", "titulo", "descripcion", "requisitos", "pasos", "recompensas", "textos", "repetible", "pistas", "notas"], "", is);
+  campos(o, ["formato", "id", "titulo", "descripcion", "requisitos", "pasos", "recompensas", "textos", "repetible", "pistas", "evaluacion", "notas"], "", is);
   formato(o, FORMATOS.mision, is);
   const req = objeto(o.requisitos, "requisitos", is, true);
   if (req) campos(req, ["misiones"], "requisitos", is);
@@ -370,6 +397,8 @@ export function leerMision(v: unknown): Result<Mision> {
   });
   const ids = new Set<string>();
   recompensas.forEach((r, i) => { if (r.tipo === "semilla") return; if (r.id && ids.has(r.id)) is.push({ path: en(en("recompensas", i), "id"), message: `«${r.id}» ya es otra recompensa de esta misión: cada una, un id distinto` }); ids.add(r.id); });
+  const evaluacion = leerEvaluacion(o.evaluacion, is, pasos);
+  if (evaluacion && !pasos.some((p) => p.tipo === "marca")) evaluacion.muestra.forEach((c, i) => { if ((CONTADORES_DE_MARCA as readonly string[]).includes(c)) is.push({ path: en("evaluacion.muestra", i), message: `«${c}» lo cuentan los pasos "marca" y esta misión no tiene ninguno: quítelo o añada un paso marca` }); });
   const tx = objeto(o.textos, "textos", is, true) ?? {};
   campos(tx, ["aceptada", "completada"], "textos", is);
   if (o.repetible !== undefined && typeof o.repetible !== "boolean") is.push({ path: "repetible", message: "true o false" });
@@ -378,9 +407,91 @@ export function leerMision(v: unknown): Result<Mision> {
   return resultado(is, {
     formato: FORMATOS.mision, id: id(o.id, "id", is), titulo: texto(o.titulo, "titulo", LIM.titulo, is), descripcion: texto(o.descripcion, "descripcion", LIM.descripcion, is),
     requisitos: { misiones: lista(req?.misiones, "requisitos.misiones", 0, LIM.requisitos, is, true).map((m, i) => id(m, `requisitos.misiones[${i}]`, is)) },
-    pasos, recompensas, repetible: o.repetible === true, ...(o.pistas === false ? { pistas: false as const } : {}),
+    pasos, recompensas, repetible: o.repetible === true, ...(o.pistas === false ? { pistas: false as const } : {}), ...(evaluacion ? { evaluacion } : {}),
     textos: { aceptada: texto(tx.aceptada, "textos.aceptada", LIM.textoMision, is, true), completada: texto(tx.completada, "textos.completada", LIM.textoMision, is, true) },
   });
+}
+
+const CONTADOR = /^[a-z][a-z0-9_]{0,31}$/;
+const entero = (v: unknown, path: string, min: number, max: number, is: Issue[], def?: number): number => {
+  const n = numero(v, path, min, max, is, def);
+  if (!Number.isInteger(n)) { is.push({ path, message: `un número entero entre ${min} y ${max}` }); return def ?? min; }
+  return n;
+};
+/** mision@1 `evaluacion` (P13):
+ *  `{ "titulo"?, "base"?: 100, "minimo"?: 0, "resta"?: { "<contador>": peso }, "tiempo"?: { "referencia_min", "resta_por_minuto" }, "muestra"?: [...], "etiquetas"?: { "<fila>": "texto" },
+ *     "fases"?: [{ "nombre": "Fase 1 · Datos preliminares", "hasta": "<id del paso que la cierra>" }] }`.
+ *  Whole numbers only; a counter missing from the progress counts 0 (so a name the engine does not know yet is harmless, but it needs its label). */
+function leerEvaluacion(v: unknown, is: Issue[], pasos: readonly Paso[] = []): Evaluacion | undefined {
+  if (v === undefined) return undefined;
+  const p = "evaluacion", L = LIM_EVAL;
+  if (!esObjeto(v)) { is.push({ path: p, message: 'un objeto { "base": 100, "resta": { "fotos_erroneas": 5 }, "tiempo": { "referencia_min": 20, "resta_por_minuto": 1 } }: la tarjeta que ve el jugador al terminar la misión' }); return undefined; }
+  campos(v, ["titulo", "base", "minimo", "resta", "tiempo", "muestra", "etiquetas", "fases"], p, is);
+  const n0 = is.length;
+  const titulo = v.titulo === undefined ? TITULO_EVALUACION : texto(v.titulo, en(p, "titulo"), L.titulo, is);
+  const base = entero(v.base, en(p, "base"), 1, L.tope, is, 100), minimo = entero(v.minimo, en(p, "minimo"), 0, L.tope, is, 0);
+  if (minimo > base) is.push({ path: en(p, "minimo"), message: `no puede pasar de «base» (${base}): es la nota más baja posible` });
+  const resta: Record<string, number> = {};
+  const ro = objeto(v.resta, en(p, "resta"), is, true) ?? {};
+  const claves = Object.keys(ro);
+  if (claves.length > L.contadores) is.push({ path: en(p, "resta"), message: `como mucho ${L.contadores} contadores` });
+  for (const k of claves) {
+    const pk = en(en(p, "resta"), k);
+    if (!CONTADOR.test(k) || k === "tiempo") { is.push({ path: pk, message: k === "tiempo" ? 'el tiempo se resta con "tiempo": { "referencia_min", "resta_por_minuto" }, no aquí' : 'el nombre de un contador: minúsculas, cifras y "_", de 1 a 32 (p. ej. "fotos_erroneas")' }); continue; }
+    resta[k] = entero(ro[k], pk, 1, L.tope, is);
+  }
+  let tiempo: Evaluacion["tiempo"];
+  const to = objeto(v.tiempo, en(p, "tiempo"), is, true);
+  if (to) {
+    campos(to, ["referencia_min", "resta_por_minuto"], en(p, "tiempo"), is);
+    tiempo = { referencia_min: entero(to.referencia_min, en(en(p, "tiempo"), "referencia_min"), 0, L.minutos, is), resta_por_minuto: entero(to.resta_por_minuto, en(en(p, "tiempo"), "resta_por_minuto"), 1, L.tope, is) };
+  }
+  const defecto = [...(tiempo ? ["tiempo"] : []), ...Object.keys(resta)];
+  const muestra = v.muestra === undefined ? defecto : lista(v.muestra, en(p, "muestra"), 1, L.contadores + 1, is).map((c, i) => {
+    const pm = en(en(p, "muestra"), i);
+    if (typeof c === "string" && (c === "tiempo" || CONTADOR.test(c))) return c;
+    is.push({ path: pm, message: '"tiempo" o el nombre de un contador (minúsculas, cifras y "_")' });
+    return "";
+  }).filter(Boolean);
+  muestra.forEach((c, i) => { if (muestra.indexOf(c) < i) is.push({ path: en(en(p, "muestra"), i), message: `«${c}» ya está en la lista: cada fila, una vez` }); });
+  if (v.muestra !== undefined) {
+    for (const k of Object.keys(resta)) if (!muestra.includes(k)) is.push({ path: en(p, "muestra"), message: `«${k}» resta puntos y tiene que verse en la tarjeta: añádalo a la lista` });
+    if (tiempo && !muestra.includes("tiempo")) is.push({ path: en(p, "muestra"), message: '"tiempo" resta puntos y tiene que verse en la tarjeta: añádalo a la lista' });
+  }
+  const etiquetas: Record<string, string> = {};
+  const eo = objeto(v.etiquetas, en(p, "etiquetas"), is, true) ?? {};
+  for (const k of Object.keys(eo)) {
+    const pk = en(en(p, "etiquetas"), k);
+    if (!muestra.includes(k)) { is.push({ path: pk, message: `«${k}» no está en «muestra»: no sale en la tarjeta, así que no necesita texto` }); continue; }
+    etiquetas[k] = texto(eo[k], pk, L.etiqueta, is);
+  }
+  for (const k of muestra) if (k !== "tiempo" && !Object.hasOwn(CONTADORES_CONOCIDOS, k) && !Object.hasOwn(etiquetas, k)) is.push({ path: en(en(p, "etiquetas"), k), message: `el motor no conoce el contador «${k}»: escriba cómo se llama en la tarjeta, p. ej. "${k}": "Fotos repetidas"` });
+  const fases = leerFases(v.fases, en(p, "fases"), pasos, is);
+  return is.length > n0 ? undefined : { titulo, base, minimo, resta, ...(tiempo ? { tiempo } : {}), muestra, etiquetas, ...(fases ? { fases } : {}) };
+}
+
+/** `evaluacion.fases`: 1–8 named phases, each closed by a step of the quest (`hasta`). A step in a `grupo` closes with its block, so two
+ *  phases may not end in the same block, and they must follow the order of the quest. */
+function leerFases(v: unknown, p: string, pasos: readonly Paso[], is: Issue[]): { nombre: string; hasta: string }[] | undefined {
+  if (v === undefined) return undefined;
+  const bloque = new Map<string, number>(); // step id → number of its block (consecutive steps with the same grupo are one)
+  let b = -1;
+  pasos.forEach((s, i) => { if (!(i > 0 && s.grupo && s.grupo === pasos[i - 1].grupo)) b++; if (s.id) bloque.set(s.id, b); });
+  const out: { nombre: string; hasta: string }[] = [];
+  let ultimo = -1, ultimoId = "";
+  lista(v, p, 1, LIM_FASES, is).forEach((f, i) => {
+    const pf = en(p, i), fo = objeto(f, pf, is);
+    if (!fo) return;
+    campos(fo, ["nombre", "hasta"], pf, is);
+    const nombre = texto(fo.nombre, en(pf, "nombre"), LIM.nombre, is);
+    const hasta = typeof fo.hasta === "string" ? fo.hasta : "";
+    const k = bloque.get(hasta);
+    if (k === undefined) is.push({ path: en(pf, "hasta"), message: hasta ? `«${hasta}» no es un paso de esta misión: use el id de uno de ellos (${pasos.map((s) => s.id).filter(Boolean).slice(0, 8).join(", ")}${pasos.length > 8 ? ", …" : ""})` : "el id del paso que cierra esta fase (p. ej. \"hablar-con-la-jefa\")" });
+    else if (k <= ultimo) is.push({ path: en(pf, "hasta"), message: k === ultimo ? `«${hasta}» cierra el mismo bloque de pasos que «${ultimoId}»: dos fases no pueden acabar a la vez, elija un paso de un bloque posterior` : `«${hasta}» va antes que «${ultimoId}», el final de la fase anterior: ordene las fases como van los pasos de la misión` });
+    else { ultimo = k; ultimoId = hasta; }
+    out.push({ nombre, hasta });
+  });
+  return out;
 }
 
 /** N10: `{ "tipo": "objeto", "id", "nombre", "descripcion"?, "modelo"?: "<sha256 de un .glb>", "licencia"?: "CC0-1.0" }`. */

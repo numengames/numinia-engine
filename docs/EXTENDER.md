@@ -974,6 +974,69 @@ erróneas). Un mundo sin pasos `foto` no cambia: ni el estado, ni los eventos, n
 { "id": "ventana", "tipo": "foto", "texto": "Foto", "grupo": "Foto", "objetivo": { "x": 12.5, "y": 1.4, "z": -3, "radio": 1 }, "distancia": 10 }
 ```
 
+**Evaluación al terminar una misión (P13).** Un campo opcional de `mision@1`, `evaluacion`, hace que al completar esa misión la
+página enseñe una tarjeta con el **tiempo** de toda la misión (desde aceptarla hasta terminarla) y el de cada fase (cada bloque de
+pasos), los **contadores** que el autor elija y una **puntuación**. Sin el campo, no cambia nada: ni el estado, ni los eventos, ni
+lo que se guarda.
+
+```json
+"evaluacion": { "titulo": "Evaluación de la inspección", "base": 100, "minimo": 0,
+  "resta": { "fotos_erroneas": 5, "marcas_erroneas": 10, "desmarcados_correctos": 10 },
+  "tiempo": { "referencia_min": 20, "resta_por_minuto": 1 },
+  "muestra": ["tiempo", "fotos_erroneas", "marcas_erroneas", "desmarcados_correctos"],
+  "etiquetas": { "fotos_erroneas": "Fotos que no valían" } }
+```
+
+Todo es opcional. Puntos = `base` − (cada contador × su peso en `resta`) − (`resta_por_minuto` por cada minuto **entero** que pase
+de `referencia_min`), siempre entre `minimo` (0 si no se dice) y `base` (100). Pesos y minutos son enteros: no hay fórmulas. Un
+**contador** es cualquier nombre en minúsculas, cifras y «_» (`marcas`, `marcas_erroneas`, `desmarcados`, `desmarcados_correctos`,
+`fotos_erroneas` de la historia P10…): el que no existe en el progreso del jugador vale 0, así que un contador que otra pieza
+añada mañana ya funciona. `muestra` es la lista de filas, en orden (`"tiempo"` o un contador); si falta, sale el tiempo (si hay
+`tiempo`) y cada contador de `resta`. Lo que resta puntos tiene que estar en `muestra` (el formato lo exige: la nota no esconde nada).
+Cada fila lleva una etiqueta en castellano, de usted: la de la casa (`tiempo` «Tiempo de la misión», `marcas` «Marcas hechas»,
+`marcas_erroneas` «Marcas erróneas», `desmarcados` «Marcas retiradas», `desmarcados_correctos` «Indicios correctos desmarcados»,
+`fotos_erroneas` «Fotos no relevantes») o la que el autor ponga en `etiquetas` (hasta 40 bytes; obligada para un contador que el
+motor no conoce). Los contadores de las marcas (`marcas`, `marcas_erroneas`, `desmarcados`, `desmarcados_correctos`) solo los hay en
+una misión con un paso `marca`; el formato rechaza pedirlos si no lo tiene.
+
+`desmarcados_correctos` (nuevo en la lógica de `marca`) cuenta cada vez que el jugador desmarca una cosa que el paso **sí** pide;
+marcar una irrelevante ya suma en `marcas_erroneas` y desmarcarla después no suma nada más (solo `desmarcados`). Se guarda en
+`cuenta` solo cuando ocurre.
+
+**El tiempo lo mide el servidor**, con su reloj (ms): en el progreso de cada misión activa quedan `t0` (aceptada) y `tb` (el
+momento en que se cerró cada bloque; un grupo de pasos es un solo bloque y su pausa de 2 s no cuenta), así que sobrevive a
+reconectar y a reiniciar, y el tiempo con el servidor apagado cuenta. Al completarse la misión, el servidor calcula la tarjeta
+(`features/misiones/evaluacion.ts`, funciones puras), la guarda en el progreso (`evaluaciones`, las 4 últimas) y la manda con el libro
+(eventos `evaluacion` y `evaluacionFila`, solo a su dueño); detrás de ese libro llega `abrirEvaluacion`, que es también el anuncio
+para lectores de pantalla y agentes («Evaluación de la inspección: 79 puntos. Tiempo de la misión: 2 min 05 s; …»). Una misión
+aceptada antes de que el mundo tuviera `evaluacion` no tiene reloj: su tarjeta sale sin la fila del tiempo. Plugs: misiones **v12**.
+
+**Fases con nombre (`evaluacion.fases`).** Una misión con muchos bloques (la del crimen tiene 8) no quiere una fila por bloque, sino el
+tiempo de toda la misión y el de unas pocas **fases** con nombre. `fases` es opcional (1–8) y cada fase dice dónde acaba:
+
+```json
+"fases": [
+  { "nombre": "Fase 1 · Datos preliminares", "hasta": "recoger-cuaderno" },
+  { "nombre": "Fase 2 · La escena",          "hasta": "marcar-indicios" },
+  { "nombre": "Fase 3 · El informe",         "hasta": "informar-sargento" }
+]
+```
+
+Cada fase va desde el final de la anterior (la primera, desde que se acepta la misión) hasta que se cumple el paso `hasta`; si ese
+paso está en un `grupo`, hasta que se cierra el bloque entero. La tarjeta enseña entonces la fila del tiempo total y **estas** filas
+(`tipo: "fase"`; el nombre, de hasta 60 bytes, sale tal como se escribe, sin «Fase n:» añadido) en vez de una por
+bloque. Sin `fases`, lo de siempre. El formato exige que `hasta` sea el id de un paso de la misión, que las fases vayan en el orden
+de los pasos y que dos no acaben en el mismo bloque; el tiempo que pase después de la última fase cuenta en el total pero en
+ninguna fase (acabe la última en el último paso para que las fases sumen el total). Una tarjeta guardada con otro número de fases que
+el actual (el autor cambió la misión después) enseña solo el tiempo total, nunca una fila equivocada. Las filas de fase no restan
+puntos y no entran en el resumen de una línea.
+
+En la página, la tarjeta (`#evaluacion`, `apps/plaza/misiones.ts`) se abre sola al terminar la misión sin quitar el teclado (nunca
+en VR), se cierra con «Cerrar» o Escape y se vuelve a abrir con «Ver evaluación» en la lista de misiones hechas del libro (J). Para
+agentes y páginas: `misiones.evaluacion(id)` (o `misiones.libro()[i].evaluacion`) devuelve
+`{ titulo, puntos, base, minimo, resumen, filas: [{ tipo: "tiempo"|"fase"|"contador", clave, etiqueta, texto, valor, resta }] }`, o
+`null` mientras la misión no esté hecha o no lleve `evaluacion`. Queda fuera: el informe para el instructor (la misma tarjeta, de
+todos los alumnos).
 **Una cosa que se ve usada para ti (`apariencia.usada`, U14 (6)).** `"apariencia": { "modelo": "<sha256 del cofre
 cerrado>", "escala": 1, "usada": { "modelo": "<sha256 del cofre abierto>", "escala": 1 } }`: cómo se ve la cosa para **quien
 ya hizo el paso que la usa** (`usa` o `coge`) en una misión que lleva o que terminó. Los demás la siguen viendo como antes,
