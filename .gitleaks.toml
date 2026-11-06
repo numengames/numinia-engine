@@ -12,7 +12,9 @@
 #    "quests_tick_ms_1000_waiting") that the rule took for the value of a key;
 #  - fixed strings in tests: "0123456789abcdef0123", "una-clave-de-prueba-larga-s6",
 #    "e2e-despertar-secreto-0123456789";
-#  - a test title, "poner/quieto/empujar/sentar".
+#  - a test title, "poner/quieto/empujar/sentar";
+#  - two fixed MOTOR_SECRET strings of the espejo e2e and identity tools (2026-11-05):
+#    "secreto-de-prueba-e2e-largo-0123456789", "secreto-de-prueba-identidad-largo-0123456789".
 # A new value needs a new line here, with its reason.
 
 [extend]
@@ -22,4 +24,4 @@ useDefault = true
 description = "Exact non-secret strings: limits.json key names, fixed test strings, a test title"
 targetRules = ["generic-api-key"]
 regexTarget = "secret"
-regexes = ['''^(0123456789abcdef0123|una-clave-de-prueba-larga-s6|e2e-despertar-secreto-0123456789|poner/quieto/empujar/sentar|bandwidth_per_person_k50|bandwidth_per_person_plaza_1000|lucha_bytes_tick_10_criaturas_estado|lucha_bytes_tick_10_criaturas_total|quests_tick_ms_1000_waiting)$''']
+regexes = ['''^(0123456789abcdef0123|una-clave-de-prueba-larga-s6|e2e-despertar-secreto-0123456789|poner/quieto/empujar/sentar|secreto-de-prueba-e2e-largo-0123456789|secreto-de-prueba-identidad-largo-0123456789|bandwidth_per_person_k50|bandwidth_per_person_plaza_1000|lucha_bytes_tick_10_criaturas_estado|lucha_bytes_tick_10_criaturas_total|quests_tick_ms_1000_waiting)$''']
