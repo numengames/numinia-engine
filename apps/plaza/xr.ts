@@ -135,7 +135,7 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
     /** The VR panel's lines: what the trigger does now, the followed quest and its steps. */
     lineasPanel(): string[] {
       if (view.vr.pagina === "mandos") return [...LINEAS_MANDOS];
-      if (view.vr.pagina === "ajustes") return [ // MVL1: ajustes dentro de VR, sin quitarte las gafas
+      if (view.vr.pagina === "ajustes") return [ // MVL1: settings inside VR, without taking your headset off
         "Ajustes (Y: ocultar)",
         "Apunta al botón de abajo con el gatillo",
         "para cambiar el confort de movimiento",

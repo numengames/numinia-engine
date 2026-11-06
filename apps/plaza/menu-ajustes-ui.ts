@@ -173,7 +173,7 @@ export function montarMenuAjustes(c: ContextoMenu): MenuAjustes {
   ];
   setInterval(() => { if (dlg.open) for (const x of infos) x.pintar(); }, 1000);
   const conAjustes = () => CATEGORIAS.filter((c) => [...lista.querySelectorAll<HTMLFieldSetElement>("fieldset")].some((fs) => categoriaDe(fs.dataset.grupo ?? "") === c.id && !fs.hidden)).map((c) => c.id);
-  /** Pulsar una pestaña o un encabezado: the category it names opens (a folded heading pressed again folds it). */
+  /** Pressing a tab or a heading: the category it names opens (a folded heading pressed again folds it). */
   const pulsar = (c: string) => { categoria = categoriaTrasPulsar(modo, categoria, c); busqueda = ""; buscar.value = ""; mostrar(); };
   const construir = () => {
     const fss = [...a.grupos().map(grupoDom), ...infos.map((x) => x.fs)];

@@ -1,6 +1,6 @@
-// V6 · la baliza sonora de la página: cuando algo pone una baliza de luz (`view.beacon`: «Ir» de una convocatoria, «Ir
-// junto a» alguien) y la persona tiene encendido «Baliza sonora» (Ajustes → Sonido, apagado de serie), además de la luz
-// suena un pitido en el destino, a su lado y repetido (`packages/render/src/audio/baliza.ts`). Se apaga al llegar.
+// V6 · the page's sound beacon: when something sets a light beacon (`view.beacon`: «Ir» of a call-out, «Ir
+// junto a» someone) and the person has «Baliza sonora» on (Ajustes → Sonido, off by default), besides the light
+// a beep plays at the destination, beside them and repeated (`packages/render/src/audio/baliza.ts`). It stops on arrival.
 import { crearBaliza, SONIDO_BALIZA, type Baliza } from "../../packages/render/src/audio/baliza.ts";
 import { sonar } from "./sonar.ts";
 

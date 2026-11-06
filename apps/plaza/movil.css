@@ -1,10 +1,10 @@
-/* U24 — la disposición móvil (REDISENO-INTERFAZ-PC-MOVIL-VR §7 U24; maqueta aprobada: work/ux/d2-movil).
-   Todo va bajo html[data-aparato^="movil"] (perfil-aparato.ts: movil-vertical y movil-horizontal, también forzados con
-   ?aparato=…): escritorio y VR no ven ni una regla de aquí. Presupuesto jugando: joystick (tercio izquierdo), mirar
-   (arrastre), UNA acción grande, «…», ⚙ + mapa, chat. Táctil: ≥ 44 pt lo frecuente, ≥ 28 lo secundario; todo dentro de las
-   zonas seguras (env() en un aparato; en un perfil forzado en PC las simula apps/plaza/movil.ts con --zs-*). Cristal:
-   50–55 % de opacidad + 12 px de desenfoque + borde de 1 px; sin desenfoque donde el sistema pide menos transparencia.
-   Las clases de estado las pone movil.ts en <body>: con-panel, hablando, chat-abierto, pescando. */
+/* U24 — the mobile layout (REDISENO-INTERFAZ-PC-MOVIL-VR §7 U24; approved mock-up: work/ux/d2-movil).
+   Everything goes under html[data-aparato^="movil"] (perfil-aparato.ts: movil-vertical and movil-horizontal, also forced with
+   ?aparato=…): desktop and VR do not see a single rule from here. Budget while playing: joystick (left third), look
+   (drag), ONE big action, «…», ⚙ + map, chat. Touch: ≥ 44 pt for the frequent, ≥ 28 for the secondary; everything inside the
+   safe areas (env() on a device; on a profile forced on a PC, apps/plaza/movil.ts simulates them with --zs-*). Glass:
+   50–55 % opacity + 12 px blur + 1 px border; no blur where the system asks for less transparency.
+   The state classes are set by movil.ts on <body>: con-panel, hablando, chat-abierto, pescando. */
 html[data-aparato^="movil"] {
   --st: max(env(safe-area-inset-top, 0px), var(--zs-t, 0px)); --sb: max(env(safe-area-inset-bottom, 0px), var(--zs-b, 0px));
   --sl: max(env(safe-area-inset-left, 0px), var(--zs-l, 0px)); --sr: max(env(safe-area-inset-right, 0px), var(--zs-r, 0px));
@@ -15,24 +15,24 @@ html[data-aparato^="movil"] {
 html[data-aparato^="movil"] input, html[data-aparato^="movil"] textarea { -webkit-user-select: text; user-select: text; }
 html[data-aparato^="movil"] [hidden] { display: none !important; }
 
-/* ---- lo que ya no se dibuja en el móvil: ayudas de teclado, barra de iconos (salvo ⚙), botones sueltos, depuración ---- */
+/* ---- what is no longer drawn on mobile: keyboard hints, icon bar (except ⚙), loose buttons, debugging ---- */
 html[data-aparato^="movil"] #help, html[data-aparato^="movil"] #acciones, html[data-aparato^="movil"] #interactuar, html[data-aparato^="movil"] #misiones, html[data-aparato^="movil"] #chat-boton, html[data-aparato^="movil"] #saltar { display: none !important; }
 html[data-aparato^="movil"] #hud { display: none; }
 html[data-aparato^="movil"].depura #hud { display: block; top: calc(var(--st) + 70px); left: calc(var(--sl) + var(--m)); max-width: min(300px, 72vw); white-space: pre-wrap; font-size: 11px; z-index: 6; }
 html[data-aparato^="movil"] #barra-arriba > :not(#menu-abrir):not(.menu-barra) { display: none !important; }
 
-/* ---- cristal ---- */
+/* ---- glass ---- */
 html[data-aparato^="movil"] .cristal-movil, html[data-aparato^="movil"] #barra-arriba > #menu-abrir, html[data-aparato^="movil"] #mision-seguida, html[data-aparato^="movil"] #minimapa, html[data-aparato^="movil"] #mas, html[data-aparato^="movil"] #mas-menu, html[data-aparato^="movil"] #chat-pill, html[data-aparato^="movil"] #hoja-msg, html[data-aparato^="movil"] #dialogo, html[data-aparato^="movil"] #chat[data-estado="completo"] {
   background: var(--cr) !important; -webkit-backdrop-filter: var(--cr-blur); backdrop-filter: var(--cr-blur); border: 1px solid var(--cr-borde) !important; color: var(--n-texto);
 }
 @media (prefers-reduced-transparency: reduce) { M #barra-arriba > #menu-abrir, html[data-aparato^="movil"] #mision-seguida, html[data-aparato^="movil"] #minimapa, html[data-aparato^="movil"] #mas, html[data-aparato^="movil"] #mas-menu, html[data-aparato^="movil"] #chat-pill, html[data-aparato^="movil"] #hoja-msg, html[data-aparato^="movil"] #dialogo, html[data-aparato^="movil"] #chat[data-estado="completo"] { background: var(--cr-fuerte) !important; -webkit-backdrop-filter: none; backdrop-filter: none; } }
 
-/* ---- pulsado visible en TODO botón del HUD (U26) ---- */
+/* ---- visible pressed state on EVERY HUD button (U26) ---- */
 html[data-aparato^="movil"] .tocable { transition: transform .08s ease-out, background-color .08s, border-color .08s; }
 html[data-aparato^="movil"] .tocable.pulsado, html[data-aparato^="movil"] #accion.pulsado, html[data-aparato^="movil"] #barra-arriba > #menu-abrir.pulsado, html[data-aparato^="movil"] #minimapa.pulsado { transform: scale(.93); background-color: rgba(1, 142, 161, .62) !important; border-color: var(--n-verdemar) !important; }
 html[data-aparato^="movil"] #accion.pulsado { background-color: #016f7e !important; transform: scale(.92); }
 
-/* ---- arriba a la izquierda: la línea de «ahora» (solo lectura) ---- */
+/* ---- top left: the «now» line (read-only) ---- */
 html[data-aparato^="movil"] body #mision-seguida {
   position: fixed; top: calc(var(--st) + 8px) !important; left: calc(var(--sl) + var(--m)) !important; right: auto !important; z-index: 6;
   width: 238px; max-width: calc(100vw - var(--sl) - var(--sr) - 2 * var(--m) - 64px - 44px - 20px) !important; min-height: 52px; box-sizing: border-box;
@@ -42,7 +42,7 @@ html[data-aparato^="movil"] body #mision-seguida {
 }
 html[data-aparato^="movil"] body #mision-seguida::before { content: "Ahora"; display: block; font: 600 10px/1.2 "Geist Mono", ui-monospace, monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--n-ambar); padding-bottom: 2px; }
 
-/* ---- arriba a la derecha: ⚙ y el mapa (el minimapa plegado; tocarlo abre el mapa grande, donde viven −, + y N) ---- */
+/* ---- top right: ⚙ and the map (the folded minimap; touching it opens the big map, where −, + and N live) ---- */
 html[data-aparato^="movil"] #barra-arriba { top: calc(var(--st) + 18px); right: calc(var(--sr) + var(--m) + 62px + 8px); z-index: 7; }
 html[data-aparato^="movil"] #barra-arriba > #menu-abrir { width: 44px; height: 44px; min-width: 44px; padding: 0 !important; border-radius: 50% !important; display: grid !important; place-items: center; }
 html[data-aparato^="movil"] body #minimapa { top: calc(var(--st) + 8px) !important; right: calc(var(--sr) + var(--m)) !important; bottom: auto !important; left: auto !important; width: 62px; height: 62px; padding: 0; border-radius: 50%; overflow: hidden; z-index: 6; gap: 0; align-items: center; justify-content: center; }
@@ -50,21 +50,21 @@ html[data-aparato^="movil"] #minimapa canvas { width: 62px !important; height: 6
 html[data-aparato^="movil"] #minimapa .botones { display: none !important; }
 html[data-aparato^="movil"] #minimapa .norte { display: none !important; } /* MIS-257: the folded phone minimap is one touch target: it opens the big view */
 
-/* ---- abajo a la derecha: UNA acción contextual grande + «…» ---- */
+/* ---- bottom right: ONE big contextual action + «…» ---- */
 html[data-aparato^="movil"] #accion {
   position: fixed; right: calc(var(--sr) + 16px); bottom: calc(var(--sb) + 16px); z-index: 6; width: 88px; height: 88px; border-radius: 50%; padding: 0;
   background: rgba(1, 142, 161, .78); border: 1px solid rgba(166, 218, 213, .55); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-align: center; font: inherit;
 }
 html[data-aparato^="movil"] #accion .lbl { font-size: 12px; font-weight: 650; line-height: 1.1; max-width: 76px; color: #fff; }
 html[data-aparato^="movil"] #accion svg { width: 32px; height: 32px; }
-html[data-aparato^="movil"] #accion[data-tipo="saltar"] { background: rgba(42, 36, 32, .72); border-color: var(--n-linea); } /* nada cerca: salta; el turquesa es de cuando hay algo que hacer */
+html[data-aparato^="movil"] #accion[data-tipo="saltar"] { background: rgba(42, 36, 32, .72); border-color: var(--n-linea); } /* nothing near: jump; turquoise is for when there is something to do */
 html[data-aparato^="movil"] #mas { position: fixed; right: calc(var(--sr) + 16px + 88px - 34px); bottom: calc(var(--sb) + 16px + 88px + 14px); z-index: 6; width: 48px; height: 48px; padding: 0; border-radius: 50%; display: grid; place-items: center; color: var(--n-texto); }
-html[data-aparato^="movil"] #mas-menu { position: fixed; right: calc(var(--sr) + 16px); bottom: calc(var(--sb) + 16px + 88px + 14px + 48px + 10px); z-index: 7; border-radius: 8px; padding: 8px; display: grid; grid-template-columns: repeat(3, 80px); gap: 6px; transform-origin: 100% 100%; } /* 80 px: «Movimientos» mide 75 px a 12 px de letra y en 64 px se salía del botón */
+html[data-aparato^="movil"] #mas-menu { position: fixed; right: calc(var(--sr) + 16px); bottom: calc(var(--sb) + 16px + 88px + 14px + 48px + 10px); z-index: 7; border-radius: 8px; padding: 8px; display: grid; grid-template-columns: repeat(3, 80px); gap: 6px; transform-origin: 100% 100%; } /* 80 px: «Movimientos» measures 75 px at 12 px type and at 64 px it overflowed the button */
 html[data-aparato^="movil"] #mas-menu button { height: 64px; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 0; font: 12px "Geist", system-ui, sans-serif; color: var(--n-texto); background: rgba(42, 36, 32, .6); border: 1px solid var(--cr-borde); }
 html[data-aparato^="movil"] #mas-menu .extra { display: none; }
 html[data-aparato^="movil"] #mas-menu.ampliado .extra { display: flex; }
 
-/* ---- abajo a la izquierda: el chat en tres estados (icono · una línea · entero) ---- */
+/* ---- bottom left: the chat in three states (icon · one line · whole) ---- */
 html[data-aparato^="movil"] body #chat { position: fixed; left: calc(var(--sl) + var(--m)); bottom: calc(var(--sb) + 16px); z-index: 6; width: 262px; max-width: calc(100vw - var(--sl) - var(--sr) - var(--m) - 16px - 88px - 8px); gap: 0; } /* leaves room for the 88 px action button and 16 px of air: on a 360 px phone a 262 px chat ran 22 px under «Saltar» */
 html[data-aparato^="movil"] #chat-pill { display: flex; align-items: center; gap: 8px; width: 100%; height: 52px; box-sizing: border-box; padding: 0 14px 0 13px; border-radius: 26px; position: relative; font: 13px "Geist", system-ui, sans-serif; color: var(--n-texto); text-align: left; }
 html[data-aparato^="movil"] #chat-pill .linea { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -85,11 +85,11 @@ html[data-aparato^="movil"] #chat-lista li.mantener::before { content: ""; posit
 @keyframes u24-carga { to { width: 100%; } }
 html[data-aparato^="movil"] #chat-ayuda { margin: 0; padding: 0 14px 8px; font-size: 11.5px; color: var(--n-texto2); }
 html[data-aparato^="movil"] #chat-form { display: flex; gap: 8px; padding: 8px; border-top: 1px solid var(--cr-borde); align-items: stretch; }
-html[data-aparato^="movil"] #chat-texto { height: 44px; box-sizing: border-box; font-size: 16px; /* 16 px: iOS no hace zoom al enfocar */ padding: 0 12px; }
+html[data-aparato^="movil"] #chat-texto { height: 44px; box-sizing: border-box; font-size: 16px; /* 16 px: iOS does not zoom on focus */ padding: 0 12px; }
 html[data-aparato^="movil"] #chat-canal { height: 44px; min-width: 56px; }
 html[data-aparato^="movil"] #chat .estado { padding: 0 14px 6px; margin: 0; }
 
-/* hoja de «Denunciar» (pulsación larga sobre un mensaje) */
+/* «Denunciar» sheet (long press on a message) */
 html[data-aparato^="movil"] #hoja-msg { position: fixed; left: calc(var(--sl) + var(--m)); right: calc(var(--sr) + var(--m)); bottom: calc(var(--sb) + 16px); max-width: 380px; z-index: 9; padding: 6px; border-radius: 8px; display: flex; flex-direction: column; }
 html[data-aparato^="movil"] #hoja-msg .quien { font-size: 12px; color: var(--n-texto2); padding: 8px 10px 6px; }
 html[data-aparato^="movil"] #hoja-msg button { height: 48px; border-radius: 6px; text-align: left; padding: 0 12px; font: 15px "Geist", system-ui, sans-serif; color: var(--n-texto); background: transparent; border: 0; }
@@ -97,7 +97,7 @@ html[data-aparato^="movil"] #hoja-msg button.peligro { color: #F2A08F; }
 html[data-aparato^="movil"] #avisos-movil { position: fixed; left: 50%; transform: translateX(-50%); top: calc(var(--st) + 84px); z-index: 9; display: flex; flex-direction: column; gap: 6px; align-items: center; pointer-events: none; }
 html[data-aparato^="movil"] .aviso-movil { padding: 6px 12px; border-radius: 6px; font-size: 13px; background: var(--cr-fuerte); border: 1px solid var(--cr-borde); color: var(--n-texto); max-width: 300px; text-align: center; }
 
-/* ---- el joystick: flotante en el tercio izquierdo; el fantasma enseña dónde ---- */
+/* ---- the joystick: floating in the left third; the ghost shows where ---- */
 html[data-aparato^="movil"] #joy { width: 130px; height: 130px; background: rgba(20, 17, 15, .30); border: 1.5px solid rgba(249, 235, 220, .55); box-sizing: border-box; z-index: 5; }
 html[data-aparato^="movil"] #knob { left: 38px; top: 38px; width: 54px; height: 54px; background: rgba(249, 235, 220, .82); border: 1px solid #fff; box-sizing: border-box; }
 html[data-aparato^="movil"] #joy-fantasma { position: fixed; left: calc(var(--sl) + 16px); bottom: calc(var(--sb) + 16px + 52px + 28px); width: 130px; height: 130px; border-radius: 50%; border: 1.5px dashed rgba(249, 235, 220, .55); display: grid; place-items: center; pointer-events: none; color: rgba(249, 235, 220, .85); font-size: 12px; text-shadow: 0 0 6px rgba(20, 17, 15, .9); z-index: 4; transition: opacity .2s; }
@@ -107,7 +107,7 @@ html[data-aparato^="movil"] #joy-fantasma.oculto { opacity: 0; }
 html[data-aparato^="movil"] #pista-mirar { position: fixed; right: calc(var(--sr) + 22%); top: 46%; color: rgba(249, 235, 220, .8); font-size: 12px; pointer-events: none; text-shadow: 0 0 6px rgba(20, 17, 15, .9); transition: opacity .5s; z-index: 4; }
 html[data-aparato^="movil"] #pista-mirar.se-va { opacity: 0; }
 
-/* ---- diálogo con un personaje: el bocadillo y las respuestas, grandes; nada de movimiento debajo ---- */
+/* ---- dialogue with a character: the bubble and the answers, big; no movement underneath ---- */
 html[data-aparato^="movil"] body #dialogo { left: calc(var(--sl) + var(--m)) !important; right: calc(var(--sr) + var(--m)) !important; bottom: calc(var(--sb) + 16px + 52px + 14px) !important; width: auto !important; transform: none !important; max-height: calc(100dvh - var(--st) - var(--sb) - 160px); border-radius: 8px !important; padding: 10px 12px 12px; z-index: 6; }
 html[data-aparato^="movil"] #dialogo h2 { font-size: 11px !important; letter-spacing: .06em; text-transform: uppercase; color: var(--n-ambar) !important; font-family: "Geist Mono", ui-monospace, monospace; margin: 0 0 3px; }
 html[data-aparato^="movil"] #dialogo .texto { font-size: 15px; line-height: 1.35; margin: 0 0 10px; }
@@ -115,7 +115,7 @@ html[data-aparato^="movil"] #dialogo .opciones { gap: 8px; }
 html[data-aparato^="movil"] #dialogo .opciones button { min-height: 48px; border-radius: 6px !important; padding: 0 14px; font-size: 15px; background: rgba(1, 142, 161, .30) !important; border: 1px solid rgba(166, 218, 213, .55) !important; }
 html[data-aparato^="movil"] #dialogo .adios { min-height: 48px; width: 100%; margin-top: 8px; text-decoration: none; background: rgba(42, 36, 32, .75) !important; border: 1px solid rgba(249, 235, 220, .28) !important; border-radius: 6px; color: var(--n-texto2) !important; padding: 0 14px; font-size: 15px; }
 
-/* ---- paneles: el mapa grande (con «Mapa | Misiones»), el libro y los ajustes ocupan la pantalla dentro de las zonas seguras ---- */
+/* ---- panels: the big map (with «Mapa | Misiones»), the book and the settings fill the screen inside the safe areas ---- */
 html[data-aparato^="movil"] #mapa-grande, html[data-aparato^="movil"] .panel-j5 { position: fixed; inset: calc(var(--st) + 8px) calc(var(--sr) + 8px) calc(var(--sb) + 8px) calc(var(--sl) + 8px); margin: 0; width: auto; max-width: none; height: auto; max-height: none; border: 1px solid var(--cr-borde); background: rgba(20, 17, 15, .86) !important; }
 html[data-aparato^="movil"] .panel-j5::backdrop { background: rgba(20, 17, 15, .35); }
 html[data-aparato^="movil"] .panel-j5 header { padding: 4px 8px 4px 10px; }
@@ -131,12 +131,12 @@ html[data-aparato^="movil"] body #ajustes { inset: calc(var(--st) + 8px) calc(va
 html[data-aparato^="movil"] #ajustes button { min-height: 44px; }
 html[data-aparato^="movil"] #ajustes .ajuste select { min-height: 44px; }
 
-/* ---- mensajes y avisos con sitio propio: ninguno pisa los seis controles ---- */
+/* ---- messages and notices with a place of their own: none covers the six controls ---- */
 html[data-aparato^="movil"] #pesca-hud { bottom: calc(var(--sb) + 16px + 52px + 14px); z-index: 5; }
 html[data-aparato^="movil"] #dados-torre { bottom: calc(var(--sb) + 16px + 88px + 14px + 48px + 10px) !important; right: calc(var(--sr) + 12px); }
 html[data-aparato^="movil"] body #mision-nota { top: calc(var(--st) + 84px); }
 
-/* ---- lo que se esconde según el estado ---- */
+/* ---- what hides depending on the state ---- */
 html[data-aparato^="movil"] body.con-panel :is(#mision-seguida, #barra-arriba, #minimapa, #accion, #mas, #mas-menu, #chat, #joy-fantasma, #pista-mirar, #dialogo) { visibility: hidden; }
 html[data-aparato^="movil"] body.chat-abierto :is(#accion, #mas, #mas-menu, #pista-mirar) { visibility: hidden; }
 html[data-aparato^="movil"]:not([data-aparato="movil-horizontal"]) body.chat-abierto #joy-fantasma { visibility: hidden; }
@@ -144,7 +144,7 @@ html[data-aparato^="movil"] body.hablando :is(#accion, #mas, #mas-menu, #joy-fan
 html[data-aparato^="movil"] body.pescando :is(#accion, #mas, #mas-menu, #joy-fantasma, #pista-mirar) { visibility: hidden; }
 html[data-aparato^="movil"] body.construyendo :is(#accion, #mas, #mas-menu, #joy-fantasma, #pista-mirar, #mision-seguida) { visibility: hidden; }
 
-/* ---- horizontal ---- */
+/* ---- landscape ---- */
 html[data-aparato="movil-horizontal"] body #mision-seguida { width: 260px; min-height: 44px; padding: 5px 10px 6px; font-size: 13px; line-height: 1.25; }
 html[data-aparato="movil-horizontal"] body #minimapa, html[data-aparato="movil-horizontal"] #minimapa canvas { width: 58px !important; height: 58px !important; }
 html[data-aparato="movil-horizontal"] #barra-arriba { top: calc(var(--st) + 8px); right: calc(var(--sr) + var(--m) + 58px + 8px); }

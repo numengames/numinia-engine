@@ -1,14 +1,14 @@
-// cable (D-041), builder view (historias 5-6): dentro del cajón «Cable» del constructor (ux2-dock), una lista con cada disparador que
-// el mundo cablea en disparadores.json — su nombre, tipo, estado (listo / en espera / agotado) y cuántas veces ha
-// disparado — con un botón «Probar» para los de tipo botón (dispararlo sin acercarse: cómodo para comprobar un
-// cooldown o un «un solo uso» antes de que nadie más esté cerca). Historia A (cable sin JSON): «+ Nuevo cable» y «Borrar»
-// con confirmación en la propia fila. Historia B: cada cable se lee como una frase y el JSON queda en «Ver datos».
-// Historia C: la frase ES el editor. «Cuando [alguien pulse el botón] [nombre], [muestra] [Farola]. Espera [5 s]»: cada
-// hueco es un desplegable (o un texto / número solo donde no hay otra forma: el nombre, un enlace https, una coordenada)
-// y solo se puede elegir lo válido. La frase y sus opciones las hace features/disparadores/cable-huecos.ts (pura, textos
-// por idioma); la página SOLO pinta un control por hueco y manda UNA petición (editarDisparador o crearDisparador): el
-// servidor valida todo con el lector del fichero y su error, en español, sale junto al control. «+ Nuevo cable» abre
-// los mismos huecos con valores de partida; no existe hasta pulsar «Crear cable». Solo quien tiene permiso de construir.
+// cable (D-041), builder view (stories 5-6): inside the builder's «Cable» drawer (ux2-dock), a list with each trigger that
+// the world wires in disparadores.json — its name, type, state (ready / waiting / spent) and how many times it has
+// fired — with a «Probar» button for the button-type ones (fire it without going near: handy to check a
+// cooldown or a «un solo uso» before anyone else is close). Story A (cable without JSON): «+ Nuevo cable» and «Borrar»
+// with confirmation in the row itself. Story B: each cable reads as a sentence and the JSON stays under «Ver datos».
+// Story C: the sentence IS the editor. «Cuando [alguien pulse el botón] [nombre], [muestra] [Farola]. Espera [5 s]»: each
+// blank is a dropdown (or a text / number only where there is no other shape: the name, an https link, a coordinate)
+// and only what is valid can be chosen. The sentence and its options come from features/disparadores/cable-huecos.ts (pure, texts
+// per language); the page ONLY draws one control per blank and sends ONE request (editarDisparador or crearDisparador): the
+// server validates everything with the file's reader and its error, in Spanish, appears next to the control. «+ Nuevo cable» opens
+// the same blanks with starting values; it does not exist until «Crear cable» is pressed. Only whoever may build.
 import { ESTILO_DECIR, montarDecir } from "./cable-decir.ts";
 import type { OpcionesDecir } from "./cable-decir.ts";
 import { idiomaDe, FRASES } from "../../features/disparadores/cable-frase.ts";
@@ -81,7 +81,7 @@ export function montarCable(o: OpcionesCable) {
   nuevo.setAttribute("aria-label", "Nuevo cable: preparar un botón en tu posición");
   nuevo.title = "Prepara un cable nuevo: un botón en el sitio donde estás. Elige qué hace y pulsa «Crear cable».";
   const lista = document.createElement("ul"); lista.id = "cable-lista";
-  // Historia D: «Decírselo al mundo» sits first; the server says whether this world has an AI (else the box hides and the reason shows)
+  // Story D: «Decírselo al mundo» sits first; the server says whether this world has an AI (else the box hides and the reason shows)
   const decirUI = o.disparadores.decir ? montarDecir({ decir: o.disparadores.decir, idioma, avisar: o.decir }) : null;
   if (decirUI) caja.append(decirUI.raiz);
   caja.append(nuevo, lista);
@@ -219,7 +219,7 @@ export function montarCable(o: OpcionesCable) {
       const r = o.disparadores.editarDisparador(cambio);
       if (!r.ok) { pendiente = null; motivo = `${r.why}.`; err.textContent = motivo; o.decir(`No: ${r.why}.`); }
     });
-    // Historia B: the JSON stays, folded away in a native <details> (keyboard: Tab to the summary, Enter/Space opens it).
+    // Story B: the JSON stays, folded away in a native <details> (keyboard: Tab to the summary, Enter/Space opens it).
     const area = document.createElement("textarea");
     area.className = "cable-receptores"; area.rows = 3; area.setAttribute("aria-label", `Receptores de ${d.nombre} (JSON)`);
     const guardarJson = document.createElement("button");
@@ -240,7 +240,7 @@ export function montarCable(o: OpcionesCable) {
     const abajo = document.createElement("div"); abajo.className = "cable-linea";
     li.append(texto, arriba, grupo, guardar, err, nota, datos, abajo);
 
-    /** Historia A: «Borrar» pide confirmación en la propia fila (sin ventanas del navegador, que no se leen igual). */
+    /** Story A: «Borrar» asks for confirmation in the row itself (no browser dialogs, which are not read the same way). */
     const pintarBorrar = () => {
       abajo.replaceChildren();
       if (!confirmando.has(id)) {
