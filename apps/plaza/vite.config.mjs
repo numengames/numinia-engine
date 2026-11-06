@@ -2,8 +2,14 @@ import { defineConfig } from "vite";
 import { fileURLToPath } from "node:url";
 import { readFileSync, existsSync } from "node:fs";
 
+import { generarNovedades } from "../../tools/novedades-generar.mjs";
+
 const root = fileURLToPath(new URL(".", import.meta.url));
 const repo = fileURLToPath(new URL("../..", import.meta.url));
+
+// novedades-datos.ts is not in git (it is made from the diary and the pending .changeset/ fragments): make it here, so
+// every way of building the page — npm run dev/build/deploy, tools/tamano.mjs, a plain `vite build` — finds it fresh.
+generarNovedades(repo, { silencio: true });
 
 // LAN mode (npm run dev:lan, tools/dev-lan.mjs): https on the home network + /ws passed to the instance
 // server on the same origin, so phones and headsets (which need a secure context) can open the page.
@@ -28,9 +34,25 @@ const basis = {
   },
 };
 
+// The comments and the indentation of apps/plaza/index.html are for the people who read the source; the browser needs neither (no <pre>, no inline script in
+// the page), and they were ~0.7 kB of the first load in brotli. Line breaks stay, so the text still reads the same.
+// Cut by position (indexOf), not by a replace pattern: the page is our own file, and a scan has no leftover «<!--» to worry about.
+const sinComentariosHtml = (html) => {
+  let fuera = "", desde = 0;
+  for (;;) {
+    const abre = html.indexOf("<!--", desde);
+    if (abre < 0) return (fuera + html.slice(desde)).replace(/\n\s+/g, "\n");
+    const cierra = html.indexOf("-->", abre + 4);
+    if (cierra < 0) throw new Error("index.html: a comment is never closed");
+    fuera += html.slice(desde, abre);
+    desde = cierra + 3;
+  }
+};
+const sinComentarios = { name: "numinia-html-sin-comentarios", enforce: "post", transformIndexHtml: sinComentariosHtml };
+
 export default defineConfig({
   root,
-  plugins: [basis],
+  plugins: [basis, sinComentarios],
   server: {
     host: process.env.PLAZA_HOST ?? "127.0.0.1",
     port: Number(process.env.PLAZA_PORT ?? 5173),

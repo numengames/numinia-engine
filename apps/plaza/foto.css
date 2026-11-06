@@ -19,6 +19,7 @@ html body > #foto { zoom: 1 !important; } /* the live frame must match the PNG p
   gap: 8px; width: max-content; max-width: calc(100% - 16px); pointer-events: none; }
 #foto .foto-filtros { display: flex; gap: 4px; padding: 4px; border-radius: 8px; background: var(--n-sup, rgba(30, 26, 23, .9)); border: 1px solid var(--n-linea, #3A332D); pointer-events: auto; }
 #foto .foto-filtros button { min-height: 34px; padding: 4px 10px; border: 0; background: transparent; }
+html.tactil #foto .foto-filtros button { min-height: 44px; min-width: 44px; } /* P10: a finger needs 44 px (they were 34); the desktop size stays. html.tactil = perfil-aparato.ts (U25) */
 #foto .foto-disparar { width: 64px; height: 64px; justify-content: center; padding: 0; border-radius: 50% !important; border: 3px solid var(--n-texto, #F9EBDC) !important; background: var(--n-ambar, #EFA517) !important; color: var(--n-fondo, #14110F) !important; }
 #foto .foto-salir { width: 44px; justify-content: center; padding: 0; }
 /* the frame, live: the same proportions foto-nucleo.ts `marco` draws into the PNG */

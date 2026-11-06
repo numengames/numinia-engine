@@ -6,19 +6,38 @@
 // («!») and the server says «Todavía no» when someone tries.
 import { alAlcanceEnAltura } from "../../packages/feature/src/index.ts";
 import { cosasDe, LIM, shaDeBiblioteca } from "./formato.ts";
-import type { Aventura, Condicion, Mision, Nodo, Opcion, Paso, Pnj } from "./formato.ts";
+import { calcular } from "./evaluacion.ts";
+import type { Resultado } from "./evaluacion.ts";
+import type { Aventura, Condicion, Dialogo, Lugar, Mision, Nodo, Opcion, Paso, Pnj } from "./formato.ts";
+import { enEncuadre, FOTO_DISTANCIA_M } from "./foto.ts"; // P10
+import type { EsferaFoto, PoseFoto } from "./foto.ts";
 
 /** An active quest: the index of the step it is on (the first of its block), the things it carries (taken or given,
  * for `entrega`) and the ids of the steps already done inside the current block (`grupo`; empty outside blocks).
  * U14 (5): `desde` = when that block became the one to do (ms of the server's clock; absent = no wait counts). */
-export type Activa = { paso: number; tiene: string[]; hechos: string[]; desde?: number; cierra?: number };
+export type Activa = { paso: number; tiene: string[]; hechos: string[]; desde?: number; cierra?: number;
+  /** P13 (only a quest with `evaluacion`): `t0` = when it was accepted and `tb` = when each block was done, in order (ms of the server's clock). */
+  t0?: number; tb?: number[] };
 /** A finished grupo (two or more steps, with a next step after it) stays on screen complete — «Piezas reunidas 3/3» — for this
  * long before the quest moves on: `cierra` = when it moves on (ms of the server's clock), `hechos` still lists the whole block.
  * It ends sooner at the player's next deliberate action (any event but the arrival checks). Without a clock nothing waits. */
 export const PAUSA_GRUPO_MS = 2000;
-/** One player's quests, as the server keeps it (store `p:<guest>`). Plain JSON. */
-export type Progreso = { v: 1; activas: Record<string, Activa>; hechas: string[]; seguida: string };
+/** P4: what a player did on the `marca` steps of one quest, counted for an evaluation (no mark, no pass/fail): every mark made, the
+ * ones on a thing the step does not ask for, and every unmark. Kept after the quest is done. P10: `fotos_erroneas` = the photos taken
+ * while a `foto` step of the quest was to do that met none of them; present only once a photo missed (nothing else changes). */
+export type Cuenta = { marcas: number; marcas_erroneas: number; desmarcados: number; /** P13: unmarks of a thing the step asks for (saved only once it happens) */ desmarcados_correctos?: number; fotos_erroneas?: number; [otro: string]: number | undefined };
+export const EXTRAS_MAX = 8; // P13: counters other than the three above that a quest may keep (another piece adds its own: «fotos_erroneas»)
+const CONTADOR = /^[a-z][a-z0-9_]{0,31}$/;
+/** One player's quests, as the server keeps it (store `p:<guest>`). Plain JSON. P4, both only once used (a player who never marks
+ * anything saves exactly what it saved before): `marcados` = the ids of the things marked as evidence, in order — a thing's number is
+ * its place in this list (1-based), unmarking removes it and the rest renumber — and `cuenta` = the counters per quest. */
+export type Progreso = { v: 1; activas: Record<string, Activa>; hechas: string[]; seguida: string; marcados?: string[]; cuenta?: Record<string, Cuenta>;
+  /** P13: what the end evaluation of a completed quest came to (only quests with `evaluacion`; the newest last, at most EVALUACIONES_MAX). */
+  evaluaciones?: Record<string, Resultado> };
+export const EVALUACIONES_MAX = 4; // under the store's 4 KB per key
 export const ACTIVAS_MAX = 16;
+export const CUENTAS_MAX = 8; // P4: quests whose counters are kept (the oldest is forgotten past this)
+export const CUENTA_TOPE = 9999;
 export const HECHAS_MAX = 200; // the oldest completed ones are forgotten past this (a store value is ≤ 4 KB)
 
 export const nuevoProgreso = (): Progreso => ({ v: 1, activas: {}, hechas: [], seguida: "" });
@@ -37,11 +56,42 @@ export function leerProgreso(v: unknown): Progreso {
       if (!ID.test(id) || typeof x !== "object" || x === null || !Number.isInteger(x.paso) || Number(x.paso) < 0) continue;
       p.activas[id] = { paso: Number(x.paso), tiene: ids(x.tiene, 16), hechos: [...new Set(ids(x.hechos, LIM.pasos))] };
       if (typeof x.desde === "number" && Number.isFinite(x.desde) && x.desde >= 0) p.activas[id].desde = x.desde;
+      const t = x as { t0?: unknown; tb?: unknown };
+      if (typeof t.t0 === "number" && Number.isFinite(t.t0) && t.t0 >= 0) { // P13
+        p.activas[id].t0 = t.t0;
+        if (Array.isArray(t.tb)) p.activas[id].tb = t.tb.filter((v): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0).slice(0, LIM.pasos);
+      }
       if (typeof (x as { cierra?: unknown }).cierra === "number" && Number.isFinite((x as { cierra: number }).cierra) && (x as { cierra: number }).cierra >= 0) p.activas[id].cierra = (x as { cierra: number }).cierra;
     }
   }
   if (Array.isArray(o.hechas)) p.hechas = o.hechas.filter((h): h is string => typeof h === "string" && ID.test(h)).slice(-HECHAS_MAX);
   if (typeof o.seguida === "string" && p.activas[o.seguida]) p.seguida = o.seguida;
+  const marcados = [...new Set(ids(o.marcados, LIM.marcados))];
+  if (marcados.length) p.marcados = marcados;
+  if (typeof o.cuenta === "object" && o.cuenta !== null) {
+    const n = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v >= 0 ? Math.min(v, CUENTA_TOPE) : 0);
+    for (const [id, c] of Object.entries(o.cuenta as Record<string, unknown>).slice(0, CUENTAS_MAX)) {
+      if (!ID.test(id) || typeof c !== "object" || c === null) continue;
+      const x = c as Record<string, unknown>;
+      const cu: Cuenta = { marcas: n(x.marcas), marcas_erroneas: n(x.marcas_erroneas), desmarcados: n(x.desmarcados) };
+      let extras = 0;
+      for (const k of Object.keys(x)) { // P13: any other counter by name is kept as it came (and only when it is above 0)
+        if (k in cu || !CONTADOR.test(k) || extras >= EXTRAS_MAX || !n(x[k])) continue;
+        cu[k] = n(x[k]); extras++;
+      }
+      (p.cuenta ??= {})[id] = cu;
+    }
+  }
+  if (typeof o.evaluaciones === "object" && o.evaluaciones !== null) { // P13
+    for (const [id, r] of Object.entries(o.evaluaciones as Record<string, unknown>).slice(-EVALUACIONES_MAX)) {
+      const x = r as { ms?: unknown; fases?: unknown; cont?: unknown; puntos?: unknown };
+      if (!ID.test(id) || typeof x !== "object" || x === null || !Number.isInteger(x.puntos) || typeof x.cont !== "object" || x.cont === null) continue;
+      const cont: Record<string, number> = {};
+      for (const [k, v] of Object.entries(x.cont as Record<string, unknown>).slice(0, 13)) if (CONTADOR.test(k) && Number.isInteger(v) && Number(v) >= 0) cont[k] = Math.min(Number(v), CUENTA_TOPE);
+      const fases = Array.isArray(x.fases) ? x.fases.filter((v): v is number => Number.isInteger(v) && v >= 0).slice(0, LIM.pasos) : [];
+      (p.evaluaciones ??= {})[id] = { ...(Number.isInteger(x.ms) && Number(x.ms) >= 0 ? { ms: Number(x.ms) } : {}), fases, cont, puntos: Number(x.puntos) };
+    }
+  }
   return p;
 }
 
@@ -131,8 +181,38 @@ export function cumple(p: Progreso, cs: Condicion[], a: Aventura): boolean {
   });
 }
 
-/** The node a person opens with for this player: the first entrada whose conditions hold (the last has none). */
-export const nodoInicial = (n: Pnj, p: Progreso, a: Aventura): string => (n.dialogo.entradas.find((e) => cumple(p, e.si, a)) ?? n.dialogo.entradas[n.dialogo.entradas.length - 1]).nodo;
+/** P2: where this person stands for this player: the first `posiciones` entry whose conditions hold, or null (= its own `posicion` and
+ * `giro`, which is all a person without `posiciones` ever has). Pure: a function of the player's progress alone. */
+export function lugarDe(n: Pnj, p: Progreso, a: Aventura): Lugar | null {
+  for (const l of n.posiciones) if (cumple(p, l.si, a)) return l;
+  return null;
+}
+
+/** The node a person (or, P3, a thing) opens with for this player: the first entrada whose conditions hold. The last one
+ * usually has none (what is said when nothing else applies); when it has some and none holds, there is nothing to say
+ * now and the answer is null: no «E» is offered and the server refuses the talk. */
+export function nodoInicial(n: { dialogo: Dialogo }, p: Progreso, a: Aventura): string | null {
+  const es = n.dialogo.entradas, e = es.find((x) => cumple(p, x.si, a));
+  if (e) return e.nodo;
+  const ultima = es[es.length - 1];
+  return ultima.si.length ? null : ultima.nodo;
+}
+/** P3: the ids of the people and things with a conversation that have nothing to say to this player now (the marks event
+ * carries them as `callan`; the page offers no «E» for them). */
+export function callan(p: Progreso, a: Aventura): string[] {
+  const out: string[] = [];
+  for (const n of a.pnjs.values()) if (nodoInicial(n, p, a) === null) out.push(n.id);
+  const marcando = marcablesAhora(p, a); // P4: a marcable thing still opens its card (to mark) when its conversation has nothing to say
+  for (const c of a.cosas.values()) if (c.dialogo && nodoInicial({ dialogo: c.dialogo }, p, a) === null && !marcando.includes(c.id)) out.push(c.id);
+  return out;
+}
+/** P3: is a `coge` step on this thing to do now (so «E» on it picks it up, as always, instead of opening its conversation)? */
+export function cogePendiente(p: Progreso, a: Aventura, cosa: string): boolean {
+  return Object.entries(p.activas).some(([id, act]) => {
+    const m = a.misiones.get(id);
+    return !!m && m.pasos.some((s, n) => s.tipo === "coge" && s.cosa === cosa && pendiente(m, act, n));
+  });
+}
 
 /** The options this player sees in a node (in order; those whose conditions fail are hidden). */
 export const opcionesDe = (nodo: Nodo, p: Progreso, a: Aventura): Opcion[] => nodo.opciones.filter((o) => cumple(p, o.si, a)).slice(0, 4);
@@ -144,16 +224,27 @@ export type Suceso = (
   | { tipo: "habla"; pnj: string }                           // it started talking to this person
   | { tipo: "avanzar"; pnj: string; mision: string }         // it chose an option avanzar_paso
   | { tipo: "entregar"; pnj: string; mision: string }        // it chose an option entregar
-  | { tipo: "usa"; cosa: string }                            // it took or used this thing
+  | { tipo: "usa"; cosa: string; mision?: string }          // it took or used this thing; P3: `mision` = it chose an avanzar_paso option of that thing's conversation
   | { tipo: "hace"; accion: string; modelo?: string; disparador?: string } // T1: the builder did this (modelo = the sha256 of the placed object's model; disparador = the cable's id)
+  | { tipo: "marca"; marcados: string[] }                    // P4: it marked or unmarked a thing; `marcados` = everything it has marked now
+  | { tipo: "foto"; elegidos: string[] }                     // P10: its photo met these steps, each as "<quest>:<step id>" (`fotografiar` picks them: at most one per quest)
 ) & { ahora?: number };
 /** A step completed: which quest, which step (index) and whether that finished the quest. */
 export type Hecho = { mision: string; paso: number; completada: boolean };
 
+/** P4: the same things, whatever the order. */
+const mismoConjunto = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((c) => b.includes(c));
+
 function cumplePaso(s: Paso, act: Activa, m: Mision, a: Aventura, x: Suceso): boolean {
+  if (s.tipo === "foto") return x.tipo === "foto" && x.elegidos.includes(`${m.id}:${s.id}`); // P10: the photo's own verdict (fotografiar)
+  if (s.tipo === "marca") return x.tipo === "marca" && mismoConjunto(x.marcados, s.cosas); // P4: EXACTLY the relevant set — one thing more or less and it is not done
   // llega_a: inside the circle and, when the step names a height, standing at it (± ALCANCE_ALTURA_M: a floor below does not count)
   if (s.tipo === "llega_a") return x.tipo === "llega" && (x.x - s.x) ** 2 + (x.z - s.z) ** 2 <= s.radio ** 2 && alAlcanceEnAltura(x.y, s.y);
-  if (s.tipo === "usa" || s.tipo === "coge") return x.tipo === "usa" && x.cosa === s.cosa;
+  if (s.tipo === "usa" || s.tipo === "coge") {
+    // P3: a `usa` on a thing that holds a conversation is done only by choosing its avanzar_paso option (inspecting alone never counts)
+    const conversa = s.tipo === "usa" && !!a.cosas.get(s.cosa)?.dialogo;
+    return x.tipo === "usa" && x.cosa === s.cosa && (conversa ? x.mision === m.id : x.mision === undefined);
+  }
   // hace: the action asked for; with `modelo` only an object of that model (coloca), with `disparador` only that cable
   if (s.tipo === "hace") return x.tipo === "hace" && x.accion === s.accion && (!s.modelo || x.modelo === shaDeBiblioteca(s.modelo)) && (!s.disparador || x.disparador === s.disparador);
   if (!("pnj" in s) || (x.tipo !== "habla" && x.tipo !== "avanzar" && x.tipo !== "entregar")) return false; // the rest are said to a person
@@ -162,6 +253,17 @@ function cumplePaso(s: Paso, act: Activa, m: Mision, a: Aventura, x: Suceso): bo
   if (s.tipo === "habla_con" || s.tipo === "recibe") return (x.tipo === "avanzar" && x.mision === m.id) || (x.tipo === "habla" && !exp?.avanza.has(m.id));
   return cosasDe(s).every((c) => act.tiene.includes(c)) && ((x.tipo === "entregar" && x.mision === m.id) || (x.tipo === "habla" && !exp?.entrega.has(m.id)));
 }
+
+/** P13: a quest with `evaluacion` has just been completed: work out its card from the clock and the counters, and keep it (the newest last). */
+export function evaluar(p: Progreso, m: Mision, act: Activa | undefined, ahora: number | undefined): void {
+  if (!m.evaluacion) return;
+  const r = calcular(m, m.evaluacion, p.cuenta?.[m.id] ?? {}, act?.t0, act?.tb ?? [], ahora ?? act?.t0 ?? 0);
+  p.evaluaciones ??= {};
+  delete p.evaluaciones[m.id]; p.evaluaciones[m.id] = r;
+  for (const k of Object.keys(p.evaluaciones)) { if (Object.keys(p.evaluaciones).length <= EVALUACIONES_MAX) break; delete p.evaluaciones[k]; }
+}
+/** P13: the card of a completed quest, if it has one. */
+export const evaluacionDe = (p: Progreso, id: string): Resultado | undefined => p.evaluaciones?.[id];
 
 function completar(p: Progreso, m: Mision): void {
   delete p.activas[m.id];
@@ -191,6 +293,7 @@ export function registrar(p: Progreso, a: Aventura, x: Suceso): Hecho[] {
     if (s.tipo === "entrega") { const dadas = cosasDe(s); act.tiene = act.tiene.filter((c) => !dadas.includes(c)); }
     act.hechos.push(s.id);
     if (m.pasos.slice(act.paso, fin).every((q) => act.hechos.includes(q.id))) { // the whole block: on to the next, which starts counting now
+      if (act.t0 !== undefined && x.ahora !== undefined) (act.tb ??= []).push(x.ahora); // P13: the moment this block was done (not the end of its pause)
       if (x.ahora !== undefined && fin < m.pasos.length && fin - act.paso > 1 && m.pasos[act.paso].grupo) { // a grupo with something after it: its counter stays complete for a moment first
         act.cierra = x.ahora + PAUSA_GRUPO_MS;
         if (conEsperas(m)) act.desde = x.ahora; else delete act.desde; // the next block's waits count from now, as always
@@ -201,7 +304,7 @@ export function registrar(p: Progreso, a: Aventura, x: Suceso): Hecho[] {
     }
     const completada = act.paso >= m.pasos.length;
     out.push({ mision: id, paso: n, completada });
-    if (completada) completar(p, m);
+    if (completada) { evaluar(p, m, act, x.ahora); completar(p, m); }
   }
   return out;
 }
@@ -233,6 +336,9 @@ export function aceptar(p: Progreso, m: Mision, a: Aventura, ahora?: number): Re
   if (falta.length) return no(`Antes tienes que completar ${falta.join(", ")}.`);
   if (Object.keys(p.activas).length >= ACTIVAS_MAX) return no(`Ya llevas ${ACTIVAS_MAX} misiones: termina o deja alguna.`);
   p.activas[m.id] = { paso: 0, tiene: [], hechos: [] };
+  if (m.evaluacion) { delete p.evaluaciones?.[m.id]; if (p.evaluaciones && !Object.keys(p.evaluaciones).length) delete p.evaluaciones; if (ahora !== undefined) p.activas[m.id].t0 = ahora; } // P13: a new attempt starts its clock and forgets the last card
+  const marca = m.pasos.some((s) => s.tipo === "marca");
+  if (marca || m.pasos.some((s) => s.tipo === "foto")) { delete p.cuenta?.[m.id]; if (p.cuenta && !Object.keys(p.cuenta).length) delete p.cuenta; if (marca) delete p.marcados; } // P4: a new attempt of a quest that marks starts with nothing marked and its counters at zero; P10: so does one that photographs
   if (ahora !== undefined && conEsperas(m)) p.activas[m.id].desde = ahora;
   if (!p.seguida) p.seguida = m.id;
   return { ok: true };
@@ -254,10 +360,10 @@ export function seguir(p: Progreso, id: string): boolean {
 }
 
 /** Where a step points, for the map, the beacon and the HUD: a place, a person or a thing (and its id). */
-export function objetivo(s: Paso, a: Aventura): { x: number; z: number; nombre: string; que: string } {
+export function objetivo(s: Paso, a: Aventura, p?: Progreso): { x: number; z: number; nombre: string; que: string } {
   if (s.tipo === "llega_a") return { x: s.x, z: s.z, nombre: s.lugar, que: "" };
-  if (s.tipo === "habla_con" || s.tipo === "recibe" || s.tipo === "entrega") { const n = a.pnjs.get(s.pnj); return { x: n?.posicion.x ?? 0, z: n?.posicion.z ?? 0, nombre: n?.nombre ?? s.pnj, que: s.pnj }; }
-  if (s.tipo === "hace") return { x: 0, z: 0, nombre: "", que: "" }; // T1: no place to point at (the page's `senala` is the arrow's target)
+  if (s.tipo === "habla_con" || s.tipo === "recibe" || s.tipo === "entrega") { const n = a.pnjs.get(s.pnj), l = n && p && n.posiciones.length ? lugarDe(n, p, a) : null; return { x: l?.posicion.x ?? n?.posicion.x ?? 0, z: l?.posicion.z ?? n?.posicion.z ?? 0, nombre: n?.nombre ?? s.pnj, que: s.pnj }; } // P2: where THIS player finds the person
+  if (s.tipo === "hace" || s.tipo === "marca" || s.tipo === "foto") return { x: 0, z: 0, nombre: "", que: "" }; // T1: no place to point at (the page's `senala` is the arrow's target); P4: nor does marking (the book never says which); P10: nor does a photo (the book never says where)
   const c = a.cosas.get(s.cosa);
   return { x: c?.posicion.x ?? 0, z: c?.posicion.z ?? 0, nombre: c?.nombre ?? s.cosa, que: s.cosa };
 }
@@ -265,8 +371,88 @@ export function objetivo(s: Paso, a: Aventura): { x: number; z: number; nombre: 
 /** True when some active quest has a «llega_a» step to do now (the server checks those players' positions). */
 export const esperaLlegada = (p: Progreso, a: Aventura): boolean => Object.entries(p.activas).some(([id, act]) => {
   const m = a.misiones.get(id);
-  return !!m && m.pasos.some((s, n) => s.tipo === "llega_a" && pendiente(m, act, n));
+  // P3: a later `llega_a` that carries an `antes` notice is watched too (arriving early says why it is not time)
+  return !!m && m.pasos.some((s, n) => s.tipo === "llega_a" && (pendiente(m, act, n) || (s.antes !== undefined && n >= act.paso && !act.hechos.includes(s.id))));
 });
+
+/** P3: the steps this event would complete if they were not still locked behind an earlier block (a step with `antes`
+ * after the current block, not done): what the server answers with that step's `antes` notice. A `entrega` counts without
+ * the things in hand (the player has not got them yet: that is why it is early). */
+export function bloqueados(p: Progreso, a: Aventura, x: Suceso): { mision: string; paso: number; antes: string }[] {
+  const out: { mision: string; paso: number; antes: string }[] = [];
+  for (const [id, act] of Object.entries(p.activas)) {
+    const m = a.misiones.get(id);
+    if (!m) continue;
+    for (let n = finBloque(m, act.paso); n < m.pasos.length; n++) {
+      const s = m.pasos[n];
+      if (s.antes === undefined) continue;
+      const llevando: Activa = { ...act, tiene: [...act.tiene, ...(s.tipo === "entrega" ? cosasDe(s) : [])] };
+      if (cumplePaso(s, llevando, m, a, x)) out.push({ mision: id, paso: n, antes: s.antes });
+    }
+  }
+  return out;
+}
+
+// ---------- evidence markers (P4): what the player marked, its numbers and its counters ----------
+/** The `marca` steps to do now (in the current block of an active quest, not done, not waiting): which quest and which step. */
+export function pasosMarca(p: Progreso, a: Aventura, ahora?: number): { mision: string; paso: number }[] {
+  const out: { mision: string; paso: number }[] = [];
+  for (const [id, act] of Object.entries(p.activas)) {
+    const m = a.misiones.get(id);
+    if (!m) continue;
+    m.pasos.forEach((s, n) => { if (s.tipo === "marca" && pendiente(m, act, n) && faltaEspera(m, act, n, ahora) === 0) out.push({ mision: id, paso: n }); });
+  }
+  return out;
+}
+/** The things this player may mark or unmark right now: every `marcable` thing while a `marca` step is the one to do, none otherwise. */
+export const marcablesAhora = (p: Progreso, a: Aventura, ahora?: number): string[] =>
+  pasosMarca(p, a, ahora).length ? [...a.cosas.values()].filter((c) => c.marcable).map((c) => c.id) : [];
+/** What is marked, in order (the number of each is its place + 1). Ids the adventure no longer has as marcable are dropped first. */
+export function marcados(p: Progreso, a: Aventura): string[] {
+  if (p.marcados && p.marcados.some((c) => !a.cosas.get(c)?.marcable)) { const ok = p.marcados.filter((c) => a.cosas.get(c)?.marcable); if (ok.length) p.marcados = ok; else delete p.marcados; }
+  return p.marcados ?? [];
+}
+/** This quest's counters (zeros when it has none yet). */
+export const cuentaDe = (p: Progreso, mision: string): Cuenta => ({ marcas: 0, marcas_erroneas: 0, desmarcados: 0, ...p.cuenta?.[mision] });
+function sumar(p: Progreso, mision: string, cambio: Partial<Cuenta>): void {
+  const c = { ...cuentaDe(p, mision) };
+  for (const k of Object.keys(cambio)) c[k] = Math.min(CUENTA_TOPE, (c[k] ?? 0) + (cambio[k] ?? 0));
+  p.cuenta ??= {};
+  delete p.cuenta[mision]; p.cuenta[mision] = c; // most recently touched last: the oldest goes first past CUENTAS_MAX
+  for (const k of Object.keys(p.cuenta)) { if (Object.keys(p.cuenta).length <= CUENTAS_MAX) break; delete p.cuenta[k]; }
+}
+/** Mark a thing as evidence: it goes last (the next number). Counts one mark for each quest whose `marca` step is to do now, and a wrong
+ * one when that quest's step(s) do not ask for the thing. Only while such a step is to do now. Changes `p`; the caller then
+ * registers the event `{ tipo: "marca", marcados }` so a step that is now exactly right completes. */
+export function marcar(p: Progreso, a: Aventura, cosa: string, ahora?: number): Res {
+  const c = a.cosas.get(cosa);
+  if (!c?.marcable) return no("Eso no se puede marcar.");
+  const pasos = pasosMarca(p, a, ahora);
+  if (!pasos.length) return no("Ahora no hay nada que señalizar.");
+  const ya = marcados(p, a);
+  if (ya.includes(cosa)) return no(`Ya ha marcado ${c.nombre}.`);
+  if (ya.length >= LIM.marcados) return no(`Ya tiene ${LIM.marcados} cosas marcadas: desmarque alguna antes.`);
+  p.marcados = [...ya, cosa];
+  for (const id of new Set(pasos.map((x) => x.mision))) {
+    const pide = pasos.filter((x) => x.mision === id).flatMap((x) => { const s = a.misiones.get(id)!.pasos[x.paso]; return s.tipo === "marca" ? s.cosas : []; });
+    sumar(p, id, pide.includes(cosa) ? { marcas: 1 } : { marcas: 1, marcas_erroneas: 1 });
+  }
+  return { ok: true };
+}
+/** Unmark a thing: the ones marked after it move up one number. Counts one unmark for each quest whose `marca` step is to do now. */
+export function desmarcar(p: Progreso, a: Aventura, cosa: string, ahora?: number): Res {
+  const pasos = pasosMarca(p, a, ahora);
+  if (!pasos.length) return no("Ahora no hay nada que señalizar.");
+  const ya = marcados(p, a);
+  if (!ya.includes(cosa)) return no(`No tiene marcado ${a.cosas.get(cosa)?.nombre ?? cosa}.`);
+  const resto = ya.filter((c) => c !== cosa);
+  if (resto.length) p.marcados = resto; else delete p.marcados;
+  for (const id of new Set(pasos.map((x) => x.mision))) {
+    const pide = pasos.filter((x) => x.mision === id).flatMap((x) => { const s = a.misiones.get(id)!.pasos[x.paso]; return s.tipo === "marca" ? s.cosas : []; });
+    sumar(p, id, pide.includes(cosa) ? { desmarcados: 1, desmarcados_correctos: 1 } : { desmarcados: 1 }); // P13: taking back a thing the step DOES ask for is counted apart
+  }
+  return { ok: true };
+}
 
 // ---------- marks (U14 (4)): what each person and quest thing means to THIS player — the labels and the maps draw it ----------
 /** `tiene`: people with «!» — they offer you a quest you may take now, or a step of yours to do now (in the current
@@ -284,7 +470,7 @@ export function marcas(p: Progreso, a: Aventura, ahora?: number): Marcas {
   const dieron = (id: string) => { for (const d of a.dadores.get(id) ?? []) vistos.add(d); }; // the givers of a quest you have or had
   for (const [id, act] of Object.entries(p.activas)) {
     const m = a.misiones.get(id);
-    if (!m) continue;
+    if (!m || m.pistas === false) continue; // P3: a quest that does not point leaves no mark of its own
     m.pasos.forEach((s, n) => {
       if ("pnj" in s) (pasoHecho(m, act, n) ? vistos : espera).add(s.pnj);
       if (!pendiente(m, act, n) || faltaEspera(m, act, n, ahora) > 0) return;
@@ -295,11 +481,11 @@ export function marcas(p: Progreso, a: Aventura, ahora?: number): Marcas {
   }
   for (const id of [...p.hechas].reverse()) {
     const m = a.misiones.get(id);
-    if (!m) continue;
+    if (!m || m.pistas === false) continue;
     for (const s of m.pasos) if ("pnj" in s) vistos.add(s.pnj);
     dieron(id);
   }
-  for (const m of a.misiones.values()) if (disponible(p, m)) for (const d of a.dadores.get(m.id) ?? []) tiene.add(d);
+  for (const m of a.misiones.values()) if (m.pistas !== false && disponible(p, m)) for (const d of a.dadores.get(m.id) ?? []) tiene.add(d);
   return { tiene: [...tiene], hecho: [...vistos].filter((x) => !tiene.has(x) && !espera.has(x)), cosas: [...cosas] };
 }
 /** An id list as the wire carries it: comma-separated, cut before the id that would pass `max` bytes (ids are ASCII). */
@@ -307,4 +493,41 @@ export function enTexto(ids: readonly string[], max: number): string {
   let s = "";
   for (const id of ids) { const t = s ? `${s},${id}` : id; if (t.length > max) break; s = t; }
   return s;
+}
+
+// ---------- photos (P10): the `foto` step, decided by the server from the camera's pose ----------
+/** The `foto` steps to do now (in the current block of an active quest, not done, not waiting): which quest and which step. */
+export function pasosFoto(p: Progreso, a: Aventura, ahora?: number): { mision: string; paso: number }[] {
+  const out: { mision: string; paso: number }[] = [];
+  for (const [id, act] of Object.entries(p.activas)) {
+    const m = a.misiones.get(id);
+    if (!m) continue;
+    m.pasos.forEach((s, n) => { if (s.tipo === "foto" && pendiente(m, act, n) && faltaEspera(m, act, n, ahora) === 0) out.push({ mision: id, paso: n }); });
+  }
+  return out;
+}
+
+/** One photo, taken from `pose`. For each active quest with `foto` steps to do now it completes AT MOST ONE: of the objetivos whose centre
+ * is in the shot (foto.ts `enEncuadre`) the nearest to the camera that `tapado` (is a wall in the way?) lets through, ties in file order.
+ * A quest none of whose steps was met counts one `fotos_erroneas`. A step already done is not to do any more, so it never counts again.
+ * Outside a block with `foto` steps it does nothing. Changes `p`; the caller saves and sends the book. */
+export function fotografiar(p: Progreso, a: Aventura, pose: PoseFoto, ahora: number, tapado: (o: EsferaFoto) => boolean): { hechos: Hecho[]; erroneas: string[] } {
+  const quiere = new Map<string, { id: string; d: number }[]>();
+  for (const { mision, paso } of pasosFoto(p, a, ahora)) {
+    const s = a.misiones.get(mision)!.pasos[paso];
+    if (s.tipo !== "foto") continue;
+    const d = enEncuadre(pose, s.objetivo, s.distancia ?? FOTO_DISTANCIA_M), lista = quiere.get(mision) ?? [];
+    if (d !== null) lista.push({ id: s.id, d });
+    quiere.set(mision, lista);
+  }
+  const elegidos: string[] = [], erroneas: string[] = [];
+  for (const [mision, lista] of quiere) {
+    const m = a.misiones.get(mision)!;
+    const orden = [...lista].sort((u, v) => u.d - v.d); // stable: equal distances keep the file's order
+    const bueno = orden.find((c) => { const s = m.pasos.find((q) => q.id === c.id); return s?.tipo === "foto" && !tapado(s.objetivo); });
+    if (bueno) elegidos.push(`${mision}:${bueno.id}`); else erroneas.push(mision);
+  }
+  const hechos = elegidos.length ? registrar(p, a, { tipo: "foto", elegidos, ahora }) : [];
+  for (const id of erroneas) sumar(p, id, { fotos_erroneas: 1 });
+  return { hechos, erroneas };
 }

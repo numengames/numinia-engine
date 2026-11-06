@@ -104,6 +104,21 @@ export default clientPart(gestos, (api) => {
   cuadrado de la casa (40 m alrededor del origen). Es del servidor (viaja en la carpeta y el zip del mundo), no del cable.
   `"aparicionFoto": true` (N16, apagado si no está) deja que quien abre el enlace de una foto (`#foto=`) aparezca en
   su sitio (el servidor busca un sitio libre allí; si no hay, la columna de luz le guía como siempre).
+- **Cámara del mundo** (P1; `features/entorno`, `packages/render/src/camara*.ts`). El mismo `entorno.json` dice con qué
+  vista entra la gente y hacia dónde mira: `"camara": { "inicio": "primera" | "tercera", "distanciaMax": 2.5 }` y
+  `"aparicion": { …, "giro": 90 }`. `inicio` es la vista al entrar (se puede cambiar con V o la rueda); sin él, la de
+  siempre: tercera persona a unos 10 m. `distanciaMax` (metros, 1–20) es lo más lejos que se pone la cámara detrás de
+  ti en tercera persona (en una casa, 2,5; la tercera persona no baja de 1,5 m, el tope manda sobre `distanciaMax`).
+  `giro` (grados, −180…180, el mismo que el `giro` de `pnj@1`) es hacia dónde mira quien aparece: 0 mira hacia +z,
+  90 hacia +x, 180 hacia −z, −90 hacia −x; sin él mira hacia −z como siempre. Solo al entrar: al volver a tu último
+  punto seguro (vacío, Estado) la cámara no se reorienta. Valores mal puestos se rechazan con su ruta y cómo
+  arreglarlos. A diferencia del resto de `aparicion`, estos cuatro valores **sí** viajan en el estado del entorno
+  (`camaraInicio`, `camaraMax`, `llegadaGira`, `llegadaGiro`), porque la cámara es de la página; son del fichero del
+  mundo (como `mapa.corte`): ni el panel de entorno ni un preset los mueven, y cada arranque vuelve a poner los del
+  fichero. La cámara también choca con las **mallas** de colisión (las cosas «malla»: casas, suelos de GLB) además de
+  las cajas, con una esfera de 0,2 m (`barridoMalla` en `sim/bvh.ts`, sin reservar memoria); y en primera persona el
+  plano cercano baja a 0,05 m, así que una pared pegada a la cara no se abre. En VR nada de esto mueve la cámara del
+  visor.
 - El mismo `entorno.json` dice si la gente puede golpearse (L8, `features/lucha`): `"pvp": true` (apagado si no está) y,
   para arenas o sitios en paz, `"zonasPvp": [{ "id", "x", "z", "radio", "pvp": true|false }]` (círculos en metros; una
   zona en `false` gana a una en `true`). Solo se golpea a otra persona (`objetivo: p:<entidad>`) si **las dos** están donde
@@ -343,9 +358,32 @@ Una cosa del mundo que se usa de cerca declara **cómo** en su ficha: `state.car
 - `intent`: el verbo que se manda (uno de tus `intents`); `key`: el campo de texto de ese intento que recibe la clave de la
   cosa (`{ pnj: "alma" }`); `prompt`: lo que sale tras «E:» (`"hablar con {nombre}"`, `"{aviso}"`); `radius`: metros
   (0,5-16) o el nombre de un campo numérico del estado (cada cosa el suyo). `defineFeature` rechaza lo que no cuadre.
-- La página ofrece la más cercana al alcance («E: hablar con Alma»): tecla E, un clic sin arrastrar sobre la cosa o el
+- La página ofrece, de las que están al alcance, **la que se mira** («E: hablar con Alma»; P15, más abajo): tecla E, un clic sin arrastrar sobre la cosa o el
   botón del aviso (el que se toca en el móvil). Nunca con el panel de construir abierto, escribiendo o en una
   conversación. Para que el clic se entienda, dibuja la cosa con `view.place?.("<función>:<clave>", …)`.
+- **El aviso destacado (P15).** Es una pieza del motor: ningún mundo escribe nada para tenerla. El aviso sale en ámbar de la
+  casa (`--n-ambar`, tinta `--n-enfasis-tinta`: contraste 9:1), letra de 24 px, con la tecla dibujada como una tecla, centrado
+  encima de la barra de botones; con «menos movimiento» no hay entrada animada, y con alto contraste se vuelve negro sobre blanco.
+  En el móvil sigue siendo el botón grande que se toca. Sale **solo dentro del radio de la cosa** (la página no usa el margen de
+  1,5 m del servidor) y se va en cuanto se sale de él.
+  - *Cuál ofrece:* de las cosas al alcance, la de **menor ángulo** entre hacia dónde mira la cámara y la cosa, siempre que esté
+    a menos de 40° (`apps/plaza/interactuar-mirada.ts`, función pura); ángulos a menos de 3° se tienen por iguales y gana la más
+    cercana. Si ninguna está delante (se mira a otro lado, o solo hay cosas sin lugar como un asiento) se ofrece la más cercana,
+    como antes: no se quita el aviso a quien apunta mal. La elegida se mantiene mientras la nueva no sea mejor en más de 4°
+    (o 15 cm, si nada está delante), para que no parpadee entre dos cosas. Un clic sobre una cosa sigue mandando sobre esa cosa.
+  - *De qué cosa habla:* la elegida lleva un aro ámbar (`view.marcar`, `packages/render/src/marca-mirada.ts`): una sola malla,
+    creada al ofrecer la primera cosa, reutilizada siempre; sin nada cerca no existe y no pide cuadros. **Nunca tapa lo que
+    marca:** una persona lleva un aro pequeño (0,4 m de radio) tumbado en el suelo, a sus pies (el aro alrededor del cuerpo
+    la tapaba); una cosa lleva un aro que mira a la cámara y es tan ancho como ella como mucho el doble (la página pregunta a
+    `view.cosa("<función>:<clave>")` el modelo ya cargado y mide la esfera que lo contiene: entre 5 cm y 0,45 m de radio; 0,2 m si
+    todavía no se sabe), centrado en el medio de ese modelo (una pieza cuyo origen no está en su medio, como el cuchillo con su
+    tabla y su verdura, queda rodeada entera y no con el aro por encima; si todavía no se sabe, media altura sobre su `y`).
+    Es igual en escritorio y en móvil. El aro, la elección por mirada y el estilo del aviso (`apps/plaza/interactuar-pieza.ts`,
+    `interactuar.css`) se piden cuando la primera cosa entra en su radio, no con el primer cuadro: el aviso sale en cuanto llegan.
+  - `features.reachable()` entrega ahora, en cada oferta, `at` (`x`, `z` y, si el estado trae `y`, la altura) y `role` (el de su
+    ficha): campos nuevos al final, nada de formato ni de huella cambia.
+  - *VR:* la lógica de los mandos no cambia (apuntan con su rayo). La elección por mirada usa la cámara de escritorio/móvil; con
+    una sesión VR activa se ofrece la más cercana como antes y no se pone el aro.
 - **Decide el servidor**: en el intento, `api.within(quien, clave)` dice si está a su alcance (radio + 1,5 m de margen).
   Sin eso, nada. Los agentes leen `interact` en el catálogo y usan `features.use(función, clave)` o el intento a mano.
 - `view.tag?.(clave, { text, x, y, z } | null)` pone un nombre que se queda sobre una cosa (las personas lo llevan).
@@ -491,6 +529,25 @@ se ignora. Va en `GET /status` (`tema`) y la página lo vuelca en las variables 
 "texto": "#e8f8ff", "accion": "#ff8ebe", "enfasis": "#f9ff8e", "foco": "#64f5f0", "titulos": "bebas-neue", "sombra":
 "#ff8ebe", "mayusculas": true, "forma": "pildora" }`.
 
+**`interfaz`** (opcional, dentro de la ficha): qué botones quita ESTE mundo de la pantalla. Hoy un solo campo, `ocultar`, una
+lista de grupos. Hay dos:
+- `"gestos"` = «Saludar», «Bailar» y «Movimientos» (la barra de abajo en escritorio, el menú «…» del móvil y el botón
+  «Movimientos» de la pantalla táctil). Pensado para un simulador de formación, donde esos botones sobran:
+  `"interfaz": { "ocultar": ["gestos"] }`.
+- `"recoger-soltar"` = el «Recoger» de la pesca (F) y el «Soltar» de lo que lleva el jugador (Q), en la barra de abajo y en el menú
+  «…» del móvil. Para un mundo donde no se pesca y las cosas se cogen con «E» (una aventura de investigación):
+  `"interfaz": { "ocultar": ["gestos", "recoger-soltar"] }`. **No** quita el «Soltar el báculo» ni el «Pasar el báculo» (son de quien
+  dirige), ni la forma de coger: coger una cosa con «E» (o manteniéndola) es la tarjeta de la propia cosa, no un botón de la barra, y
+  sigue igual. Ojo en móvil: allí no hay tecla Q, así que quien oculta «Soltar» en un mundo que se visita en móvil deja a la gente
+  sin forma de soltar lo que lleva; úselo solo si la cosa vuelve a su sitio por otra vía (se entrega, se usa o se guarda).
+
+**Solo quita botones**: las teclas (G para la rueda, H para bailar, F y Q) siguen funcionando, y el «Saludar» de la tarjeta de una
+persona también (es otra cosa: saludar a alguien). El botón «…» del móvil solo nombra, para el lector de pantalla, lo que ofrece
+(«Más acciones: saltar, saludar, bailar…»; con `gestos` oculto, «Más acciones: saltar…»). Un nombre que no existe se deja fuera y se
+dice en el registro (`[ficha] interfaz.ocultar: «chat» no existe…`); el resto se aplica; una clave desconocida se ignora. Va en
+`GET /status` (`interfaz`, solo si hay algo que ocultar) y la página lo lee en `apps/plaza/interfaz-mundo.ts`. Sin el campo, nada
+cambia: ni `/status` ni la pantalla. Fuente: `leerInterfaz` (`packages/server/src/aventura.ts`); prueba: `test/interfaz-mundo.test.ts`.
+
 Reglas para quien escribe (persona o LLM):
 - **Ids** en minúsculas, cifras y guiones (`primeros-pasos`); cada fichero, un `formato` en su primera línea. Un campo
   desconocido es un error (así una tilde de más, `descripción`, no pasa en silencio). `notas` vale en todos.
@@ -522,8 +579,20 @@ el servidor lo ve:
 | `habla_con` | `pnj` | elige en el diálogo de esa persona una respuesta `avanzar_paso` de esta misión; si su árbol no tiene ninguna, basta con hablarle |
 | `recibe` | `pnj`, `cosa` | como `habla_con`; esa persona te da la cosa, que queda «llevada» para una `entrega` |
 | `usa` | `cosa` | usa la cosa a su alcance (E) |
-| `coge` | `cosa`; opcional `otorga` (el id de un `objeto@1` de `objetos/`) | la coge a su alcance (E); queda «llevada» para una `entrega`; con `otorga`, en ese momento pasa a tu Reserva el arma o la reliquia que la aventura definió (una vez; si el `objeto@1` no existe o es inválido, la misión no carga y el diagnóstico dice el fichero y el campo `pasos[n].otorga`) |
+| `coge` | `cosa`; opcional `otorga` (el id de un `objeto@1` de `objetos/`) y `abreLibro: true` (P3: al completarse este paso, la página de quien la cogió abre el libro de misiones, p. ej. al coger el cuaderno de investigación) | la coge a su alcance (E); queda «llevada» para una `entrega`; con `otorga`, en ese momento pasa a tu Reserva el arma o la reliquia que la aventura definió (una vez; si el `objeto@1` no existe o es inválido, la misión no carga y el diagnóstico dice el fichero y el campo `pasos[n].otorga`) |
 | `entrega` | `pnj` y `cosa`, o `cosas` (una lista de 1 a 8) | las lleva todas (cada una con un `coge` o un `recibe` antes en la misma misión) y elige `entregar` (o le habla, si no hay esa respuesta); se las da todas a la vez |
+
+**Misión sin pistas (`pistas: false`, P3).** `mision@1` admite `"pistas": false` (por defecto `true`, lo de siempre). Esa
+misión no señala nada: ni «!»/«✓» por su causa, ni estrella ni baliza en el mapa y el minimapa, ni flecha, y la línea de
+arriba solo dice el nombre del grupo y su contador («★ Recoger datos 1/3»), nunca el objetivo más cercano. Sus pasos llegan a
+la página sin sitio. El libro, los textos de los pasos y los contadores no cambian. Las demás misiones siguen señalando.
+Para aventuras de formación en las que el libro no debe delatar qué importa.
+
+**Aviso «antes haga…» (`antes`, P3).** Opcional en **cualquier** paso (1–80 bytes) menos los primeros (los que ya se pueden
+hacer: allí nunca saldría): si el jugador intenta ese paso mientras sigue bloqueado tras otro sin terminar (llega a la zona de
+un `llega_a`, o habla o usa su objetivo), el servidor le manda ese texto como aviso corto, **como mucho una vez cada 5 s por
+paso**. Ejemplo: `{ "id": "precinto", "tipo": "llega_a", "texto": "Llegue al precinto", "x": 30, "z": 0, "lugar": "el precinto",
+"antes": "Recoja antes el cuaderno de investigación." }`. Pon los textos de cara al jugador en «usted» si la aventura lo usa.
 
 **`hace`: que quien construye haga algo de verdad (T1).** `{ "id", "tipo": "hace", "texto", "accion", "modelo"?, "disparador"?, "senala"? }`.
 Lo decide el servidor a partir de lo que las otras piezas ya cuentan (no hay nada nuevo en el tick); solo cuenta si ese
@@ -685,7 +754,11 @@ paso. La insignia queda en su ficha (I) y en su libro.
     } } }
 ```
 
-- Al hablarle, el servidor abre el primer nodo de `entradas` cuyo `si` se cumple; **la última no lleva `si`**.
+- Al hablarle, el servidor abre el primer nodo de `entradas` cuyo `si` se cumple; **la última normalmente no lleva `si`**
+  (lo que dice cuando nada más aplica). Si la última **sí** lleva `si` y no se cumple ninguna (P3), esa persona **no tiene nada que
+  decirle a ese jugador ahora**: no sale «E: hablar con…», el servidor rechaza la charla («<Nombre> no tiene nada que decirle
+  ahora.») y hablarle no cuenta ningún paso. Sirve para gente que solo está en una fase de la aventura (un cabo que solo habla
+  mientras la misión está en su paso). Sin esa `si` final, todo sigue exactamente como antes.
 - Condiciones (`si`, una o una lista: todas deben cumplirse): `{ "mision", "estado" }` con estado `sin_empezar`,
   `disponible` (sin empezar y con los requisitos hechos), `activa` (y si quieres `"paso": "<id de un paso que toca ahora>"`
   —en un grupo, uno que aún no has hecho: deja de cumplirse al hacerlo— o `"tiene": "<cosa>"`) o `hecha`. Una respuesta
@@ -705,6 +778,77 @@ paso. La insignia queda en su ficha (I) y en su libro.
   siempre la misma, pero puede no pegarle; dila si importa. Las tomas son CC0 (`features/sonido/catalogo.json`,
   `pnj-saludo-<voz>` y `pnj-despedida-<voz>`); una voz nueva entra por la biblioteca de sonido y por `VOCES_PNJ`
   (`features/misiones/formato.ts`).
+- **Personas vivas (P2)** — una persona no es una estatua; se nota en tu página, sin que escribas nada:
+  - **Reposo.** Respira (hasta un 1,5 % más alta, cada 3,5–5 s) y cambia el peso de pie (hasta 2° de lado, cada 6–9 s),
+    cada una con su propio compás sacado de su `id` (nunca van a la vez). Si su modelo trae una animación que se llame
+    `idle`, `reposo` o `respira`, suena esa en vez del movimiento de la casa. Más lejos de 25 m, o a tu espalda, se queda
+    quieta. `"reposo": false` la deja quieta del todo.
+  - **Gestos con sus propias animaciones.** Si, además del reposo, el modelo trae una animación que se llame `talk`,
+    `habla` o `gesto` (p. ej. `Idle_Talking_Loop`: un nombre así **no** cuenta como reposo), suena mientras hablas con esa
+    persona (conversación abierta con ella); y si trae una `walk`, `camina` o `andar`, suena mientras camina a su sitio
+    nuevo. El paso de una a otra es un fundido de 0,3 s; sin la animación de un gesto, sigue con la que suena. Los modelos
+    de personas **miran a +z** (glTF); un VRM 0.x mira a −z: gíralo 180° en el fichero (nodo raíz) o te dará la espalda al
+    girarse hacia ti.
+  - **Se vuelve hacia ti.** Cuando estás a menos de su `radio` + 1 m, el cuerpo gira hacia ti en medio segundo con un giro
+    suave (solo el cuerpo; la cámara no se toca, ni en gafas) y mientras hablas con ella te sigue mirando; al alejarte
+    vuelve a su `giro` en un segundo. `"mira": false` la deja mirando siempre a su `giro`.
+  - **Sitio por fase.** `posiciones` (1–8) dice dónde está **para quien cumple cada `si`** (la misma gramática que
+    `dialogo.entradas[].si`: una condición o una lista); vale la primera que se cumple *para ese jugador*, y si ninguna,
+    su `posicion` y su `giro`. `giro` es opcional (sin él, el de la persona); `posicion.y`, como arriba. Una entrada sin
+    `si` vale siempre: solo puede ser la última. Cada `posicion` a 30 m o menos de la de la persona (la página solo sabe
+    de ella cerca). El servidor decide y se lo dice a cada jugador por su canal (evento `sitio`, solo a él y a sus
+    pestañas, al entrar y cuando cambia): dos jugadores en fases distintas ven a la misma persona en sitios distintos, «E:
+    hablar con…», el alcance del servidor, el mapa y la baliza usan **el sitio de ese jugador**, y la marca «!» la lleva
+    sobre su cabeza allí. Si cambia de sitio mientras la miras, **camina** hasta él a 1,4 m/s (hasta 10 m; si es más lejos
+    o no la tenías delante, aparece ya allí). Un mundo sin `posiciones` no manda ningún `sitio`.
+  ```json
+  { "formato": "pnj@1", "id": "sanitario", "nombre": "Sanitario", "posicion": { "x": 4, "z": 6 }, "giro": 180, "radio": 3,
+    "posiciones": [
+      { "si": { "mision": "inspeccion", "estado": "hecha" }, "posicion": { "x": 12, "z": 6 }, "giro": -90 },
+      { "si": { "mision": "inspeccion", "estado": "activa", "paso": "datos" }, "posicion": { "x": 8, "z": 4 } } ],
+    "reposo": true, "mira": true, "dialogo": { "entradas": [{ "nodo": "hola" }], "nodos": { "hola": { "texto": "Aquí estoy.", "opciones": [{ "texto": "Adiós.", "accion": { "tipo": "despedir" } }] } } } }
+  ```
+  Una página que no conozca `sitio` ve a la persona en su `posicion` de siempre (el estado compartido no cambia).
+  - **Ronda (P16).** En vez de quedarse quieta, una entrada de `posiciones` puede hacer que la persona **ande por la casa**
+    mientras su `si` valga: `"ronda": { "puntos": [...], "velocidad": 1,1, "modo": "vuelta" }`. `puntos` (2–8) son los sitios que
+    visita, en orden; cada uno lleva `x`, `z` (a 30 m o menos de la `posicion` de la persona), `y` (opcional, como `posicion.y`: sin
+    ella, pisa el suelo), `giro` (opcional, grados: hacia dónde mira mientras está parada; sin él, mira hacia donde venía) y
+    `pausa` (segundos que se queda parada, 0–60; sin ella, 0 = pasa de largo). Va de un punto al siguiente **en línea recta**, con su
+    clip de caminar, y en cada parada se queda con su reposo. `velocidad` en m/s (0,3–1,4; sin ella, 1,1). `modo`: `"vuelta"` (sin
+    él; del último punto vuelve al primero) o `"ida_y_vuelta"` (del último vuelve por los mismos puntos). Una entrada con `ronda`
+    puede no llevar `posicion`: vale el primer punto (y es la que usa la flecha del mapa antes de que ande). Sin `ronda`, todo es
+    como antes, byte a byte.
+    - **Todos calculan lo mismo.** Dónde está la persona a los *t* ms de empezar la ronda es una función pura
+      (`rondaEn`, `features/misiones/ronda.ts`) que usan el servidor y la página con los mismos números (centímetros, décimas de
+      grado y de segundo). El servidor fija el instante de inicio **cuando ese `si` empieza a valer para ese jugador** (un reloj por
+      jugador y persona; dos jugadores no ven a la persona en el mismo punto de su ronda) y manda un solo evento `ronda` justo
+      después del `sitio` (`pnj`, `puntos` = `x,z,y,giro,pausa;…`, `vel`, `ida`, `rt` = segundos de ronda transcurridos, `quieta`,
+      `giro`); la página anda por su cuenta, sin más mensajes mientras camina. «E: hablar con…», el alcance del servidor
+      (`api.within`), el mapa y la baliza usan **el punto de la ronda en ese instante**; si anda mientras se acerca, el aviso la
+      sigue (la página avisa de su sitio cada ~0,4 m).
+    - **Al hablar con ella se para.** Al abrir la conversación el servidor congela el reloj de esa persona *para ese jugador*
+      (`quieta: true`, `rt` = dónde iba) y la página la deja donde estaba, mirándole; al cerrarla, el servidor **suma al inicio el
+      tiempo que estuvo parada** (el reloj sigue donde se quedó) y manda otro `ronda` con `quieta: false`. Si dos pestañas del
+      mismo jugador hablan con ella, sigue parada hasta que cierren las dos. La conversación de un jugador no detiene a la
+      persona de otro.
+    - **Los tramos son rectos y no se validan contra paredes**: el motor no tiene colisión barata para esto. Trace los
+      puntos de modo que ninguna recta cruce un muro (en una casa: un punto en cada puerta). Los puntos son absolutos: si el
+      suelo cambia de altura entre dos puntos, ponga la `y` de cada uno.
+    - **Coste**: nada por cuadro para una persona sin `ronda`, ni para una parada (la página no vuelve a calcular hasta que
+      acaba la pausa) ni para una lejana (la página solo conoce a la persona cerca). Mientras anda, un cálculo de ~1 µs y
+      moverla; sin `ronda` el reloj ni existe. El reloj de la ronda vive en la memoria del servidor: tras reiniciarlo, cada
+      ronda empieza de nuevo por su primer punto.
+  ```json
+  { "formato": "pnj@1", "id": "cabo", "nombre": "Cabo", "posicion": { "x": 10, "z": 0 }, "giro": 0, "radio": 3,
+    "posiciones": [
+      { "si": { "mision": "inspeccion", "estado": "activa" },
+        "ronda": { "velocidad": 1, "modo": "vuelta", "puntos": [
+          { "x": 10, "z": 0, "pausa": 8 },
+          { "x": 14, "z": 0 },
+          { "x": 14, "z": 6, "giro": 90, "pausa": 10 },
+          { "x": 6, "z": 6, "pausa": 5 } ] } } ],
+    "dialogo": { "entradas": [{ "nodo": "hola" }], "nodos": { "hola": { "texto": "Buenas.", "opciones": [{ "texto": "Adiós.", "accion": { "tipo": "despedir" } }] } } } }
+  ```
 
 **Marcas sobre las personas y las cosas («!» y «✓», U14 (4))** — las decide el servidor para cada jugador, con su
 progreso, y le llegan **solo a él** (a todas sus pestañas) tras cada libro (evento `marcas`). La aventura no escribe
@@ -735,6 +879,164 @@ usa solo desde menos de 2,5 m de esa altura) y `apariencia.color`
 mano que lo cogió (al lado de tu avatar en pantalla) hasta que la misión termina; luego vuelve a su sitio (lo recibido en
 un `recibe`, todavía no: se queda en su sitio).
 
+**Una cosa que se inspecciona (`dialogo`, P3).** `cosa@1` admite un `dialogo` opcional: el **mismo árbol** que el de `pnj@1`
+(`entradas` con `si`, `nodos`, hasta 4 respuestas, `ir`; `accion` solo `avanzar_paso` o `despedir`: una cosa no da misiones
+ni recibe entregas). Con él, la cosa ofrece «E: <aviso>» (p. ej. `"aviso": "inspeccionar la mancha"`) siempre que alguna
+`entrada` valga para ese jugador —no solo cuando un paso `coge`/`usa` la señala— y abre el mismo panel de conversación (el
+título es el `nombre` de la cosa). Así las cosas que no cuentan (la ventana, el cenicero) se pueden inspeccionar igual que las
+que sí, y el juego no delata cuál importa. Un paso `usa` sobre una cosa con `dialogo` **se cumple con una respuesta
+`{ "accion": { "tipo": "avanzar_paso", "mision": "<id>" } }` de ese diálogo** (como `habla_con` con una persona); inspeccionar
+sin elegirla no cuenta, ni la de otra cosa, ni la de otra misión. Si la cosa tiene un paso `coge` pendiente, «E» la coge como
+siempre. Como en las personas, si la **última** entrada lleva `si` y ninguna vale, la cosa no ofrece «E» y el servidor lo
+rechaza («Ahora no hay nada que inspeccionar en <Nombre>.»). El servidor decide el alcance (`api.within`) como hasta ahora.
+`node tools/aventura.ts <mundo>` comprueba el árbol y que cada `avanzar_paso` tenga su paso `usa` con esa cosa (y cada paso
+`usa` sobre una cosa con diálogo, su respuesta). Plugs: misiones **v9** (estado de la cosa `dialogo`, evento `marcas` con
+`callan`, `mision` con `pistas`, evento `abrirLibro`).
+
+```json
+{ "formato": "cosa@1", "id": "mancha", "nombre": "Mancha", "posicion": { "x": 12, "z": 12 }, "aviso": "inspeccionar la mancha",
+  "dialogo": { "entradas": [{ "nodo": "ver" }],
+    "nodos": { "ver": { "texto": "Una mancha oscura, seca.",
+      "opciones": [{ "texto": "Tomar nota.", "accion": { "tipo": "avanzar_paso", "mision": "caso" } },
+                   { "texto": "Seguir.", "accion": { "tipo": "despedir" } }] } } } }
+```
+
+**Una cosa que se marca como indicio (`marcable`, P4).** `cosa@1` admite `"marcable": true` (o un objeto con textos propios, ≤ 40
+bytes cada uno, y `offset`): `{ "marcar": "Marcar", "desechar": "Desechar", "desmarcar": "Desmarcar", "dejar": "Dejar marcado",
+"offset": { "x": 0, "y": 0.6, "z": 0 } }` (todo opcional; `offset` en metros, de −5 a 5, donde flota el marcador sobre la cosa).
+Mientras **un paso `marca` suyo es el que toca**, la ficha de la cosa (su `dialogo`, o, sin él, una ficha mínima con su
+`nombre` y su `descripcion`) termina con dos botones que añade el servidor a cada nodo: «Marcar» / «Desechar», o
+«Desmarcar» / «Dejar marcado» si ya la marcó. «Desechar» y «Dejar marcado» solo cierran la ficha. Fuera de ese paso no salen
+(ni «E» en una cosa sin `dialogo`). Como los botones suman dos a las respuestas del nodo y caben cuatro, **cada nodo de una
+cosa marcable lleva como mucho 2 opciones** (`node tools/aventura.ts` lo dice con su ruta).
+
+La lista de lo marcado es **por jugador** (máximo 16 cosas, en orden) y se guarda con su progreso: sobrevive a reconectar y a
+reiniciar el servidor. El **número** de cada indicio es su puesto en la lista (desde 1); al desmarcar uno, los siguientes suben
+(marcar A y B → 1 y 2; desmarcar A → B pasa a ser 1). Cada uno lo ve **solo en su página**: una placa amarilla con el número
+en negro, siempre de cara, que se lee desde 2 m a la altura de los ojos (C-24 del estándar de cámara de las aventuras). Un solo
+atlas de números (4×4) y un solo `Sprite` por indicio: el coste es una placa por cosa marcada. Las placas siguen puestas cuando el
+paso termina; un intento nuevo de una misión que marca (repetible) empieza sin nada marcado y con los contadores a cero.
+
+```json
+{ "formato": "cosa@1", "id": "vaso", "nombre": "Vaso", "descripcion": "Un vaso con restos.", "posicion": { "x": 25, "z": 20 },
+  "aviso": "inspeccionar el vaso", "marcable": true }
+```
+
+**`marca`: marcar los indicios que son (P4).** `{ "id", "tipo": "marca", "texto", "cosas": ["pisada", "vaso", "movil"] }`
+(1 a 16 ids de cosas **marcables**, sin repetir). El paso se cumple cuando el conjunto de lo que el jugador tiene marcado es
+**exactamente** `cosas` (el orden da igual): tres acertadas y una de más **no** lo cumplen, y se cumple en cuanto se quita la
+de más. El libro no dice cuándo una está bien marcada: el paso no pone baliza ni marca en el mapa, y el aviso de cada cosa es
+el mismo sea relevante o no. Con el paso en marcha se puede marcar cualquier cosa marcable (todas pueden quedar marcadas, sin tope
+más que 16). El resto del libro no cambia.
+
+**Contadores para evaluar (P4).** Por jugador y misión que tiene un paso `marca` (sin nota ni aprobado: solo se cuenta), en el
+progreso (`cuenta`, hasta 8 misiones) y en `window.__numinia.misiones.libro()[i].cuenta`:
+`marcas` (cada vez que marcó algo), `marcas_erroneas` (cada marca de una cosa que el paso no pide) y `desmarcados` (cada vez que
+desmarcó). Una marca rechazada no cuenta; desechar tampoco. Se quedan al terminar la misión, para que una ficha de evaluación
+posterior los lea. Plugs: misiones **v10** (estado de la cosa `marcable`, `mox`, `moy`, `moz`; evento `marcados` con `ids`,
+separados por comas y en orden; `mision` con `marcas`, `erroneas`, `desmarcados`). Para agentes y páginas:
+`misiones.marcados()` (los ids, en orden) y `misiones.numeroDe(id)` (0 = sin marcar). Sin ningún campo nuevo en los ficheros
+de la aventura, nada cambia: ni el estado, ni los eventos, ni lo que se guarda.
+
+**`foto`: sacar una foto con la cámara del motor (P10).** `{ "id", "tipo": "foto", "texto": "Foto", "grupo": "Foto", "objetivo": { "x": 5, "y": 0.5, "z": -8.3, "radio": 1 }, "distancia": 8 }`.
+`objetivo` es una esfera (metros; `radio` de 0,1 a 20) sobre el rincón que hay que fotografiar (el cadáver, una ventana, una
+puerta); `distancia` (1 a 60, opcional, **8** si falta) es lo más lejos de la cámara que puede estar su centro. El jugador abre
+la cámara de fotos de siempre (`apps/plaza/foto.ts`, también la de VR) y la saca él: **no se crea otra cámara** y entrar en una
+zona no hace nada. El paso no pone baliza, flecha, «!» ni marca en el mapa, ni hace parpadear el botón de la cámara; usa `grupo`
+para que dos rincones sean un bloque que se cumple en cualquier orden. Reglas (las decide **el servidor**, `features/misiones/foto.ts`
+y `maquina.ts` `fotografiar`):
+- «Sale en el encuadre» = el **centro** del objetivo está dentro del frustum de la foto (con su fov vertical y su aspecto reales),
+  delante de la cámara, a ≤ `distancia`, y sin pared entre el jugador y ese centro.
+- Una foto cumple **como mucho un** paso `foto` de cada misión: de los objetivos pendientes del bloque en curso que salen, **el más
+  cercano a la cámara** (empate: el primero del fichero). Un objetivo ya cumplido no vuelve a contar. Dos misiones con pasos
+  `foto` pendientes reciben cada una su veredicto de la misma foto.
+- Mientras haya un paso `foto` pendiente en el bloque en curso, una foto que no cumple ninguno suma **`fotos_erroneas`** a esa
+  misión (junto a los contadores de `marca`: progreso, `libro()[i].cuenta`, que ya trae `fotos_erroneas` aunque valga 0). No se le
+  dice nada al jugador. Fuera de un bloque con pasos `foto` las fotos no cuentan nada. Un intento nuevo de la misión los pone a cero.
+- Al cumplirse, los avisos de paso de siempre (sonido, «Foto» marcado en el libro). La foto se guarda y se comparte como hoy.
+
+Cómo llega al servidor: la página, al sacar una foto (plana o de VR) y **solo si algún paso suyo pide una foto ahora**, manda el
+intento `foto` con la pose de la cámara: `x`, `y`, `z` (dónde estaba), `fx`, `fy`, `fz` (hacia dónde miraba, vector unidad), `fov`
+(vertical, grados) y `aspecto` (ancho / alto). El servidor no se fía de ella más que lo justo: rechaza una pose imposible, exige
+que la cámara esté a ≤ **28 m** del ojo del jugador según la posición **que él tiene** (correa del modo foto: el pivote a
+`CAMARA.foto.alcance` = 12 m del ojo + la cámara hasta `CAMARA.foto.lejos` = 14 m detrás + 2 m de margen; `test/misiones-foto.test.ts` ata
+estos números a `CAMARA`), mira como mucho **una foto por segundo** y el intento tiene su cubo (2/s, ráfaga 3). Para la pared usa
+`api.rayo` (la malla de colisión del mundo, la misma del movimiento): el rayo sale del **ojo del jugador** hacia el centro del
+objetivo, no de la cámara. **Límite conocido:** una cámara de foto que quede al otro lado de una pared que el jugador no tiene
+entre sí y el rincón puede ver el rincón a través de ella, y un mundo sin malla de colisión (ni terreno) no tiene paredes que
+cuenten; `api.rayo` además gasta del cubo del jugador (4/s, ráfaga 8), y si se agota la foto cuenta como sin pared. **Accesible:**
+el verbo `foto` (`spoken`: «hacer una foto para una misión»); `pideFoto(misiones.libro())` (`features/misiones/foto.ts`) dice si algún paso lo pide ahora y
+`misiones.foto(pose)` manda una pose (un agente puede hacer «una foto desde donde estoy mirando» con la suya); el cumplimiento
+sale por los avisos del paso. Plugs: misiones **v11** (intento `foto`; en el evento `mision`, `fotos`, el contador de fotos
+erróneas). Un mundo sin pasos `foto` no cambia: ni el estado, ni los eventos, ni lo que se guarda.
+
+```json
+{ "id": "ventana", "tipo": "foto", "texto": "Foto", "grupo": "Foto", "objetivo": { "x": 12.5, "y": 1.4, "z": -3, "radio": 1 }, "distancia": 10 }
+```
+
+**Evaluación al terminar una misión (P13).** Un campo opcional de `mision@1`, `evaluacion`, hace que al completar esa misión la
+página enseñe una tarjeta con el **tiempo** de toda la misión (desde aceptarla hasta terminarla) y el de cada fase (cada bloque de
+pasos), los **contadores** que el autor elija y una **puntuación**. Sin el campo, no cambia nada: ni el estado, ni los eventos, ni
+lo que se guarda.
+
+```json
+"evaluacion": { "titulo": "Evaluación de la inspección", "base": 100, "minimo": 0,
+  "resta": { "fotos_erroneas": 5, "marcas_erroneas": 10, "desmarcados_correctos": 10 },
+  "tiempo": { "referencia_min": 20, "resta_por_minuto": 1 },
+  "muestra": ["tiempo", "fotos_erroneas", "marcas_erroneas", "desmarcados_correctos"],
+  "etiquetas": { "fotos_erroneas": "Fotos que no valían" } }
+```
+
+Todo es opcional. Puntos = `base` − (cada contador × su peso en `resta`) − (`resta_por_minuto` por cada minuto **entero** que pase
+de `referencia_min`), siempre entre `minimo` (0 si no se dice) y `base` (100). Pesos y minutos son enteros: no hay fórmulas. Un
+**contador** es cualquier nombre en minúsculas, cifras y «_» (`marcas`, `marcas_erroneas`, `desmarcados`, `desmarcados_correctos`,
+`fotos_erroneas` de la historia P10…): el que no existe en el progreso del jugador vale 0, así que un contador que otra pieza
+añada mañana ya funciona. `muestra` es la lista de filas, en orden (`"tiempo"` o un contador); si falta, sale el tiempo (si hay
+`tiempo`) y cada contador de `resta`. Lo que resta puntos tiene que estar en `muestra` (el formato lo exige: la nota no esconde nada).
+Cada fila lleva una etiqueta en castellano, de usted: la de la casa (`tiempo` «Tiempo de la misión», `marcas` «Marcas hechas»,
+`marcas_erroneas` «Marcas erróneas», `desmarcados` «Marcas retiradas», `desmarcados_correctos` «Indicios correctos desmarcados»,
+`fotos_erroneas` «Fotos no relevantes») o la que el autor ponga en `etiquetas` (hasta 40 bytes; obligada para un contador que el
+motor no conoce). Los contadores de las marcas (`marcas`, `marcas_erroneas`, `desmarcados`, `desmarcados_correctos`) solo los hay en
+una misión con un paso `marca`; el formato rechaza pedirlos si no lo tiene.
+
+`desmarcados_correctos` (nuevo en la lógica de `marca`) cuenta cada vez que el jugador desmarca una cosa que el paso **sí** pide;
+marcar una irrelevante ya suma en `marcas_erroneas` y desmarcarla después no suma nada más (solo `desmarcados`). Se guarda en
+`cuenta` solo cuando ocurre.
+
+**El tiempo lo mide el servidor**, con su reloj (ms): en el progreso de cada misión activa quedan `t0` (aceptada) y `tb` (el
+momento en que se cerró cada bloque; un grupo de pasos es un solo bloque y su pausa de 2 s no cuenta), así que sobrevive a
+reconectar y a reiniciar, y el tiempo con el servidor apagado cuenta. Al completarse la misión, el servidor calcula la tarjeta
+(`features/misiones/evaluacion.ts`, funciones puras), la guarda en el progreso (`evaluaciones`, las 4 últimas) y la manda con el libro
+(eventos `evaluacion` y `evaluacionFila`, solo a su dueño); detrás de ese libro llega `abrirEvaluacion`, que es también el anuncio
+para lectores de pantalla y agentes («Evaluación de la inspección: 79 puntos. Tiempo de la misión: 2 min 05 s; …»). Una misión
+aceptada antes de que el mundo tuviera `evaluacion` no tiene reloj: su tarjeta sale sin la fila del tiempo. Plugs: misiones **v12**.
+
+**Fases con nombre (`evaluacion.fases`).** Una misión con muchos bloques (la del crimen tiene 8) no quiere una fila por bloque, sino el
+tiempo de toda la misión y el de unas pocas **fases** con nombre. `fases` es opcional (1–8) y cada fase dice dónde acaba:
+
+```json
+"fases": [
+  { "nombre": "Fase 1 · Datos preliminares", "hasta": "recoger-cuaderno" },
+  { "nombre": "Fase 2 · La escena",          "hasta": "marcar-indicios" },
+  { "nombre": "Fase 3 · El informe",         "hasta": "informar-sargento" }
+]
+```
+
+Cada fase va desde el final de la anterior (la primera, desde que se acepta la misión) hasta que se cumple el paso `hasta`; si ese
+paso está en un `grupo`, hasta que se cierra el bloque entero. La tarjeta enseña entonces la fila del tiempo total y **estas** filas
+(`tipo: "fase"`; el nombre, de hasta 60 bytes, sale tal como se escribe, sin «Fase n:» añadido) en vez de una por
+bloque. Sin `fases`, lo de siempre. El formato exige que `hasta` sea el id de un paso de la misión, que las fases vayan en el orden
+de los pasos y que dos no acaben en el mismo bloque; el tiempo que pase después de la última fase cuenta en el total pero en
+ninguna fase (acabe la última en el último paso para que las fases sumen el total). Una tarjeta guardada con otro número de fases que
+el actual (el autor cambió la misión después) enseña solo el tiempo total, nunca una fila equivocada. Las filas de fase no restan
+puntos y no entran en el resumen de una línea.
+
+En la página, la tarjeta (`#evaluacion`, `apps/plaza/misiones.ts`) se abre sola al terminar la misión sin quitar el teclado (nunca
+en VR), se cierra con «Cerrar» o Escape y se vuelve a abrir con «Ver evaluación» en la lista de misiones hechas del libro (J). Para
+agentes y páginas: `misiones.evaluacion(id)` (o `misiones.libro()[i].evaluacion`) devuelve
+`{ titulo, puntos, base, minimo, resumen, filas: [{ tipo: "tiempo"|"fase"|"contador", clave, etiqueta, texto, valor, resta }] }`, o
+`null` mientras la misión no esté hecha o no lleve `evaluacion`. Queda fuera: el informe para el instructor (la misma tarjeta, de
+todos los alumnos).
 **Una cosa que se ve usada para ti (`apariencia.usada`, U14 (6)).** `"apariencia": { "modelo": "<sha256 del cofre
 cerrado>", "escala": 1, "usada": { "modelo": "<sha256 del cofre abierto>", "escala": 1 } }`: cómo se ve la cosa para **quien
 ya hizo el paso que la usa** (`usa` o `coge`) en una misión que lleva o que terminó. Los demás la siguen viendo como antes,
@@ -870,6 +1172,16 @@ español del verificador), 403 = pase bueno sin permiso, 404 `agentes-desactivad
 (cerrado, nunca abierto). CORS: solo `https://numinia.com` (responde al `OPTIONS` y pone `Access-Control-Allow-Origin`;
 a otro origen no le pone ninguna cabecera CORS; nunca `*`). El instalador deja pasar `/agentes*` por Caddy.
 
+## Espacios (v1, Y50 + Y51): an own private space with guests and placement by rules
+
+`features/espacios` is the player's own corner. The server decides everything (R-1); the page only shows and asks.
+- **World file** (`entorno/espacios.json`, `numinia-engine/espacios@1`): `{ espacios: [{ id, nombre?, x, z, y?, radio?, tope? }], cosas?: { <type>: { alto, ancho, sobre: ["suelo" | <type>] } } }`. `radio` 2–60 m (8). `tope` = most objects THIS space holds, 0 to `ESPACIO_OBJETOS_MAX` (40, published as `space_objects_max` in `limits.json`: the game master sets the cap there and in the file; the server never goes above the engine's number). `cosas` are the kinds that may be placed (metres, two decimals): height, footprint width and what each rests on; without it the house has `caja` (stacks), `mesa` (floor only) and `taza` (only on a table). Without the file the piece does nothing. Every bad line is left out with its path and how to fix it.
+- **Who**: the game master (who directs or rules, as for the Entorno switches) `asignar`s a free space to a connected person (one space per person) and `liberar`s it (that empties it). The owner `nombrar`, `invitar` (up to 12, `space_guests_max`), `quitar` (by name) and `mirar`. An owned space is **private**: once a second the server puts anyone inside who is not the owner, a guest or someone who directs back just outside the edge, with the reason. `entrar` takes an allowed person inside without walking.
+- **Placement (Y51)**: `colocar {id, tipo, x, z, sobre}` with `sobre` 0 = floor or the number of the supporting thing. The server, in centimetres and integers, checks in order: the type exists · room under `tope` · the spot is inside the radius · the type may rest on that (floor or kind) · the new centre lies within the supporter's footprint (something is under it) · nothing at the same level overlaps. It computes the height itself. `retirar {id, n}` is refused while something rests on `n`. Only the owner, standing inside, places; not even the game master places in someone's corner.
+- **Names are untrusted text**: the space's name, the owner's and the guests' names are cut to length, stripped of control characters and published as plain fields; an agent reads them only inside the `<material>` block (STD-050); the page paints them as text.
+- **No gesture needed**: every verb is an intent an agent or the keyboard sends, and the chat has `/espacio` · `/espacio <id> entrar|mirar|nombre <texto>|invitar <person>|quitar <name>`. The space's card carries `interact` (E: enter). Notices (`aviso`, `concedido`, `rechazado`) each have text and sound; `cambio` is server-only (`api.listen("espacios", "cambio")`) for a future exhibition room (Y52).
+- **Page**: no client part in the first-load bundle (the page-weight cap `first_load_br_bytes` had 497 B of headroom and a client part costs about 1 kB): the page hears the notices, shows the card and sends the verbs from the server's catalog. `features/espacios/client.ts` (list, last notices, one method per verb) is for the lazy panel of Y50b.
+- **Persistence**: owner, guests, name and things live in the feature's store (`e:<id>`), so they survive restarts. **Not yet**: the Entorno switch and panel (Y50b), drawing the boundary and the things (Y50c). **Tests**: `test/espacios.test.ts` (13).
 ## Pesca (v2): un minijuego que decide el servidor
 
 `features/pesca` es el ejemplo de **minijuego con tiempo**: el servidor lleva el ciclo entero en `api.onTick` (20 Hz) y la
@@ -1981,6 +2293,96 @@ Con interruptor: espacio base, naturaleza, báculo, dados, asientos. Sin él aú
 - **Página**: aviso «En La mesa: solo te oyen los de la mesa» al entrar (evento `dentro`, solo a esa persona), cartel pequeño mientras estás dentro (`apps/plaza/burbuja.ts`) e icono de micrófono junto al nombre en «Gente».
 - **Interruptor** «Burbujas de voz» en Entorno (mismo patrón): quien dirige o manda; encendido por primera vez sin sitios pone una de 3,5 m donde está quien lo enciende y la guarda en `burbujas.json`; apagarlas devuelve la voz de siempre.
 - **Barra de acciones**: cada acción puede declarar `disponible()` (`Action` nuevo, opcional); la página pone `hidden` en el botón cuando no es posible («Soltar/Pasar el báculo» solo con báculo, «Levantarte» solo sentado). Sin `disponible`, siempre visible como antes.
+
+## Espejo (v1): cosas de fuera dentro del mundo
+
+`features/espejo` (mundo-hermes): un **espejo** de cosas que viven fuera del mundo. Una fuente de fuera (un plugin de Hermes, un CI, un panel de casa) publica cosas (id, tipo, título, estado, zona, acciones) y el servidor las pone en el mundo con su ficha (`state.card`, `at`); quien manda, desde cerca, puede **pedir** una acción sobre una cosa y el servidor solo la reenvía hacia fuera. Lo de fuera manda: aquí no se guarda nada y no se ejecuta nada. Es una pieza reutilizable (R-1): no sabe qué es Hermes.
+- **Mundo**: `entorno/espejo.json` = `{ "schema": "numinia-engine/espejo@1", "activa": true, "funciones": { "cron": true, "sesiones": false }, "fuente": { "puerto": 8791 }, "zonas": [{ "id": "z7", "nombre": "El reloj", "centro": { "x": 40, "z": -10 }, "ancho": 16, "fondo": 16, "alto": 6, "tipos": ["cron"] }], "acciones": { "cron.pausar": "confirmar" } }`. Una función no nombrada está **apagada** (al revés que `funciones.json`): una cosa de una función apagada se rechaza y la fuente ni recibe esa función en `hola.funciones`. Las acciones nunca son «libres»: `confirmar` o `aprobar` (por defecto `aprobar`). Un fichero con un error no se usa en absoluto (cada fallo en el registro, con su ruta). **Sin el fichero la pieza no hace nada** (coste 0, mismo estado y misma huella).
+- **Costura** (`parte.enlace`, la usa el enlace local y las pruebas): `alta`, `cambio`, `baja`, `lote` (reemplaza TODO lo publicado; todo o nada), `conectada`, `resultado`, `alPedir`. Los textos de fuera se limpian y se cortan; un título demasiado largo se rechaza, no se corta.
+- **Intenciones**: `usar { objeto }` (a quien lo hace, solo a él: qué es, cómo está, qué se le puede pedir) y `pedir { objeto, verbo }`. `pedir` solo lo hace una **persona identificada** que dirige o manda (nunca una IA, aunque tenga el rol: STD-050), cerca, con un verbo que esa cosa ofrece, con su función encendida, con la fuente conectada, hasta 3 peticiones esperando por persona y 20 en el mundo. Sale como `peticion`; la respuesta (`resultado`) llega solo a quien pidió; sin respuesta en 30 s caduca («Hermes no ha respondido»); si la fuente se corta, lo que esperaba se cierra con «no sé si se hizo».
+- **Enlace local** (`packages/server/src/enlace-espejo.ts`): un WebSocket propio en `127.0.0.1:<fuente.puerto>` (`MOTOR_ENLACE_PUERTO` lo cambia), que **solo se abre si el mundo tiene el espejo encendido**. Lo abre la fuente hacia el motor. El motor manda un reto (`reto { nonce }`), la fuente contesta `hola { firma }` con `firma = HMAC-SHA256(clave, "numinia-enlace@1\n" + nonce)` (la clave nunca viaja) y el motor contesta `hola { funciones, zonas, acciones }`. Después: `lote/alta/cambio/baja/resultado/pulso` hacia el motor; `peticion/pulso/error` hacia la fuente. Se rechaza: toda dirección que no sea local, toda petición con cabecera `Origin` (una página web), una segunda fuente a la vez, un mensaje de más de 16 KB, más de 20 mensajes por segundo (ráfaga de 40), JSON roto, versión distinta, firma mala o tardía (5 s) y el silencio de más de 45 s.
+- **Clave**: `MOTOR_ENLACE_CLAVE`, o la que el motor hace una vez en `<mundo>/enlace.env` (modo 600, fuera del zip, nunca en el registro). Distinta de `MOTOR_SECRET` a propósito: filtrarla permite mentir sobre un cron, no falsificar un pase.
+- **Textos y pantalla (M5)**: todo texto visible va en castellano de «usted». Cada función tiene su etiqueta con artículo (`TEXTO_FUNCION` en `features/espejo/esquema.ts`: «Apagar el gasto», «Encender los agentes», «Encender las sesiones»; una prueba exige que no falte ninguna) y los botones de zona salen de `textoIrA` («El umbral» → «Ir al umbral», «La torre de control» → «Ir a la torre de control»). Las placas planas miden entre 90 y 220 px de ancho en pantalla a cualquier distancia (`escalaPlacaPx`), se desvanecen entre 32 y 40 m y no se dibujan más allá (`opacidadPlaca`); el apilado por distancia sigue igual. En el tema `black-and-white` la barra de acciones de la casa y el aviso «E: …» se esconden mientras hay una ficha del espejo abierta (la raíz de la página lleva la clase `ficha-espejo`) y la barra crece hacia arriba para que su segunda fila («Soltar») no se corte. Un mundo sin el tema no recibe nada de esto.
+- **Mundos sin espejo ni tema, idénticos**: `node tools/identidad-sin-espejo.mjs <copia A> <copia B>` (cada copia con `npm run build`) arranca los dos con la plantilla por defecto (Taller) y claves fijas y compara: (1) la carpeta del mundo sembrada, fichero a fichero por sha256 (`mundo.json` solo por claves: lleva el commit y el reloj); (2) `/status` como JSON sin los campos de la compilación (`commitHash`, `uptime`, `version`, que se imprimen) y sus claves; (3) lo que un Chromium real pide al cargar la página, por nombre sin el hash y por tamaño: lo único que puede variar es código de la página (el trozo principal y los compartidos cambian de tamaño) y un trozo más, la mitad cliente del espejo, que no hace nada sin `espejo.json`. Una página no puede ser idéntica byte a byte entre dos commits que cambian código; lo que se prueba es que el mundo, su estado y su semilla sí lo son. La huella de determinismo (`f455ffc1`) sale igual en las dos. Resultado de M5: `diseno/m5-identidad-sin-espejo.txt`.
+- Pruebas: `test/espejo-esquema.test.ts`, `espejo-servidor.test.ts`, `espejo-peticiones.test.ts`, `espejo-enlace.test.ts`, `espejo-palancas.test.ts`, `espejo-teletransporte.test.ts`, `tema-hud.test.ts`, `formas-agentes.test.ts`.
+- **Panel de interruptores con el ratón** (intención `encender { funcion, activa }`; evento `permiso { encender }` solo a quien lo recibe; evento `funcion { funcion, activa, texto }` a todos): quien **dirige o manda** y es una **persona identificada** (nunca una IA, aunque tenga el rol) enciende o apaga una función desde dentro: mirar el panel (clic o E) abre su ficha con un botón por función, con la misma confirmación en dos pasos («¿Seguro? Confirmar…»). El servidor comprueba el nombre (uno de `FUNCIONES`), vuelve a **leer `entorno/espejo.json`**, cambia solo `funciones.<nombre>`, **valida el fichero entero con el esquema** y solo entonces lo escribe de forma atómica (fichero temporal + renombrar, `escribirMundo`); un fichero roto a mano **no se sustituye** (se dice por qué) y un fallo al escribir **no cambia nada** (ni el mundo ni la fuente). Se aplica **al momento, sin reiniciar**: las cosas de una función apagada **salen del mundo** y lo que esperaba respuesta se cierra («La función se apagó mientras tanto»); el fichero conserva zonas y acciones, y la fuente conserva los datos (al volver a encender, los vuelve a publicar). El panel se queda siempre (si no, no se podría volver a encender) y su subtítulo dice qué está encendido y apagado. Sin carpeta de mundo el cambio dura hasta el reinicio y se dice en el registro. También es el interruptor «Espejo de Hermes» del panel Entorno (la lámpara maestra `salud`). Sin `espejo.json`: la intención no hace nada, no manda ningún evento y el estado y la huella salen igual.
+- **Trama nueva del enlace local**, motor → fuente: `funciones { v: 1, funciones: [...] }` — tras cada cambio de un interruptor desde dentro, la lista **nueva y completa** de lo encendido (la misma forma que `hola.funciones`). Lo que sale de la lista debe dejar de publicarse; lo que entra se puede mandar ya (con `lote`). Una fuente que se reconecta recibe la lista actual en `hola`, no la del fichero viejo. Quien no la entienda puede ignorarla: el resto del enlace no cambia.
+- **Carteles y teletransporte entre zonas**: cada zona lleva en el suelo su cartel plano con su nombre (`cartel`, o `nombre`; «apagada» si su función está apagada). La ficha del panel ofrece un botón «Ir a <zona>» por zona que **reutiliza la pieza `teletransporte`** (`irAPunto` → intención `punto`, R-1: no hay pieza nueva; mismo ritmo de un viaje cada 10 s, mismo interruptor `/teletransporte`); se cae en el centro de la zona, dentro de su rectángulo. No pide confirmación: no cambia nada fuera del mundo.
+- **Tema blanco y negro** (`entorno.json` → `"tema": "black-and-white"`, solo lo lleva la plantilla `hermes`): `GET /status` dice `temaHud` y la página carga `apps/plaza/tema-byn.ts` (hoja plana: solo `#000` y `#fff`, bordes blancos, sin sombras ni transparencias) y pone al minimapa fondo negro y marcas blancas (`temaMapa`). Un valor distinto es un error del esquema (`entorno.tema`) y se queda el aspecto de siempre; sin la clave no se descarga nada y `/status` no cambia. (`tema` a secas en `/status` es el aspecto de la ficha del mundo: no se toca.)
+- **`perfil` y `uso`** (formas planas, `formas-planas.ts`): `perfil` = figura de pie con una lámpara sobre la cabeza (trabajando = relleno blanco, en reposo = contorno, apagado = contorno discontinuo; estados raros = en reposo); `uso` = medidor vertical de 10 segmentos apilados que se llenan de abajo arriba según los tokens respecto al mayor del mundo, con los tokens como rótulo. Sus fichas (castellano de usted): `perfil` — «Estado: trabajando | en reposo | apagado»; `uso` — «Entrada y salida: …», **«Caché (aparte): …»** (si la fuente la dice como segmento `caché …` del subtítulo, nunca sumada) y **«Coste estimado: $… (estimado, no es lo facturado)»**. El subtítulo que lee es `33,8 M tokens · caché 4.302 M · $1,654.69 est. · 1329 ses. · 30 d · modelo`; lo que no entiende se enseña tal cual. Una forma de nombre desconocido se dibuja como cubo. La plantilla `hermes` aún no trae zonas para `perfil` ni `uso`.
+- **Zonas `perfil` y `uso` en la plantilla** (M4): `plantillas/hermes/entorno/espejo.json` trae también Z6 «La torre de control» (`perfil`, centro 30, −30; 24×24 m: las figuras se ponen solas en la cuadrícula de 4 m desde el centro, hasta 36) y Z2 «La sala de máquinas» (`uso`, centro −30, −30; 24×16 m). Sus interruptores `perfiles` y `uso` nacen **apagados** (solo `salud` nace encendida); el panel del umbral tiene una lámpara y un botón «Ir a …» por cada una (la losa aprieta el paso de las lámparas para que quepan hasta 8). Un mundo nuevo acepta un lote de 14 `perfil` y 1 `uso` sin posición y los coloca sin solaparse (`test/espejo-vista.test.ts`).
+- **La ficha cabe en cualquier pantalla desde 360×640** (M4): botones compactos en dos columnas por grupo (Acciones / Funciones / Ir a una zona), cuerpo con desplazamiento propio, «Cerrar» siempre dentro; se asienta justo encima de la barra de acciones (`#acciones`) y nunca la tapa; la pulsación «¿Seguro?» conserva el desplazamiento.
+- **Rótulos planos y apilados** (M4): los rótulos del espejo son placas negras con contorno blanco (`plano`), se ven por sí solas de cerca (`siempre`, 14 m) y se apartan de su figura (`tope`: suben, en la pantalla, hasta quedar por encima de la cabeza) y unas de otras (`packages/render/src/rotulos-apilar.ts`, pura: de la más cercana a la más lejana, cada una sube de a una altura de placa hasta no tocar a otra; pasados 4 niveles, la lejana se oculta). `view.placas()` devuelve lo que dibujó el último fotograma, para las pruebas.
+- **`lote` con una cosa de una zona que no existe** (M4): el lote ya **no** se rechaza entero por eso. Una cosa cuya zona el mundo no tiene (o cuya zona no admite su tipo) se **deja fuera**; las demás entran y el lote reemplaza lo publicado como siempre. El motor lo cuenta en la costura (`Resultado.descartadas: [{ tipo, id, motivo }]`) y, por el enlace, con una trama `ack { en: "lote", puestas, quitadas, descartadas: [...hasta 20], mas }` que **solo se manda cuando algo quedó fuera** (un lote limpio sigue sin respuesta). Siguen rechazando el lote entero, sin tocar el mundo: la forma del objeto (incluida una `zona` ausente o que no es texto), el tamaño (200 cosas por lote y por zona, límites de texto), una cosa repetida y una cosa del propio mundo (el panel). `hola.zonas` sigue listando los ids de zona (y sus tipos), para que la fuente filtre antes de mandar. `alta` y `cambio` no cambian: una zona desconocida sigue siendo un error.
+- **Pruebas con navegador** (M4): `npm run test:e2e` (`tools/e2e-espejo.mjs`, ayudas en `tools/espejo-e2e-lib.mjs`). Arranca el servidor de verdad con `MOTOR_PLANTILLA=hermes` en un mundo desechable (claves fijas, puertos libres), hace de fuente por el enlace local y abre la página construida (`npm run build` antes) en un Chromium sin cabeza; comprueba por el DOM y el estado de la página: la ficha de un cron (verbos, «¿Seguro?», `pedir`, texto del resultado), el botón «Ir a …» (dentro del rectángulo de la zona), que la ficha cabe en 1280×720, 1024×600, 800×600 y 360×640, los colores calculados del HUD (solo negro, blanco y el acento `#FFD400`), las 14 placas sin solaparse, la lámpara que apaga una función (quita sus cosas y escribe el fichero del mundo) y que un mundo sin `tema` no carga el tema. **No** entra en `npm test` ni en `npm run gates`: necesita navegador y tarda ~1-2 min; en una máquina compartida, tras el cerrojo (`flock <cerrojo> npm run test:e2e`). Variables: `CHROME`, `PW_CORE`, `E2E_SHOTS`.
+- **Tema blanco y negro completo** (M4): `tema-byn.ts` redefine las variables de la casa (`--n-*`) a `#000`/`#fff` y deja **un** acento (`#FFD400`: avisos sin leer y la aguja de la brújula); sin sombras, cristales, degradados ni transparencias en lo que cuelga del `body`. Se carga solo con `temaHud`; sin la bandera la página es la de siempre.
+- **`caduca`**: la petición hacia fuera sigue llevando `caduca` como **número de tic** (no milisegundos); no se ha tocado.
+
+
+### Espejo, ola M6: documento, habilidad, tablero y la guía
+
+Cuatro funciones nuevas, todas **apagadas de fábrica** (interruptor compartido `features/interruptor.ts`, el mismo que las demás) y ligadas a una zona de la plantilla `hermes`. Sin ellas encendidas el mundo no baja ningún trozo nuevo y la carpeta, `/status` y la huella salen igual (`tools/identidad-sin-espejo.mjs`). **Cambio de nombres** (aún nadie los publicaba): la función `skills` pasa a `habilidades`, `biblioteca` a `documentos`, el tipo `skill` a `habilidad`, el verbo `skill.abrir` a `habilidad.abrir`; `kanban` gana el tipo `tablero` (el tipo `tarjeta` y el verbo `tarjeta.mover` quedan para más adelante).
+
+| Función | Tipo | Zona de la plantilla | Se dibuja como |
+|---|---|---|---|
+| `documentos` | `documento` | Z1 «La biblioteca» | un estante plano con libros; «Abrir» abre el visor |
+| `habilidades` | `habilidad` | Z4 «El taller» | una tablilla sobre pie con lámpara (encendida = activa), en filas por grupo |
+| `kanban` | `tablero` | Z9 «El tablero» | un tablero de tres columnas (Por hacer / En curso / Hecho) con cifras y tarjetas blancas, hecho por código |
+| `guia` | — (solo página) | — | una silueta blanca que acompaña; **no es una cosa** y la fuente nunca oye hablar de ella |
+
+**Contrato de `state` (lo que la fuente publica con `alta`/`cambio`/`lote`).** Campos comunes de siempre (`tipo`, `id` ≤ 32, `titulo` ≤ 60, `subtitulo` ≤ 120, `estado`, `zona`, `x`/`z` opcionales, `luz`, `acciones`); cada campo nuevo **pertenece a un solo tipo**: en otro es un error con su ruta (un descuido no pasa en silencio). Una cosa que llega sin `x`/`z` se coloca sola en la cuadrícula de su zona.
+
+- `documento` — `url` (≤ 300 bytes; **opcional**, un estante sin página dice solo su título): una dirección `http(s)` en forma normal, sin usuario ni contraseña, cuyo **origen está en `documentos.origenes`** del mundo. Si no lo está, la cosa **no entra en el mundo** (como una de zona desconocida: se descarta y se cuenta). `descripcion` (≤ 200 bytes, opcional). `subtitulo` = el título de la página, si se conoce. `estado`: `activo`. `acciones`: ninguna hace falta; «Abrir» es **local** (no sale nada del mundo, sin «¿Seguro?»); si la fuente lista `documento.abrir` se ignora.
+- `habilidad` — `grupo` (**obligatorio**, 1–32 bytes: la necesidad o categoría; las filas del taller siguen el orden en que aparece cada grupo y no cambian de sitio cuando llega otro), `descripcion` (≤ 200 bytes; la ficha enseña **140 caracteres** y «…»). `estado`: `activo` (lámpara encendida) | `apagado` (lámpara apagada, marco discontinuo) | `fallo`. `titulo` = el nombre de la habilidad. `acciones`: ninguna en M6 (solo lectura); `habilidad.abrir` y `habilidad.activar` existen en `VERBOS` para después.
+- `tablero` — `tablero` (**obligatorio**): `{ "hacer": { "n": 7, "top": ["Título", …] }, "curso": { … }, "hecho": { … } }`. `n` entero 0–99999 (cuántas tarjetas hay en esa columna), `top` hasta **3** títulos (cada uno se corta a 32 bytes; comillas y barras se cambian por `'`); no valen columnas desconocidas ni faltar una. Viaja como texto JSON compacto (≤ 512 bytes). Solo lectura: **sin verbos**. `estado`: `activo`. Una sola cosa por tablero (`id` = su nombre corto).
+- `guia`: no se publica nada. El interruptor `guia` vive en el mundo; la trama `funciones` que se manda a la fuente **no** la nombra.
+
+**`espejo.json`.** `funciones.documentos|habilidades|kanban|guia` (`false` de fábrica). `documentos.origenes`: hasta 8 **orígenes** (`esquema://equipo[:puerto]`, sin ruta, sin usuario, sin comodines); por defecto `["http://127.0.0.1:8791"]`; lista vacía = el visor no abre nada. Una dirección con otra forma del mismo equipo (`http://2130706433:8791`, `http://[::ffff:127.0.0.1]:8791`, `http://127.0.0.1@otro.com`) **no pasa**: el dueño escribe el origen que quiere, tal como lo da el navegador. `guia.frases`: `{ "<id de zona>" | "tocar:<tipo>" | "saludo": "texto" }` (1–120 caracteres, una línea; hay frase por defecto para cada zona y tipo; las claves desconocidas son un error). `guia.recorrido`: ids de zona en el orden de la visita (por defecto, el orden de `zonas`).
+
+**El visor** (`apps/plaza/documento.ts`, un trozo aparte que baja con el primer «Abrir»). Una capa HTML a pantalla completa sobre el lienzo (el mundo sigue dibujándose detrás): marco negro, botón blanco «Cerrar (Esc)», `role="dialog" aria-modal`; **Esc** cierra, **Tab** da vueltas dentro (botón ↔ marco) y las teclas no llegan al avatar. Dentro, un `<iframe sandbox="allow-scripts allow-same-origin" referrerpolicy="no-referrer" allow="">` sin ventanas emergentes, formularios, descargas ni navegación de la página superior. **Por qué los dos permisos del sandbox:** el visor de documentación es una aplicación web, necesita `allow-scripts`; y `allow-same-origin` para leer *sus propios* ficheros (su índice, su tema guardado): sin él la página recibe un origen opaco y cada petición a su propio servidor falla. Es seguro **solo porque el origen del marco nunca es el del mundo** (la página lo comprueba: «el visor no abre páginas del propio mundo»): con otro origen el marco puede ejecutarse pero no tocar esta página, su almacenamiento ni su sesión (la prueba lo comprueba: `parent.document` falla). **La dirección se vuelve a comprobar en la página** antes de poner `src` (nunca se fía de lo que dijo el servidor). Si el servidor no responde (conexión rechazada) o el marco no carga en **6 s**, no queda una caja en blanco: «No he podido abrir la documentación. Arranque el visor con este comando y vuelva a pulsar «Abrir»: `hermes palace docs`». Limitación: dentro de un marco de otro origen las teclas son del marco; ahí se sale con el botón blanco.
+
+**La guía** (`apps/plaza/guia.ts`, trozo aparte, solo con `guia` encendida): una silueta blanca (más alta que un perfil; su único detalle es la diadema, una cinta negra con un gancho) aparece a 3 m del visitante, lo sigue a 3 m **suavemente (sin física, ≤ 7 m/s)** y, al entrar en una zona o tocar una cosa, dice **una** frase corta en castellano de «usted» en un globo negro con borde blanco (7 s). Solo habla: no manda peticiones ni pulsa verbos. «Ir con la guía» (ficha del panel) lleva al visitante a la zona siguiente del recorrido con la pieza de teletransporte de siempre (la guía llega con él). Un cuerpo VRM vendrá más tarde; hasta entonces es la silueta.
+
+**Piezas y cuándo se descargan.** `formas-extra` (estante, tableta, tablero, guía) baja con la primera de esas formas; `documento` con el primer «Abrir»; `guia` con el interruptor encendido. Presupuesto de página tras M6: 632.6 kB gz · 534.4 kB br de 536.
+
+### Embed (v1): el mundo dentro de un marco aislado (Hermes Desktop)
+
+Hermes Desktop pone la página en un `SandboxedFrame` con `sandbox="allow-scripts allow-pointer-lock"` y **sin** `allow-same-origin`: la página tiene un **origen opaco** (`window.origin === "null"`, y las peticiones llevan `Origin: null`). Sin `localStorage`, `sessionStorage`, cookies, `caches`, IndexedDB ni service worker (todo eso lanza `SecurityError`), sin ventanas emergentes y sin el flujo de monedero; sí hay WebGL y bloqueo de puntero. El modo embed es el **Camino A**: el complemento (la página del plugin, que es el padre) publica por `postMessage`, sin el enlace HMAC. El Camino B (enlace WebSocket local) sigue igual para los mundos alojados. **Apagado de fábrica**: un mundo sin `embed` sigue idéntico (`tools/identidad-sin-espejo.mjs`).
+
+**Encender.** `entorno/espejo.json`: `"embed": { "activa": true }` (solo ese campo; cualquier otra clave se rechaza). Además hace falta la clave del enlace (`MOTOR_ENLACE_CLAVE` / `enlace.env`): sin ella no hay credenciales y el modo no se activa. `/status` cuenta `espejo.embed: true` solo si está encendido.
+
+**Credencial de embed** (la autenticidad; **nunca** `event.origin`, que desde un origen opaco no se puede conocer ni probar). Texto `e1.<exp>.<nonce>.<hmac>`: `exp` = milisegundos Unix de caducidad (como mucho 24 h desde ahora; el plugin debe usar ~1 h), `nonce` = 16 caracteres base64url, `hmac` = hexadecimal de `HMAC-SHA256(clave del enlace, "numinia-embed@1\n" + exp + "." + nonce)`. El plugin la fabrica con la misma clave que ya tiene del enlace y la pone en el **fragmento** de la URL del mundo: `http://127.0.0.1:<puerto>/?embed=1#embed=<credencial>` (un fragmento no llega a ningún servidor ni registro; la página lo borra de la barra al leerlo). Quien la tiene es, para ese mundo, **el dueño de la máquina** («dueño local»); si se filtra, vale hasta que caduca.
+
+**Amenaza, en claro.** `Origin: null` lo envían **todas** las páginas aisladas o `data:` de cualquier sitio: por sí solo no prueba nada y nunca basta. Entra una petición solo si (a) el mundo tiene `embed.activa`, (b) viene de esta máquina (loopback y sin `X-Forwarded-For`/`Forwarded`) y (c) lleva una credencial válida y vigente. Con el modo apagado `POST /espejo/embed` no existe (404). El socket del juego **sin** embed nunca comprobó `Origin` (un mundo público es público: la identidad allí es un pase, no un origen) y sigue igual; **con** embed encendido sí (véase «Reglas de `Origin`»). Los ficheros de la página llevan `access-control-allow-origin: *` **solo con el modo encendido** (son públicos y no usan cookies ni credenciales de ambiente; una página con origen opaco los necesita para cargar sus módulos y su hoja de estilo).
+
+**Reglas de `Origin` (solo con `embed.activa: true`).** Con el modo encendido el mundo es uno local y cualquier página web abierta en el navegador podría llegar a su puerto de loopback; por eso (1) el **WebSocket** admite solo `Origin` ausente (no es un navegador: el plugin, `curl`), `Origin: null` (el marco aislado) o el origen del propio mundo (`http://<Host de la petición>`); cualquier otro se rechaza con **403** y no llega a ser una conexión; (2) **`GET /status`** lleva `access-control-allow-origin: *` solo para esos mismos `Origin`; una página de otro sitio recibe la respuesta sin esa cabecera (el navegador no le deja leerla), y las lecturas del propio mundo (sin `Origin`) y las del plugin no cambian. Con el modo apagado, o sin `espejo.json`, **nada cambia**: el socket admite cualquier `Origin` y `/status` lleva `*` como siempre (un mundo alojado con dominio real sigue funcionando). La credencial `e1.<exp>.<nonce>.<hmac>` va en el fragmento de la URL y no cambia.
+
+**Que Hermes nunca deje al motor huérfano.** `MOTOR_SALIR_SI_STDIN_CIERRA=1`: el motor, arrancado con una tubería en la entrada estándar, sale (cierra las conexiones, guarda y termina con código 0, igual que con `SIGTERM`) cuando esa tubería se cierra. Apagado de fábrica: sin la variable, o con cualquier valor distinto de `1`, no se lee la entrada estándar y nada cambia.
+
+**Cuándo carga el puente.** El trozo `espejo-embed` (perezoso; no cuenta en la primera carga) se baja solo si la página está **enmarcada** (`window.parent !== window`) **y** (`?embed=1` o `/status.espejo.embed`); además necesita la credencial en el fragmento. Una página no enmarcada, o sin credencial, no baja nada ni responde a nadie. El almacén seguro (`apps/plaza/almacen-seguro.ts`) cambia a memoria solo lo que lanza `SecurityError`; donde el almacenamiento funciona no hace nada (sin embed, el comportamiento es el de siempre). En un marco aislado el pase de invitado no se conserva entre visitas.
+
+**Mensajes.** Todos son un objeto `{ "v": 1, "kind": "<tipo>", … }`, ≤ 16 KB una vez en JSON, como mucho 20 por segundo (ráfaga de 40). La página **solo** oye a `window.parent` (`event.source === window.parent`); lo de cualquier otra ventana se descarta **sin responder**. Todo lo que pasa lo vuelve a validar el servidor con el mismo esquema, tamaños e interruptores que el enlace local: el puente es un mensajero, no una autoridad.
+
+| Padre → mundo | Campos | Equivale en el enlace local a |
+|---|---|---|
+| `snapshot` | `objetos`: lista (≤ 200) de cosas | `lote` (sustituye todo lo publicado) |
+| `event` | `evento: "alta"` \| `"cambio"` + `objeto` | `alta` / `cambio` |
+| `event` | `evento: "baja"` + `objeto: { tipo, id }` | `baja` |
+| `event` | `evento: "resultado"`, `peticion` (texto), `ok` (booleano), `texto` | `resultado` (la respuesta a una `peticion`) |
+| `funciones` | `funciones`: lista de nombres | **solo información**: no enciende nada; los interruptores son del mundo. Si nombra una que está apagada, el mundo contesta `ack` con `ignoradas` |
+
+| Mundo → padre | Campos | Cuándo |
+|---|---|---|
+| `listo` | — | al montarse el puente (aún sin vincular) |
+| `hola` | `funciones` (lista de las encendidas), `acciones` (`{ "<verbo>": "confirmar" \| "aprobar" }`) | cuando el servidor acepta la credencial; publique su `snapshot` **después** de este mensaje |
+| `peticion` | `id`, `objeto` (clave `tipo/id`), `verbo`, `seguridad`, `quien: { id, nombre }`, `caduca` (tic) | alguien tocó una acción; el padre la lleva a Hermes (`ctx.rest('/action')`) y responde con `event/resultado` |
+| `funciones` | `funciones` (lista nueva y completa) | alguien encendió o apagó una función |
+| `ack` | `en`, y `descartadas` / `ignoradas` / `puestas` / `quitadas` | solo si algo quedó fuera |
+| `error` | `en`, `motivo` (castellano), `problemas` (≤ 5) | mensaje no válido, demasiado grande o demasiado rápido, o el servidor lo rechazó |
+
+**Quién toca.** En modo embed la persona es el dueño de la máquina por construcción: la página que prueba la credencial pasa a ser la **fuente** (recibe las `peticion`) y puede pedir y encender como quien dirige; el servidor marca `quien.nombre` como **«dueño local»** solo para esa conexión. Las demás conexiones del mismo mundo siguen con las reglas normales (rol, identidad, cerca, verbo permitido; STD-050 y el resto). Un enlace local que se conecta desplaza a la página embebida; una credencial válida desplaza a otra página embebida anterior (una pestaña reabierta reemplaza a la vieja).
+
+**Qué no hay.** Ventanas emergentes, monedero y navegación del padre (el marco no puede abrirlos); `allow-same-origin`; IndexedDB. El plugin no debe pedirlos.
 
 ## Avatares propios del mundo (E3): CC0 o CC BY con su crédito, solo en ese mundo
 

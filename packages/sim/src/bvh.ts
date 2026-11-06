@@ -182,7 +182,29 @@ const STACK = new Int32Array(2 * BVH_MAX_DEPTH + 4);
  * nothing is hit. Deterministic: the same ints in on every machine give the same hit out.
  */
 export function rayBvh(b: Bvh, ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, max: number): Hit | null {
-  if (b.count === 0 || max <= 0 || (dx === 0 && dy === 0 && dz === 0)) return null;
+  const hitTri = golpeBvh(b, ox, oy, oz, dx, dy, dz, max), best = GOLPE_T;
+  if (hitTri < 0) return null;
+  const q = hitTri * TRI_STRIDE, tris = b.tris;
+  const e1x = tris[q + 3] - tris[q], e1y = tris[q + 4] - tris[q + 1], e1z = tris[q + 5] - tris[q + 2];
+  const e2x = tris[q + 6] - tris[q], e2y = tris[q + 7] - tris[q + 1], e2z = tris[q + 8] - tris[q + 2];
+  let nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+  if (nx * dx + ny * dy + nz * dz > 0) { nx = -nx; ny = -ny; nz = -nz; } // face the ray
+  const len = isqrt(nx * nx + ny * ny + nz * nz) || 1;
+  return {
+    t: best,
+    x: ox + fxMul(dx, best), y: oy + fxMul(dy, best), z: oz + fxMul(dz, best),
+    nx: Math.trunc((nx * FX_ONE) / len) | 0, ny: Math.trunc((ny * FX_ONE) / len) | 0, nz: Math.trunc((nz * FX_ONE) / len) | 0,
+    tri: hitTri,
+  };
+}
+
+/** `t` (Q16.16 metres, floor) of the last `golpeBvh` that hit. Module state so a query allocates nothing; read it right after the call. */
+let GOLPE_T = 0;
+
+/** The traversal under `rayBvh`: the index of the nearest triangle the ray hits within `max`, or -1; its distance is left in
+ * `GOLPE_T`. Allocates nothing (the camera asks it every frame, M-camara). Same arguments and answers as `rayBvh`. */
+function golpeBvh(b: Bvh, ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, max: number): number {
+  if (b.count === 0 || max <= 0 || (dx === 0 && dy === 0 && dz === 0)) return -1;
   const nodes = b.nodes, idx = b.idx, tris = b.tris;
   // slab test against node boxes: parameters as t in Q16.16 metres (float64 here only for culling, one unit padded)
   const ix = dx !== 0 ? FX_ONE / dx : 0, iy = dy !== 0 ? FX_ONE / dy : 0, iz = dz !== 0 ? FX_ONE / dz : 0;
@@ -228,19 +250,8 @@ export function rayBvh(b: Bvh, ox: number, oy: number, oz: number, dx: number, d
       best = Math.floor(t); hitTri = tri;
     }
   }
-  if (hitTri < 0) return null;
-  const q = hitTri * TRI_STRIDE;
-  const e1x = tris[q + 3] - tris[q], e1y = tris[q + 4] - tris[q + 1], e1z = tris[q + 5] - tris[q + 2];
-  const e2x = tris[q + 6] - tris[q], e2y = tris[q + 7] - tris[q + 1], e2z = tris[q + 8] - tris[q + 2];
-  let nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
-  if (nx * dx + ny * dy + nz * dz > 0) { nx = -nx; ny = -ny; nz = -nz; } // face the ray
-  const len = isqrt(nx * nx + ny * ny + nz * nz) || 1;
-  return {
-    t: best,
-    x: ox + fxMul(dx, best), y: oy + fxMul(dy, best), z: oz + fxMul(dz, best),
-    nx: Math.trunc((nx * FX_ONE) / len) | 0, ny: Math.trunc((ny * FX_ONE) / len) | 0, nz: Math.trunc((nz * FX_ONE) / len) | 0,
-    tri: hitTri,
-  };
+  GOLPE_T = best;
+  return hitTri;
 }
 
 /** Two meshes in one tree (a world with a `malla` GLB AND naturaleza): the triangles of both, rebuilt. null + null = null. */
@@ -250,4 +261,37 @@ export function combinarMallas(a: Bvh | null, b: Bvh | null): Bvh | null {
   const tris = new Int32Array(a.tris.length + b.tris.length);
   tris.set(a.tris, 0); tris.set(b.tris, a.tris.length);
   return buildBvh(tris);
+}
+
+/** How far (metres) a camera sphere of radius `r` travels from `o` along the unit direction `d` before it touches the mesh,
+ * at most `max`. Pure float in, float out; NOT part of the simulation (the view's, like `solids` for the camera). Allocates
+ * nothing, so the camera may ask it every frame.
+ * The centre ray is shortened by `r / cos` (the angle between the ray and the face it hits: exact against a plane, and a
+ * grazing hit keeps the camera at least `r` away from the wall instead of sliding along it). Four more rays, parallel to it
+ * and `r` away on each side (`lx ly lz` and `ux uy uz` are two unit vectors across `d`), catch a jamb or a corner the centre
+ * ray passes beside; those count at their own hit. A triangle that already holds the origin is not ignored here: the caller
+ * starts the sweep at the player's eye, which is never inside a wall (the body is wider than the camera sphere). */
+export function barridoMalla(b: Bvh | null, ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, max: number, r: number,
+  lx: number, ly: number, lz: number, ux: number, uy: number, uz: number): number {
+  if (!b || b.count === 0 || !(max > 0)) return max;
+  const S = FX_ONE, dX = Math.round(dx * S), dY = Math.round(dy * S), dZ = Math.round(dz * S), maxFx = Math.round((max + 10 * r) * S); // the centre ray may hit up to r / 0.1 beyond `max` and still matter
+  let mejor = max;
+  const tris = b.tris;
+  for (let k = 0; k < 5; k++) {
+    const c = k === 0 ? 0 : r, ex = k === 1 ? lx : k === 2 ? -lx : k === 3 ? ux : k === 4 ? -ux : 0;
+    const ey = k === 1 ? ly : k === 2 ? -ly : k === 3 ? uy : k === 4 ? -uy : 0, ez = k === 1 ? lz : k === 2 ? -lz : k === 3 ? uz : k === 4 ? -uz : 0;
+    const tri = golpeBvh(b, Math.round((ox + ex * c) * S), Math.round((oy + ey * c) * S), Math.round((oz + ez * c) * S), dX, dY, dZ, maxFx);
+    if (tri < 0) continue;
+    let t = GOLPE_T / S;
+    if (k === 0) { // the sphere touches the face `r` before the centre ray does, `r / cos` along the ray
+      const q = tri * TRI_STRIDE;
+      const e1x = tris[q + 3] - tris[q], e1y = tris[q + 4] - tris[q + 1], e1z = tris[q + 5] - tris[q + 2];
+      const e2x = tris[q + 6] - tris[q], e2y = tris[q + 7] - tris[q + 1], e2z = tris[q + 8] - tris[q + 2];
+      const nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+      const cos = Math.abs(nx * dx + ny * dy + nz * dz) / (Math.hypot(nx, ny, nz) || 1);
+      t -= r / (cos > 0.1 ? cos : 0.1);
+    }
+    if (t < mejor) mejor = t;
+  }
+  return mejor < 0 ? 0 : mejor;
 }

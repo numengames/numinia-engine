@@ -22,6 +22,6 @@ Mission: MIS-___
 
 <!-- Lines and files changed, not counting lockfiles, snapshots and generated files. If it is over the guide (400 lines or 15 files), say why it could not be split. -->
 
-## Version
+## Change kind
 
-<!-- Which number moved in package.json (docs/VERSIONES.md) and why. -->
+<!-- `patch`, `minor` or `major` (docs/VERSIONES.md), the name of your fragment `.changeset/<branch>.md`, and why. The number itself moves in the release pull request, not here: do not edit package.json, package-lock.json or docs/RUNLOG.md. -->

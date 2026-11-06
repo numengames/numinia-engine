@@ -100,6 +100,13 @@ Keep gates light: seconds, one core. Never add a gate that needs a GPU or an LLM
 - A world also carries its own note for AIs, `aventura/LEEME-IA.md` (what an AI may build there, the style, what not to touch): a new
   world is born with one (`plantillas/taller/aventura/`) and the MCP bridge hands it to an AI first (`docs/EXTENDER.md`, «LEEME-IA»).
 
+## Version and diary in a pull request
+A pull request never moves the version and never writes in `docs/RUNLOG.md` or `apps/plaza/novedades-datos.ts` (generated,
+not in git): it adds one file of its own, `.changeset/<branch-with-dashes>.md` (Changesets format; the jump `patch|minor|major`
+on top, the diary entry below; see `.changeset/README.md`). The number moves once, in the release PR `chore(release): x.y.z`
+that runs `npm run cambios:juntar`. Reason: every PR touching those same lines left the others in conflict. (The unattended
+shift below commits straight to `main`, with no PR, so it keeps writing its entry in `docs/RUNLOG.md` itself.)
+
 ## Language of the public record
 Commit messages and pull request titles (and descriptions) are written in **English**, always; the history of this
 public repository is read by outsiders. The diary `docs/RUNLOG.md`, the internal docs and user-facing in-world text

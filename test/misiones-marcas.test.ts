@@ -62,12 +62,12 @@ test("formats: pnj@1 `oficio` — valid, too long, not text, absent; the plug's 
   const raro = leerPnj({ ...base, oficios: "Carpintero" });
   assert.ok(!raro.ok && raro.issues.some((i) => i.path === "oficios" && /aquí van: .*oficio/.test(i.message)), "a typo lists the fields, oficio among them");
   assert.deepEqual([pnjDecl.issues, misionesDecl.issues], [[], []]);
-  assert.equal(pnjDecl.version, 4); // v4: `voz` (test/pnj-voz.test.ts)
+  assert.equal(pnjDecl.version, 6); // v6 (P16): the event `ronda`; v5 (P2): `reposo`, `mira` and the event `sitio` (test/pnj-viva.test.ts); v4: `voz` (test/pnj-voz.test.ts)
   assert.deepEqual(pnjDecl.state!.fields.oficio, { kind: "text", maxBytes: 40, default: "" });
-  assert.equal(misionesDecl.version, 8); // v8 (Y3): `otorga` may carry `objeto`; v7 (T1): step `hace`; v6 (N10): the server-only `concedido` for «objeto» rewards
+  assert.equal(misionesDecl.version, 12); // v12 (P13): the end card events; v11 (P10): step `foto`, intent `foto`, `fotos` in the event; v10 (P4): marcables; v9 (P3): inspectable things, `callan`, `pistas`, the abrirLibro event; v8 (Y3): `otorga` may carry `objeto`; v7 (T1): step `hace`; v6 (N10): the server-only `concedido` for «objeto» rewards
   const ev = misionesDecl.events!.marcas;
-  assert.deepEqual(Object.keys(ev.fields), ["tiene", "hecho", "cosas"]);
-  assert.ok(Object.values(ev.fields).every((f) => f.kind === "text" && f.maxBytes === 256), "three short id lists");
+  assert.deepEqual(Object.keys(ev.fields), ["tiene", "hecho", "cosas", "callan"]); // P3: callan
+  assert.ok(Object.values(ev.fields).every((f) => f.kind === "text" && f.maxBytes === 256), "four short id lists");
   assert.equal(ev.announce, "silent", "the labels and the map say it; nothing to read aloud");
 });
 

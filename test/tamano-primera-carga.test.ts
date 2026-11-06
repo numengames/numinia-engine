@@ -25,7 +25,8 @@ test("limits.json publishes the first-load cap, and the built start bundle is un
     const m = medirArranque(out);
     assert.ok(m.totalBr <= topeBr(), `start bundle ${m.totalBr} B brotli is over the cap ${topeBr()} B (limits.json first_load_br_bytes): lazy-load what the first frame does not need`);
     assert.ok(m.totalGz <= TOPE_GZ, `start bundle ${m.totalGz} B gz is over TOPE_GZ`);
-    for (const f of m.ficheros as { nombre: string }[]) assert.ok(!/^(entorno|director|dados|burbuja|ficha-mundo)-[\w-]{8}\.js$/.test(f.nombre), `${f.nombre} must be a lazy chunk, not part of the start bundle`);
+    assert.ok(!/<!--|\n[ \t]/.test(readFileSync(join(out, "index.html"), "utf8")), "the built page carries no HTML comments and no indentation (they are source notes, not bytes to ship)");
+    for (const f of m.ficheros as { nombre: string }[]) assert.ok(!/^(entorno|director|dados|burbuja|ficha-mundo|evaluacion-tarjeta)-[\w-]{8}\.js$/.test(f.nombre), `${f.nombre} must be a lazy chunk, not part of the start bundle`);
   } finally { rmSync(out, { recursive: true, force: true }); }
 });
 

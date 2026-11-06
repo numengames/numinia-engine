@@ -55,6 +55,11 @@ test("one picture: nothing is drawn until it is asked; then ONE draw into its ow
   assert.deepEqual(reg.dibujos[0].ocultoAlDibujar, [true, true], "watch and menu are not in the picture");
   assert.ok(reloj.visible && menu.visible, "and they are back right after");
   assert.equal(c.width, FOTO_XR.ancho); assert.equal(c.height, FOTO_XR.alto);
+  // P10: the pose of this picture (where the head was, which way it looked) rides on the canvas, for the quests' `foto` steps
+  const pose = (c as unknown as { pose: { x: number; y: number; z: number; fx: number; fy: number; fz: number; fov: number; aspecto: number } }).pose;
+  assert.ok(Math.abs(pose.x - 10) < 1e-6 && Math.abs(pose.y - 1.6) < 1e-6 && Math.abs(pose.z - 4) < 1e-6, "the pose is from between the eyes");
+  assert.ok(Math.abs(Math.hypot(pose.fx, pose.fy, pose.fz) - 1) < 1e-6, "its direction is a unit vector");
+  assert.equal(pose.fov, FOTO_XR.fov); assert.ok(Math.abs(pose.aspecto - FOTO_XR.ancho / FOTO_XR.alto) < 1e-9);
   assert.equal(foto.pendiente(), false, "done: nothing left to do on later frames");
   foto.cuadro();
   assert.equal(reg.dibujos.length, 1);

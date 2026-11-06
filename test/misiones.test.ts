@@ -73,7 +73,7 @@ test("formats: problems come back with a path that says how to fix them; nothing
   assert.match(larga.ok ? "" : larga.issues[0].message, /bytes en UTF-8/, "limits are UTF-8 bytes, as on the wire");
   const p = leerPnj({ formato: "pnj@1", id: "p", nombre: "P", posicion: { x: 0, z: 0 }, dialogo: { entradas: [{ si: { mision: "m", estado: "hecha" }, nodo: "hola" }], nodos: { hola: { texto: "Hola", opciones: [{ texto: "x", ir: "nada" }] } } } });
   const pp = p.ok ? [] : p.issues.map((i) => `${i.path}: ${i.message}`);
-  assert.ok(pp.some((s) => s.startsWith("dialogo.entradas[0].si:") && /última entrada/.test(s)), pp.join("\n"));
+  assert.ok(!pp.some((s) => s.startsWith("dialogo.entradas[0].si:")), "P3: the last entrada may carry a `si` (outside that phase there is nothing to say): " + pp.join("\n"));
   assert.ok(pp.some((s) => s.startsWith("dialogo.nodos.hola.opciones[0].ir:")), pp.join("\n"));
   assert.equal(leerCosa("no soy un objeto").ok, false);
   // references: a quest that talks to nobody known is left out, and so is a person that gives it

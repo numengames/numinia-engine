@@ -7,5 +7,9 @@ deploy/instalar-motor.sh
 informes/
 /qr/
 
+# made from docs/RUNLOG.md and the pending .changeset/ fragments by tools/novedades-generar.mjs (npm test, dev, build, the types gate
+# and the vite config run it): tracked, every pull request would fight over it
+apps/plaza/novedades-datos.ts
+
 # a test (test/avatar.test.ts) writes here; it must never be tracked: publicar-version.sh refuses a dirty tree
 .tmp-avatar-test/

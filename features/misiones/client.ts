@@ -3,30 +3,38 @@
 // and agents use. It only asks: the server decides every step.
 // U14 (5): it also plays the sequences the server sends this player alone (secuencia.ts) and counts down a step's wait.
 import { clientPart } from "../../packages/feature/src/index.ts";
-import type { ClientApi, ClientPart, Msg, PlacedObject } from "../../packages/feature/src/index.ts";
+import type { ClientApi, ClientPart, Msg, PlacedObject, Vida } from "../../packages/feature/src/index.ts";
 import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
 import { ACCIONES_PAGINA } from "./formato.ts";
 import biblioteca from "../objetos/biblioteca.json" with { type: "json" };
 import type { Escenario, Pose, SecuenciaVista, SucesoSecuencia } from "./secuencia.ts"; // U14 (5): a moment only you see (loaded when one comes)
+import type { crearRondas } from "./ronda-pagina.ts"; // P16: the round a person walks: loaded (with its maths, the same as the server's) when the first one comes
 
+let codigoRonda: typeof import("./ronda-pagina.ts") | null = null; // P16: loaded the first time a `ronda` comes (most worlds never have one)
 const modelo = (id: string) => biblioteca.modelos.find((m) => m.id === id)?.modelo ?? "";
 const ROBOT = modelo("robot"), BLOQUE = modelo("bloque");
 /** The house robot is ~4.6 m tall as it comes; people of the world stand ~1.8 m. */
 export const ESCALA_ROBOT = 0.4;
 /** Where a person's name floats: above the head of a 1.8 m figure, scaled with it. */
 export const ALTO_NOMBRE = 2.25;
+/** P16: farther than this from where she was drawn, a new `sitio` for a person on a round is a move to walk (not a stop or a restart). */
+const CAMINA_SI_M = 1.5;
 
 /** How a person of the world looks TODAY: a library model at its place (the house robot by default) and at its height
  * (`y`: the floor it stands on; 0 = the ground), still (no idle animation: phones stay cool). The avatar branch (VRM)
  * replaces this one function. U14 (4): its label carries the trade (`oficio`) as a second line and the mark the server
  * decided for you («!» / «✓», above the name). */
-export function aspectoPnj(v: Msg, marca: Marca = ""): { cuerpo: PlacedObject; nombre: { text: string; sub?: string; mark?: Marca; x: number; y: number; z: number } } {
+export function aspectoPnj(v: Msg, marca: Marca = "", vida?: Vida): { cuerpo: PlacedObject; nombre: { text: string; sub?: string; mark?: Marca; x: number; y: number; z: number } } {
   const propio = String(v.modelo ?? ""), e = Number(v.escala) * (propio ? 1 : ESCALA_ROBOT), y = Number(v.y) || 0, oficio = String(v.oficio ?? "");
   return {
-    cuerpo: { model: propio || ROBOT, x: Number(v.x), y, z: Number(v.z), rx: 0, ry: Number(v.giro), rz: 0, sx: e, sy: e, sz: e, animate: false },
+    cuerpo: { model: propio || ROBOT, x: Number(v.x), y, z: Number(v.z), rx: 0, ry: Number(v.giro), rz: 0, sx: e, sy: e, sz: e, animate: false, ...(vida ? { vida } : {}) },
     nombre: { text: String(v.nombre), ...(oficio ? { sub: oficio } : {}), ...(marca ? { mark: marca } : {}), x: Number(v.x), y: y + ALTO_NOMBRE * Number(v.escala), z: Number(v.z) },
   };
 }
+/** P2: how a person lives on this page, from its state: it breathes unless `reposo` is false, turns toward you within its `radio` unless `mira`
+ * is false (`mira: 0` = never), keeps facing you while you talk (`atiende`), and walks to a new place when the world moved it (`camina`). */
+export const vidaPnj = (id: string, v: Msg, atiende = false, camina = false, andando?: boolean): Vida =>
+  ({ id, reposo: v.reposo !== false, mira: v.mira === false ? 0 : Number(v.radio) || 0, ...(atiende ? { atiende: true } : {}), ...(camina ? { camina: true } : {}), ...(andando === undefined ? {} : { andando }) }); // P16: `andando` only for a person on a round: the page moves her every frame and says whether she is walking
 /** How a quest thing looks: its model, or the house block (a small crate); at its height (y) and in its colour. U14 (6):
  * `usada` = this player has used it (usadasDe): then its used look (cosa@1 apariencia.usada — the chest open), if any. */
 export const aspectoCosa = (v: Msg, usada = false): PlacedObject & { color?: string } => {
@@ -46,7 +54,21 @@ export const etiquetaCosa = (v: Msg): { text: string; mark: Marca; x: number; y:
 /** `espera` (U14 (5)): the seconds this step still waited when the book came (0 = it may be done); `listoEn` = when it
  * opens on this page's clock (ms; 0 = no wait). The server sends the book again when it opens. */
 export type PasoVista = { n: number; texto: string; tipo: string; hecho: boolean; x: number; z: number; donde: string; que: string; grupo: string; espera: number; listoEn: number; accion: string; senala: string };
-export type MisionVista = { id: string; titulo: string; descripcion: string; estado: "activa" | "hecha"; paso: number; pasos: number; seguida: boolean; recompensa: string; lista: PasoVista[] };
+/** `pistas` (P3): false = this quest points at nothing (no place on the map, no beacon, no arrow, no nearest target in the top line). */
+export type MisionVista = { id: string; titulo: string; descripcion: string; estado: "activa" | "hecha"; paso: number; pasos: number; seguida: boolean; recompensa: string; lista: PasoVista[]; pistas?: false;
+  /** P4: the counters of a quest with a `marca` step (marks made, marks of things the step does not ask for, unmarks); absent otherwise. */
+  cuenta?: Cuenta;
+  /** P13: its end card, once completed (only quests that carry `evaluacion`). */
+  evaluacion?: EvaluacionVista };
+/** P4 + P10: a quest's counters; `fotos_erroneas` (P10) only in a quest with a `foto` step (any other counter by name may come too, P13). */
+export type Cuenta = { marcas: number; marcas_erroneas: number; desmarcados: number; fotos_erroneas?: number; [otro: string]: number | undefined };
+/** P10: where the photo camera was and which way it looked (metres, unit direction, vertical fov in degrees, width / height): features/misiones/foto.ts `PoseFoto`. */
+export type PoseDeFoto = { x: number; y: number; z: number; fx: number; fy: number; fz: number; fov: number; aspecto: number };
+/** P13: one row of a quest's end card — the time of the whole quest (`tiempo`), of one block (`fase`) or a counter. `texto` = the value as it is written
+ *  («14 min 05 s», «2»); `valor` = seconds or times; `resta` = the points that row took. */
+export type FilaEvaluacion = { tipo: "tiempo" | "fase" | "contador"; clave: string; etiqueta: string; texto: string; valor: number; resta: number };
+/** P13: the end card of a completed quest that has `evaluacion`: `puntos` out of `base` (never below `minimo`), the rows in the author's order and the same in one line. */
+export type EvaluacionVista = { titulo: string; puntos: number; base: number; minimo: number; resumen: string; filas: FilaEvaluacion[] };
 export type Objetivo = { mision: string; paso: number; nombre: string; texto: string; x: number; z: number; seguida: boolean };
 export type Dialogo = { pnj: string; nombre: string; oficio: string; texto: string; opciones: string[] };
 type Res = { ok: true } | { ok: false; why: string };
@@ -96,13 +118,30 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
   // first sequence arrives (a page that never sees one never fetches it); what arrives meanwhile waits, in order. ----
   const oyentesSec = new Set<(s: SucesoSecuencia) => void>();
   const conPose = (v: Msg, pose: Pose | null): Msg => (pose ? { ...v, x: pose.x, y: pose.y, z: pose.z, giro: pose.giro } : v);
+  // P2: where THIS player finds a person who has `posiciones` (event `sitio`; the shared state keeps its own place). Kept when the person
+  // leaves the state (you walked away) because the server says it once, not again when you come back.
+  const sitios = new Map<string, { x: number; z: number; y: number; giro: number }>();
+  let atendiendo = ""; // the person whose conversation is open: it keeps facing you
+  const colocado = (key: string, v: Msg): Msg => { const t = sitios.get(key); return t ? { ...v, x: t.x, z: t.z, y: t.y, giro: t.giro } : v; };
+  // P16: people on a round for THIS player (events `sitio` + `ronda`). The code that walks them (ronda-pagina.ts and the maths of ronda.ts) is a
+  // chunk the page loads when the first `ronda` comes; `esperaRonda` holds the event meanwhile (a later `sitio` for her cancels it).
+  let rondas: ReturnType<typeof crearRondas> | null = null;
+  const esperaRonda = new Map<string, Msg>();
+  let cargaRonda: Promise<unknown> | null = null;
+  /** Draw (or move) a person and its label where this player finds it; `camina`: it was moved just now, so it walks there. */
+  const dibujarPnj = (a: ClientApi, key: string, v: Msg, camina = false, rotulo = true): void => {
+    const pose = rep?.poseDe(key) ?? null, w = conPose(colocado(key, v), pose); // U14 (5): a sequence playing keeps it where it has it (and it does not turn: the sequence owns its body)
+    const look = aspectoPnj(w, marcaDe("pnj", key), pose ? undefined : vidaPnj(key, v, atendiendo === key, camina, rondas?.andando(key)));
+    a.view.place?.(`pnj:${key}`, look.cuerpo);
+    if (rotulo) a.view.tag?.(`pnj:${key}`, look.nombre);
+  };
   const escenario: Escenario = {
     reloj,
-    persona: (pnj) => { const v = P?.state.get(pnj); return v ? { x: Number(v.x), y: Number(v.y) || 0, z: Number(v.z), giro: Number(v.giro) || 0, escala: Number(v.escala) || 1 } : null; },
+    persona: (pnj) => { const v0 = P?.state.get(pnj), v = v0 && colocado(pnj, v0); return v ? { x: Number(v.x), y: Number(v.y) || 0, z: Number(v.z), giro: Number(v.giro) || 0, escala: Number(v.escala) || 1 } : null; },
     moverPersona: (pnj, pose) => {
       const v = P?.state.get(pnj);
       if (!v || !P) return; // not drawn on this page (any more): nothing to move, nothing to put back
-      const look = aspectoPnj(conPose(v, pose), marcaDe("pnj", pnj));
+      const look = aspectoPnj(conPose(colocado(pnj, v), pose), marcaDe("pnj", pnj), pose ? undefined : vidaPnj(pnj, v, atendiendo === pnj)); // the sequence ended (no pose): alive again
       P.view.place?.(`pnj:${pnj}`, look.cuerpo);
       P.view.tag?.(`pnj:${pnj}`, look.nombre);
     },
@@ -128,21 +167,23 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
   // U14 (4): the marks the server decided for THIS player. `marcas` is a new frozen object only when they change (a map
   // can tell by identity); a label is drawn again only for whoever's mark changed, and a quest thing has one only while
   // it is marked
-  let marcas: Readonly<Marcas> = Object.freeze({ tiene: [], hecho: [], cosas: [] }), marcasFirma = "||";
+  let marcas: Readonly<Marcas> = Object.freeze({ tiene: [], hecho: [], cosas: [] }), marcasFirma = "|||";
+  let callan: ReadonlySet<string> = new Set(); // P3: people and things whose conversation has nothing to say to you now (no «E»)
   let marcaP = new Map<string, Marca>(), marcaC = new Set<string>();
   const conRotulo = new Set<string>(); // the quest things that have a label now
   const marcaDe = (feature: string, key: string): Marca => (feature === "pnj" ? marcaP.get(key) ?? "" : feature === "misiones" && marcaC.has(key) ? "!" : "");
-  const rotularPnj = (key: string) => { const v = P?.state.get(key); if (v) P!.view.tag?.(`pnj:${key}`, aspectoPnj(conPose(v, rep?.poseDe(key) ?? null), marcaDe("pnj", key)).nombre); }; // U14 (5): where a sequence has it
+  const rotularPnj = (key: string) => { const v = P?.state.get(key); if (v) P!.view.tag?.(`pnj:${key}`, aspectoPnj(conPose(colocado(key, v), rep?.poseDe(key) ?? null), marcaDe("pnj", key)).nombre); }; // U14 (5): where a sequence has it
   const rotularCosa = (key: string) => {
     const v = M?.state.get(key), si = !!v && marcaC.has(key);
     if (si) { conRotulo.add(key); M!.view.tag?.(`misiones:${key}`, etiquetaCosa(v!)); }
     else if (conRotulo.delete(key)) M?.view.tag?.(`misiones:${key}`, null);
   };
   const recibirMarcas = (m: Msg) => {
-    const firma = `${String(m.tiene ?? "")}|${String(m.hecho ?? "")}|${String(m.cosas ?? "")}`;
+    const firma = `${String(m.tiene ?? "")}|${String(m.hecho ?? "")}|${String(m.cosas ?? "")}|${String(m.callan ?? "")}`;
     if (firma === marcasFirma) return; // the same as before (every book brings them): nothing to draw
     const ids = (s: unknown) => String(s ?? "").split(",").filter(Boolean);
     marcasFirma = firma;
+    callan = new Set(String(m.callan ?? "").split(",").filter(Boolean));
     marcas = Object.freeze({ tiene: ids(m.tiene), hecho: ids(m.hecho), cosas: ids(m.cosas) });
     const antesP = marcaP, antesC = marcaC;
     marcaP = new Map([...marcas.hecho.map((k) => [k, "✓"] as const), ...marcas.tiene.map((k) => [k, "!"] as const)]); // «!» wins
@@ -168,13 +209,42 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     }
   };
 
+  /** P4: the counters of a `mision` event (kept only when the quest has used them; a `marca` step brings the zeros, see the `paso` handler). */
+  const cuentaDe = (m: Msg): { cuenta?: Cuenta } => {
+    const c: Cuenta = { marcas: Number(m.marcas) || 0, marcas_erroneas: Number(m.erroneas) || 0, desmarcados: Number(m.desmarcados) || 0 };
+    const fotos = Number(m.fotos) || 0; // P10: only once a photo missed (the zeros of a quest that photographs come with its steps)
+    if (fotos) c.fotos_erroneas = fotos;
+    return c.marcas || c.marcas_erroneas || c.desmarcados || fotos ? { cuenta: c } : {};
+  };
+  // P4: what this player marked as evidence, in order (the server says; a thing's number is its place + 1). Each one wears a yellow
+  // numbered plate over it on this page alone. Drawn again when the list changes (a number moves up when an earlier one is unmarked)
+  // or when the thing's state arrives or moves (the ground changed); the view's marcador keeps the same plate when only moved.
+  let marcados: readonly string[] = [];
+  const cm = (m: number) => Math.round(m * 100) / 100; // the wire's metres are in centimetres
+  const dibujarMarcador = (key: string, v = M?.state.get(key)) => {
+    const i = marcados.indexOf(key);
+    M?.view.marcador?.(`misiones:${key}`, i < 0 || !v ? null : { n: i + 1, x: cm(Number(v.x) + (Number(v.mox) || 0)), y: cm((Number(v.y) || 0) + (Number(v.moy) || 0)), z: cm(Number(v.z) + (Number(v.moz) || 0)) });
+  };
+  const recibirMarcados = (m: Msg) => {
+    const nuevos = String(m.ids ?? "").split(",").filter(Boolean), antes = marcados;
+    if (antes.length === nuevos.length && antes.every((k, i) => k === nuevos[i])) return; // the same as before (every book brings them)
+    marcados = Object.freeze(nuevos);
+    for (const k of new Set([...antes, ...nuevos])) dibujarMarcador(k);
+    avisar("libro");
+  };
+
   const actual = (m: MisionVista): PasoVista | undefined => m.lista.find((s) => s.n === m.paso);
   const misiones = {
     estado,
     /** The book as it arrived: active quests first, then the completed ones. */
     libro: (): MisionVista[] => [...libro.values()],
+    /** P13: the end card of a completed quest (null while it is not done or when the quest has none). Same data as `libro()[i].evaluacion`. */
+    evaluacion: (id: string): EvaluacionVista | null => libro.get(id)?.evaluacion ?? null,
     /** Where each active quest's steps to do now point — every one of its current block (for the map: mapa reads this). */
-    objetivos: (): Objetivo[] => [...libro.values()].flatMap((m) => ahoraDe(m).filter((s) => s.tipo !== "hace").map((s) => ({ mision: m.id, paso: s.n, nombre: s.donde, texto: s.texto, x: s.x, z: s.z, seguida: m.seguida }))),
+    objetivos: (): Objetivo[] => [...libro.values()].flatMap((m) => ahoraDe(m).filter((s) => s.tipo !== "hace" && s.tipo !== "marca" && s.tipo !== "foto").map((s) => ({ mision: m.id, paso: s.n, nombre: s.donde, texto: s.texto, x: s.x, z: s.z, seguida: m.seguida }))),
+    /** P3: the objectives that point at something: those of the quests that do not say `pistas: false` (the map, the beacon and the
+     * top line read this; the book keeps `objetivos()` to tell the step to do now from the locked ones). */
+    senalados: (): Objetivo[] => misiones.objetivos().filter((o) => libro.get(o.mision)?.pistas !== false),
     /** For the player sheet: how many, the badges, and what is being followed (with its grupo's counter, if any). */
     resumen: () => {
       const todas = [...libro.values()], seg = todas.find((m) => m.seguida && m.estado === "activa"), s = seg && actual(seg), b = seg ? bloqueDe(seg) : [];
@@ -193,7 +263,7 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     hablar: (pnj: string): Res => P?.send("hablar", { pnj }) ?? sin("la página aún no ha arrancado"),
     /** Choose answer n (1-4) of the open conversation. */
     elegir: (n: number): Res => (dialogo && P ? (n >= 1 && n <= dialogo.opciones.length ? P.send("elegir", { pnj: dialogo.pnj, opcion: n }) : sin(`no hay respuesta ${n}`)) : sin("no hay ninguna conversación abierta")),
-    adios: (): Res => { if (!dialogo || !P) return sin("no hay ninguna conversación abierta"); const r = P.send("adios", { pnj: dialogo.pnj }); dialogo = null; avisar("dialogo"); return r; },
+    adios: (): Res => { if (!dialogo || !P) return sin("no hay ninguna conversación abierta"); const r = P.send("adios", { pnj: dialogo.pnj }); dialogo = null; avisar("dialogo"); atiende(P, ""); return r; },
     aceptar: (mision: string): Res => M?.send("aceptar", { mision }) ?? sin("la página aún no ha arrancado"),
     abandonar: (mision: string): Res => M?.send("abandonar", { mision }) ?? sin("la página aún no ha arrancado"),
     seguir: (mision: string): Res => M?.send("seguir", { mision }) ?? sin("la página aún no ha arrancado"),
@@ -205,17 +275,34 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
       return M?.send("hace", { accion }) ?? sin("la página aún no ha arrancado");
     },
     /** T1: the id of the page button the arrow should point at for the step to do now of the followed quest (or the first active one with `senala`); "" = none. */
-    senala: (): string => { const todas = [...libro.values()].sort((a, b) => Number(b.seguida) - Number(a.seguida)); for (const m of todas) for (const s of ahoraDe(m)) if (s.senala) return s.senala; return ""; },
+    senala: (): string => { const todas = [...libro.values()].filter((m) => m.pistas !== false).sort((a, b) => Number(b.seguida) - Number(a.seguida)); for (const m of todas) for (const s of ahoraDe(m)) if (s.senala) return s.senala; return ""; },
+    /** P10: tell the server a photo was just taken, from this camera pose; it decides whether a corner is in the shot (nothing comes back
+     * for a miss: the quest only counts it). The page asks `pideFoto(libro())` (features/misiones/foto.ts) first, in the photo chunk. */
+    foto: (pose: PoseDeFoto): Res => M?.send("foto", pose) ?? sin("la página aún no ha arrancado"),
     usar: (cosa: string): Res => M?.send("usar", { cosa }) ?? sin("la página aún no ha arrancado"),
     /** Whether the page should offer «E: …» for a thing: quest things only while a step to do now needs them (U14 (5):
      * also while that step still waits — trying it says how long is left). */
-    ofrece: (feature: string, key: string): boolean => feature !== "misiones" || [...libro.values()].some((m) => porHacer(m).some((s) => s.que === key && (s.tipo === "coge" || s.tipo === "usa"))),
+    ofrece: (feature: string, key: string): boolean => feature === "pnj" ? !callan.has(key) // P3: a person with nothing to say to you now offers no «E»
+      : feature !== "misiones" || (M?.state.get(key)?.dialogo === true && !callan.has(key)) // P3: a thing you inspect, whenever its conversation has something for you
+        || [...libro.values()].some((m) => porHacer(m).some((s) => s.que === key && (s.tipo === "coge" || s.tipo === "usa")))
+        || (M?.state.get(key)?.marcable === true && [...libro.values()].some((m) => porHacer(m).some((s) => s.tipo === "marca"))), // P4: a marcable thing, while a step of yours marks
+    /** P4: the things you marked as evidence, in order: the number of each is its place + 1 (unmarking one moves the rest up). */
+    marcados: (): readonly string[] => marcados,
+    /** P4: the number on a thing's marker for you (0 = not marked). */
+    numeroDe: (key: string): number => marcados.indexOf(key) + 1,
+    /** P3: whether a person's or a thing's conversation has nothing to say to you now (the server decides; `marcas.callan`). */
+    callaDe: (key: string): boolean => callan.has(key),
     /** U14 (5): the sequence playing now (id, second, length, the people it moves, the extra models shown, its last line,
      * how many wait behind it), or null. */
     secuencia: (): SecuenciaVista | null => rep?.ahora() ?? null,
     /** U14 (5): advance the sequence to now. The page calls it every frame and keeps drawing while it answers true; with
      * none playing it answers false at once and does nothing. It never touches the camera. */
-    cuadro: (): boolean => rep?.cuadro() ?? false,
+    cuadro: (): boolean => {
+      const secuencia = rep?.cuadro() ?? false;
+      return (rondas && P ? rondas.cuadro(P) : false) || secuencia; // P16: people on a round (none in most worlds: nothing here)
+    },
+    /** P16: a person on a round, as this page has her now (null = no round for you): where she is, whether she walks or is stopped to talk. */
+    rondaDe: (pnj: string) => rondas?.de(pnj) ?? null,
     /** U14 (5): hear a sequence start, say a line, ask for a house sound and end; returns how to stop. */
     alSecuencia: (fn: (s: SucesoSecuencia) => void) => { oyentesSec.add(fn); return () => oyentesSec.delete(fn); },
 
@@ -241,19 +328,46 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     alCambiar: (fn: (que: "libro" | "dialogo" | "nota") => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
 
+  /** P2: the person you are talking to keeps facing you (and turns back when the conversation ends). */
+  const atiende = (a: ClientApi, pnj: string): void => {
+    const antes = atendiendo; atendiendo = pnj;
+    for (const k of new Set([antes, pnj])) { const v = k && a.state.get(k); if (v) dibujarPnj(a, k, v, false, false); } // its body only: the label has not changed
+  };
+
   const pnjPart = clientPart(pnjDecl, (a) => {
     P = a;
     a.state.onChange((key, v) => {
       if (!v) { a.view.place?.(`pnj:${key}`, null); a.view.tag?.(`pnj:${key}`, null); return; }
-      const look = aspectoPnj(conPose(v, rep?.poseDe(key) ?? null), marcaDe("pnj", key)); // U14 (5): a sequence playing keeps it where it has it
-      a.view.place?.(`pnj:${key}`, look.cuerpo);
-      a.view.tag?.(`pnj:${key}`, look.nombre);
+      dibujarPnj(a, key, v);
+    });
+    a.on("sitio", (m) => { // P2: where I find this person now; it walks there if I was looking at it
+      const key = String(m.pnj), antes = sitios.get(key), t = { x: Number(m.x), z: Number(m.z), y: Number(m.y) || 0, giro: Number(m.giro) || 0 };
+      esperaRonda.delete(key);
+      const era = rondas?.termina(key); // P16: she was on a round: the `ronda` that goes with this `sitio` (if she still is) comes next and brings her back
+      if (!era && antes && antes.x === t.x && antes.z === t.z && antes.y === t.y && antes.giro === t.giro) return;
+      sitios.set(key, t);
+      a.lugar(key, { x: t.x, z: t.z, y: t.y }); // the range checks, «E: hablar» and the map use it from now on
+      const v = a.state.get(key);
+      // P16: from a round, only a real move is walked (stopping to talk or going on moves her by what the network took, a few cm)
+      if (v) dibujarPnj(a, key, v, antes !== undefined && (!era || Math.hypot(t.x - era.x, t.z - era.z) > CAMINA_SI_M));
+    });
+    a.on("ronda", (m) => { // P16: the round she walks for me; right after the `sitio` that says where she is in it now
+      if (rondas) { rondas.recibir(a, m); return; } // the code is there: at once, as every other event
+      esperaRonda.set(String(m.pnj), m);
+      const montar = (x: typeof import("./ronda-pagina.ts")): void => {
+        rondas = x.crearRondas({ reloj, sitios, dibujar: (api, key, v) => dibujarPnj(api, key, v), secuencia: (key) => !!rep?.poseDe(key) });
+        for (const e of esperaRonda.values()) rondas.recibir(a, e);
+        esperaRonda.clear();
+      };
+      if (codigoRonda) montar(codigoRonda); // another page of this process loaded it already
+      else cargaRonda ??= import("./ronda-pagina.ts").then((x) => montar((codigoRonda = x))).catch((e) => { cargaRonda = null; esperaRonda.clear(); console.warn(`[misiones] no se pudo cargar la ronda: ${(e as Error)?.message ?? e}`); });
     });
     a.on("dialogo", (m) => {
       dialogo = { pnj: String(m.pnj), nombre: String(m.nombre), oficio: String(a.state.get(String(m.pnj))?.oficio ?? ""), texto: String(m.texto), opciones: [m.o1, m.o2, m.o3, m.o4].map(String).filter(Boolean) };
       avisar("dialogo");
+      atiende(a, dialogo.pnj);
     });
-    a.on("fin", (m) => { if (dialogo?.pnj === String(m.pnj)) { dialogo = null; avisar("dialogo"); } });
+    a.on("fin", (m) => { if (dialogo?.pnj === String(m.pnj)) { dialogo = null; avisar("dialogo"); } if (atendiendo === String(m.pnj)) atiende(a, ""); });
     a.on("rechazado", (m) => { estado.ultimoRechazo = String(m.motivo); avisar("dialogo"); nota(String(m.motivo)); });
   });
 
@@ -263,11 +377,12 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     a.state.onChange((key, v) => {
       a.view.place?.(`misiones:${key}`, v ? aspectoCosa(v, usadas.has(key)) : null); // J4: <feature>:<key>, so a click is understood; U14 (6): your look of it
       rotularCosa(key); // U14 (4): a label only while the server marks it for you
+      dibujarMarcador(key, v); // P4: its evidence plate, if you marked it
     });
     a.on("libro", (m) => { libro.clear(); esperadas = Number(m.activas) + Number(m.hechas); llegadas = 0; avisar("libro"); revisarUsadas(); });
     a.on("mision", (m) => {
       llegadas++;
-      libro.set(String(m.id), { id: String(m.id), titulo: String(m.titulo), descripcion: String(m.descripcion), estado: m.estado === "hecha" ? "hecha" : "activa", paso: Number(m.paso), pasos: Number(m.pasos), seguida: m.seguida === true, recompensa: String(m.recompensa ?? ""), lista: [] });
+      libro.set(String(m.id), { id: String(m.id), titulo: String(m.titulo), descripcion: String(m.descripcion), estado: m.estado === "hecha" ? "hecha" : "activa", paso: Number(m.paso), pasos: Number(m.pasos), seguida: m.seguida === true, recompensa: String(m.recompensa ?? ""), lista: [], ...(m.pistas === false ? { pistas: false as const } : {}), ...cuentaDe(m) });
       avisar("libro");
     });
     a.on("paso", (m) => {
@@ -276,8 +391,22 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
       const espera = Math.max(0, Number(m.espera ?? 0) || 0); // U14 (5): seconds left; counted down here, the server resends the book when it opens
       const s: PasoVista = { n: Number(m.n), texto: String(m.texto), tipo: String(m.tipo), hecho: m.hecho === true, x: Number(m.x), z: Number(m.z), donde: String(m.donde), que: String(m.que ?? ""), grupo: String(m.grupo ?? ""), espera, listoEn: espera ? reloj() + espera * 1000 : 0, accion: String(m.accion ?? ""), senala: String(m.senala ?? "") };
       mv.lista = [...mv.lista.filter((x) => x.n !== s.n), s].sort((p, q) => p.n - q.n);
+      if (s.tipo === "marca" && !mv.cuenta) mv.cuenta = { marcas: 0, marcas_erroneas: 0, desmarcados: 0 }; // P4: a quest that marks always shows its counters, zeros included
+      if (s.tipo === "foto") { mv.cuenta ??= { marcas: 0, marcas_erroneas: 0, desmarcados: 0 }; mv.cuenta.fotos_erroneas ??= 0; } // P10: and one that photographs shows its missed photos, zero included
       avisar("libro");
       revisarUsadas(); // U14 (6): the book's last step has arrived → the used looks
+    });
+    a.on("evaluacion", (m) => { // P13: the end card of a completed quest, with the book; its rows follow
+      const mv = libro.get(String(m.mision));
+      if (!mv) return;
+      mv.evaluacion = { titulo: String(m.titulo), puntos: Number(m.puntos), base: Number(m.base), minimo: Number(m.minimo), resumen: String(m.resumen), filas: [] }; // the plug fills the defaults (minimo 0, resumen "")
+      avisar("libro");
+    });
+    a.on("evaluacionFila", (m) => {
+      const ev = libro.get(String(m.mision))?.evaluacion;
+      if (!ev) return;
+      ev.filas[Number(m.n)] = { tipo: m.tipo as FilaEvaluacion["tipo"], clave: String(m.clave), etiqueta: String(m.etiqueta), texto: String(m.texto), valor: Number(m.valor), resta: Number(m.resta) };
+      avisar("libro");
     });
     a.on("aceptada", (m) => nota(`Misión nueva: ${String(m.titulo)}`));
     a.on("avance", (m) => nota(`✓ ${String(m.texto)}`));
@@ -285,6 +414,7 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     a.on("aviso", (m) => { estado.ultimoAviso = String(m.texto); nota(String(m.texto)); });
     a.on("rechazado", (m) => { estado.ultimoRechazo = String(m.motivo); nota(String(m.motivo)); });
     a.on("marcas", recibirMarcas); // U14 (4)
+    a.on("marcados", recibirMarcados); // P4
   });
 
   const parts: ClientPart[] = [pnjPart, misionesPart];

@@ -25,7 +25,7 @@ html, body { font-family: "Geist", system-ui, sans-serif; }
 
 /* ---- frames: one surface, one hairline, 8px ---- */
 #hud, #dock-construir, #panel-construir .cajon, #panel-construir .estado:not(:empty), #libro, #dialogo, #ajustes, #chat-lista:not(:empty), #ficha-objeto, #mision-seguida,
-#interactuar, .panel-j5, #subida-estado.con-texto {
+.panel-j5, #subida-estado.con-texto {
   background: var(--n-sup) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea); border-radius: 8px !important; box-shadow: none !important;
 }
 #hud { font-family: "Geist Mono", ui-monospace, monospace; font-size: 12px; color: var(--n-texto2) !important; }
@@ -53,7 +53,7 @@ html, body { font-family: "Geist", system-ui, sans-serif; }
 #chat-lista b { color: var(--n-verdemar) !important; }
 #chat-lista .aviso { color: var(--n-ambar) !important; }
 #mision-seguida { color: var(--n-ambar) !important; }
-#interactuar { color: var(--n-texto) !important; }
+/* P15: the look of «E: hablar con…» (#interactuar: house amber, key cap, hold ring, fade-in) is in interactuar.css, fetched with the first thing in reach (the start bundle has a cap) */
 #mision-nota { z-index: 6; background: var(--n-ambar) !important; color: var(--n-enfasis-tinta, var(--n-fondo)) !important; border-radius: 8px !important; } /* over the open book (a phone) */
 #mision-nota .objeto { display: inline-block; vertical-align: -4px; margin-right: 6px; } /* «Has recibido: …»: the item icon */
 /* U14 (6): «Misión completada» — a banner high in the middle (over nothing you click: pointer-events none), in the
@@ -263,6 +263,7 @@ html[data-densidad-nivel="normal"]:not(.menos-movimiento) #chat:has(#chat-form:n
   /* the chips share the row; a long name («Soltar el báculo») wraps INSIDE its chip and a chip never goes under its longest word, so two never sit on top of each other (the row wraps instead; the bar has no fixed height: it grows UP, two rows at most with the eight chips, and stays under the abilities row) */
   #acciones button { flex: 1 1 auto; min-width: min-content; min-height: 48px; text-align: center; line-height: 1.2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 0 6px; border: 1px solid var(--n-linea); border-radius: 6px; background: var(--n-elev); color: var(--n-texto); font: 600 13px "Geist", system-ui, sans-serif; cursor: pointer; }
   #acciones button:hover { border-color: var(--n-texto2); }
+  #acciones:not(:has(button:not([hidden]))) { display: none; } /* P15: every button hidden (a world that hides «gestos» and «recoger-soltar») = no empty panel */
   #acciones button[hidden] { display: none; } /* a chip whose action is not possible now (Action.disponible): the bar's `display: flex` above would show it despite the attribute */
   #acciones kbd { padding: 1px 6px; border: 1px solid var(--n-linea); border-radius: 4px; color: var(--n-texto2); font: 11px/1.3 "Geist Mono", ui-monospace, monospace; }
   /* the key help: a framed list, not a loose line */
@@ -851,3 +852,6 @@ html[data-aparato^="movil"] #ficha-objeto .acciones { margin-top: 10px; }
   html:not([data-aparato^="movil"]) #panel-construir { left: auto; right: 387px; transform: none; align-items: flex-end; width: min(560px, calc(100% - 403px)); }
   html:not([data-aparato^="movil"]) body.construyendo #hud-personaje { visibility: hidden; }
 }
+
+/* P13: the «Ver evaluación» button in the book (the card's own look is in evaluacion.css, a lazy chunk) */
+#libro li.paso > button.ver-evaluacion { grid-column: 2; justify-self: start; margin-top: 4px; padding: 2px 10px; font-size: 12px; }

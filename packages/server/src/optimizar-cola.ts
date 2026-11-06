@@ -84,6 +84,8 @@ export class ColaOptimizar {
   readonly stats = { hechos: 0, dejados: 0, ahorrados: 0 };
   private readonly cola: string[] = [];
   private readonly vistos: Set<string>;
+  /** Queued or being made, not finished: a copy may still appear (Activos.copiaPendiente). */
+  private readonly pendientes = new Set<string>();
   private hilo: Worker | null = null;
   private corriendo: Promise<void> | null = null;
   private parado = false;
@@ -94,6 +96,7 @@ export class ColaOptimizar {
   constructor(activos: Activos, log: (l: string) => void = () => {}, activa = process.env.MOTOR_OPTIMIZAR !== "no") {
     this.activos = activos; this.log = log; this.activa = activa;
     this.dir = activos.optimizados;
+    activos.copiaPendiente = (hash, ext) => this.pendientes.has(`${hash}.${ext}`);
     this.vistos = this.dir ? yaProbados(this.dir) : new Set();
   }
 
@@ -102,7 +105,7 @@ export class ColaOptimizar {
     const k = `${sha}.${tipo}`;
     if (!this.activa || !this.dir || this.parado || !OPTIMIZABLES.has(tipo) || this.vistos.has(k) || !this.activos.subidas) return;
     if (!existsSync(join(this.activos.subidas, k))) return; // only uploads: the house library is tiny and lives in the app
-    this.vistos.add(k); this.cola.push(k);
+    this.vistos.add(k); this.pendientes.add(k); this.cola.push(k);
     this.corriendo ??= this.vaciar().finally(() => { this.corriendo = null; });
   }
 
@@ -118,7 +121,7 @@ export class ColaOptimizar {
   /** Resolves when the queue is empty (tests, the command line). */
   async esperar(): Promise<void> { while (this.corriendo) await this.corriendo; }
 
-  async parar(): Promise<void> { this.parado = true; this.cola.length = 0; await this.esperar(); await this.hilo?.terminate(); this.hilo = null; }
+  async parar(): Promise<void> { this.parado = true; this.cola.length = 0; this.pendientes.clear(); await this.esperar(); await this.hilo?.terminate(); this.hilo = null; }
 
   private enHilo(bytes: Uint8Array, tipo: string): Promise<Resultado & { gz?: Uint8Array; lodsGz?: Uint8Array[] }> {
     this.hilo ??= new Worker(new URL("./optimizar-hilo.ts", import.meta.url));
@@ -145,6 +148,7 @@ export class ColaOptimizar {
         if (r.bytes) { this.stats.hechos++; this.stats.ahorrados += r.antes - r.despues; this.log(`[optimizar] ${sha.slice(0, 12)}….${tipo}: ${mb(r.antes)} → ${mb(r.despues)} MB${l.gz ? ` (${mb(l.gz)} MB con gzip)` : r.ext ? ` (${r.ext} sin pérdida)` : ""} en ${r.ms} ms`); }
         else { this.stats.dejados++; this.log(`[optimizar] ${sha.slice(0, 12)}….${tipo} se queda como está: ${r.motivo}`); }
       } catch (e) { this.stats.dejados++; this.log(`[optimizar] no pude con ${k}: ${String((e as Error)?.message ?? e).slice(0, 160)}`); }
+      finally { this.pendientes.delete(k); }
     }
   }
 }

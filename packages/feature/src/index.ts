@@ -1000,6 +1000,10 @@ export type ViewHooks = {
   place?(key: string, o: PlacedObject | null): void;
   /** H1: where this player is now (metres), so a feature can put things in front of them. */
   here?(): { x: number; y: number; z: number } | null;
+  /** mundo-hermes: a flat black-and-white shape made by code at a world point — a clock, a cube, a slab or a zone's floor — in a state (off / starting / on / fail); `null` takes it away. */
+  forma?(key: string, f: { forma: "reloj" | "cubo" | "losa" | "suelo" | "perfil" | "uso" | "estante" | "tableta" | "tablero" | "guia"; x: number; z: number; estado: "off" | "starting" | "on" | "fail"; rumbo?: number; mano?: number; ancho?: number; fondo?: number; discontinuo?: boolean; luces?: boolean[]; nivel?: number; columnas?: { n: number; top: string[] }[] } | null): void;
+  /** mundo-hermes M6: move a flat shape that is already there (the guide walks) without rebuilding it. */
+  moverForma?(key: string, x: number, z: number, rumbo: number): void;
   /** J3: the name over an avatar (null takes it away). The page decides from how far it is drawn. */
   nameTag?(entity: number, text: string | null): void;
   /** J3: a speech bubble over an avatar for `ms` (several lines; the latest replaces the one before). */
@@ -1007,7 +1011,10 @@ export type ViewHooks = {
   /** J5: a name that stays over a thing (a person you can talk to), facing whoever looks; `null` takes it away. U14 (4),
    * optional: `sub` = a second, smaller line under the name (a person's trade); `mark` = «!» (something for you now) or
    * «✓» (done) above it. The page redraws a label only when its text or mark changes. */
-  tag?(key: string, t: { text: string; x: number; y: number; z: number; sub?: string; mark?: "!" | "✓" | "" } | null): void;
+  tag?(key: string, t: { text: string; x: number; y: number; z: number; sub?: string; mark?: "!" | "✓" | ""; plano?: boolean; tope?: number; siempre?: boolean } | null): void;
+  /** P4: an evidence marker over a thing — a yellow plate with a black number (1–16) that always faces whoever looks, drawn on this
+   * page only, from (x, y, z) up (its tip points at that spot); `null` takes it away. Same number = only moved. */
+  marcador?(key: string, t: { n: number; x: number; y: number; z: number } | null): void;
   /** H4: the zone's environment (sky, sun, fog, wind, ground, tone) by field name — features/entorno; render/entorno.ts reads it. */
   entorno?(valores: Msg): void;
   /** N4: the world's low-poly nature (relief, trees, grass) by field name — features/naturaleza; render/naturaleza/naturaleza.ts builds it. */
@@ -1044,7 +1051,17 @@ export type PlacedObject = { model: string; x: number; y: number; z: number; rx:
   /** N22 (optional): part of the room (pinned or backdrop: the hall you stand in), downloaded before anything else. */
   sala?: boolean;
   /** t_e41c0a12: pinned (fijado) — the renderer may merge it with the other pinned things by material. */
-  fijo?: boolean };
+  fijo?: boolean;
+  /** P2 (optional): a person who lives — see `Vida`. Local to this page; nothing is sent. */
+  vida?: Vida };
+/** P2: how a placed person is alive on this page (the render does the frames; the feature only says what it wants). `id` seeds its
+ * own phase (never in sync with the next); `reposo`: breathes and shifts its weight (or plays the model's idle clip); `mira`: turns its
+ * body toward you when you are within this many metres (0 = never; the yaw it was placed with is where it goes back to); `atiende`:
+ * keeps facing you whatever the distance (a conversation is open); `camina`: if this placement moves it a short way (≤ 10 m), it walks
+ * there at ≤ 1.4 m/s instead of popping. `andando` (P16, a person on a round): the page places her again every frame she moves, so the render does
+ * not walk her itself or snap her yaw on each placement; `true` while she walks (the walking clip and the turn toward where she goes), `false`
+ * while she stands. Absent = as before. */
+export type Vida = { id: string; reposo: boolean; mira: number; atiende?: boolean; camina?: boolean; andando?: boolean };
 export const NO_VIEW: ViewHooks = { label() {}, bounce() {} };
 /** An event as a person hears and reads it (V1). `at` in metres; `who` = the entity it is about. */
 export type Announcement = { feature: string; event: string; text: string; sound: Sound; importance: Importance; at?: { x: number; z: number }; who?: number };
@@ -1052,8 +1069,11 @@ export type Announcement = { feature: string; event: string; text: string; sound
 export type CardView = { feature: string; key: string; role: Role; name: string; description?: string; importance: Importance; actions: string[]; at?: { x: number; z: number } };
 /** J4: a thing in reach as the page offers it: «E: <prompt>»; `use(feature, key)` sends its intent.
  * `hold` (seconds, J4 mantener-pulsado): undefined/0 = fires at once; otherwise the page must hold the key/button/
- * trigger that long (showing a progress ring) before it sends the intent. */
-export type Reachable = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number; hold?: number };
+ * trigger that long (showing a progress ring) before it sends the intent.
+ * `at` (P15): where the thing is for THIS player (metres; `y` only when its state has a numeric `y`), so the page can pick the one
+ * the player looks at (apps/plaza/interactuar-mirada.ts) and mark it in the world;
+ * `role` = its card's role (a person is circled at the chest, a thing near its base). */
+export type Reachable = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number; hold?: number; at?: { x: number; z: number; y?: number }; role?: Role };
 /** Fill `{field}` holes with the values (`{key}` = the state key). Unknown holes stay as they are. */
 export const fillTemplate = (t: string, values: Record<string, unknown>): string => t.replace(/\{([a-zA-Z0-9]+)\}/g, (all, k) => (values[k] === undefined ? all : String(values[k])));
 /** `disponible`: asked by the page when the state changes; false = the button is not shown (the `hidden` attribute), because the action is not possible now. None = always shown. */
@@ -1071,6 +1091,9 @@ export type ClientApi = {
   action(a: Omit<Action, "feature">): void;
   self(): number;
   readonly view: ViewHooks;
+  /** P2: where THIS player finds one of your state's entries (a person who stands elsewhere for them): `reachable()`, `cards()` and the
+   * map use it instead of the entry's own x, z (and y, when given) until you pass `null`. The state itself is shared and stays as it was. */
+  lugar(key: string, p: { x: number; z: number; y?: number } | null): void;
 };
 export type ClientPart = { feature: Feature; side: "client"; setup: (api: ClientApi) => void };
 export const clientPart = (feature: Feature, setup: (api: ClientApi) => void): ClientPart => ({ feature, side: "client", setup });
@@ -1092,6 +1115,7 @@ export class ClientRuntime {
   /** U10: every shared-state entry of every feature, as [key, value] (keys prefixed by the feature id). */
   *allState(): Generator<[string, Msg]> { for (const [f, t] of this.mirror) for (const [k, v] of t) yield [`${f}:${k}`, v]; }
   private readonly acts: Action[] = [];
+  private readonly lugares = new Map<string, { x: number; z: number; y?: number }>(); // P2: `<feature>:<key>` → where this player finds it
   private byIndex: CatalogEntry[] = [];
   private readonly taps: ((feature: string, event: string, msg: Msg) => void)[] = [];
 
@@ -1127,11 +1151,19 @@ export class ClientRuntime {
       }),
       action: (a) => { this.acts.push({ ...a, feature: id }); },
       self: () => host.self(),
+      lugar: (key, p) => this.ponerLugar(id, key, p),
       get view() { return host.view ?? NO_VIEW; }, // read on each use: the page may attach its view later
     };
   }
 
   actions(): readonly Action[] { return this.acts; }
+
+  private ponerLugar(feature: string, key: string, p: { x: number; z: number; y?: number } | null): void {
+    const k = `${feature}:${key}`, antes = this.lugares.get(k);
+    if (!p ? !antes : antes && antes.x === p.x && antes.z === p.z && antes.y === p.y) return;
+    if (p) this.lugares.set(k, { x: p.x, z: p.z, ...(p.y === undefined ? {} : { y: p.y }) }); else this.lugares.delete(k);
+    this.stateVersion++; // the map's cards are rebuilt
+  }
 
   /** P4: hear every event of every feature the server runs, without a client part (agents read the catalog, not code). */
   tap(fn: (feature: string, event: string, msg: Msg) => void): void { this.taps.push(fn); }
@@ -1148,7 +1180,8 @@ export class ClientRuntime {
         if (!name) continue; // H1: no name = decorative (like alt=""): not listed for screen readers nor agents
         const card: CardView = { feature: f.id, key, role: c.role, name, importance: c.importance ?? 1, actions: c.actions ?? [] };
         if (c.description) card.description = fillTemplate(c.description, vals);
-        if (c.at) card.at = { x: Number(v[c.at[0]]), z: Number(v[c.at[1]]) };
+        const L = this.lugares.size ? this.lugares.get(`${f.id}:${key}`) : undefined; // P2
+        if (c.at) card.at = L ? { x: L.x, z: L.z } : { x: Number(v[c.at[0]]), z: Number(v[c.at[1]]) };
         out.push(card);
       }
     }
@@ -1167,10 +1200,12 @@ export class ClientRuntime {
       if (!c || !it || !c.at) continue;
       for (const [key, v] of this.mirror.get(f.id) ?? []) {
         const r = typeof it.radius === "number" ? it.radius : Number(v[it.radius]);
-        const d = Math.hypot(Number(v[c.at[0]]) - x, Number(v[c.at[1]]) - z);
-        if (!(r > 0 && d <= r) || (y !== undefined && !alAlcanceEnAltura(y, v.y))) continue; // J4: a thing whose radius field is 0 is not offered (e.g. carried)
+        const L = this.lugares.size ? this.lugares.get(`${f.id}:${key}`) : undefined; // P2: where THIS player finds it
+        const ax = L ? L.x : Number(v[c.at[0]]), az = L ? L.z : Number(v[c.at[1]]), ay = L?.y ?? v.y;
+        const d = Math.hypot(ax - x, az - z);
+        if (!(r > 0 && d <= r) || (y !== undefined && !alAlcanceEnAltura(y, L?.y ?? v.y))) continue; // J4: a thing whose radius field is 0 is not offered (e.g. carried)
         const vals = { key, ...v };
-        out.push({ feature: f.id, key, intent: it.intent, prompt: fillTemplate(it.prompt, vals), name: fillTemplate(c.name, vals).trim(), distance: d, ...(it.hold ? { hold: it.hold } : {}) });
+        out.push({ feature: f.id, key, intent: it.intent, prompt: fillTemplate(it.prompt, vals), name: fillTemplate(c.name, vals).trim(), distance: d, role: c.role, ...(it.hold ? { hold: it.hold } : {}), at: { x: ax, z: az, ...(typeof ay === "number" && Number.isFinite(ay) ? { y: ay } : {}) } });
       }
     }
     return out.sort((a, b) => a.distance - b.distance);

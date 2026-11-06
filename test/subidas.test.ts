@@ -99,7 +99,7 @@ test("limits.json publishes the upload caps the code enforces (upload_max_<kind>
 });
 
 test("upload: stored once by its sha256, served like the library, the second time says it was there; who uploaded stays on the server", async () => {
-  const { srv, dir, url, subir } = await servidor();
+  const { srv, dir, url, subir } = await servidor({ optimizar: false }); // no optimiser: the original is final, so «immutable» (with one queued it is kept 5 min only — test/manifiesto.test.ts)
   try {
     const mio = variante(BLOQUE, "silla-de-prueba"), h = sha(mio);
     assert.equal((await fetch(url(h), { method: "HEAD" })).status, 404, "not there yet: the page asks first");

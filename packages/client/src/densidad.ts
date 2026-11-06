@@ -55,7 +55,8 @@ export type MarcoDensidad = {
 export const MARCOS_PLAZA: readonly MarcoDensidad[] = [
   { id: "hud.ahora", selector: "#mision-seguida", densidad: "minimo", cuando: "siempre", caja: { ancla: "arriba-izquierda", dx: 16, dy: 14, ancho: 480, alto: 38 }, cristal: 8, nombre: "Línea de «ahora» (la misión seguida)" },
   { id: "hud.avisos", selector: "#avisos-pila", densidad: "minimo", cuando: "al_cambiar", segundos: SEGUNDOS_AL_CAMBIAR, caja: { ancla: "arriba-centro", dx: 0, dy: 14, ancho: 440 }, cajaCompacta: { dy: 60 }, cristal: 8, nombre: "Pila de avisos (≤ 3, 6 s)" },
-  { id: "hud.accion", selector: "#interactuar", densidad: "minimo", cuando: "siempre", caja: { ancla: "abajo-centro", dx: 0, dy: 112, ancho: 360, alto: 54 }, cristal: 8, nombre: "Acción contextual" },
+  // P15: no `cristal`: this one is not a dim glass chip like the rest, it is the house amber (tema.css) so it is not lost among them; set 24 px clear of the action bar
+  { id: "hud.accion", selector: "#interactuar", densidad: "minimo", cuando: "siempre", caja: { ancla: "abajo-centro", dx: 0, dy: 120, ancho: 360, alto: 52 }, nombre: "Acción contextual" },
   { id: "hud.chat", selector: "#chat", densidad: "minimo", cuando: "siempre", caja: { ancla: "abajo-izquierda", dx: 16, dy: 16, ancho: 440 }, nombre: "Chat (el contenedor: lista, línea de escribir y pastilla)" },
   { id: "hud.chat.pastilla", selector: "#chat-boton", densidad: "minimo", cuando: "siempre", nombre: "Chat plegado (pastilla)" },
   { id: "hud.chat.lineas", selector: "#chat-lista", densidad: "normal", cuando: "al_cambiar", segundos: SEGUNDOS_AL_CAMBIAR, fijoEn: ["completo"], cristal: 12, nombre: "Chat: últimas líneas" },
@@ -71,7 +72,7 @@ export const MARCOS_PLAZA: readonly MarcoDensidad[] = [
 ];
 /** Not governed by the dial, on purpose: events and what you asked for (mission banner, narrator, dice, summons, the open
  *  book, the settings), the statistics (their own setting, `graficos.estadisticas`) and the screen-reader notices. */
-export const FUERA_DEL_DIAL: readonly string[] = ["#mision-completada", "#narrador", "#mision-nota", "#convocatorias", "#dados-carta", "#dialogo", "#libro", "#hud", "#avisos", "#avisos-urgentes"];
+export const FUERA_DEL_DIAL: readonly string[] = ["#mision-completada", "#narrador", "#mision-nota", "#convocatorias", "#dados-carta", "#dialogo", "#libro", "#evaluacion", "#hud", "#avisos", "#avisos-urgentes"];
 
 export const esDensidad = (v: unknown): v is Densidad => typeof v === "string" && (DENSIDADES as readonly string[]).includes(v);
 /** Any stored or typed value → a level (anything unknown is the default). */

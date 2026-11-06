@@ -65,13 +65,17 @@ const ZOOM_INICIAL = 1;            // the radius the minimap starts with, and th
 const LLEGADA_M = 2.5;             // a waypoint this close is reached (and cleared, with a notice)
 const ESTABLE_MS = 1500, ESPERA_MAX_MS = 10_000; // E4: a cut world's minimap picture waits until the zone stood still this long (at most ESPERA_MAX_MS)
 const IMAGEN_MS = 5000;            // the zone's picture is regenerated at most every 5 s, only while the big map is open (U14: or, in a world cut with mapa.corte, when its minimap's zone changed)
-const SUELO = "#b7c6ab";
+let SUELO = "#b7c6ab";
+let BYN = false; // mundo-hermes: pure black-and-white palette (entorno.json `tema`); markers differ by SHAPE
+/** Switch the map to the black-and-white palette (the page does it once, before the first frame, when /status says `tema: "black-and-white"`). */
+export function temaMapa(byn: boolean): void { BYN = byn; SUELO = byn ? "#000" : "#b7c6ab"; }
+const tinta = (c: string): string => (BYN ? "#fff" : c);
 const CUARTOS = 4;                 // E4: the cut's lines go to the canvas in whole quarter pixels (see corteEnMapa)
 
 /** Draw one marker shape centred at (x, y), half-size `s`, turned `ang` (arrows only). */
 function forma(g: CanvasRenderingContext2D, t: Tipo, x: number, y: number, s: number, ang = 0): void {
   g.save(); g.translate(x, y);
-  g.fillStyle = t.color; g.strokeStyle = "#fff"; g.lineWidth = 1.5;
+  g.fillStyle = tinta(t.color); g.strokeStyle = BYN ? "#000" : "#fff"; g.lineWidth = 1.5;
   g.beginPath();
   switch (t.forma) {
     case "flecha": g.rotate(ang); g.moveTo(0, -s); g.lineTo(s * 0.75, s * 0.8); g.lineTo(0, s * 0.35); g.lineTo(-s * 0.75, s * 0.8); g.closePath(); break;
@@ -79,10 +83,10 @@ function forma(g: CanvasRenderingContext2D, t: Tipo, x: number, y: number, s: nu
     case "rombo": g.moveTo(0, -s * 1.2); g.lineTo(s, 0); g.lineTo(0, s * 1.2); g.lineTo(-s, 0); g.closePath(); break;
     case "rombo-hueco": // ia-visible S5: a sleeping AI — the diamond's outline in its green over a pale fill
       g.moveTo(0, -s * 1.2); g.lineTo(s, 0); g.lineTo(0, s * 1.2); g.lineTo(-s, 0); g.closePath();
-      g.fillStyle = "rgba(255,255,255,0.7)"; g.fill(); g.strokeStyle = t.color; g.lineWidth = 2; g.stroke(); g.restore(); return;
+      g.fillStyle = BYN ? "#000" : "rgba(255,255,255,0.7)"; g.fill(); g.strokeStyle = tinta(t.color); g.lineWidth = 2; g.stroke(); g.restore(); return;
     case "triangulo": g.moveTo(0, -s * 1.1); g.lineTo(s, s * 0.8); g.lineTo(-s, s * 0.8); g.closePath(); break;
     case "estrella": for (let i = 0; i < 10; i++) { const r = i % 2 ? s * 0.5 : s * 1.25, a = (i * Math.PI) / 5 - Math.PI / 2; if (i) g.lineTo(Math.cos(a) * r, Math.sin(a) * r); else g.moveTo(Math.cos(a) * r, Math.sin(a) * r); } g.closePath(); break;
-    case "anillo": g.arc(0, 0, s, 0, Math.PI * 2); g.lineWidth = 3; g.strokeStyle = t.color; g.stroke(); g.beginPath(); g.arc(0, 0, s * 0.35, 0, Math.PI * 2); g.fill(); g.restore(); return;
+    case "anillo": g.arc(0, 0, s, 0, Math.PI * 2); g.lineWidth = 3; g.strokeStyle = tinta(t.color); g.stroke(); g.beginPath(); g.arc(0, 0, s * 0.35, 0, Math.PI * 2); g.fill(); g.restore(); return;
     case "exclamacion": // U14 (4): «!» — a warm disc with the mark in ink
       g.arc(0, 0, s, 0, Math.PI * 2); g.fill(); g.stroke();
       g.fillStyle = "#1d1406"; g.beginPath(); g.moveTo(-s * 0.2, -s * 0.66); g.lineTo(s * 0.2, -s * 0.66); g.lineTo(s * 0.11, s * 0.16); g.lineTo(-s * 0.11, s * 0.16); g.closePath();
@@ -100,7 +104,7 @@ function forma(g: CanvasRenderingContext2D, t: Tipo, x: number, y: number, s: nu
 function rejilla(g: CanvasRenderingContext2D, v: Vista, paso: number): void {
   const alcance = Math.hypot(v.ancho, v.alto) / 2 / v.escala;
   if (paso * v.escala < 10) return;
-  g.strokeStyle = "rgba(55,70,50,0.2)"; g.lineWidth = 1; g.beginPath();
+  g.strokeStyle = BYN ? "rgba(255,255,255,0.35)" : "rgba(55,70,50,0.2)"; g.lineWidth = 1; g.beginPath();
   for (let k = Math.ceil((v.cx - alcance) / paso); k * paso <= v.cx + alcance; k++) { const a = proyectar(v, k * paso, v.cz - alcance), b = proyectar(v, k * paso, v.cz + alcance); g.moveTo(a.px, a.py); g.lineTo(b.px, b.py); }
   for (let k = Math.ceil((v.cz - alcance) / paso); k * paso <= v.cz + alcance; k++) { const a = proyectar(v, v.cx - alcance, k * paso), b = proyectar(v, v.cx + alcance, k * paso); g.moveTo(a.px, a.py); g.lineTo(b.px, b.py); }
   g.stroke();
@@ -108,7 +112,7 @@ function rejilla(g: CanvasRenderingContext2D, v: Vista, paso: number): void {
 
 function huella(g: CanvasRenderingContext2D, v: Vista, h: Huella): void {
   const p = [proyectar(v, h.x0, h.z0), proyectar(v, h.x1, h.z0), proyectar(v, h.x1, h.z1), proyectar(v, h.x0, h.z1)];
-  g.fillStyle = h.color; g.beginPath(); g.moveTo(p[0].px, p[0].py);
+  g.fillStyle = BYN ? "#fff" : h.color; g.beginPath(); g.moveTo(p[0].px, p[0].py);
   for (let i = 1; i < 4; i++) g.lineTo(p[i].px, p[i].py);
   g.closePath(); g.fill();
 }
@@ -213,7 +217,7 @@ export function montarMapa(h: HostMapa) {
   });
   // misiones (another branch): `objetivos()` → [{ mision, paso, nombre, x, z }]; absent = no objectives
   fuentes.set("misiones", () => {
-    const o = h.otros().misiones?.objetivos?.();
+    const o = (h.otros().misiones?.senalados ?? h.otros().misiones?.objetivos)?.(); // P3: a quest with pistas:false is not on the map
     if (!Array.isArray(o)) return [];
     return o.map((m: { mision?: unknown; paso?: unknown; nombre?: unknown; x?: unknown; z?: unknown }) => ({ id: `m:${String(m.mision)}:${String(m.paso)}`, tipo: "objetivo", nombre: String(m.nombre ?? "Objetivo"), x: Number(m.x), z: Number(m.z), detalle: `Misión: ${String(m.mision ?? "")}` }));
   });
@@ -369,7 +373,7 @@ export function montarMapa(h: HostMapa) {
       vistos[m.tipo] = (vistos[m.tipo] ?? 0) + 1;
     }
     g.restore();
-    g.strokeStyle = "rgba(20,24,30,0.85)"; g.lineWidth = 2.5; g.beginPath(); g.arc(c, c, r, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = BYN ? "#fff" : "rgba(20,24,30,0.85)"; g.lineWidth = 2.5; g.beginPath(); g.arc(c, c, r, 0, Math.PI * 2); g.stroke();
     const n = puntoNorte(v.giro, c, r - 10); // the north button sits just inside the rim where north is (never over the clock above) (a CSS transform: no layout)
     bNorte.style.transform = `translate(${n.x.toFixed(1)}px, ${n.y.toFixed(1)}px) translate(-50%, -50%)`;
     dibujado.mini = vistos;
@@ -457,12 +461,12 @@ export function montarMapa(h: HostMapa) {
       forma(g, ti, p.px, p.py, ti.tam * k, m.tipo === "tu" ? anguloFlecha(0, m.yaw ?? 0) : 0);
       vistos[m.tipo] = (vistos[m.tipo] ?? 0) + 1;
     }
-    if (elegido) { const p = proyectar(gv, elegido.x, elegido.z); g.strokeStyle = "#ffd27a"; g.lineWidth = 3; g.beginPath(); g.arc(p.px, p.py, 14, 0, Math.PI * 2); g.stroke(); }
+    if (elegido) { const p = proyectar(gv, elegido.x, elegido.z); g.strokeStyle = BYN ? "#fff" : "#ffd27a"; g.lineWidth = 3; g.beginPath(); g.arc(p.px, p.py, 14, 0, Math.PI * 2); g.stroke(); }
     // scale bar: 10 m (or 50 m when far)
     const m10 = gv.escala >= 4 ? 10 : 50, w = m10 * gv.escala;
-    g.fillStyle = "rgba(20,24,30,0.75)"; g.fillRect(10, gv.alto - 26, w + 40, 18);
-    g.fillStyle = "#ffd27a"; g.fillRect(14, gv.alto - 18, w, 3);
-    g.fillStyle = "#eef2f6"; g.font = "11px system-ui, sans-serif"; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText(`${m10} m`, w + 18, gv.alto - 17);
+    g.fillStyle = BYN ? "#000" : "rgba(20,24,30,0.75)"; g.fillRect(10, gv.alto - 26, w + 40, 18);
+    g.fillStyle = BYN ? "#fff" : "#ffd27a"; g.fillRect(14, gv.alto - 18, w, 3);
+    g.fillStyle = BYN ? "#fff" : "#eef2f6"; g.font = "11px system-ui, sans-serif"; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText(`${m10} m`, w + 18, gv.alto - 17);
     dibujado.grande = vistos;
   }
 

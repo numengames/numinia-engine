@@ -8,15 +8,19 @@ import "./movil.css"; // U24: every rule is scoped to html[data-aparato^="movil"
 import { icono } from "./iconos.ts";
 import { iconoDe, nombreDe } from "../../packages/render/src/menu-secciones.ts"; // v2 paridad: the same names and icons as the bar and the VR menu
 import { perfil } from "./perfil-aparato.ts";
+import { accionesVisibles, rotuloMas } from "./interfaz-mundo.ts"; // P7: a world may hide the gestures (P15: and Recoger / Soltar)
+import type { Ocultable } from "./interfaz-mundo.ts";
 import { anunciar } from "./paneles.ts";
 import { PULSACION_LARGA_MS, PULSACION_LARGA_TOLERANCIA, ZONA_SEGURA_SIMULADA, elegirAccion, entradasDelMenu, esPulsacionLarga, siguienteChat, ultimaLinea } from "../../packages/client/src/movil.ts";
 import type { Contexto, EstadoChat, Entrada } from "../../packages/client/src/movil.ts";
 
-type Accion = { id: string; label: string; describe?: string; run(): void };
+type Accion = { id: string; label: string; describe?: string; feature?: string; run(): void };
 type Cerca = { feature: string; key: string; prompt: string } | null;
 type Opciones = {
   interaccion: { actual(): Cerca; usar(): unknown; mirar(): void };
   acciones: readonly Accion[];
+  /** P7/P15: the buttons the world took off the screen (ficha.json → interfaz.ocultar): «…» does not offer them nor name them. Asked each time the menu opens. */
+  ocultos?: () => ReadonlySet<Ocultable>;
   saltar: () => void;
   cajaChat: { cerrar(): void };
   mapa: { abrir(): void; cerrar(): void; abierto(): boolean };
@@ -40,6 +44,7 @@ const el = <T extends HTMLElement>(tag: string, o: { id?: string; clase?: string
   if (e instanceof HTMLButtonElement) e.type = "button";
   return e;
 };
+const SIN_OCULTOS: ReadonlySet<Ocultable> = new Set();
 const porId = (id: string) => document.getElementById(id);
 const vibrar = (ms = 10) => { try { navigator.vibrate?.(ms); } catch { /* not everywhere */ } };
 
@@ -89,7 +94,7 @@ export function montarMovil(o: Opciones): void {
   refrescarAccion();
 
   // ---- 2 · «…» : Saltar, Saludar, Bailar and, behind «más», the rest of what the icon bar held ----
-  const mas = el<HTMLButtonElement>("button", { id: "mas", clase: "tocable", html: icono("dots-three", 26), etiqueta: "Más acciones: saltar, saludar, bailar…" });
+  const mas = el<HTMLButtonElement>("button", { id: "mas", clase: "tocable", html: icono("dots-three", 26), etiqueta: rotuloMas(o.ocultos?.() ?? SIN_OCULTOS) });
   mas.setAttribute("aria-expanded", "false"); mas.setAttribute("aria-haspopup", "menu");
   const menu = el("div", { id: "mas-menu" }); menu.setAttribute("role", "menu"); menu.hidden = true;
   body.append(mas, menu); noJoystick(mas); noJoystick(menu);
@@ -109,7 +114,7 @@ export function montarMovil(o: Opciones): void {
   const cerrarMenu = () => { menu.hidden = true; ampliado = false; mas.setAttribute("aria-expanded", "false"); clearTimeout(tMenu); };
   const pintarMenu = () => {
     const ex = extras();
-    const entradas = entradasDelMenu(o.acciones, ex);
+    const entradas = entradasDelMenu(accionesVisibles(o.acciones, o.ocultos?.() ?? SIN_OCULTOS), ex);
     menu.classList.toggle("ampliado", ampliado);
     const botones = entradas.map((en) => {
       const b = el<HTMLButtonElement>("button", { clase: `tocable${en.masAlla ? " extra" : ""}`, html: icono(en.icono, 24) }); // the icon is a fixed house glyph; the label (a feature's text) goes in as text

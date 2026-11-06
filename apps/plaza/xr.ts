@@ -47,7 +47,7 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
   const hayAlcance = !!session.features.reachable && !!session.selfPosition; // a session without the reach list (a stub): as before
   view.manos.reglas({
     agarrable: (k) => { const [f, key] = partir(k); return f === "misiones" && misiones.ofrece(f, key); },
-    apuntable: (k) => { const [f, key] = partir(k); return ((f === "pnj" || (f === "misiones" && misiones.ofrece(f, key))) && (!hayAlcance || alAlcance(f, key))) || (f === "" && !k.includes(":") && (!!o.enlaces?.tiene(k) || !!o.huecos?.llenable(k))); }, // reach limits NPCs/quest things; a picture link (or a hole you may fill) is not limited by it
+    apuntable: (k) => { const [f, key] = partir(k); return (((f === "pnj" || f === "misiones") && misiones.ofrece(f, key)) && (!hayAlcance || alAlcance(f, key))) || (f === "" && !k.includes(":") && (!!o.enlaces?.tiene(k) || !!o.huecos?.llenable(k))); }, // reach limits NPCs/quest things; a picture link (or a hole you may fill) is not limited by it
   });
   // J4 VR: window.confirm cannot show inside an immersive session → the link asks in the dialogue panel; only the person's choice opens it
   let enlacePendiente: string | null = null;

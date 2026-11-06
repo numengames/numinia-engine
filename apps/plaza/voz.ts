@@ -43,7 +43,9 @@ const WORKLET = `registerProcessor("captura-voz", class extends AudioWorkletProc
 
 export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: KeyboardEvent): boolean; decir(t: string): void; ajuste?: (id: string) => unknown;
   /** v10: the headset. `activo` = inside an immersive session; `cerrada` = still behind the entry bubble (the server drops a closed person's voice); `nota` = a line in front of the eyes. */
-  vr?: { activo(): boolean; cerrada(): boolean; nota(t: string): void } }) {
+  vr?: { activo(): boolean; cerrada(): boolean; nota(t: string): void };
+  /** V13: the subtitles column. Told who is audible AND talking now; told to forget whoever stops being audible. */
+  subtitulos?: { hablando(entidad: number, escenario: boolean): void; olvidar(entidad: number): void } }) {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const boton = document.createElement("button");
   boton.type = "button"; boton.id = "microfono"; boton.className = "solo-icono"; boton.setAttribute("aria-pressed", "false");
@@ -80,7 +82,7 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
     let rms = 0; for (const s of pcm) rms += s * s; rms = Math.sqrt(rms / pcm.length);
     v.rmsPendiente = Math.max(v.rmsPendiente ?? 0, rms);
   };
-  const soltar = (e: number, v: Voz) => { v.salida.disconnect(); v.dec?.close(); voces.delete(e); o.view.voz(e, 0); };
+  const soltar = (e: number, v: Voz) => { v.salida.disconnect(); v.dec?.close(); voces.delete(e); o.view.voz(e, 0); o.subtitulos?.olvidar(e); };
   const vozDe = (entidad: number, escenario: boolean): Voz | null => {
     let v = voces.get(entidad);
     if (v && v.escenario !== escenario) { soltar(entidad, v); v = undefined; } // went on or off stage: a new chain
@@ -140,6 +142,7 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
     for (const [e, v] of voces) {
       v.nivelBoca = decaerBoca(v.nivelBoca, v.rmsPendiente); v.rmsPendiente = null; // U13: fades on its own between frames
       o.view.voz(e, v.nivelBoca);
+      if (v.nivelBoca > HABLANDO) o.subtitulos?.hablando(e, v.escenario); // V13: exactly the voices you hear (muted and out-of-cap ones never reach `voces`)
       const r = donde.get(e);
       if (!r) { if (t > v.siguiente + (v.escenario ? 30 : 5)) soltar(e, v); continue; } // a stage voice may come from beyond your snapshot: kept while it speaks
       if (v.panner) { v.panner.positionX.setValueAtTime(r.x, t); v.panner.positionY.setValueAtTime(r.y + 1.6, t); v.panner.positionZ.setValueAtTime(r.z, t); }

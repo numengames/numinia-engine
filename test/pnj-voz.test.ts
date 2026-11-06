@@ -125,6 +125,6 @@ test("voz de PNJ: pnj@1 acepta `voz` (una de las de la casa; sin ella, vacía) y
   assert.ok(sin.ok && sin.value.voz === "");
   const mala = leerPnj({ ...base, voz: "robot" });
   assert.ok(!mala.ok && mala.issues.some((i) => i.path === "voz" && /hombre-joven, mujer-mayor/.test(i.message)), JSON.stringify(mala));
-  assert.equal(pnjDecl.version, 4);
+  assert.equal(pnjDecl.version, 6);
   assert.deepEqual(pnjDecl.state!.fields.voz, { kind: "text", maxBytes: 16, default: "" });
 });
