@@ -62,7 +62,7 @@ test("formats: pnj@1 `oficio` — valid, too long, not text, absent; the plug's 
   const raro = leerPnj({ ...base, oficios: "Carpintero" });
   assert.ok(!raro.ok && raro.issues.some((i) => i.path === "oficios" && /aquí van: .*oficio/.test(i.message)), "a typo lists the fields, oficio among them");
   assert.deepEqual([pnjDecl.issues, misionesDecl.issues], [[], []]);
-  assert.equal(pnjDecl.version, 5); // v5 (P2): `reposo`, `mira` and the event `sitio` (test/pnj-viva.test.ts); v4: `voz` (test/pnj-voz.test.ts)
+  assert.equal(pnjDecl.version, 6); // v6 (P16): the event `ronda`; v5 (P2): `reposo`, `mira` and the event `sitio` (test/pnj-viva.test.ts); v4: `voz` (test/pnj-voz.test.ts)
   assert.deepEqual(pnjDecl.state!.fields.oficio, { kind: "text", maxBytes: 40, default: "" });
   assert.equal(misionesDecl.version, 11); // v11 (P13): the end card events; v10 (P4): marcables; v9 (P3): inspectable things, `callan`, `pistas`, the abrirLibro event; v8 (Y3): `otorga` may carry `objeto`; v7 (T1): step `hace`; v6 (N10): the server-only `concedido` for «objeto» rewards
   const ev = misionesDecl.events!.marcas;

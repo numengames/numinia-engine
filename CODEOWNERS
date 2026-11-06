@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 Numen Games S.L.
+# SPDX-License-Identifier: CC0-1.0
+
+# Pablo is the only human owner. Enforcement needs branch protection with "require review from
+# Code Owners", an organisation setting that is not a file in this tree: until it is on, this list is advisory.
+* @PabloFMM
+/LICENSE* @PabloFMM
+/LICENSES/ @PabloFMM
+/REUSE.toml @PabloFMM
+/TRADEMARKS.md @PabloFMM
+/.github/ @PabloFMM

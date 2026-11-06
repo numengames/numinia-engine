@@ -25,5 +25,14 @@ Comprobación: `node tools/aventura.ts plantillas/taller/aventura`; pruebas: `te
 (archivos y misiones de un mundo recién nacido, un mundo existente intacto) y `tools/e2e-piernas/mundo-nuevo-taller.mjs`
 (las 11 misiones jugadas en el navegador hasta la insignia, sobre un mundo recién nacido).
 
+## hermes/
+
+Un **tipo de mundo** cerrado: el mundo que representa la aplicación de escritorio de Hermes (no una función que otros mundos
+enciendan). Se elige con `MOTOR_PLANTILLA=hermes` al crear un mundo nuevo (sin la variable, `taller`; un nombre que no existe
+detiene el arranque y dice cuáles hay). Hoy es el esqueleto: `aventura/ficha.json` («Hermes»), `aventura/LEEME-IA.md` (una IA
+solo mira y habla) y un `entorno/` con espacio base, naturaleza, pesca, dardos, lucha y ancestros apagados o vacíos. Las zonas, el
+espejo (`entorno/espejo.json`) y el enlace con el plugin llegan en las historias siguientes. Pruebas:
+`test/mundo-nuevo-hermes.test.ts`.
+
 La aventura de ejemplo (`aventuras/ejemplo`) sigue en el motor para quien la pida (`AVENTURA_DIR=aventuras/ejemplo`) y
 para un mundo antiguo con datos pero sin `aventura/`.

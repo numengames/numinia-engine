@@ -1,0 +1,12 @@
+{
+  "schema": "numinia-engine/entorno@1",
+  "cielo": { "tipo": "color", "arriba": "#000000", "horizonte": "#000000", "nubes": 0 },
+  "luz": { "ambiente": 1, "cielo": "#ffffff", "suelo": "#ffffff" },
+  "sol": { "intensidad": 0 },
+  "niebla": { "cerca": 120, "lejos": 260, "color": "#000000", "delCielo": false },
+  "suelo": { "tipo": "liso", "color": "#000000" },
+  "tono": { "curva": "neutro", "exposicion": 1 },
+  "hitos": false,
+  "tema": "black-and-white",
+  "aparicion": { "x": 0, "z": 3, "radio": 3 }
+}

@@ -170,8 +170,9 @@ export function leerTema(v: unknown): { tema: Tema | null; problemas: string[] }
 
 // ---------- ficha@1 `interfaz`: what this world takes off the page's buttons (a training sim has no use for a wave) ----------
 /** The groups of buttons a world may hide. `gestos` = «Saludar», «Bailar» and «Movimientos» (the bottom bar, the phone's «…» menu
- * and the touch «Movimientos» button). Keys (G, H) and the wheel they open are not touched: this is about buttons on screen. */
-export const INTERFAZ_OCULTABLES = ["gestos"] as const;
+ * and the touch «Movimientos» button). `recoger-soltar` = the player's «Recoger» (fishing's reel) and «Soltar» (what you carry) buttons.
+ * Keys (G, H, F, Q) and the wheel they open are not touched: this is about buttons on screen. */
+export const INTERFAZ_OCULTABLES = ["gestos", "recoger-soltar"] as const;
 export type Interfaz = { ocultar: (typeof INTERFAZ_OCULTABLES)[number][] };
 
 /** A ficha's `interfaz`, value by value: a name that does not exist is left out and said (the rest still applies), unknown keys are

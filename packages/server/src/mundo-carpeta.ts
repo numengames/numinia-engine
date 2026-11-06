@@ -19,7 +19,7 @@
 // MOTOR_ADMIN, else ADMIN_CODE. Without them and with a world folder, they are made ONCE into claves.env and the log
 // says where the code is — never the code itself.
 import { randomBytes } from "node:crypto";
-import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Motor } from "./version.ts";
@@ -29,6 +29,23 @@ export const ESQUEMA_MUNDO = "numinia-engine/mundo@2";
 export const EJEMPLO = fileURLToPath(new URL("../../../aventuras/ejemplo", import.meta.url));
 /** Primera vez: what a NEW world is born with, shipped inside the engine (plantillas/taller/{aventura,entorno}; the installer and the image carry it). */
 export const TALLER = fileURLToPath(new URL("../../../plantillas/taller", import.meta.url));
+
+/** Where the shipped templates live (plantillas/<name>/{aventura,entorno}); `taller` is the default, `hermes` the closed Hermes world. */
+export const PLANTILLAS = fileURLToPath(new URL("../../../plantillas", import.meta.url));
+export const PLANTILLA_DEFECTO = "taller";
+
+/** MOTOR_PLANTILLA → the template folder to seed a NEW world with. Unset or empty = `taller`. The name is a plain folder name
+ * (letters, digits, - and _), never a path; an unknown or wrong name is a Result error that says what exists (it never throws). */
+export function plantillaPorNombre(nombre: string | undefined, base: string = PLANTILLAS): { ok: true; nombre: string; ruta: string } | { ok: false; error: string } {
+  const n = (nombre ?? "").trim() || PLANTILLA_DEFECTO;
+  if (!/^[a-z0-9][a-z0-9_-]{0,30}$/.test(n)) return { ok: false, error: `MOTOR_PLANTILLA «${n.slice(0, 40)}» no es un nombre de plantilla (solo minúsculas, cifras, - y _)` };
+  const ruta = join(base, n);
+  if (!existsSync(join(ruta, "aventura")) || !existsSync(join(ruta, "entorno"))) {
+    const hay = existsSync(base) ? readdirSync(base, { withFileTypes: true }).filter((e) => e.isDirectory() && existsSync(join(base, e.name, "entorno"))).map((e) => e.name).sort() : [];
+    return { ok: false, error: `MOTOR_PLANTILLA «${n}» no existe en ${base} (hay: ${hay.join(", ") || "ninguna"})` };
+  }
+  return { ok: true, nombre: n, ruta };
+}
 
 export type Carpeta = { raiz: string; manifiesto: string; datos: string; activos: string; aventura: string; entorno: string; sesiones: string; claves: string };
 
@@ -56,13 +73,15 @@ function copiarEntero(de: string, a: string, raiz: string): void {
  * dartboard, creature and Ancestors hall are written EMPTY so the new world has none of them (they are all files: the owner adds them later).
  * Everything lands as plain files in the folder. A world that already exists is never touched: one with a part of its own but no aventura/
  * (an old install) gets the example adventure as it always did; one with an aventura/ gets nothing. Returns true when it seeded an aventura/. */
-export function sembrar(c: Carpeta, log: (l: string) => void = () => {}, ejemplo: string = EJEMPLO, taller: string = TALLER): boolean {
+export function sembrar(c: Carpeta, log: (l: string) => void = () => {}, ejemplo: string = EJEMPLO, taller: string = TALLER, nombrePlantilla: string = PLANTILLA_DEFECTO): boolean {
   const nuevo = esMundoNuevo(c);
   mkdirSync(c.raiz, { recursive: true });
   if (nuevo && existsSync(join(taller, "aventura")) && existsSync(join(taller, "entorno"))) {
     copiarEntero(join(taller, "entorno"), c.entorno, c.raiz);
     copiarEntero(join(taller, "aventura"), c.aventura, c.raiz);
-    log(`[mundo] mundo nuevo: nace con el onboarding del Taller (Lumen, 11 misiones y un cable de muestra; ${c.aventura}, ${c.entorno}); nace en el espacio base y desde ahora es suyo`);
+    log(nombrePlantilla === PLANTILLA_DEFECTO
+      ? `[mundo] mundo nuevo: nace con el onboarding del Taller (Lumen, 11 misiones y un cable de muestra; ${c.aventura}, ${c.entorno}); nace en el espacio base y desde ahora es suyo`
+      : `[mundo] mundo nuevo: nace de la plantilla «${nombrePlantilla}» (${c.aventura}, ${c.entorno}); desde ahora es suyo`);
     return true;
   }
   if (!existsSync(c.aventura) && !existsSync(c.entorno)) {
@@ -84,6 +103,31 @@ export function escribirManifiesto(c: Carpeta, motor: Motor, cuando = new Date()
 }
 
 export type Claves = { secreto?: string; admin?: string; dondeCodigo: string };
+
+/** mundo-hermes: the key of the local link to an outside source (espejo). Its own file at the world's root, next to claves.env and, like it,
+ *  never in the zip (the zip holds only datos/ aventura/ entorno/): `enlace.env`, mode 600, made ONCE and only when the world asks for a link.
+ *  Distinct from MOTOR_SECRET on purpose: a leaked link key can lie about a cron, but cannot forge a pass or a QR. MOTOR_ENLACE_CLAVE wins when set.
+ *  Returns "" when there is nowhere to keep it (no world folder and no variable): then the link is not opened. Never printed. */
+export function claveDeEnlace(env: Record<string, string | undefined>, c: Carpeta | null, log: (l: string) => void = () => {}): string {
+  const dada = env.MOTOR_ENLACE_CLAVE;
+  if (dada) { if (dada.length >= 16) return dada; log("[enlace] MOTOR_ENLACE_CLAVE tiene menos de 16 caracteres: no la uso"); return ""; }
+  if (!c) return "";
+  const fichero = join(c.raiz, "enlace.env");
+  if (existsSync(fichero)) {
+    const m = /^MOTOR_ENLACE_CLAVE=([A-Za-z0-9_-]{16,128})$/m.exec(readFileSync(fichero, "utf8"));
+    if ((statSync(fichero).mode & 0o077) !== 0) { chmodSync(fichero, 0o600); log(`[enlace] ${fichero} se podía leer por otros: ahora solo tú (600)`); }
+    if (m) return m[1];
+    log(`[enlace] ${fichero} no trae MOTOR_ENLACE_CLAVE=<16+ caracteres>: bórrelo para que se haga de nuevo`);
+    return "";
+  }
+  const clave = nueva();
+  const tmp = `${fichero}.tmp-${process.pid}`;
+  writeFileSync(tmp, `# Clave del enlace local del espejo (la hizo el motor). La firma el plugin; nunca viaja. No va en el zip del mundo.\nMOTOR_ENLACE_CLAVE=${clave}\n`, { mode: 0o600 });
+  renameSync(tmp, fichero);
+  log(`[enlace] clave hecha una vez en ${fichero} (600)`);
+  return clave;
+}
+
 const LINEA = /^(MOTOR_SECRET|MOTOR_ADMIN)=([A-Za-z0-9_-]{16,128})$/;
 const nueva = () => randomBytes(24).toString("hex");
 
