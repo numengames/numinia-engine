@@ -68,3 +68,15 @@ export const marcaDe = (c: { at?: { x: number; z: number; y?: number }; role?: s
   if (centro) return { x: centro.x, y: centro.y, z: centro.z, r }; // the middle of the model itself (a flat piece whose origin is at one edge is ringed round what it is)
   return { x: c.at.x, y: y + Math.round(r * 50) / 100, z: c.at.z, r };
 };
+
+/** The ring in the world for what the page offers: asks the view where the thing's model is and how big (`medida`), places the ring
+ *  (`marcaDe`) and tells the view only when it changes (`marcar(null)` once when nothing is offered any more). No ring in VR. */
+export const crearMarcador = (view: { medida?(key: string): { x: number; y: number; z: number; r: number } | undefined; marcar?(p: ReturnType<typeof marcaDe>): void; vr?: { active: boolean } }) => {
+  let marcado = false;
+  return (c: { feature: string; key: string; at?: { x: number; z: number; y?: number }; role?: string } | null, pies: number): void => {
+    const md = c ? view.medida?.(`${c.feature}:${c.key}`) : undefined, m = c && !view.vr?.active ? marcaDe(c, pies, md?.r, md) : null; // a person's ring ignores the size (marcaDe)
+    if (!m && !marcado) return;
+    marcado = !!m;
+    view.marcar?.(m);
+  };
+};

@@ -437,10 +437,13 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   // P15: the one ring over the thing «E: …» speaks about. Its code (marca-mirada.ts) is fetched when the first thing is offered, not with the first frame:
   // a world where nothing is ever near never downloads it. Until it arrives `poner` keeps the last mark and asks for frames; then it is applied.
   const marcaMirada = (() => {
-    let real: ReturnType<typeof import("./marca-mirada.ts").createMarcaMirada> | null = null, pidiendo = false, ultima: Marca | null = null;
-    const pedir = () => { if (real || pidiendo) return; pidiendo = true; void import("./marca-mirada.ts").then((m) => { real = m.createMarcaMirada({ world, camera }); real.poner(ultima); }, () => { pidiendo = false; }); };
+    let real: ReturnType<typeof import("./marca-mirada.ts").createMarcaMirada> | undefined, pidiendo = false, ultima: Marca | null = null;
     return {
-      poner(p: Marca | null): void { ultima = p; if (real) real.poner(p); else if (p) pedir(); },
+      poner(p: Marca | null): void {
+        ultima = p;
+        if (real) real.poner(p);
+        else if (p && !pidiendo) { pidiendo = true; void import("./marca-mirada.ts").then((m) => { real = m.createMarcaMirada({ world, camera }); real.poner(ultima); }, () => { pidiendo = false; }); }
+      },
       update(): void { real?.update(); },
       busy(): boolean { return real ? real.busy() : pidiendo; },
     };
@@ -1800,6 +1803,27 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     marcar(p: Marca | null): void { marcaMirada.poner(p); },
     /** P15: where a placed thing's model is in the world and how big: the sphere (m) that holds it, or undefined while it is not placed or not loaded yet. The ring goes there. */
     medida(key: string): { x: number; y: number; z: number; r: number } | undefined { const s = things.get(key); return s?.loaded ? medidaEnMundo(s.group) : undefined; },
+    /** ia-visible S5 (for checks): who has a ring, whether it is drawn, and how much the rings share (one geometry, one material per state). */
+    aros() { return { lista: aros.lista(), ...aros.compartidos() }; },
+    /** t_5096d6f4 (for checks): who has eyes (colour and shape), whether they are drawn, and how much the eyes share (one geometry per shape, one material per colour). */
+    ojosIA() { return { lista: ojosIA.lista(), ...ojosIA.compartidos() }; },
+    /** ia-llamar S9: this AI has an action bubble of this shape, radius and visibility (`null`: it has none now); `dormida` = it sleeps (dim, dashed). */
+    burbuja(t: Target, cfg: { forma: "esfera" | "cupula" | "cilindro" | "caja"; radio: number; visible: "siempre" | "al-acercarte" | "nunca" } | null, dormida = false): void { burbujas.poner(t, cfg, dormida); },
+    /** ia-llamar S9: you have just entered this AI's bubble: it lights up for a moment (not when its keeper chose «nunca»). */
+    burbujaDestello(t: Target): void { burbujas.destellar(t, performance.now()); },
+    /** ia-llamar S9 (for checks): who has a bubble (shape, radius, visibility, drawn or not, level) and how much the bubbles share. */
+    burbujas() { return { lista: burbujas.lista(), ...burbujas.compartidos() }; },
+    bubbles() { return nombres.bubbles(); },
+    /** condiciones/c5: this avatar is (`true`) or is no longer (`false`: it accepted, it bursts) inside a bubble reading the world's norms; its plate says so
+     * («<name> · <etiqueta>»). Cheap: one shared sphere and material; nothing is drawn for a world with nobody reading. */
+    leyendo(entidad: number, si: boolean, etiqueta?: string): void { nombres.leyendo(entidad, si, etiqueta); pompas.poner(entidad, si, performance.now()); rotulosPendiente = true; },
+    /** condiciones/c5 (for checks): who has a bubble, whether it is drawn, who is bursting, and how much the bubbles share. */
+    pompas() { return { lista: pompas.lista(), ...pompas.compartidos() }; },
+    /** True while a label, a bounce or a near animation is alive: the power policy must keep drawing. */
+    /** U10: draw hidden spheres of sound (while building) or not (while playing). */
+    verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
+    /** MIS-200 (t_9687b5fc): the world still loads models or shaders: the entry buttons wait (the same gate as the VR entry, not busy()). */
+    cargando(): boolean { return loading > 0 || precompilar.pendientes() > 0; },
     busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || vivosCerca || reacciones.size > 0 || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || marcaMirada.busy() || ojosIA.busy() || orbesIA.busy() || burbujas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || dados3d.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ) || formas.ocupado(); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); power.paron(2); }, // B4: the next frames pay the resize

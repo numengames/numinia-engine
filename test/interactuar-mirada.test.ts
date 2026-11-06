@@ -94,7 +94,7 @@ test("P15 marcaDe: a person gets a small ring on the floor at their feet (never 
   assert.equal(marcaDe({ ...base, role: "objeto", at: { x: 0, z: 0 } }, 0, 3)!.r, RADIO_MAX, "a big thing: capped at 0.45 m");
   assert.equal(marcaDe({ ...base, role: "objeto", at: { x: 0, z: 0 } }, 0, 0.01)!.r, RADIO_MIN, "a tiny one: not smaller than 5 cm");
   assert.equal(marcaDe({ ...base, role: "objeto", at: { x: 0, z: 0 } }, 0, 0)!.r, RADIO_COSA, "size 0 = unknown");
-  assert.equal(marcaDe({ ...base }, 0), null);
+  assert.equal(marcaDe({ role: "objeto" }, 0), null);
 });
 
 test("P15 a: the ring of a flat thing is centred on the model's middle, not half a radius above its origin (the knife, board and vegetables of the v4 kitchen)", () => {
@@ -156,7 +156,7 @@ function montarFalso(cosas: Cosa[], yo: { x: number; z: number; yaw: number }, t
 test("P15 page: the prompt appears inside the radius, names the thing looked at, and is gone the moment you step out", async () => {
   const yo = { x: 0, z: 0, yaw: 0 };
   const W = montarFalso([{ key: "vaso", x: 0, z: -1.0, r: 1.1 }, { key: "movil", x: -0.9, z: -0.3, r: 1.1 }], yo);
-  await W.i.precargar();
+  W.i.mirar(); await new Promise((ok) => setTimeout(ok, 40)); // the first look starts fetching the gaze code
   try {
     W.i.mirar();
     assert.equal(W.boton.hidden, false);
@@ -177,7 +177,7 @@ test("P15 page: the prompt appears inside the radius, names the thing looked at,
 test("P15 page: the ring fits what it marks — a person's is on the floor, a thing's as big as the thing (asked of the view by its place), unknown = 0.2 m", async () => {
   const yo = { x: 0, z: 0, yaw: 0 };
   const W = montarFalso([{ key: "vaso", x: 0, z: -1.0, r: 1.1 }, { key: "sargento", x: -0.9, z: -0.3, r: 1.8, role: "persona" }, { key: "caja", x: 0.9, z: -0.3, r: 1.1 }], yo, { "f:vaso": 0.1, "f:sargento": 1.8 });
-  await W.i.precargar();
+  W.i.mirar(); await new Promise((ok) => setTimeout(ok, 40)); // the first look starts fetching the gaze code
   try {
     W.i.mirar();
     assert.deepEqual(W.marcas.at(-1), { x: 0, y: 0.05, z: -1, r: 0.1 }, "the glass: a ring the size of the glass, at half its height");
@@ -191,7 +191,7 @@ test("P15 page: the ring fits what it marks — a person's is on the floor, a th
 test("P15 page: the limit is the radius itself (no slack on the page: the server's 1.5 m margin is only for the server)", async () => {
   const yo = { x: 0, z: 1.09, yaw: 0 };
   const W = montarFalso([{ key: "vaso", x: 0, z: 0, r: 1.1 }], yo);
-  await W.i.precargar();
+  W.i.mirar(); await new Promise((ok) => setTimeout(ok, 40)); // the first look starts fetching the gaze code
   try {
     W.i.mirar(); assert.equal(W.i.actual()?.key, "vaso");
     yo.z = 1.11; W.i.mirar(); assert.equal(W.i.actual(), null, "1.11 m > 1.1 m: gone");
@@ -202,7 +202,7 @@ test("P15 page: the limit is the radius itself (no slack on the page: the server
 test("P15 page: with nothing near nothing changes — no ring call, button stays hidden, however often it looks", async () => {
   const yo = { x: 50, z: 50, yaw: 0 };
   const W = montarFalso([{ key: "vaso", x: 0, z: 0, r: 1.1 }], yo);
-  await W.i.precargar();
+  W.i.mirar(); await new Promise((ok) => setTimeout(ok, 40)); // the first look starts fetching the gaze code
   try {
     for (let n = 0; n < 25; n++) { yo.yaw += 0.3; W.mirar(); }
     assert.equal(W.marcas.length, 0, "the view is never asked to mark anything");
