@@ -48,6 +48,7 @@ export type { Movimiento } from "./avatares-politica.ts";
 export type { CatalogoAvatares } from "./avatares.ts";
 import type { CatalogoAvatares } from "./avatares.ts";
 import { createNombres, NOMBRE_VISIBLE_M } from "./nombres.ts";
+import type { Marca } from "./marca-mirada.ts";
 import { createAros } from "./aros.ts"; // ia-visible S5: a green ring on the floor under every AI (pooled, one shared geometry)
 import { arosMax } from "./ia-marca.ts";
 import { createOjosIA } from "./ojos-ia.ts"; // t_5096d6f4: the eyes of an AI say the size of its model (one mesh per near AI, shared geometry and material)
@@ -432,6 +433,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const meshOf = (t: Target): THREE.Mesh | undefined => (t === "self" ? (selfMesh.visible ? selfMesh : undefined) : others.get(t));
   const nombres = createNombres({ world, camera, avatarOf: meshOf }); // J3: names over heads and speech bubbles
   const aros = createAros({ world, avatarOf: (t) => meshOf(t), camera, max: () => arosMax(power.mobile) }); // ia-visible S5: nothing is made until the first AI
+  // P15: the one ring over the thing «E: …» speaks about. Its code (marca-mirada.ts) is fetched when the first thing is offered, not with the
+  // first frame: a world where nothing is ever near never downloads it.
+  let marcaP: Promise<ReturnType<typeof import("./marca-mirada.ts").createMarcaMirada>> | undefined, marcaR: Awaited<NonNullable<typeof marcaP>> | undefined;
   const ojosIA = createOjosIA({ world, cuerpo: (t) => meshOf(t), visible: (t) => (t === "self" ? selfMat.visible : true), cabeza: (t, out) => avs.cabeza(t === "self" ? "yo" : t, out), rumbo: (t) => avs.rumbo(t === "self" ? "yo" : t), camera, max: () => ojosMax(power.mobile) });
   const orbesIA = createOrbesIA({ world, cuerpo: (t) => meshOf(t), visible: (t) => (t === "self" ? selfMat.visible : true), encima: (t, c) => nombres.above(t, c), camera, max: () => orbesMax(power.mobile), nivel: () => entorno.nivel });
   const burbujas = createBurbujas({ world, avatarOf: (t) => meshOf(t), yo: () => selfXZ ? { x: selfXZ.x, y: selfXZ.y ?? 0, z: selfXZ.z } : null, max: () => burbujasMax(power.mobile, renderer.xr.isPresenting) }); // ia-llamar S9: nothing is made until the first AI
@@ -539,6 +543,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     updateRotulos(now);
     pompas.update(now);
     aros.update();
+    marcaR?.update();
     ojosIA.update(); // after the avatars moved (the VRM's head follows its capsule)
     orbesIA.update(now); // after the plates are placed: it floats over the name
     burbujas.update(now);
@@ -858,6 +863,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   function vivirPlace(s: Slot, antes: Thing, t: Thing): void {
     if (!t.vida) { if (s.vida) { s.vida = undefined; placeGroup(s); } return; }
     const v = (s.vida ??= nuevaVida(t));
+    if (t.vida.andando !== undefined) return; // P16: a person on a round is placed again every frame she moves: no walk to add, and her yaw is smoothed in `vivir`, not snapped here
     const mx = antes.x - t.x, mz = antes.z - t.z;
     if (mx === 0 && mz === 0 && antes.y === t.y) return;
     if (t.vida.camina && s.loaded && vaACaminar(Math.hypot(v.ca.dx + mx, v.ca.dz + mz))) { v.ca.dx += mx; v.ca.dz += mz; }
@@ -880,13 +886,13 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   function vivir(k: string, s: Slot, dt: number, ahora: number, d2: number, delante: boolean): void {
     const v = s.vida!, w = s.want, vd = w.vida!;
     if (llevados.has(k) || editor.retiene(k, w) || s.failed) return;
-    const anda = v.ca.dx !== 0 || v.ca.dz !== 0;
+    const enMarcha = v.ca.dx !== 0 || v.ca.dz !== 0, anda = enMarcha || vd.andando === true; // P16: `andando` = walking her round (the page moves her)
     const nota = !!selfXZ && noto(d2, vd.mira, vd.atiende);
     const cerca = d2 <= LEJOS_REPOSO_M * LEJOS_REPOSO_M && delante;
     if (v.gestos) cambiaGesto(v.gestos, gestoDe(vd.atiende, anda)); // its own clips: standing, talking to you, walking
     // where the body points: toward where it is walking, else toward you if you are near (or it is talking to you), else its own yaw
     let objetivo = w.ry, suave = GIRO_VUELTA_S;
-    if (anda) { objetivo = Math.atan2(-v.ca.dx, -v.ca.dz) * 57.29577951308232; suave = GIRO_HACIA_S; }
+    if (anda) { if (enMarcha) objetivo = Math.atan2(-v.ca.dx, -v.ca.dz) * 57.29577951308232; suave = GIRO_HACIA_S; } // on a round, w.ry is the way she is going
     else if (nota && selfXZ) { objetivo = rumboHacia(w.x, w.z, selfXZ.x, selfXZ.z, w.ry); suave = GIRO_HACIA_S; }
     const girando = Math.abs(envuelve(v.giro.yaw - objetivo)) > 0.05 || Math.abs(v.giro.vel) > 0.05;
     const respira = vd.reposo && !v.clip && cerca;
@@ -1782,6 +1788,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     orbeQuieto(si: boolean): void { orbesIA.quieto(si); },
     /** t_466efdb8 (for checks): who thinks, how many orbs are drawn, that they share one mesh. */
     orbesIA() { return orbesIA.lista(); },
+    /** P15: mark the thing the «E: …» prompt is about (a ring facing the camera at `x y z`, radius `r` metres), or `null` for none. */
+    marcar(p: Marca | null): void { if (p || marcaP) void (marcaP ??= import("./marca-mirada.ts").then((m) => (marcaR = m.createMarcaMirada({ world, camera })))).then((r) => r.poner(p)); },
+    /** P15: the model of a placed thing (by its `<feature>:<key>` place), once loaded: the page measures it to size and centre the ring. */
+    cosa(key: string): THREE.Object3D | undefined { const s = things.get(key); return s?.loaded ? s.group : undefined; },
     /** ia-visible S5 (for checks): who has a ring, whether it is drawn, and how much the rings share (one geometry, one material per state). */
     aros() { return { lista: aros.lista(), ...aros.compartidos() }; },
     /** t_5096d6f4 (for checks): who has eyes (colour and shape), whether they are drawn, and how much the eyes share (one geometry per shape, one material per colour). */
@@ -1803,7 +1813,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
     /** MIS-200 (t_9687b5fc): the world still loads models or shaders: the entry buttons wait (the same gate as the VR entry, not busy()). */
     cargando(): boolean { return loading > 0 || precompilar.pendientes() > 0; },
-    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || vivosCerca || reacciones.size > 0 || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || ojosIA.busy() || orbesIA.busy() || burbujas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || dados3d.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ) || formas.ocupado(); },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || vivosCerca || reacciones.size > 0 || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || marcaR?.busy() || ojosIA.busy() || orbesIA.busy() || burbujas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || dados3d.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ) || formas.ocupado(); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); power.paron(2); }, // B4: the next frames pay the resize
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */

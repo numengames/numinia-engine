@@ -3,7 +3,7 @@
 //   misiones  your quest book (only to you, saved by guest) and the quest things in the world (take or use)
 // What exists (quests, people, things) comes from the adventure's text files (formato.ts; docs/EXTENDER.md).
 import { defineFeature, SOUNDS } from "../../packages/feature/src/index.ts";
-import { ACCIONES_PAGINA, ALTURA_MAX, ESPERA_MAX, LIM, LIM_SECUENCIA, MUNDO, TIPOS_PASO, TIPOS_PISTA } from "./formato.ts";
+import { ACCIONES_PAGINA, ALTURA_MAX, ESPERA_MAX, LIM, LIM_SECUENCIA, MUNDO, RONDA, TIPOS_PASO, TIPOS_PISTA } from "./formato.ts";
 
 const ID = { kind: "text", maxBytes: LIM.id } as const;
 const X = { kind: "fixed", min: -MUNDO, max: MUNDO, step: 0.01 } as const;
@@ -18,10 +18,11 @@ const ALTO_SEC = { kind: "fixed", min: 0, max: LIM_SECUENCIA.alto, step: 0.01, d
 const DESPLAZA = { kind: "fixed", min: -LIM_SECUENCIA.desplazamiento, max: LIM_SECUENCIA.desplazamiento, step: 0.01, default: 0 } as const;
 const DESPLAZA_M = { kind: "fixed", min: -5, max: 5, step: 0.01, default: 0 } as const; // P4: where a marker floats over its thing (m)
 const GIRO = { kind: "fixed", min: -180, max: 180, step: 0.1, default: 0 } as const;
+const DIR = { kind: "fixed", min: -1, max: 1, step: 0.001 } as const; // P10: a component of the direction a photo looked along
 
 export const pnj = defineFeature({
   id: "pnj",
-  version: 5, // v5 (P2): the state gains `reposo` and `mira` (a person breathes / turns toward you; on unless the file says false) and the event `sitio` brings where THIS player finds a person who has `posiciones`; v4: the state gains `voz` (how a person sounds when you start and stop talking; "" = from its id); v3: the state gains `oficio` (a person's trade, a smaller line under the name); v2: `y` (the height a person stands at)
+  version: 6, // v6 (P16): the new event `ronda` brings the round a person walks for THIS player (pnj@1 `posiciones[].ronda`); v5 (P2): the state gains `reposo` and `mira` (a person breathes / turns toward you; on unless the file says false) and the event `sitio` brings where THIS player finds a person who has `posiciones`; v4: the state gains `voz` (how a person sounds when you start and stop talking; "" = from its id); v3: the state gains `oficio` (a person's trade, a smaller line under the name); v2: `y` (the height a person stands at)
   level: "base",
   describe: "Personas del mundo que no son jugadores (PNJ). Se les habla de cerca y contestan con un diálogo de opciones, igual para todos y decidido por el servidor, que cambia según tus misiones. Las escribe la aventura (pnj@1).",
   state: {
@@ -45,6 +46,11 @@ export const pnj = defineFeature({
       fields: { pnj: ID, x: X, z: X, y: { kind: "fixed", min: 0, max: ALTURA_MAX, step: 0.01, default: 0 }, giro: GIRO },
       announce: "silent",
     },
+    ronda: {
+      describe: "La ronda que anda para ti una persona (pnj@1 `posiciones[].ronda`): la calcula la página igual que el servidor. Solo te llega a ti, tras el `sitio`.",
+      fields: { pnj: ID, puntos: { kind: "text", maxBytes: RONDA.texto }, vel: { kind: "fixed", min: RONDA.velMin, max: RONDA.velMax, step: 0.01, default: RONDA.velDefecto }, ida: { kind: "bool", default: false }, rt: { kind: "fixed", min: 0, max: RONDA.cicloMaxS, step: 0.001, default: 0 }, quieta: { kind: "bool", default: false }, giro: GIRO },
+      announce: "silent",
+    },
     fin: { describe: "La conversación terminó (te despediste o te alejaste).", fields: { pnj: ID, nombre: { kind: "text", maxBytes: LIM.nombre } }, announce: { text: "Fin de la conversación con {nombre}.", sound: "suave", importance: 0 } },
     rechazado: { describe: "No se pudo hablar o elegir, y por qué.", fields: { motivo: MOTIVO }, announce: { text: "{motivo}", sound: "error", importance: 1 } },
   },
@@ -52,7 +58,7 @@ export const pnj = defineFeature({
 
 export const misiones = defineFeature({
   id: "misiones",
-  version: 10, // v10 (P4): a quest thing may be marked as evidence (state `marcable`, `mox`/`moy`/`moz`: where its numbered marker floats), the new event `marcados` carries the ids you marked in order (their place is their number) and `mision` carries the counters `marcas`, `erroneas` and `desmarcados` when the quest has a `marca` step; v9 (P3): a quest thing may hold a conversation (state `dialogo`: its «E» follows the server's `callan`), the event `marcas` carries `callan` (who has nothing to say to you now), `mision` carries `pistas` (false = it points at nothing) and the new event `abrirLibro` asks your page to open the book; v8 (Y3): the server-only event `otorga` may carry `objeto` (the id of an adventure's objeto@1); v7 (T1): step type `hace` (the builder does something), the step event carries `accion` and `senala`, and the intent `hace` (the page says it opened a panel); v6: a reward may be an «objeto» (a digital good, N10): event `concedido` goes to the server only (features/bienes signs and keeps it); v5: a step may wait (`paso.espera`: seconds left) and a done step may play a moment only you see (events secuencia, pista, clave); and a quest thing's used look (state `modeloUsada`, `escalaUsada`: cosa@1 apariencia.usada, U14 (6)); v4: marks for you over people and things (event `marcas`: «!» something for you now, «✓» done); v3: steps in any order (`paso.grupo`), a person gives you a thing (step type «recibe»); v2: a thing's `y` reaches ALTURA_MAX
+  version: 12, // v12 (P13): a quest with `evaluacion` sends its end card with the book (events `evaluacion` and `evaluacionFila`) and `abrirEvaluacion` when you complete it; a world without it sends none of them; v11 (P10): step type `foto` (a photo of the engine's camera with a corner in the frame), the intent `foto` (the camera's pose: the server decides) and `fotos` (the missed photos) in the `mision` event; v10 (P4): a quest thing may be marked as evidence (state `marcable`, `mox`/`moy`/`moz`: where its numbered marker floats), the new event `marcados` carries the ids you marked in order (their place is their number) and `mision` carries the counters `marcas`, `erroneas` and `desmarcados` when the quest has a `marca` step; v9 (P3): a quest thing may hold a conversation (state `dialogo`: its «E» follows the server's `callan`), the event `marcas` carries `callan` (who has nothing to say to you now), `mision` carries `pistas` (false = it points at nothing) and the new event `abrirLibro` asks your page to open the book; v8 (Y3): the server-only event `otorga` may carry `objeto` (the id of an adventure's objeto@1); v7 (T1): step type `hace` (the builder does something), the step event carries `accion` and `senala`, and the intent `hace` (the page says it opened a panel); v6: a reward may be an «objeto» (a digital good, N10): event `concedido` goes to the server only (features/bienes signs and keeps it); v5: a step may wait (`paso.espera`: seconds left) and a done step may play a moment only you see (events secuencia, pista, clave); and a quest thing's used look (state `modeloUsada`, `escalaUsada`: cosa@1 apariencia.usada, U14 (6)); v4: marks for you over people and things (event `marcas`: «!» something for you now, «✓» done); v3: steps in any order (`paso.grupo`), a person gives you a thing (step type «recibe»); v2: a thing's `y` reaches ALTURA_MAX
   level: "base",
   describe: "Misiones: encargos por pasos (llegar a un sitio, hablar con alguien, recibir algo de alguien, usar o coger algo, entregarlo; los de un mismo grupo, en cualquier orden) que da una persona y que comprueba el servidor. Un paso puede esperar unos segundos antes de poder hacerse y, al hacerse, poner una secuencia que solo ves tú. Tu libro llega solo a ti y se guarda por invitado. Las escribe la aventura (mision@1, cosa@1, secuencia@1).",
   store: { describe: "El progreso de cada invitado (`p:<id>`): misiones activas con su paso, lo que lleva (cogido o recibido) y lo hecho del grupo en curso, las completadas y la que sigue. Solo le llega a su dueño, como eventos. Y cada recompensa concedida, una sola vez (`c:<misión>:<id>`: jugador, nombre, misión, recompensas, instante, estado), que lista `npm run concesiones`." },
@@ -66,13 +72,19 @@ export const misiones = defineFeature({
     abandonar: { describe: "Dejar una misión activa (se pierde lo avanzado en ella).", spoken: "abandonar una misión", fields: { mision: ID } },
     seguir: { describe: "Seguir una misión activa: su objetivo se marca en el mundo y en el mapa (vacío = no seguir ninguna).", spoken: "seguir una misión", fields: { mision: { kind: "text", maxBytes: LIM.id, default: "" } } },
     hace: { describe: `T1: avisar de algo que solo la página ve (${ACCIONES_PAGINA.join(", ")}: abrir el panel de construir, la biblioteca o el cable) para un paso «hace» de tu misión. Solo vale con permiso de construir y esas tres acciones; el resto de lo que hace quien construye lo ve el servidor solo.`, spoken: "avisar de que has abierto un panel", fields: { accion: { kind: "text", maxBytes: 16 } }, rate: { perSecond: 2, burst: 4 } },
+    foto: {
+      describe: "P10: avisar de una foto del motor con la pose de su cámara; solo cuenta para un paso «foto» (docs/EXTENDER.md).",
+      spoken: "hacer una foto para una misión",
+      fields: { x: X, y: X, z: X, fx: DIR, fy: DIR, fz: DIR, fov: { kind: "fixed", min: 10, max: 120, step: 0.1 }, aspecto: { kind: "fixed", min: 0.2, max: 5, step: 0.01 } },
+      rate: { perSecond: 2, burst: 3 },
+    },
     usar: { describe: "Coger o usar una cosa de una misión que tienes al lado.", spoken: "coger o usar algo", fields: { cosa: ID }, rate: { perSecond: 2, burst: 4 } },
   },
   events: {
     libro: { describe: "Llega tu libro entero (al entrar y tras cada cambio): olvida el anterior; detrás vienen sus misiones y sus pasos.", fields: { activas: { kind: "int", min: 0, max: 64 }, hechas: { kind: "int", min: 0, max: 1000 } }, announce: "silent" },
     mision: {
-      describe: "Una misión de tu libro: activa (paso = el primero que toca, desde 0) o hecha; seguida = la que marcas; pistas = falso si la misión no señala nada (sin marcas, sin mapa, sin flecha, sin el objetivo más cercano; sus pasos llegan sin sitio). marcas, erroneas, desmarcados = los contadores de una misión con un paso «marca» (cuántas veces marcaste, cuántas fueron cosas que el paso no pedía, cuántas veces desmarcaste; 0 en las demás).",
-      fields: { id: ID, titulo: { kind: "text", maxBytes: LIM.titulo }, descripcion: { kind: "text", maxBytes: LIM.descripcion }, estado: { kind: "enum", values: ["activa", "hecha"] }, paso: { kind: "int", min: 0, max: LIM.pasos }, pasos: { kind: "int", min: 1, max: LIM.pasos }, seguida: { kind: "bool" }, recompensa: { kind: "text", maxBytes: 120, default: "" }, pistas: { kind: "bool", default: true }, marcas: { kind: "int", min: 0, max: 9999, default: 0 }, erroneas: { kind: "int", min: 0, max: 9999, default: 0 }, desmarcados: { kind: "int", min: 0, max: 9999, default: 0 } },
+      describe: "Una misión de tu libro: activa (paso = el primero que toca, desde 0) o hecha; seguida = la que marcas; pistas = falso si la misión no señala nada (sin marcas, sin mapa, sin flecha, sin el objetivo más cercano; sus pasos llegan sin sitio). marcas, erroneas, desmarcados = los contadores de una misión con un paso «marca» (cuántas veces marcaste, cuántas fueron cosas que el paso no pedía, cuántas veces desmarcaste; 0 en las demás). fotos = las fotos erróneas.",
+      fields: { id: ID, titulo: { kind: "text", maxBytes: LIM.titulo }, descripcion: { kind: "text", maxBytes: LIM.descripcion }, estado: { kind: "enum", values: ["activa", "hecha"] }, paso: { kind: "int", min: 0, max: LIM.pasos }, pasos: { kind: "int", min: 1, max: LIM.pasos }, seguida: { kind: "bool" }, recompensa: { kind: "text", maxBytes: 120, default: "" }, pistas: { kind: "bool", default: true }, marcas: { kind: "int", min: 0, max: 9999, default: 0 }, erroneas: { kind: "int", min: 0, max: 9999, default: 0 }, desmarcados: { kind: "int", min: 0, max: 9999, default: 0 }, fotos: { kind: "int", min: 0, max: 9999, default: 0 } },
       announce: "silent",
     },
     paso: {
@@ -103,6 +115,21 @@ export const misiones = defineFeature({
       describe: "Qué personas y cosas tienen marca para ti (tras cada libro; solo a ti). Ids separados por comas: tiene = personas con «!» (te dan una misión que puedes coger o un paso tuyo de ahora es con ellas), hecho = personas con «✓» (ya hiciste lo suyo y no te queda nada con ellas), cosas = cosas con «!» (un paso tuyo de ahora es cogerlas o usarlas), callan = personas y cosas con conversación que ahora no tienen nada que decirte (su «E» no sale y el servidor no abre la conversación).",
       fields: { tiene: { kind: "text", maxBytes: LIM.marcas, default: "" }, hecho: { kind: "text", maxBytes: LIM.marcas, default: "" }, cosas: { kind: "text", maxBytes: LIM.marcas, default: "" }, callan: { kind: "text", maxBytes: LIM.marcas, default: "" } },
       announce: "silent",
+    },
+    evaluacion: {
+      describe: "P13: evaluación de tu misión hecha (con tu libro): puntos entre minimo y base; luego sus filas.",
+      fields: { mision: ID, titulo: { kind: "text", maxBytes: LIM.titulo }, puntos: { kind: "int", min: 0, max: 9999 }, base: { kind: "int", min: 1, max: 9999 }, minimo: { kind: "int", min: 0, max: 9999, default: 0 }, filas: { kind: "int", min: 0, max: 32 }, resumen: { kind: "text", maxBytes: 200, default: "" } },
+      announce: "silent",
+    },
+    evaluacionFila: {
+      describe: "P13: una fila de la evaluación (texto = valor escrito, valor = segundos o veces, resta = puntos que quitó).",
+      fields: { mision: ID, n: { kind: "int", min: 0, max: 31 }, tipo: { kind: "enum", values: ["tiempo", "fase", "contador"] }, clave: { kind: "text", maxBytes: 32 }, etiqueta: { kind: "text", maxBytes: 80 }, texto: { kind: "text", maxBytes: 40 }, valor: { kind: "int", min: 0, max: 360000 }, resta: { kind: "int", min: 0, max: 99999 } },
+      announce: "silent",
+    },
+    abrirEvaluacion: {
+      describe: "P13: tu página abre la tarjeta de la misión que completaste.",
+      fields: { mision: ID, titulo: { kind: "text", maxBytes: LIM.titulo }, puntos: { kind: "int", min: 0, max: 9999 }, resumen: { kind: "text", maxBytes: 200, default: "" } },
+      announce: { text: "{titulo}: {puntos} puntos. {resumen}", sound: "suave", importance: 2 },
     },
     marcados: { describe: "P4: las cosas que has marcado como indicio, en orden (ids separados por comas): el número de cada una es su puesto (desde 1); al desmarcar una, las siguientes suben un número. Tras cada libro, solo a ti; vacío = ninguna.", fields: { ids: { kind: "text", maxBytes: LIM.marcas, default: "" } }, announce: "silent" },
     abrirLibro: { describe: "P3: has cogido lo que te pedía un paso con `abreLibro` (el cuaderno): tu página abre el libro de misiones. Solo a ti.", fields: {}, announce: "silent" },

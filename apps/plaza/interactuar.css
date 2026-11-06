@@ -1,0 +1,22 @@
+/* P15: «E: hablar con…» is the one thing on the screen that asks for a press, so it is not one more dark pill among the buttons: house
+   amber (the emphasis colour, tinta on top: ≥ 9:1), type well over the bar's, the key drawn as a key cap, set clear of the bottom row
+   and centred over it. A world's tema moves --n-ambar / --n-enfasis-tinta and the prompt follows. The hold ring (--progreso) sits left of
+   the key cap while E is held. Motion: one short fade-in; none at all when the system asks for less. */
+#interactuar { z-index: 5; display: inline-flex; align-items: center; gap: 12px; box-sizing: border-box; justify-content: center; min-height: 52px; max-width: calc(100vw - 24px);
+  padding: 0 20px 0 9px; border: 2px solid var(--n-fondo); border-radius: 10px; background: var(--n-ambar) !important; color: var(--n-enfasis-tinta, var(--n-fondo)) !important;
+  font: 700 clamp(18px, 2.2vmin, 24px) / 1.2 "Geist", system-ui, sans-serif; text-align: left; cursor: pointer; }
+#interactuar[hidden] { display: none; }
+#interactuar kbd { flex: none; display: inline-grid; place-items: center; box-sizing: border-box; min-width: 36px; height: 36px; padding: 0 8px; border-radius: 7px;
+  border: 1px solid rgba(249, 235, 220, .35); border-bottom-width: 4px; background: var(--n-enfasis-tinta, var(--n-fondo)); color: var(--n-ambar);
+  font: 700 20px / 1 "Geist Mono", ui-monospace, monospace; }
+#interactuar kbd[hidden] { display: none; }
+#interactuar .palabras { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* a very long prompt ends in «…»; the full words are the aria-label and the title */
+html.alto-contraste #interactuar { background: #000 !important; color: #fff !important; border-color: #fff; }
+html.alto-contraste #interactuar kbd { background: #fff; color: #000; border-color: #fff; }
+#interactuar:not(:has(kbd:not([hidden]))) { padding-left: 20px; } /* touch: no key cap, the words only */
+#interactuar::before { content: ""; border-radius: 50%; flex: none; display: none; width: 22px; height: 22px; /* J4 mantener-pulsado: grows clockwise (--progreso 0..1) while E / the button / the VR trigger is held */
+  background: conic-gradient(var(--n-enfasis-tinta, var(--n-fondo)) calc(var(--progreso, 0) * 360deg), rgba(20, 17, 15, .25) 0); }
+#interactuar.manteniendo::before { display: block; }
+#interactuar:focus-visible { outline: 3px solid var(--n-texto); outline-offset: 3px; }
+@media (prefers-reduced-motion: no-preference) { #interactuar:not([hidden]) { animation: interactuar-entra .16s ease-out; } }
+@keyframes interactuar-entra { from { opacity: 0; translate: 0 8px; } }

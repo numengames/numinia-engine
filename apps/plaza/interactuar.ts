@@ -9,19 +9,26 @@
 // J4 «mantener pulsado»: a thing whose card sets `hold` (seconds) is not used at once — E / the mobile button / the VR
 // trigger must be HELD that long (a progress ring fills on the button, --progreso 0..1) before the intent is sent;
 // letting go early, or the target changing, cancels with nothing sent. A thing without `hold` fires as before.
+// P15: of the things in reach the prompt names the one the player LOOKS at (interactuar-mirada.ts: smallest angle to the camera's
+// heading, nearest on a tie, nearest of all when none is ahead), the chosen thing wears a ring in the world (`view.marcar`), and the
+// prompt is drawn big in the house amber with the key as a drawn key cap. It lasts exactly as long as the thing is in reach.
+import type { Object3D } from "three/webgpu";
 type Res = { ok: true } | { ok: false; why: string };
-export type Cerca = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number; hold?: number; local?: () => Res };
+export type Cerca = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number; hold?: number; local?: () => Res;
+  /** P15: where the thing is and what it is (features.reachable gives both); page-side offers without a place are never marked. */
+  at?: { x: number; z: number; y?: number }; role?: string };
 type Sesion = { entity: number; selfPosition(alpha: number): { x: number; y: number; z: number }; features: { reachable(x: number, z: number, y?: number): Cerca[]; use(feature: string, key: string): Res } };
-type Vista = { renderer: { domElement: HTMLElement }; pickThing?(x: number, y: number): string | null; cam?: { modo?(): string } };
+type Vista = { renderer: { domElement: HTMLElement }; pickThing?(x: number, y: number): string | null; cam?: { modo?(): string; yaw?(): number };
+  /** P15: ring over the offered thing (centre in metres, radius; `suelo`: lying on the floor), or null. */ marcar?(p: { x: number; y: number; z: number; r: number; suelo?: boolean } | null): void;
+  /** P15: the model of a placed thing by its `<feature>:<key>` place (undefined = not loaded yet): the ring is sized and centred on it. */ cosa?(key: string): Object3D | undefined; vr?: { active: boolean } };
 
 /** True while the person types in a text box: global keys must not fire (J3's one rule, apps/plaza/escribiendo.ts). */
 import { escribiendo } from "./escribiendo.ts";
 import { esTactil, perfil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
-import { ayudaDe, glifoDe } from "../../packages/client/src/movil.ts"; // U24: the glyph each device names (touch: none)
+import { glifoDe } from "../../packages/client/src/movil.ts"; // U24: the glyph each device names (touch: none)
 export { escribiendo };
 /** Building: the build panel is open or the camera is in build mode (there clicks select things and digits are tools). */
 export const construyendo = (view: Vista): boolean => !(document.getElementById("panel-construir")?.hidden ?? true) || view.cam?.modo?.() === "construir";
-const conMayuscula = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** Pure: 0..1, how much of `holdS` seconds has elapsed between `desde` and `ahora` (both ms); no hold (0/undefined) = done at once. */
 export const fraccionMantenida = (desde: number, ahora: number, holdS?: number): number => (!holdS ? 1 : Math.min(1, Math.max(0, (ahora - desde) / (holdS * 1000))));
 
@@ -46,19 +53,28 @@ export function montarInteraccion(o: {
     o.boton.style.setProperty("--progreso", String(frac));
     if (frac >= 1) { const c = manteniendo.c; cancelarMantener(); usar(c); }
   }, 40);
+  // P15: the choice by gaze, the ring in the world and the look and words of the prompt (interactuar-mirada.ts, interactuar.css) are fetched
+  // when the first thing comes within reach, not with the first frame (the start bundle has a cap): the prompt shows once they are in.
+  let pieza: ReturnType<typeof import("./interactuar-pieza.ts").crearPieza> | undefined, pidiendo = false;
+  const precargar = (): void => { pidiendo = true; void import("./interactuar-pieza.ts").then((m) => { pieza = m.crearPieza(o.view, o.boton, tactil); }, () => { pidiendo = false; }); };
+  let pies = 0;
   const mirar = () => {
     let c: Cerca | null = null;
     if (libre()) {
       const p = o.session.selfPosition(1); // y: a person one floor up gets no prompt
       const de = o.session.features.reachable(p.x, p.z, p.y).filter((x) => o.ofrece(x.feature, x.key));
-      c = [...de, ...(o.locales?.(p.x, p.z, p.y) ?? [])].sort((a, b) => a.distance - b.distance)[0] ?? null;
+      const lista = [...de, ...(o.locales?.(p.x, p.z, p.y) ?? [])];
+      if (lista.length && !pidiendo) precargar();
+      c = pieza?.elegir(lista, p, actual) ?? null;
+      pies = p.y;
     }
     const antes = actual;
     actual = c;
+    pieza?.marcar(c, pies);
     if (c?.feature === antes?.feature && c?.key === antes?.key && c?.prompt === antes?.prompt) return;
     if (!c) cancelarMantener();
     o.boton.hidden = !c;
-    if (c) { const g = glifoDe(perfil().clase, "interactuar"); o.boton.textContent = tactil ? conMayuscula(c.prompt) : ayudaDe(perfil().clase, "interactuar", c.prompt); o.boton.setAttribute("aria-label", g ? `${conMayuscula(c.prompt)} (tecla ${g})` : conMayuscula(c.prompt)); }
+    if (c) pieza?.pintar(c.prompt, glifoDe(perfil().clase, "interactuar"));
   };
   setInterval(mirar, 200);
   addEventListener("keydown", (e) => {

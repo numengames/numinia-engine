@@ -358,9 +358,32 @@ Una cosa del mundo que se usa de cerca declara **cómo** en su ficha: `state.car
 - `intent`: el verbo que se manda (uno de tus `intents`); `key`: el campo de texto de ese intento que recibe la clave de la
   cosa (`{ pnj: "alma" }`); `prompt`: lo que sale tras «E:» (`"hablar con {nombre}"`, `"{aviso}"`); `radius`: metros
   (0,5-16) o el nombre de un campo numérico del estado (cada cosa el suyo). `defineFeature` rechaza lo que no cuadre.
-- La página ofrece la más cercana al alcance («E: hablar con Alma»): tecla E, un clic sin arrastrar sobre la cosa o el
+- La página ofrece, de las que están al alcance, **la que se mira** («E: hablar con Alma»; P15, más abajo): tecla E, un clic sin arrastrar sobre la cosa o el
   botón del aviso (el que se toca en el móvil). Nunca con el panel de construir abierto, escribiendo o en una
   conversación. Para que el clic se entienda, dibuja la cosa con `view.place?.("<función>:<clave>", …)`.
+- **El aviso destacado (P15).** Es una pieza del motor: ningún mundo escribe nada para tenerla. El aviso sale en ámbar de la
+  casa (`--n-ambar`, tinta `--n-enfasis-tinta`: contraste 9:1), letra de 24 px, con la tecla dibujada como una tecla, centrado
+  encima de la barra de botones; con «menos movimiento» no hay entrada animada, y con alto contraste se vuelve negro sobre blanco.
+  En el móvil sigue siendo el botón grande que se toca. Sale **solo dentro del radio de la cosa** (la página no usa el margen de
+  1,5 m del servidor) y se va en cuanto se sale de él.
+  - *Cuál ofrece:* de las cosas al alcance, la de **menor ángulo** entre hacia dónde mira la cámara y la cosa, siempre que esté
+    a menos de 40° (`apps/plaza/interactuar-mirada.ts`, función pura); ángulos a menos de 3° se tienen por iguales y gana la más
+    cercana. Si ninguna está delante (se mira a otro lado, o solo hay cosas sin lugar como un asiento) se ofrece la más cercana,
+    como antes: no se quita el aviso a quien apunta mal. La elegida se mantiene mientras la nueva no sea mejor en más de 4°
+    (o 15 cm, si nada está delante), para que no parpadee entre dos cosas. Un clic sobre una cosa sigue mandando sobre esa cosa.
+  - *De qué cosa habla:* la elegida lleva un aro ámbar (`view.marcar`, `packages/render/src/marca-mirada.ts`): una sola malla,
+    creada al ofrecer la primera cosa, reutilizada siempre; sin nada cerca no existe y no pide cuadros. **Nunca tapa lo que
+    marca:** una persona lleva un aro pequeño (0,4 m de radio) tumbado en el suelo, a sus pies (el aro alrededor del cuerpo
+    la tapaba); una cosa lleva un aro que mira a la cámara y es tan ancho como ella como mucho el doble (la página pregunta a
+    `view.cosa("<función>:<clave>")` el modelo ya cargado y mide la esfera que lo contiene: entre 5 cm y 0,45 m de radio; 0,2 m si
+    todavía no se sabe), centrado en el medio de ese modelo (una pieza cuyo origen no está en su medio, como el cuchillo con su
+    tabla y su verdura, queda rodeada entera y no con el aro por encima; si todavía no se sabe, media altura sobre su `y`).
+    Es igual en escritorio y en móvil. El aro, la elección por mirada y el estilo del aviso (`apps/plaza/interactuar-pieza.ts`,
+    `interactuar.css`) se piden cuando la primera cosa entra en su radio, no con el primer cuadro: el aviso sale en cuanto llegan.
+  - `features.reachable()` entrega ahora, en cada oferta, `at` (`x`, `z` y, si el estado trae `y`, la altura) y `role` (el de su
+    ficha): campos nuevos al final, nada de formato ni de huella cambia.
+  - *VR:* la lógica de los mandos no cambia (apuntan con su rayo). La elección por mirada usa la cámara de escritorio/móvil; con
+    una sesión VR activa se ofrece la más cercana como antes y no se pone el aro.
 - **Decide el servidor**: en el intento, `api.within(quien, clave)` dice si está a su alcance (radio + 1,5 m de margen).
   Sin eso, nada. Los agentes leen `interact` en el catálogo y usan `features.use(función, clave)` o el intento a mano.
 - `view.tag?.(clave, { text, x, y, z } | null)` pone un nombre que se queda sobre una cosa (las personas lo llevan).
@@ -507,14 +530,23 @@ se ignora. Va en `GET /status` (`tema`) y la página lo vuelca en las variables 
 "#ff8ebe", "mayusculas": true, "forma": "pildora" }`.
 
 **`interfaz`** (opcional, dentro de la ficha): qué botones quita ESTE mundo de la pantalla. Hoy un solo campo, `ocultar`, una
-lista de grupos; el único grupo que existe es `"gestos"` = «Saludar», «Bailar» y «Movimientos» (la barra de abajo en
-escritorio, el menú «…» del móvil y el botón «Movimientos» de la pantalla táctil). Pensado para un simulador de formación,
-donde esos botones sobran: `"interfaz": { "ocultar": ["gestos"] }`. **Solo quita botones**: las teclas (G para la rueda, H
-para bailar) siguen funcionando, y el «Saludar» de la tarjeta de una persona también (es otra cosa: saludar a alguien). Un nombre
-que no existe se deja fuera y se dice en el registro (`[ficha] interfaz.ocultar: «chat» no existe…`); el resto se aplica; una
-clave desconocida se ignora. Va en `GET /status` (`interfaz`, solo si hay algo que ocultar) y la página lo lee en
-`apps/plaza/interfaz-mundo.ts`. Sin el campo, nada cambia: ni `/status` ni la pantalla. Fuente: `leerInterfaz`
-(`packages/server/src/aventura.ts`); prueba: `test/interfaz-mundo.test.ts`.
+lista de grupos. Hay dos:
+- `"gestos"` = «Saludar», «Bailar» y «Movimientos» (la barra de abajo en escritorio, el menú «…» del móvil y el botón
+  «Movimientos» de la pantalla táctil). Pensado para un simulador de formación, donde esos botones sobran:
+  `"interfaz": { "ocultar": ["gestos"] }`.
+- `"recoger-soltar"` = el «Recoger» de la pesca (F) y el «Soltar» de lo que lleva el jugador (Q), en la barra de abajo y en el menú
+  «…» del móvil. Para un mundo donde no se pesca y las cosas se cogen con «E» (una aventura de investigación):
+  `"interfaz": { "ocultar": ["gestos", "recoger-soltar"] }`. **No** quita el «Soltar el báculo» ni el «Pasar el báculo» (son de quien
+  dirige), ni la forma de coger: coger una cosa con «E» (o manteniéndola) es la tarjeta de la propia cosa, no un botón de la barra, y
+  sigue igual. Ojo en móvil: allí no hay tecla Q, así que quien oculta «Soltar» en un mundo que se visita en móvil deja a la gente
+  sin forma de soltar lo que lleva; úselo solo si la cosa vuelve a su sitio por otra vía (se entrega, se usa o se guarda).
+
+**Solo quita botones**: las teclas (G para la rueda, H para bailar, F y Q) siguen funcionando, y el «Saludar» de la tarjeta de una
+persona también (es otra cosa: saludar a alguien). El botón «…» del móvil solo nombra, para el lector de pantalla, lo que ofrece
+(«Más acciones: saltar, saludar, bailar…»; con `gestos` oculto, «Más acciones: saltar…»). Un nombre que no existe se deja fuera y se
+dice en el registro (`[ficha] interfaz.ocultar: «chat» no existe…`); el resto se aplica; una clave desconocida se ignora. Va en
+`GET /status` (`interfaz`, solo si hay algo que ocultar) y la página lo lee en `apps/plaza/interfaz-mundo.ts`. Sin el campo, nada
+cambia: ni `/status` ni la pantalla. Fuente: `leerInterfaz` (`packages/server/src/aventura.ts`); prueba: `test/interfaz-mundo.test.ts`.
 
 Reglas para quien escribe (persona o LLM):
 - **Ids** en minúsculas, cifras y guiones (`primeros-pasos`); cada fichero, un `formato` en su primera línea. Un campo
@@ -777,6 +809,46 @@ paso. La insignia queda en su ficha (I) y en su libro.
     "reposo": true, "mira": true, "dialogo": { "entradas": [{ "nodo": "hola" }], "nodos": { "hola": { "texto": "Aquí estoy.", "opciones": [{ "texto": "Adiós.", "accion": { "tipo": "despedir" } }] } } } }
   ```
   Una página que no conozca `sitio` ve a la persona en su `posicion` de siempre (el estado compartido no cambia).
+  - **Ronda (P16).** En vez de quedarse quieta, una entrada de `posiciones` puede hacer que la persona **ande por la casa**
+    mientras su `si` valga: `"ronda": { "puntos": [...], "velocidad": 1,1, "modo": "vuelta" }`. `puntos` (2–8) son los sitios que
+    visita, en orden; cada uno lleva `x`, `z` (a 30 m o menos de la `posicion` de la persona), `y` (opcional, como `posicion.y`: sin
+    ella, pisa el suelo), `giro` (opcional, grados: hacia dónde mira mientras está parada; sin él, mira hacia donde venía) y
+    `pausa` (segundos que se queda parada, 0–60; sin ella, 0 = pasa de largo). Va de un punto al siguiente **en línea recta**, con su
+    clip de caminar, y en cada parada se queda con su reposo. `velocidad` en m/s (0,3–1,4; sin ella, 1,1). `modo`: `"vuelta"` (sin
+    él; del último punto vuelve al primero) o `"ida_y_vuelta"` (del último vuelve por los mismos puntos). Una entrada con `ronda`
+    puede no llevar `posicion`: vale el primer punto (y es la que usa la flecha del mapa antes de que ande). Sin `ronda`, todo es
+    como antes, byte a byte.
+    - **Todos calculan lo mismo.** Dónde está la persona a los *t* ms de empezar la ronda es una función pura
+      (`rondaEn`, `features/misiones/ronda.ts`) que usan el servidor y la página con los mismos números (centímetros, décimas de
+      grado y de segundo). El servidor fija el instante de inicio **cuando ese `si` empieza a valer para ese jugador** (un reloj por
+      jugador y persona; dos jugadores no ven a la persona en el mismo punto de su ronda) y manda un solo evento `ronda` justo
+      después del `sitio` (`pnj`, `puntos` = `x,z,y,giro,pausa;…`, `vel`, `ida`, `rt` = segundos de ronda transcurridos, `quieta`,
+      `giro`); la página anda por su cuenta, sin más mensajes mientras camina. «E: hablar con…», el alcance del servidor
+      (`api.within`), el mapa y la baliza usan **el punto de la ronda en ese instante**; si anda mientras se acerca, el aviso la
+      sigue (la página avisa de su sitio cada ~0,4 m).
+    - **Al hablar con ella se para.** Al abrir la conversación el servidor congela el reloj de esa persona *para ese jugador*
+      (`quieta: true`, `rt` = dónde iba) y la página la deja donde estaba, mirándole; al cerrarla, el servidor **suma al inicio el
+      tiempo que estuvo parada** (el reloj sigue donde se quedó) y manda otro `ronda` con `quieta: false`. Si dos pestañas del
+      mismo jugador hablan con ella, sigue parada hasta que cierren las dos. La conversación de un jugador no detiene a la
+      persona de otro.
+    - **Los tramos son rectos y no se validan contra paredes**: el motor no tiene colisión barata para esto. Trace los
+      puntos de modo que ninguna recta cruce un muro (en una casa: un punto en cada puerta). Los puntos son absolutos: si el
+      suelo cambia de altura entre dos puntos, ponga la `y` de cada uno.
+    - **Coste**: nada por cuadro para una persona sin `ronda`, ni para una parada (la página no vuelve a calcular hasta que
+      acaba la pausa) ni para una lejana (la página solo conoce a la persona cerca). Mientras anda, un cálculo de ~1 µs y
+      moverla; sin `ronda` el reloj ni existe. El reloj de la ronda vive en la memoria del servidor: tras reiniciarlo, cada
+      ronda empieza de nuevo por su primer punto.
+  ```json
+  { "formato": "pnj@1", "id": "cabo", "nombre": "Cabo", "posicion": { "x": 10, "z": 0 }, "giro": 0, "radio": 3,
+    "posiciones": [
+      { "si": { "mision": "inspeccion", "estado": "activa" },
+        "ronda": { "velocidad": 1, "modo": "vuelta", "puntos": [
+          { "x": 10, "z": 0, "pausa": 8 },
+          { "x": 14, "z": 0 },
+          { "x": 14, "z": 6, "giro": 90, "pausa": 10 },
+          { "x": 6, "z": 6, "pausa": 5 } ] } } ],
+    "dialogo": { "entradas": [{ "nodo": "hola" }], "nodos": { "hola": { "texto": "Buenas.", "opciones": [{ "texto": "Adiós.", "accion": { "tipo": "despedir" } }] } } } }
+  ```
 
 **Marcas sobre las personas y las cosas («!» y «✓», U14 (4))** — las decide el servidor para cada jugador, con su
 progreso, y le llegan **solo a él** (a todas sus pestañas) tras cada libro (evento `marcas`). La aventura no escribe
@@ -866,6 +938,105 @@ separados por comas y en orden; `mision` con `marcas`, `erroneas`, `desmarcados`
 `misiones.marcados()` (los ids, en orden) y `misiones.numeroDe(id)` (0 = sin marcar). Sin ningún campo nuevo en los ficheros
 de la aventura, nada cambia: ni el estado, ni los eventos, ni lo que se guarda.
 
+**`foto`: sacar una foto con la cámara del motor (P10).** `{ "id", "tipo": "foto", "texto": "Foto", "grupo": "Foto", "objetivo": { "x": 5, "y": 0.5, "z": -8.3, "radio": 1 }, "distancia": 8 }`.
+`objetivo` es una esfera (metros; `radio` de 0,1 a 20) sobre el rincón que hay que fotografiar (el cadáver, una ventana, una
+puerta); `distancia` (1 a 60, opcional, **8** si falta) es lo más lejos de la cámara que puede estar su centro. El jugador abre
+la cámara de fotos de siempre (`apps/plaza/foto.ts`, también la de VR) y la saca él: **no se crea otra cámara** y entrar en una
+zona no hace nada. El paso no pone baliza, flecha, «!» ni marca en el mapa, ni hace parpadear el botón de la cámara; usa `grupo`
+para que dos rincones sean un bloque que se cumple en cualquier orden. Reglas (las decide **el servidor**, `features/misiones/foto.ts`
+y `maquina.ts` `fotografiar`):
+- «Sale en el encuadre» = el **centro** del objetivo está dentro del frustum de la foto (con su fov vertical y su aspecto reales),
+  delante de la cámara, a ≤ `distancia`, y sin pared entre el jugador y ese centro.
+- Una foto cumple **como mucho un** paso `foto` de cada misión: de los objetivos pendientes del bloque en curso que salen, **el más
+  cercano a la cámara** (empate: el primero del fichero). Un objetivo ya cumplido no vuelve a contar. Dos misiones con pasos
+  `foto` pendientes reciben cada una su veredicto de la misma foto.
+- Mientras haya un paso `foto` pendiente en el bloque en curso, una foto que no cumple ninguno suma **`fotos_erroneas`** a esa
+  misión (junto a los contadores de `marca`: progreso, `libro()[i].cuenta`, que ya trae `fotos_erroneas` aunque valga 0). No se le
+  dice nada al jugador. Fuera de un bloque con pasos `foto` las fotos no cuentan nada. Un intento nuevo de la misión los pone a cero.
+- Al cumplirse, los avisos de paso de siempre (sonido, «Foto» marcado en el libro). La foto se guarda y se comparte como hoy.
+
+Cómo llega al servidor: la página, al sacar una foto (plana o de VR) y **solo si algún paso suyo pide una foto ahora**, manda el
+intento `foto` con la pose de la cámara: `x`, `y`, `z` (dónde estaba), `fx`, `fy`, `fz` (hacia dónde miraba, vector unidad), `fov`
+(vertical, grados) y `aspecto` (ancho / alto). El servidor no se fía de ella más que lo justo: rechaza una pose imposible, exige
+que la cámara esté a ≤ **28 m** del ojo del jugador según la posición **que él tiene** (correa del modo foto: el pivote a
+`CAMARA.foto.alcance` = 12 m del ojo + la cámara hasta `CAMARA.foto.lejos` = 14 m detrás + 2 m de margen; `test/misiones-foto.test.ts` ata
+estos números a `CAMARA`), mira como mucho **una foto por segundo** y el intento tiene su cubo (2/s, ráfaga 3). Para la pared usa
+`api.rayo` (la malla de colisión del mundo, la misma del movimiento): el rayo sale del **ojo del jugador** hacia el centro del
+objetivo, no de la cámara. **Límite conocido:** una cámara de foto que quede al otro lado de una pared que el jugador no tiene
+entre sí y el rincón puede ver el rincón a través de ella, y un mundo sin malla de colisión (ni terreno) no tiene paredes que
+cuenten; `api.rayo` además gasta del cubo del jugador (4/s, ráfaga 8), y si se agota la foto cuenta como sin pared. **Accesible:**
+el verbo `foto` (`spoken`: «hacer una foto para una misión»); `pideFoto(misiones.libro())` (`features/misiones/foto.ts`) dice si algún paso lo pide ahora y
+`misiones.foto(pose)` manda una pose (un agente puede hacer «una foto desde donde estoy mirando» con la suya); el cumplimiento
+sale por los avisos del paso. Plugs: misiones **v11** (intento `foto`; en el evento `mision`, `fotos`, el contador de fotos
+erróneas). Un mundo sin pasos `foto` no cambia: ni el estado, ni los eventos, ni lo que se guarda.
+
+```json
+{ "id": "ventana", "tipo": "foto", "texto": "Foto", "grupo": "Foto", "objetivo": { "x": 12.5, "y": 1.4, "z": -3, "radio": 1 }, "distancia": 10 }
+```
+
+**Evaluación al terminar una misión (P13).** Un campo opcional de `mision@1`, `evaluacion`, hace que al completar esa misión la
+página enseñe una tarjeta con el **tiempo** de toda la misión (desde aceptarla hasta terminarla) y el de cada fase (cada bloque de
+pasos), los **contadores** que el autor elija y una **puntuación**. Sin el campo, no cambia nada: ni el estado, ni los eventos, ni
+lo que se guarda.
+
+```json
+"evaluacion": { "titulo": "Evaluación de la inspección", "base": 100, "minimo": 0,
+  "resta": { "fotos_erroneas": 5, "marcas_erroneas": 10, "desmarcados_correctos": 10 },
+  "tiempo": { "referencia_min": 20, "resta_por_minuto": 1 },
+  "muestra": ["tiempo", "fotos_erroneas", "marcas_erroneas", "desmarcados_correctos"],
+  "etiquetas": { "fotos_erroneas": "Fotos que no valían" } }
+```
+
+Todo es opcional. Puntos = `base` − (cada contador × su peso en `resta`) − (`resta_por_minuto` por cada minuto **entero** que pase
+de `referencia_min`), siempre entre `minimo` (0 si no se dice) y `base` (100). Pesos y minutos son enteros: no hay fórmulas. Un
+**contador** es cualquier nombre en minúsculas, cifras y «_» (`marcas`, `marcas_erroneas`, `desmarcados`, `desmarcados_correctos`,
+`fotos_erroneas` de la historia P10…): el que no existe en el progreso del jugador vale 0, así que un contador que otra pieza
+añada mañana ya funciona. `muestra` es la lista de filas, en orden (`"tiempo"` o un contador); si falta, sale el tiempo (si hay
+`tiempo`) y cada contador de `resta`. Lo que resta puntos tiene que estar en `muestra` (el formato lo exige: la nota no esconde nada).
+Cada fila lleva una etiqueta en castellano, de usted: la de la casa (`tiempo` «Tiempo de la misión», `marcas` «Marcas hechas»,
+`marcas_erroneas` «Marcas erróneas», `desmarcados` «Marcas retiradas», `desmarcados_correctos` «Indicios correctos desmarcados»,
+`fotos_erroneas` «Fotos no relevantes») o la que el autor ponga en `etiquetas` (hasta 40 bytes; obligada para un contador que el
+motor no conoce). Los contadores de las marcas (`marcas`, `marcas_erroneas`, `desmarcados`, `desmarcados_correctos`) solo los hay en
+una misión con un paso `marca`; el formato rechaza pedirlos si no lo tiene.
+
+`desmarcados_correctos` (nuevo en la lógica de `marca`) cuenta cada vez que el jugador desmarca una cosa que el paso **sí** pide;
+marcar una irrelevante ya suma en `marcas_erroneas` y desmarcarla después no suma nada más (solo `desmarcados`). Se guarda en
+`cuenta` solo cuando ocurre.
+
+**El tiempo lo mide el servidor**, con su reloj (ms): en el progreso de cada misión activa quedan `t0` (aceptada) y `tb` (el
+momento en que se cerró cada bloque; un grupo de pasos es un solo bloque y su pausa de 2 s no cuenta), así que sobrevive a
+reconectar y a reiniciar, y el tiempo con el servidor apagado cuenta. Al completarse la misión, el servidor calcula la tarjeta
+(`features/misiones/evaluacion.ts`, funciones puras), la guarda en el progreso (`evaluaciones`, las 4 últimas) y la manda con el libro
+(eventos `evaluacion` y `evaluacionFila`, solo a su dueño); detrás de ese libro llega `abrirEvaluacion`, que es también el anuncio
+para lectores de pantalla y agentes («Evaluación de la inspección: 79 puntos. Tiempo de la misión: 2 min 05 s; …»). Una misión
+aceptada antes de que el mundo tuviera `evaluacion` no tiene reloj: su tarjeta sale sin la fila del tiempo. Plugs: misiones **v12**.
+
+**Fases con nombre (`evaluacion.fases`).** Una misión con muchos bloques (la del crimen tiene 8) no quiere una fila por bloque, sino el
+tiempo de toda la misión y el de unas pocas **fases** con nombre. `fases` es opcional (1–8) y cada fase dice dónde acaba:
+
+```json
+"fases": [
+  { "nombre": "Fase 1 · Datos preliminares", "hasta": "recoger-cuaderno" },
+  { "nombre": "Fase 2 · La escena",          "hasta": "marcar-indicios" },
+  { "nombre": "Fase 3 · El informe",         "hasta": "informar-sargento" }
+]
+```
+
+Cada fase va desde el final de la anterior (la primera, desde que se acepta la misión) hasta que se cumple el paso `hasta`; si ese
+paso está en un `grupo`, hasta que se cierra el bloque entero. La tarjeta enseña entonces la fila del tiempo total y **estas** filas
+(`tipo: "fase"`; el nombre, de hasta 60 bytes, sale tal como se escribe, sin «Fase n:» añadido) en vez de una por
+bloque. Sin `fases`, lo de siempre. El formato exige que `hasta` sea el id de un paso de la misión, que las fases vayan en el orden
+de los pasos y que dos no acaben en el mismo bloque; el tiempo que pase después de la última fase cuenta en el total pero en
+ninguna fase (acabe la última en el último paso para que las fases sumen el total). Una tarjeta guardada con otro número de fases que
+el actual (el autor cambió la misión después) enseña solo el tiempo total, nunca una fila equivocada. Las filas de fase no restan
+puntos y no entran en el resumen de una línea.
+
+En la página, la tarjeta (`#evaluacion`, `apps/plaza/misiones.ts`) se abre sola al terminar la misión sin quitar el teclado (nunca
+en VR), se cierra con «Cerrar» o Escape y se vuelve a abrir con «Ver evaluación» en la lista de misiones hechas del libro (J). Para
+agentes y páginas: `misiones.evaluacion(id)` (o `misiones.libro()[i].evaluacion`) devuelve
+`{ titulo, puntos, base, minimo, resumen, filas: [{ tipo: "tiempo"|"fase"|"contador", clave, etiqueta, texto, valor, resta }] }`, o
+`null` mientras la misión no esté hecha o no lleve `evaluacion`. Queda fuera: el informe para el instructor (la misma tarjeta, de
+todos los alumnos).
 **Una cosa que se ve usada para ti (`apariencia.usada`, U14 (6)).** `"apariencia": { "modelo": "<sha256 del cofre
 cerrado>", "escala": 1, "usada": { "modelo": "<sha256 del cofre abierto>", "escala": 1 } }`: cómo se ve la cosa para **quien
 ya hizo el paso que la usa** (`usa` o `coge`) en una misión que lleva o que terminó. Los demás la siguen viendo como antes,
@@ -1001,6 +1172,16 @@ español del verificador), 403 = pase bueno sin permiso, 404 `agentes-desactivad
 (cerrado, nunca abierto). CORS: solo `https://numinia.com` (responde al `OPTIONS` y pone `Access-Control-Allow-Origin`;
 a otro origen no le pone ninguna cabecera CORS; nunca `*`). El instalador deja pasar `/agentes*` por Caddy.
 
+## Espacios (v1, Y50 + Y51): an own private space with guests and placement by rules
+
+`features/espacios` is the player's own corner. The server decides everything (R-1); the page only shows and asks.
+- **World file** (`entorno/espacios.json`, `numinia-engine/espacios@1`): `{ espacios: [{ id, nombre?, x, z, y?, radio?, tope? }], cosas?: { <type>: { alto, ancho, sobre: ["suelo" | <type>] } } }`. `radio` 2–60 m (8). `tope` = most objects THIS space holds, 0 to `ESPACIO_OBJETOS_MAX` (40, published as `space_objects_max` in `limits.json`: the game master sets the cap there and in the file; the server never goes above the engine's number). `cosas` are the kinds that may be placed (metres, two decimals): height, footprint width and what each rests on; without it the house has `caja` (stacks), `mesa` (floor only) and `taza` (only on a table). Without the file the piece does nothing. Every bad line is left out with its path and how to fix it.
+- **Who**: the game master (who directs or rules, as for the Entorno switches) `asignar`s a free space to a connected person (one space per person) and `liberar`s it (that empties it). The owner `nombrar`, `invitar` (up to 12, `space_guests_max`), `quitar` (by name) and `mirar`. An owned space is **private**: once a second the server puts anyone inside who is not the owner, a guest or someone who directs back just outside the edge, with the reason. `entrar` takes an allowed person inside without walking.
+- **Placement (Y51)**: `colocar {id, tipo, x, z, sobre}` with `sobre` 0 = floor or the number of the supporting thing. The server, in centimetres and integers, checks in order: the type exists · room under `tope` · the spot is inside the radius · the type may rest on that (floor or kind) · the new centre lies within the supporter's footprint (something is under it) · nothing at the same level overlaps. It computes the height itself. `retirar {id, n}` is refused while something rests on `n`. Only the owner, standing inside, places; not even the game master places in someone's corner.
+- **Names are untrusted text**: the space's name, the owner's and the guests' names are cut to length, stripped of control characters and published as plain fields; an agent reads them only inside the `<material>` block (STD-050); the page paints them as text.
+- **No gesture needed**: every verb is an intent an agent or the keyboard sends, and the chat has `/espacio` · `/espacio <id> entrar|mirar|nombre <texto>|invitar <person>|quitar <name>`. The space's card carries `interact` (E: enter). Notices (`aviso`, `concedido`, `rechazado`) each have text and sound; `cambio` is server-only (`api.listen("espacios", "cambio")`) for a future exhibition room (Y52).
+- **Page**: no client part in the first-load bundle (the page-weight cap `first_load_br_bytes` had 497 B of headroom and a client part costs about 1 kB): the page hears the notices, shows the card and sends the verbs from the server's catalog. `features/espacios/client.ts` (list, last notices, one method per verb) is for the lazy panel of Y50b.
+- **Persistence**: owner, guests, name and things live in the feature's store (`e:<id>`), so they survive restarts. **Not yet**: the Entorno switch and panel (Y50b), drawing the boundary and the things (Y50c). **Tests**: `test/espacios.test.ts` (13).
 ## Pesca (v2): un minijuego que decide el servidor
 
 `features/pesca` es el ejemplo de **minijuego con tiempo**: el servidor lleva el ciclo entero en `api.onTick` (20 Hz) y la
@@ -2212,6 +2393,7 @@ Hermes Desktop pone la página en un `SandboxedFrame` con `sandbox="allow-script
 - **Verbs**: `mirar {id}` (answers only to you) and `lanzar {id}` (only who directs or rules; wakes a sleeping event). Chat: `/evento <id>` and `/evento <id> lanzar`. The event's card carries `interact` (E: see what is going on).
 - **Events**: `anuncio`, `hito` (25/50/75 %), `termina` to whoever is near (voice + bell); `recompensa` and `estado` to one person; `otorga {id, quien, cosa, cuanto}` and `cadena {id, siguiente, participantes}` for the server only (`api.listen("sucesos", "otorga")`: inventory, goods or the cable). Today nothing hands out the `cosa` by itself (Y48c).
 - **Not yet**: the Entorno switch and panel (Y48b), persistence across restarts and periodic repetition (Y48d). **Tests**: `test/sucesos.test.ts` (12).
+- **Page**: no client part in the first-load bundle (the page-weight cap `first_load_br_bytes` has no headroom left and a client part costs about 1 kB): the page hears the notices through the announce path and sends the verbs from the server's catalog. `features/sucesos/client.ts` (list, last notices, one method per verb) is for the lazy panel of Y48b.
 
 ## Avatares propios del mundo (E3): CC0 o CC BY con su crédito, solo en ese mundo
 

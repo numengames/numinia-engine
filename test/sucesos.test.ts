@@ -48,10 +48,10 @@ function mundo(n: number, lista: SucesoFichero[] = [LLUVIA, CALMA], dirige: (_w:
 /** Pump until `listo` holds (at most `max` ticks); returns the ticks it took. */
 const hasta = (m: ReturnType<typeof mundo>, listo: () => boolean, max = 4000): number => { let t = 0; while (!listo() && t < max) { m.pump(1); t++; } return t; };
 
-test("sucesos: the declaration meets the plug's rules and is in both lists", () => {
+test("sucesos: the declaration meets the plug's rules and is in the server list; the first-load page carries no client part of it (the catalog is enough)", () => {
   assert.deepEqual(sucesos.issues, []);
   assert.ok(funciones.some((f) => f.feature.id === "sucesos"));
-  assert.ok(paginas.some((f) => f.feature.id === "sucesos"));
+  assert.ok(!paginas.some((f) => f.feature.id === "sucesos"), "a lazy panel (Y48b) imports features/sucesos/client.ts; the first load stays under limits.json first_load_br_bytes");
 });
 
 test("leerSucesos: each wrong line is left out WITH its reason; a chain to nowhere is dropped, the event stays", () => {
