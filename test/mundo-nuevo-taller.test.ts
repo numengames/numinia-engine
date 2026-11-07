@@ -66,7 +66,7 @@ test("the born adventure loads clean: 11 chained missions, one person (Lumen), n
   const mis = MISIONES.map((m) => json(join(c.aventura, "misiones", `${m}.json`)));
   assert.equal(mis[0].requisitos, undefined);
   for (let i = 1; i < mis.length; i++) assert.deepEqual(mis[i].requisitos, { misiones: [ids[i - 1]] }, mis[i].id);
-  const f = leerFicha(c.aventura); assert.deepEqual(f.problemas, []); assert.equal(f.ficha?.nombre, "New world");
+  const f = leerFicha(c.aventura); assert.deepEqual(f.problemas, []); assert.equal(f.ficha?.nombre, "Learn to Build");
   // the shipped template is checked by the same CLI an author uses
   const cli = spawnSync(process.execPath, ["tools/aventura.ts", join(TALLER, "aventura")], { encoding: "utf8" });
   assert.equal(cli.status, 0, cli.stdout + cli.stderr);
@@ -129,10 +129,10 @@ test("the real server on a fresh folder starts the Taller and only it: 11 missio
   try {
     for (let i = 0; i < 150 && !log.includes("[instancia]"); i++) await new Promise((r) => setTimeout(r, 100));
     assert.ok(log.includes("[instancia]"), log);
-    for (const re of [/aventura: 11 misiones, 1 personas, 0 cosas/, /pesca: 0 sitio\(s\)/, /lucha: 0 criatura\(s\)/, /dardos: 0 diana\(s\)/, /naturaleza: apagada/, /espacio base: encendido \(semilla 42\)/, /disparadores: 1 disparador/, /\[ficha\] el mundo se llama «New world»/, /dardos enlazados apagados/]) assert.match(log, re);
+    for (const re of [/aventura: 11 misiones, 1 personas, 0 cosas/, /pesca: 0 sitio\(s\)/, /lucha: 0 criatura\(s\)/, /dardos: 0 diana\(s\)/, /naturaleza: apagada/, /espacio base: encendido \(semilla 42\)/, /disparadores: 1 disparador/, /\[ficha\] el mundo se llama «Learn to Build»/, /dardos enlazados apagados/]) assert.match(log, re);
     assert.doesNotMatch(log, /sin ficha|no se usa|problema|desconocida/i, "no file of the template is refused by the engine");
     const st = await (await fetch(`http://127.0.0.1:${PORT}/status`)).json() as Record<string, unknown>;
-    assert.equal(st.nombre, "New world"); assert.equal(st.espacioBase, true); assert.equal(st.dardosEnlace ?? null, null, "no AR darts link in /status");
+    assert.equal(st.nombre, "Learn to Build"); assert.equal(st.espacioBase, true); assert.equal(st.dardosEnlace ?? null, null, "no AR darts link in /status");
     // what the server added next to the template (data, keys, manifest) — and the template's own files still all there
     assert.ok(existsSync(join(raiz, "mundo.json"))); assert.ok(ESPERADOS.every((f) => existsSync(join(raiz, f))));
   } finally { srv.kill("SIGTERM"); await new Promise((r) => setTimeout(r, 300)); }

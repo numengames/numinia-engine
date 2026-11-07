@@ -1,6 +1,6 @@
 # Licence of this world
 
-This world (the **Taller**, «La plaza a oscuras») is released under **CC0 1.0 Universal**
+This world (**Learn to Build**, the former «Taller» or «La plaza a oscuras»; internal id `taller`) is released under **CC0 1.0 Universal**
 (<https://creativecommons.org/publicdomain/zero/1.0/legalcode>).
 You may copy, change, translate and publish it, even commercially, without asking and without credit.
 

@@ -10,7 +10,7 @@ Un mundo que ya existe no cambia.
 
 El onboarding de quien llega a un mundo nuevo, y nada más:
 
-- `aventura/` — `ficha.json` («Mundo nuevo»), `pnj/lumen.json` (la guía) y las 11 misiones encadenadas de «cómo se
+- `aventura/` — `ficha.json` («Learn to Build» (antes «Taller»; id interno `taller`)), `pnj/lumen.json` (la guía) y las 11 misiones encadenadas de «cómo se
   construye un mundo» (`misiones/01-abre-el-taller.json` … `11-tu-mini-mision.json`; usan los pasos `hace` y `senala`).
   Recompensa final: la insignia «Constructor». Sin misiones de ejemplo, sin otras personas, sin habitantes.
 - `aventura/LEEME-IA.md` — la nota del mundo para las IAs que entran (qué pueden construir, estilo, qué no tocar): el modelo de todo

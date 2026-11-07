@@ -20,7 +20,7 @@ test("the Taller speaks English by default and its Spanish translation is only w
   assert.equal(idiomaDelMundo(dir), IDIOMA_DEFECTO);
   const en = cargar(dir); assert.deepEqual(en.issues, []);
   assert.equal(en.aventura.misiones.get("abre-el-taller")?.titulo, "Open the workshop");
-  assert.equal(leerFicha(dir).ficha?.nombre, "New world");
+  assert.equal(leerFicha(dir).ficha?.nombre, "Learn to Build");
   assert.match(leerLeemeIA(dir).texto ?? "", /^# LEEME-IA · this world/);
   // every English file of the template has its Spanish translation, and it differs from the English one in words only
   const idiomas = readdirSync(join(dir, "idiomas")).sort();
@@ -41,7 +41,7 @@ test("`idioma: es` in ficha.json plays the same world in Spanish; a file without
   assert.equal(es.aventura.misiones.get("abre-el-taller")?.titulo, "Abre el taller");
   assert.equal(es.aventura.pnjs.get("lumen")?.nombre, "Lumen");
   assert.deepEqual([...es.aventura.misiones.keys()], [...cargar(copia()).aventura.misiones.keys()], "the same 11 missions, in the same order");
-  assert.equal(leerFicha(dir).ficha?.nombre, "Mundo nuevo");
+  assert.equal(leerFicha(dir).ficha?.nombre, "Aprende a construir");
   assert.match(leerLeemeIA(dir).texto ?? "", /Lo que puedes construir/);
   rmSync(join(dir, rutaTraducida("es", "misiones/03-muevelo.json")));
   assert.equal(cargar(dir).aventura.misiones.get("muevelo")?.titulo, "Move it and turn it", "no translation: the English file");
