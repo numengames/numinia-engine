@@ -13,14 +13,13 @@ const ligera = defineFeature({ id: "frases", version: VERSION, describe: "Fixed 
 export const gancho = { abrir: null as null | (() => void) };
 let api: ClientApi | null = null;
 let carga: Promise<Pagina> | null = null;
-/** The page's logic, loaded once and connected to the session. Resolves to it; never rejects (a failed load is retried next time). */
+/** The page's logic, loaded once and connected to the session. */
 export function cargar(): Promise<Pagina> {
-  if (!carga) carga = import("./pagina.ts").then((m) => { if (api) m.conectar(api); return m; }, (e) => { carga = null; throw e; });
-  return carga;
+  return (carga ??= import("./pagina.ts").then((m) => { m.conectar(api!); return m; }));
 }
 
 export default clientPart(ligera, (a) => {
   api = a;
-  a.on("dicha", (m: Msg) => { void cargar().then((p) => p.dicha(m), () => {}); });
+  a.on("dicha", (m: Msg) => { void cargar().then((p) => p.dicha(m)); });
   a.action({ id: "frases", label: "Phrases", key: "Backquote", describe: "Say a fixed phrase", run: () => gancho.abrir?.() });
 });
