@@ -3,10 +3,10 @@
 # world can point at (arrancar.sh in a world's zip downloads motor-<short> from it; the fleet runs its image).
 #   tools/publicar-version.sh [--en-seco] [fichero-extra …]
 # From a CLEAN checkout of a commit that is on origin/main: builds the installer (npm run deploy), proves it
-# (tools/deploy-check.mjs), writes imagen.json (C7: {image, commit, build, digest} of
+# (tools/deploy-check.mjs), writes imagen.json (C7: {image, commit, build, digest, version} of
 # ghcr.io/numengames/numinia-engine:sha-<commit>, which must ALREADY be in the registry — a release always means its
 # image exists) and SHA256SUMS, and creates the release motor-<short> marked «latest», with instalar-motor.sh,
-# SHA256SUMS, imagen.json and any extra file given (e.g. a world zip from /mundo). Needs `gh` with a token that may
+# SHA256SUMS, imagen.json, novedades.json (MIS-292: kind + text per change since the last release) and any extra file given (e.g. a world zip from /mundo). Needs `gh` with a token that may
 # write releases (GH_TOKEN), and docker buildx or skopeo to read the image's digest (or PUBLICAR_DIGEST=sha256:…).
 # The GitHub workflow (publicar-motor.yml, pasted by a person: the App cannot write .github/workflows/) builds and
 # checks the installer once, builds and pushes the image from it, attests both and then calls this with
@@ -57,12 +57,17 @@ fi
 
 dir=$(mktemp -d); trap 'rm -rf "$dir"' EXIT
 cp deploy/instalar-motor.sh "$dir/"
-printf '{"image":"%s","commit":"%s","build":"%s","digest":"%s"}\n' "$imagen" "$commit" "$build" "$digest" > "$dir/imagen.json"
+# MIS-292: the semantic version this release ships and the notes since the previous one (tools/novedades-release.mjs).
+# `version` goes last in imagen.json: readers that only know the four older fields ignore it.
+semver=$(node tools/novedades-release.mjs version)
+[[ "$semver" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || { echo "versión semántica no válida: «$semver»"; exit 1; }
+node tools/novedades-release.mjs novedades "$dir/novedades.json"
+printf '{"image":"%s","commit":"%s","build":"%s","digest":"%s","version":"%s"}\n' "$imagen" "$commit" "$build" "$digest" "$semver" > "$dir/imagen.json"
 for f in "$@"; do cp "$f" "$dir/"; done
-( cd "$dir" && sha256sum instalar-motor.sh imagen.json $(for f in "$@"; do basename "$f"; done) > SHA256SUMS )
+( cd "$dir" && sha256sum instalar-motor.sh imagen.json novedades.json $(for f in "$@"; do basename "$f"; done) > SHA256SUMS )
 suma=$(grep '  instalar-motor.sh$' "$dir/SHA256SUMS" | cut -d' ' -f1)
 {
-  echo "Motor \`$corto\` — $(git log -1 --format=%s HEAD | cut -c1-200)"
+  echo "Motor \`$corto\` · v$semver — $(git log -1 --format=%s HEAD | cut -c1-200)"
   echo
   echo "\`$version\` · sha256 \`$suma\`"
   echo
@@ -80,9 +85,9 @@ suma=$(grep '  instalar-motor.sh$' "$dir/SHA256SUMS" | cut -d' ' -f1)
   for f in "$@"; do echo; echo "Adjunto: \`$(basename "$f")\` (súbelo en https://TU-DOMINIO/mundo si es un mundo)."; done
 } > "$dir/notas.md"
 if [ "$SECO" = 1 ]; then
-  echo "en seco: publicaría $tag (--target $commit --latest) con:"; ( cd "$dir" && ls -l && cat SHA256SUMS imagen.json )
+  echo "en seco: publicaría $tag (--target $commit --latest) con:"; ( cd "$dir" && ls -l && cat SHA256SUMS imagen.json novedades.json )
   exit 0
 fi
-gh release create "$tag" "$dir/instalar-motor.sh" "$dir/SHA256SUMS" "$dir/imagen.json" $(for f in "$@"; do echo "$dir/$(basename "$f")"; done) \
+gh release create "$tag" "$dir/instalar-motor.sh" "$dir/SHA256SUMS" "$dir/imagen.json" "$dir/novedades.json" $(for f in "$@"; do echo "$dir/$(basename "$f")"; done) \
   --repo "$REPO" --target "$commit" --latest --title "Motor $corto" --notes-file "$dir/notas.md"
 echo "publicada $tag · sha256 $suma · $imagen@$digest"
