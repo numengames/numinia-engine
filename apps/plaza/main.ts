@@ -178,6 +178,7 @@ view.naturaleza.tablaFauna(() => import("../../features/naturaleza/fauna-casa.ts
 // game features (J7): their client parts, and how they may draw (a label, a hop) over any avatar
 // I1: the guest token stays in this browser (no account, no personal data); private mode = a new guest each time
 const GUARDA = "numinia.invitado";
+let pausaCuadros = 0; // Y25: frames of the hit pause still to hold (features/lucha/peso.ts; the loop below skips its draw while > 0)
 const session = new ClientSession(transport, {
   features: funciones,
   pase: tomarPaseDeLaDireccion(location, history), // H3b: #pass=<token> from numinia.com, out of the address bar at once, sent once connected
@@ -188,6 +189,8 @@ const session = new ClientSession(transport, {
     bounce: (e, ms) => view.bounce(e === session.entity ? "self" : e, ms),
     beacon: (x, z, text, ms) => view.beacon(x, z, text, ms),
     ajuste: (id) => leerAjuste(id), // N2: a feature reads its own settings (menu-ajustes.ts)
+    movimientoReducido: () => leerAjuste("accesibilidad.menosMovimiento") === true, // Y25: «reduce motion» (features/lucha/peso.ts, L5 after it)
+    pausa: (n) => { if (!view.vr.active && view.ar.state === "off") pausaCuadros = Math.min(5, n); }, // Y25: hit pause, 2-5 frames of the picture only; never in VR/AR
     // H1: things placed in the world, and where I am (a builder puts things in front of me)
     place: (key, o) => view.place(key, o),
     here: () => { if (session.entity < 0) return null; const p = session.selfPosition(0); return { x: p.x, y: 0, z: p.z }; },
@@ -840,7 +843,8 @@ view.loop((now) => {
   const sig = lastSig; lastSig = signature();
   if (sig !== lastSig || keys.size > 0 || touch || view.vr.active || view.ar.state !== "off" || view.busy() || enSecuencia) lastActive = now;
   const active = now - lastActive < 600;
-  if (view.vr.active || view.ar.state !== "off" || view.power.shouldDraw(now, { hidden: document.hidden, active })) {
+  const congelado = pausaCuadros > 0; if (congelado) pausaCuadros--; // Y25: the hit pause holds the last picture for a few frames (the ticks above went on)
+  if (!congelado && (view.vr.active || view.ar.state !== "off" || view.power.shouldDraw(now, { hidden: document.hidden, active }))) {
     view.sync(session.entity >= 0 ? session.selfPosition(acc / TICK_MS) : null, session.remotePositions(now));
     view.sueloTerreno(session.sueloTerreno()); // avatares/suelo-relieve: hills count as ground for the avatars' clips and feet
     view.solidos(session.solidos()); // N1b: the camera does not go through solid things; avatars stand on them

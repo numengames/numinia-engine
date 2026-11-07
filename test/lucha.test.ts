@@ -28,9 +28,10 @@ const keeper = (): Keeper => { const k = { token: null as string | null, load: (
 function mundo(n = 2, semilla = 7, criaturas = [G]) {
   const log: string[] = [];
   const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [crearLucha({ criaturas, semilla })], log: (l) => log.push(l), identitySign: sign });
+  const hora = { now: 1_000_000 };   // game time for the page (Y25: the flash limiter counts per second): 50 ms per tick, as the real 20 Hz
   const pages = Array.from({ length: n }, (_, i) => {
     const eventos: { event: string; msg: Record<string, unknown> }[] = [];
-    const t = inst.join(i), cli = crearCliente((event, msg) => eventos.push({ event, msg })), seen: string[] = [], k = keeper();
+    const t = inst.join(i), cli = crearCliente((event, msg) => eventos.push({ event, msg }), () => hora.now), seen: string[] = [], k = keeper();
     const s = new ClientSession(t, { features: [cli.part], identity: k, view: {
       label: (e, text) => seen.push(`label ${e} ${text}`), bounce: (e) => seen.push(`bounce ${e}`),
       place: (key, o) => seen.push(`place ${key} ${o ? `${o.sx}x${o.sy}x${o.sz} ${(o as { color?: string }).color}` : "null"}`),
@@ -38,7 +39,7 @@ function mundo(n = 2, semilla = 7, criaturas = [G]) {
     } });
     return { t, s, l: cli.lucha, seen, eventos, k };
   });
-  const pump = (ticks = 1) => { for (let i = 0; i < ticks; i++) { for (const c of pages) c.t.flush(); inst.tick(); for (const c of pages) c.t.flush(); } };
+  const pump = (ticks = 1) => { for (let i = 0; i < ticks; i++) { hora.now += 50; for (const c of pages) c.t.flush(); inst.tick(); for (const c of pages) c.t.flush(); } };
   const place = (e: number, x: number, z: number) => { inst.sim.tf.cols.x[e] = fx(x); inst.sim.tf.cols.z[e] = fx(z); };
   const evs = (c: (typeof pages)[number], ev: string) => c.eventos.filter((x) => x.event === ev).map((x) => x.msg);
   const estado = () => { for (const [k, v] of inst.features.allState()) if (k === `lucha:${KEY}`) return v; throw new Error("sin criatura"); };
