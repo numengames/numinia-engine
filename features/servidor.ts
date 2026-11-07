@@ -6,6 +6,7 @@ import despertar from "./despertar/server.ts";
 import objetos from "./objetos/server.ts";
 import avatar from "./avatar/server.ts"; // H10: your avatar — house or uploaded .vrm, saved with your identity
 import chat from "./chat/server.ts";
+import frases from "./frases/server.ts"; // Y29: fixed phrases (the page picks an id from a short list; the server checks it and tells whoever is near, in their own language)
 import misiones from "./misiones/server.ts"; // J5: two features, one engine: people (pnj) and quests (misiones)
 import entorno from "./entorno/server.ts";
 import director from "./director/server.ts"; // N6: the Game Director (scenes, narration, summons)
@@ -44,5 +45,5 @@ import sonido from "./sonido/server.ts"; // S6: the catalogue of house sounds (2
 import interruptores from "./funciones/server.ts"; // f1: feature switches (normas, dardos, pesca) the world's builder flips live; kept in funciones.json
 import espejo from "./espejo/server.ts"; // mundo-hermes: a mirror of objects that live outside (a world turns it on with espejo.json; inert without it)
 import fichaMundo from "./ficha-mundo/server.ts"; // H7: the world's title, picture, default avatar and people limit — set by its owner, kept in aventura/ficha.json
-const funciones: ServerPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, derribado, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, vuelo, naturaleza, espacioBase, fichaMundo, interruptores, espejo, espacios, sucesos, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido];
+const funciones: ServerPart[] = [gestos, despertar, objetos, avatar, chat, frases, ...misiones, entorno, elementos, pesca, lucha, derribado, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, vuelo, naturaleza, espacioBase, fichaMundo, interruptores, espejo, espacios, sucesos, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido];
 export default funciones;

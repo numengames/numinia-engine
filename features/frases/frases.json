@@ -1,0 +1,32 @@
+{
+  "schema": "numinia-engine/frases@1",
+  "grupos": [
+    { "id": "saludo", "en": "Greetings", "es": "Saludos" },
+    { "id": "ayuda", "en": "Help", "es": "Ayuda" },
+    { "id": "direccion", "en": "Direction", "es": "Dirección" },
+    { "id": "respuesta", "en": "Replies", "es": "Respuestas" }
+  ],
+  "frases": [
+    { "id": "hello", "grupo": "saludo", "en": "Hello", "es": "Hola" },
+    { "id": "goodbye", "grupo": "saludo", "en": "Goodbye", "es": "Adiós" },
+    { "id": "thanks", "grupo": "saludo", "en": "Thank you", "es": "Gracias" },
+    { "id": "welcome", "grupo": "saludo", "en": "Welcome", "es": "Te damos la bienvenida" },
+    { "id": "good-luck", "grupo": "saludo", "en": "Good luck", "es": "Buena suerte" },
+    { "id": "well-done", "grupo": "saludo", "en": "Well done", "es": "Bien hecho" },
+    { "id": "help", "grupo": "ayuda", "en": "Help!", "es": "¡Ayuda!" },
+    { "id": "can-you-help", "grupo": "ayuda", "en": "Can you help me?", "es": "¿Me ayudas?" },
+    { "id": "i-can-help", "grupo": "ayuda", "en": "I can help", "es": "Puedo ayudar" },
+    { "id": "sorry", "grupo": "ayuda", "en": "Sorry", "es": "Perdón" },
+    { "id": "follow-me", "grupo": "direccion", "en": "Follow me", "es": "Sígueme" },
+    { "id": "come-here", "grupo": "direccion", "en": "Come here", "es": "Ven aquí" },
+    { "id": "over-here", "grupo": "direccion", "en": "Over here", "es": "Aquí" },
+    { "id": "wait-here", "grupo": "direccion", "en": "Wait here", "es": "Espera aquí" },
+    { "id": "lets-go", "grupo": "direccion", "en": "Let's go", "es": "Vamos" },
+    { "id": "yes", "grupo": "respuesta", "en": "Yes", "es": "Sí" },
+    { "id": "no", "grupo": "respuesta", "en": "No", "es": "No" },
+    { "id": "ok", "grupo": "respuesta", "en": "OK", "es": "Vale" },
+    { "id": "not-sure", "grupo": "respuesta", "en": "I'm not sure", "es": "No lo sé" },
+    { "id": "dont-understand", "grupo": "respuesta", "en": "I don't understand", "es": "No entiendo" }
+  ],
+  "retiradas": []
+}
