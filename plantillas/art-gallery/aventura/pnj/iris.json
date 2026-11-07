@@ -1,0 +1,38 @@
+{
+  "formato": "pnj@1",
+  "id": "iris",
+  "nombre": "Iris",
+  "oficio": "Visitor",
+  "descripcion": "Looks at slot 18 (east) at leisure.",
+  "apariencia": {
+    "modelo": "aa55e19df393de6a032ef43a3b68d8be6ac21a3eb8b572bb0e06b239d256750b",
+    "escala": 1
+  },
+  "posicion": {
+    "x": 15.69,
+    "z": 3.2
+  },
+  "giro": 57,
+  "radio": 3,
+  "dialogo": {
+    "entradas": [
+      {
+        "nodo": "hola"
+      }
+    ],
+    "nodos": {
+      "hola": {
+        "texto": "I brought my notebook in case something asks for a drawing. Nothing yet.",
+        "opciones": [
+          {
+            "texto": "See you later.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "notas": "Gallery template: standing in front of slot 18 (east), looking at it. Own model (CC0, own work of Numen Games). Gives no missions."
+}

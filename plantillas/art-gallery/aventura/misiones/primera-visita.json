@@ -1,0 +1,36 @@
+{
+  "formato": "mision@1",
+  "id": "primera-visita",
+  "titulo": "The first visit",
+  "descripcion": "The curator invites you to get to know the stoa: the fountain courtyard and, at the far end, the critic.",
+  "pasos": [
+    {
+      "id": "patio",
+      "tipo": "llega_a",
+      "texto": "Go through the door and look into the fountain courtyard",
+      "x": 0,
+      "z": 0,
+      "radio": 5,
+      "lugar": "the fountain courtyard"
+    },
+    {
+      "id": "critico",
+      "tipo": "habla_con",
+      "texto": "Find the critic in the north portico, next to the mural",
+      "pnj": "critico"
+    }
+  ],
+  "recompensas": [
+    {
+      "tipo": "insignia",
+      "id": "visita-a-la-stoa",
+      "nombre": "Stoa visitor"
+    }
+  ],
+  "textos": {
+    "aceptada": "The curator will be glad to see you back whenever you like. The mission book (key J) shows you the way.",
+    "completada": "You now know the stoa. The curator has another task for you."
+  },
+  "repetible": false,
+  "notas": "Gallery template: the welcome walk. It works with an empty gallery and with a full one."
+}

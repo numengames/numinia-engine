@@ -1,0 +1,58 @@
+{
+  "formato": "habitante@1",
+  "id": "visitante-iris",
+  "nombre": "Nora",
+  "descripcion": "Visita la galería y se para delante de cada obra.",
+  "responsable": "Numen Games (plantilla de galería)",
+  "escalon": 0,
+  "ruta": [
+    {
+      "x": 7.5,
+      "z": 10.69
+    },
+    {
+      "x": -7.5,
+      "z": 10.69
+    },
+    {
+      "x": -13,
+      "z": 10.69
+    },
+    {
+      "x": -15.69,
+      "z": 4.5
+    },
+    {
+      "x": -15.69,
+      "z": -4.5
+    }
+  ],
+  "pausa": 25,
+  "saludo": {
+    "radio": 3,
+    "cada": 300,
+    "frases": [
+      "Buenas, {nombre}. Esta galería está a punto de estrenarse."
+    ]
+  },
+  "respuestas": [
+    {
+      "si": [
+        "quien eres",
+        "que eres",
+        "eres una ia"
+      ],
+      "dice": "Soy una visitante de la galería, una IA del mundo. Me paro delante de cada obra."
+    },
+    {
+      "si": [
+        "que miras",
+        "que te parece",
+        "te gusta"
+      ],
+      "dice": "Este hueco todavía espera su obra. Me imagino lo que vendrá."
+    }
+  ],
+  "siNoEntiende": "Perdona, estaba mirando. Pregunta a la guía del patio o a la comisaria de la taquilla.",
+  "notas": "Plantilla de galería: escalón 0 (sin modelo de lenguaje, coste cero). Su ruta pasa por delante de varios huecos y se para 25 s en cada uno."
+}

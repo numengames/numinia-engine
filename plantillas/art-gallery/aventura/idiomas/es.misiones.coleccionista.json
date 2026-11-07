@@ -1,0 +1,56 @@
+{
+  "formato": "mision@1",
+  "id": "coleccionista",
+  "titulo": "Coleccionista de postales",
+  "descripcion": "Reúne una postal de cada pared y llévaselas a la comisaria.",
+  "requisitos": {
+    "misiones": [
+      "primera-visita"
+    ]
+  },
+  "pasos": [
+    {
+      "id": "oeste",
+      "tipo": "coge",
+      "texto": "La postal del hueco 3, en la pared oeste",
+      "cosa": "postal-03"
+    },
+    {
+      "id": "norte",
+      "tipo": "coge",
+      "texto": "La postal del hueco 9, en la pared norte",
+      "cosa": "postal-09"
+    },
+    {
+      "id": "este",
+      "tipo": "coge",
+      "texto": "La postal del hueco 17, en la pared este",
+      "cosa": "postal-17"
+    },
+    {
+      "id": "sur",
+      "tipo": "coge",
+      "texto": "La postal del hueco 20, en la pared sur",
+      "cosa": "postal-20"
+    },
+    {
+      "id": "volver",
+      "tipo": "habla_con",
+      "texto": "Vuelve a la taquilla y enséñale tus postales a la comisaria",
+      "pnj": "comisaria"
+    }
+  ],
+  "recompensas": [
+    {
+      "tipo": "insignia",
+      "id": "mecenas-de-la-stoa",
+      "nombre": "Mecenas de la stoa"
+    }
+  ],
+  "textos": {
+    "aceptada": "Cuatro postales, una por pared: huecos 3, 9, 17 y 20.",
+    "completada": "Tu nombre entra en el libro de mecenas."
+  },
+  "repetible": false,
+  "notas": "Plantilla de galería: recorre las cuatro paredes. La entrega es una opción de la comisaria (avanzar_paso)."
+}

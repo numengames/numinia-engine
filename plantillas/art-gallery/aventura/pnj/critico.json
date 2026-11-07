@@ -1,0 +1,148 @@
+{
+  "formato": "pnj@1",
+  "id": "critico",
+  "nombre": "The critic",
+  "descripcion": "He has been looking at paintings for years and always finds what nobody sees.",
+  "apariencia": {
+    "modelo": "4c3d152797d88890360025e8689383e519babc195cd05ed47aee55d9ca3f69d8",
+    "escala": 1
+  },
+  "posicion": {
+    "x": -2.8,
+    "z": -11.29
+  },
+  "giro": 117,
+  "radio": 3,
+  "dialogo": {
+    "entradas": [
+      {
+        "si": {
+          "mision": "ojo-del-critico",
+          "estado": "activa",
+          "paso": "entregar"
+        },
+        "nodo": "postal"
+      },
+      {
+        "si": {
+          "mision": "ojo-del-critico",
+          "estado": "activa"
+        },
+        "nodo": "mira"
+      },
+      {
+        "si": {
+          "mision": "ojo-del-critico",
+          "estado": "hecha"
+        },
+        "nodo": "ojo"
+      },
+      {
+        "si": {
+          "mision": "ojo-del-critico",
+          "estado": "disponible"
+        },
+        "nodo": "encargo"
+      },
+      {
+        "si": {
+          "mision": "primera-visita",
+          "estado": "activa"
+        },
+        "nodo": "saludo"
+      },
+      {
+        "nodo": "hola"
+      }
+    ],
+    "nodos": {
+      "saludo": {
+        "texto": "Ah, a visitor. Before looking at an artwork you have to look at the place: look into the fountain courtyard and come back. Then I will test your eye.",
+        "opciones": [
+          {
+            "texto": "On my way.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "encargo": {
+        "texto": "On entering, everybody looks this way, at the mural. Almost nobody turns around. On the door wall, to the right as you enter, there is a big slot: number 21. Go, look at it closely and bring me its postcard.",
+        "opciones": [
+          {
+            "texto": "On my way.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "ojo-del-critico"
+            }
+          },
+          {
+            "texto": "Not now.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "mira": {
+        "texto": "Slot 21: on the door wall, to the right as you enter. Look at it closely and bring its postcard.",
+        "opciones": [
+          {
+            "texto": "On my way.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "postal": {
+        "texto": "Have you brought it?",
+        "opciones": [
+          {
+            "texto": "Here is the postcard of slot 21.",
+            "si": {
+              "mision": "ojo-del-critico",
+              "estado": "activa",
+              "paso": "entregar",
+              "tiene": "postal-21"
+            },
+            "accion": {
+              "tipo": "entregar",
+              "mision": "ojo-del-critico"
+            }
+          },
+          {
+            "texto": "Not yet.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "ojo": {
+        "texto": "Good eye: you looked where nobody looks. When the artworks arrive, come and tell me what you see.",
+        "opciones": [
+          {
+            "texto": "I will.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "hola": {
+        "texto": "Looking is a craft. Come in.",
+        "opciones": [
+          {
+            "texto": "Goodbye.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "notas": "Gallery template. In the north portico, next to the mural (slot 11), looking at it. Talking to him completes «The first visit» and he gives «The critic's eye», which sends you to the opposite side: slot 21, next to the door (what nobody looks at when entering)."
+}

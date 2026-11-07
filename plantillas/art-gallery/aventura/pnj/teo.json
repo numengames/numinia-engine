@@ -1,0 +1,38 @@
+{
+  "formato": "pnj@1",
+  "id": "teo",
+  "nombre": "Teo",
+  "oficio": "Visitor",
+  "descripcion": "Looks at slot 13 (north) at leisure.",
+  "apariencia": {
+    "modelo": "cc858fbfd241d007c35ff546798da34b09d8a794cffa36480e6ccfa93c9f81d1",
+    "escala": 1
+  },
+  "posicion": {
+    "x": 8.7,
+    "z": -10.69
+  },
+  "giro": 147,
+  "radio": 3,
+  "dialogo": {
+    "entradas": [
+      {
+        "nodo": "hola"
+      }
+    ],
+    "nodos": {
+      "hola": {
+        "texto": "Hello! I came for the mural, but I end up looking at the small ones.",
+        "opciones": [
+          {
+            "texto": "See you later.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "notas": "Gallery template: standing in front of slot 13 (north), looking at it. Own model (CC0, own work of Numen Games). Gives no missions."
+}

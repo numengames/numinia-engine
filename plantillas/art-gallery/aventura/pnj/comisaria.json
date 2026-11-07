@@ -1,0 +1,184 @@
+{
+  "formato": "pnj@1",
+  "id": "comisaria",
+  "nombre": "The curator",
+  "descripcion": "Looks after the gallery and its ticket booth: she knows what is hanging and which slot is still free.",
+  "apariencia": {
+    "modelo": "5382156604e4f5867fd968699c27028e1363ea6e10487814fee5338fd362214a",
+    "escala": 1
+  },
+  "posicion": {
+    "x": -4.4,
+    "z": 16.9
+  },
+  "giro": 59,
+  "radio": 3,
+  "dialogo": {
+    "entradas": [
+      {
+        "si": {
+          "mision": "primera-visita",
+          "estado": "disponible"
+        },
+        "nodo": "bienvenida"
+      },
+      {
+        "si": {
+          "mision": "primera-visita",
+          "estado": "activa"
+        },
+        "nodo": "visita"
+      },
+      {
+        "si": {
+          "mision": "coleccionista",
+          "estado": "activa",
+          "paso": "volver"
+        },
+        "nodo": "postales"
+      },
+      {
+        "si": {
+          "mision": "coleccionista",
+          "estado": "activa"
+        },
+        "nodo": "buscando"
+      },
+      {
+        "si": {
+          "mision": "coleccionista",
+          "estado": "hecha"
+        },
+        "nodo": "mecenas"
+      },
+      {
+        "si": {
+          "mision": "coleccionista",
+          "estado": "disponible"
+        },
+        "nodo": "coleccion"
+      },
+      {
+        "nodo": "hola"
+      }
+    ],
+    "nodos": {
+      "bienvenida": {
+        "texto": "Welcome to the stoa. As in the Painted Stoa of Athens, the artworks here hang under the columns, around a courtyard. Today almost every slot is waiting for its artist. Shall I show you the gallery?",
+        "opciones": [
+          {
+            "texto": "Yes, show me.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "primera-visita"
+            },
+            "ir": "recorrido"
+          },
+          {
+            "texto": "Not now.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "recorrido": {
+        "texto": "Go in, look into the fountain courtyard and find the critic in the north portico, next to the mural. He knows how to look.",
+        "opciones": [
+          {
+            "texto": "On my way.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "visita": {
+        "texto": "The courtyard is just past the door; the critic is at the far end, in the north portico. The mission book (key J) shows you the way.",
+        "opciones": [
+          {
+            "texto": "Thank you.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "coleccion": {
+        "texto": "Every artwork has its postcard. Bring me four, one from each wall: slot 3 in the west, 9 in the north, 17 in the east and 20 in the south. Whoever collects them goes into the book of patrons.",
+        "opciones": [
+          {
+            "texto": "I will look for them.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "coleccionista"
+            }
+          },
+          {
+            "texto": "Another day.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "buscando": {
+        "texto": "Slots 3, 9, 17 and 20: one postcard on each wall. Come back when you have them.",
+        "opciones": [
+          {
+            "texto": "Still looking.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "postales": {
+        "texto": "Do you have them all? Let me see.",
+        "opciones": [
+          {
+            "texto": "Here are my four postcards.",
+            "si": {
+              "mision": "coleccionista",
+              "estado": "activa",
+              "paso": "volver"
+            },
+            "accion": {
+              "tipo": "avanzar_paso",
+              "mision": "coleccionista"
+            }
+          },
+          {
+            "texto": "Not yet.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "mecenas": {
+        "texto": "Your name is already in the stoa's book of patrons. When an artist hangs their work here, you will be among the first to know.",
+        "opciones": [
+          {
+            "texto": "Thank you.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "hola": {
+        "texto": "I am the curator. The gallery is open: come in and look.",
+        "opciones": [
+          {
+            "texto": "Goodbye.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "notas": "Gallery template. Next to the ticket booth, facing where people appear. She gives «The first visit» and, after it, «Postcard collector». When an artist fills the gallery, change her lines for those of their exhibition."
+}

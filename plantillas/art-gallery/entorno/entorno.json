@@ -1,0 +1,45 @@
+{
+  "schema": "numinia-engine/entorno@1",
+  "preset": "propio",
+  "cielo": {
+    "tipo": "degradado",
+    "arriba": "#018EA1",
+    "horizonte": "#F9EBDC",
+    "nubes": 0.25
+  },
+  "sol": {
+    "altura": 48,
+    "rumbo": 145,
+    "intensidad": 3,
+    "color": "#F9EBDC"
+  },
+  "luz": {
+    "hdr": "",
+    "ambiente": 0.9,
+    "cielo": "#F9EBDC",
+    "suelo": "#8A7D72"
+  },
+  "niebla": {
+    "cerca": 120,
+    "lejos": 420,
+    "color": "#C4B5A6",
+    "delCielo": true
+  },
+  "suelo": {
+    "tipo": "liso",
+    "color": "#C4B5A6",
+    "escala": 1
+  },
+  "tono": {
+    "curva": "neutro",
+    "exposicion": 0.95
+  },
+  "hitos": false,
+  "rejilla": false,
+  "aparicion": {
+    "x": 0,
+    "z": 19.5,
+    "radio": 2.5
+  },
+  "notas": "Gallery template. Warm light (Sand) from the south-east; the cool fill comes from the sky itself, a flat Turquoise → Sand gradient (the environment's light comes from it): the house rule (DES-015). With the physical sky (atmosphere) the stone in shadow came out blue. Smooth veiled-Sand ground (flat colour, PRI-008). Without the engine's reference pillars (landmarks), which would fall inside the stoa. People appear outside, in front of the door and the ticket booth, looking at the stoa."
+}

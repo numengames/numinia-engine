@@ -1,0 +1,10 @@
+{
+  "schema": "numinia-engine/escena@1",
+  "nombre": "Visita",
+  "preset": "día",
+  "entorno": {
+    "tono": {
+      "exposicion": 1.05
+    }
+  }
+}

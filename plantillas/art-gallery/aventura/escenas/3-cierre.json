@@ -1,0 +1,11 @@
+{
+  "schema": "numinia-engine/escena@1",
+  "nombre": "Closing",
+  "preset": "noche",
+  "entorno": {
+    "tono": {
+      "exposicion": 0.7
+    }
+  },
+  "narracion": "The gallery is closing. Thank you for coming: the artworks stay here."
+}
