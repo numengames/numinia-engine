@@ -1,0 +1,10 @@
+{
+  "schema": "numinia-engine/escena@1",
+  "nombre": "The Tholos",
+  "entorno": {
+    "tono": {
+      "exposicion": 1
+    }
+  },
+  "narracion": "Take your seats. Between the arches, the sea; on the table, the map. The session begins."
+}

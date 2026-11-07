@@ -1,0 +1,5 @@
+{
+  "schema": "numinia-engine/pesca@1",
+  "sitios": [],
+  "notas": "No fishing spots: without this file the engine puts its house pond at x 18, z −14. No pond or target inside the hall: they showed through the arches."
+}

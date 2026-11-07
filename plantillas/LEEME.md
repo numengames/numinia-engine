@@ -36,3 +36,15 @@ espejo (`entorno/espejo.json`) y el enlace con el plugin llegan en las historias
 
 La aventura de ejemplo (`aventuras/ejemplo`) sigue en el motor para quien la pida (`AVENTURA_DIR=aventuras/ejemplo`) y
 para un mundo antiguo con datos pero sin `aventura/`.
+
+## tabletop-rpg-room/
+
+A **world type**: the Tabletop RPG Room («Tabletop RPG Room», public, CC0; formerly «Sala de rol para 5», the tholos). Chosen with
+`MOTOR_PLANTILLA=tabletop-rpg-room` when a new world is created. Like `art-gallery` it ships `datos/`: the built hall (a round Greek-style
+hall of 20 m, an olive-wood table with a hole for the director's map, 74 invisible colliders) and its 3 files in `datos/activos/` (named by
+their sha256). `entorno/` switches on four engine pieces: `asientos.json` (six seats, the director's to the north), `baculos.json` (one
+staff), `burbujas.json` (a voice bubble that only the table hears) and `dados.json` (a gear dice tower rolled by the server); `pesca`, `dardos`,
+`lucha` and `ancestros` are empty. `aventura/` has Senet (the house game director), two missions, two things and six scenes; every word is English,
+the Spanish translation is in `aventura/idiomas/es.*`. `aventura/ficha.json` carries the name, the semantic `version` (1.0.0), the creator
+(Numen Games) and the owner (`pending`); `aventura/LICENSE.md` is the CC0 licence file (marks excluded, see `TRADEMARKS.md`); the world sheet is
+`docs/FICHA-MUNDO-TABLETOP-RPG-ROOM.md`. Tests: `test/mundo-nuevo-tabletop-rpg-room.test.ts`.

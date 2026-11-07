@@ -1,0 +1,6 @@
+{"t":"2026-10-30T09:20:47.808Z","v":1,"op":"k","key":"siguiente","value":2}
+{"t":"2026-10-30T09:20:47.809Z","v":1,"op":"s","key":"e1","value":{"tipo":"fuego","x":-2.6,"y":1,"z":-4.5,"ancho":1,"largo":1,"alto":1,"tamano":0.45,"giro":0,"color":15705367,"intensidad":1,"nombre":"West brazier"},"at":{"x":-2.6,"z":-4.5}}
+{"t":"2026-10-30T09:20:47.809Z","v":1,"op":"k","key":"a:e1","value":{"autor":null,"nombre":null,"cuando":"2026-10-30T09:20:47.809Z"}}
+{"t":"2026-10-30T09:20:48.058Z","v":1,"op":"k","key":"siguiente","value":3}
+{"t":"2026-10-30T09:20:48.058Z","v":1,"op":"s","key":"e2","value":{"tipo":"fuego","x":2.6,"y":1,"z":-4.5,"ancho":1,"largo":1,"alto":1,"tamano":0.45,"giro":0,"color":15705367,"intensidad":1,"nombre":"East brazier"},"at":{"x":2.6,"z":-4.5}}
+{"t":"2026-10-30T09:20:48.058Z","v":1,"op":"k","key":"a:e2","value":{"autor":null,"nombre":null,"cuando":"2026-10-30T09:20:48.058Z"}}

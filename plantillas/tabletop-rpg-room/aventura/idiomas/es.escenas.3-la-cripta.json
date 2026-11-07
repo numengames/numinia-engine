@@ -1,0 +1,17 @@
+{
+  "schema": "numinia-engine/escena@1",
+  "nombre": "La cripta",
+  "preset": "noche",
+  "entorno": {
+    "tono": {
+      "exposicion": 0.4
+    },
+    "niebla": {
+      "cerca": 2,
+      "lejos": 25,
+      "color": "#0a0a0f",
+      "delCielo": false
+    }
+  },
+  "narracion": "El aire está frío y quieto. Algo se mueve más allá de la luz."
+}

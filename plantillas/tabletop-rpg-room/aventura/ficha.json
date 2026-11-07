@@ -1,0 +1,9 @@
+{
+  "formato": "ficha@1",
+  "nombre": "Tabletop RPG Room",
+  "version": "1.0.0",
+  "creador": "Numen Games",
+  "dueno": "pending",
+  "descripcion": "A round Greek-style hall (a tholos) for five players and whoever runs the game: an olive-wood table with the map at its centre, seats you really sit in, a director's staff, a voice bubble that only the table hears, a gear dice tower rolled by the server (everyone sees the same roll) and scenes that change the light, the fog and the sky between the arches. Senet, the house game director, teaches anyone who has never played.",
+  "notas": "The engine's «tabletop-rpg-room» template (plantillas/tabletop-rpg-room), chosen with MOTOR_PLANTILLA=tabletop-rpg-room: it brings the built hall (datos/) with it. The first public version of the former «Sala de rol para 5 (el tholos)». `version` is the semantic version of this world; `creador` and `dueno` follow the world sheet (docs/FICHA-MUNDO-TABLETOP-RPG-ROOM.md). No `tema`: the house look. Change the name and the description whenever you like."
+}

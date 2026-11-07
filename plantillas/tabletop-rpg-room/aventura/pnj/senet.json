@@ -1,0 +1,233 @@
+{
+  "formato": "pnj@1",
+  "id": "senet",
+  "nombre": "Senet",
+  "descripcion": "The house game director (the Exegetes). Looks after the table and teaches anyone who has never played how to roll.",
+  "apariencia": {
+    "modelo": "047f5e5fb3bb6d378bd1df16ca6137f2a596c99b3a1b5690b4020c05aaf6f319",
+    "escala": 0.5
+  },
+  "posicion": {
+    "x": 4.358,
+    "z": 1.761
+  },
+  "giro": 68,
+  "radio": 3,
+  "dialogo": {
+    "entradas": [
+      {
+        "si": {
+          "mision": "aprendiz",
+          "estado": "disponible"
+        },
+        "nodo": "bienvenida"
+      },
+      {
+        "si": {
+          "mision": "aprendiz",
+          "estado": "activa",
+          "paso": "leer"
+        },
+        "nodo": "leer"
+      },
+      {
+        "si": {
+          "mision": "aprendiz",
+          "estado": "activa"
+        },
+        "nodo": "aprendiz"
+      },
+      {
+        "si": {
+          "mision": "espejo",
+          "estado": "activa",
+          "paso": "entregar"
+        },
+        "nodo": "fragmento"
+      },
+      {
+        "si": {
+          "mision": "espejo",
+          "estado": "activa"
+        },
+        "nodo": "buscando"
+      },
+      {
+        "si": {
+          "mision": "espejo",
+          "estado": "disponible"
+        },
+        "nodo": "espejo"
+      },
+      {
+        "si": {
+          "mision": "espejo",
+          "estado": "hecha"
+        },
+        "nodo": "reserva"
+      },
+      {
+        "nodo": "hola"
+      }
+    ],
+    "nodos": {
+      "bienvenida": {
+        "texto": "Welcome to the tholos. Here the game director is neither a judge nor an enemy: they set the scenes, give the world a voice and leave gaps for you to fill. Never played before? I can teach you in ten minutes.",
+        "opciones": [
+          {
+            "texto": "Yes, teach me.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "aprendiz"
+            },
+            "ir": "sientate"
+          },
+          {
+            "texto": "Not now.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "sientate": {
+        "texto": "First, the table: sit wherever you like, except the high seat to the north, which belongs to whoever runs the game. Your sheet is waiting for you on the table.",
+        "opciones": [
+          {
+            "texto": "On my way.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "aprendiz": {
+        "texto": "Pick up your sheet from the table and come to the gear tower: roll your pool, three six-sided dice. Press 3d6 on the tower, or type /tirar 3d6 in the chat. The server rolls it: we all see the same thing.",
+        "opciones": [
+          {
+            "texto": "I'll go and roll.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "leer": {
+        "texto": "Have you rolled yet? Here the dice are not added up: every 6 is a success and every 1 a failure. One 1 is forgiven; each extra 1 cancels a 6. Three successes, a total success. No sixes and no ones: a failure with no consequences. The roll card tells you which.",
+        "opciones": [
+          {
+            "texto": "Understood: sixes count, ones weigh.",
+            "si": {
+              "mision": "aprendiz",
+              "estado": "activa",
+              "paso": "leer"
+            },
+            "accion": {
+              "tipo": "avanzar_paso",
+              "mision": "aprendiz"
+            },
+            "ir": "aprendido"
+          },
+          {
+            "texto": "Let me roll again.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "aprendido": {
+        "texto": "Now you can read the dice. Remember: the fiction leads to the dice, and the dice lead back to the fiction. If you want a real story, ask me about the mirror.",
+        "opciones": [
+          {
+            "texto": "What mirror?",
+            "ir": "espejo"
+          },
+          {
+            "texto": "Thanks, Senet.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "espejo": {
+        "texto": "In the Ouroboros District memory is warping: streets the maps deny, songs that lose their verses. The researcher Drusa Malter found a Shattered Mirror in a storeroom of the Museum of Arts and Relics, and vanished. One shard has reached this place. Will you look for it?",
+        "opciones": [
+          {
+            "texto": "I'll look for it.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "espejo"
+            }
+          },
+          {
+            "texto": "Another day.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "buscando": {
+        "texto": "The shard glows faintly: look for it beside the olive tree, to the south-west of the hall, near the wall. Don't stare at it for long.",
+        "opciones": [
+          {
+            "texto": "I'll keep looking.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "fragmento": {
+        "texto": "Have you got it? Careful: it does not give back only your own reflection.",
+        "opciones": [
+          {
+            "texto": "Here is the mirror shard.",
+            "si": {
+              "mision": "espejo",
+              "estado": "activa",
+              "paso": "entregar",
+              "tiene": "fragmento-espejo"
+            },
+            "accion": {
+              "tipo": "entregar",
+              "mision": "espejo"
+            },
+            "ir": "reserva"
+          },
+          {
+            "texto": "Not yet.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "reserva": {
+        "texto": "It is a Conflict Piece: an object you pick up and carry, and which can appear wherever the fiction asks for it. When whoever runs the game opens «The Broken Mirror» at this table, you will already be carrying one.",
+        "opciones": [
+          {
+            "texto": "Until the next session.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "hola": {
+        "texto": "The table is open. Whoever runs the game sets the scenes; the tower rolls the dice. The rest is yours.",
+        "opciones": [
+          {
+            "texto": "Goodbye.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "notas": "Template of the tabletop room. Senet is the house game-director agent; here scripted and with no model (zero cost). Stands next to the dice tower, facing the table. Gives «The Apprentice's Table» and opens «The Broken Mirror». Never rolls for anyone: the server rolls the dice."
+}

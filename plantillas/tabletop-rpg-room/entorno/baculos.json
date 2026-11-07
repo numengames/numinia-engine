@@ -1,0 +1,12 @@
+{
+  "schema": "numinia-engine/baculos@1",
+  "activa": true,
+  "cantidad": 1,
+  "sitios": [
+    {
+      "x": 6.08,
+      "y": 0,
+      "z": 0
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "schema": "numinia-engine/asientos@1",
+  "activa": true,
+  "sitios": [
+    {
+      "id": "m",
+      "x": 0,
+      "y": 0,
+      "z": -2.3,
+      "mira": 0,
+      "etiqueta": "The director's seat"
+    },
+    {
+      "id": "j1",
+      "x": 1.992,
+      "y": 0,
+      "z": -1.15,
+      "mira": -60,
+      "etiqueta": "Player 1"
+    },
+    {
+      "id": "j2",
+      "x": 1.992,
+      "y": 0,
+      "z": 1.15,
+      "mira": -120,
+      "etiqueta": "Player 2"
+    },
+    {
+      "id": "j3",
+      "x": 0,
+      "y": 0,
+      "z": 2.3,
+      "mira": 180,
+      "etiqueta": "Player 3"
+    },
+    {
+      "id": "j4",
+      "x": -1.992,
+      "y": 0,
+      "z": 1.15,
+      "mira": 120,
+      "etiqueta": "Player 4"
+    },
+    {
+      "id": "j5",
+      "x": -1.992,
+      "y": 0,
+      "z": -1.15,
+      "mira": 60,
+      "etiqueta": "Player 5"
+    }
+  ]
+}

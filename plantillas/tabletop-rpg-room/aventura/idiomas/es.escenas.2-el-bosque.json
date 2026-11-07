@@ -1,0 +1,13 @@
+{
+  "schema": "numinia-engine/escena@1",
+  "nombre": "El bosque",
+  "preset": "nublado",
+  "entorno": {
+    "niebla": {
+      "cerca": 10,
+      "lejos": 90,
+      "color": "#6f7f6a",
+      "delCielo": false
+    }
+  }
+}
