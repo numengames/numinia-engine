@@ -2384,6 +2384,17 @@ Hermes Desktop pone la página en un `SandboxedFrame` con `sandbox="allow-script
 
 **Qué no hay.** Ventanas emergentes, monedero y navegación del padre (el marco no puede abrirlos); `allow-same-origin`; IndexedDB. El plugin no debe pedirlos.
 
+## Sucesos (v1, Y48): a world event that announces itself, advances alone and rewards everyone
+
+`features/sucesos` is the world-event piece (not the facts book `evento@1` of `packages/server/src/eventos.ts`). The server decides everything; the page only shows and asks.
+- **World file** (`entorno/sucesos.json`, `numinia-engine/sucesos@1`): `{ sucesos: [{ id, nombre, x, z, y?, radio?, anuncio, aviso?, duracion, ayuda?, ayudaMax?, recompensa: { texto, cosa?, cuanto? }, final?, siguiente?: [{ id, peso }], empieza? }] }`. `duracion` = seconds it takes with NOBODY there; `ayuda` = % of speed each person in the zone adds (25 if missing) up to `ayudaMax` people (8); `aviso` = seconds between the announcement and the start (10). Without the file the piece does nothing (simulation fingerprint untouched). Every bad line is left out with its path and how to fix it.
+- **Phases**: dormido → anunciado → curso → dormido. **There is no failure**: nobody is needed to finish, and when it ends the result chains another event (`siguiente`, weighted draw from `core`'s integer RNG, mulberry32 with a seed; same file and same seed = same chain). An event that points to itself is a weather cycle.
+- **Taking part** = standing in the zone (no gesture: keyboard, phone, VR or an agent do it the same way). **The whole reward** goes to every participant still connected, the same for all (never split). Progress is in millionths (`PROGRESO_ESCALA`); per second it grows by `floor(SCALE·(100+ayuda·k)/(100·duracion))`.
+- **Verbs**: `mirar {id}` (answers only to you) and `lanzar {id}` (only who directs or rules; wakes a sleeping event). Chat: `/evento <id>` and `/evento <id> lanzar`. The event's card carries `interact` (E: see what is going on).
+- **Events**: `anuncio`, `hito` (25/50/75 %), `termina` to whoever is near (voice + bell); `recompensa` and `estado` to one person; `otorga {id, quien, cosa, cuanto}` and `cadena {id, siguiente, participantes}` for the server only (`api.listen("sucesos", "otorga")`: inventory, goods or the cable). Today nothing hands out the `cosa` by itself (Y48c).
+- **Not yet**: the Entorno switch and panel (Y48b), persistence across restarts and periodic repetition (Y48d). **Tests**: `test/sucesos.test.ts` (12).
+- **Page**: no client part in the first-load bundle (the page-weight cap `first_load_br_bytes` has no headroom left and a client part costs about 1 kB): the page hears the notices through the announce path and sends the verbs from the server's catalog. `features/sucesos/client.ts` (list, last notices, one method per verb) is for the lazy panel of Y48b.
+
 ## Avatares propios del mundo (E3): CC0 o CC BY con su crédito, solo en ese mundo
 
 Un mundo (un evento, un patrocinador) puede traer **sus propios avatares** en su zip y que su gente los elija en el selector de ese mundo, sin tocar el catálogo de la casa (`activos/avatares/catalogo.json`, que viaja a todos los mundos y sigue siendo solo CC0). Es una pieza que cualquier mundo enciende con datos (R-1): sin el fichero, todo funciona como antes.
