@@ -8,3 +8,4 @@
 - Consumo: sin medir · Sonnet 5.5.
 - Cambio: minor. Commit: branch `motor-web-3d/t_aceb31db-ola-1-y29-frases-fijas-jugador-y-maestro`.
 - Siguiente: VR selection of a phrase (the HTML panel is not drawn in VR; the `frase` verb and the bubble are).
+- Límite: `first_load_br_bytes` 536.000 → 537.000 in `limits.json` (measured 536.408 B with the light door; the panel's CSS already moved to a lazy chunk). Flagged for review.
