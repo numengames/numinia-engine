@@ -105,6 +105,7 @@ import { icono } from "./iconos.ts";
 import { rotularBoton } from "./menu-secciones-ui.ts"; // v2 paridad: the bar reads the one list of sections
 import { nombreDe, seccion, tituloDe } from "../../packages/render/src/menu-secciones.ts";
 import { gestosDePagina } from "../../features/gestos/client.ts";
+import { cargar as cargarFrases } from "../../features/frases/client.ts"; // Y29: fixed phrases — the light door; its logic and panel load after the first frame
 import { FAVORITOS_INICIALES } from "../../features/gestos/movimientos.ts";
 import { montarRueda } from "./rueda.ts";
 import { montarXR } from "./xr.ts";
@@ -227,6 +228,7 @@ const session = new ClientSession(transport, {
     },
     // V1: every announced event reaches screen readers (polite; safety = assertive). V3 adds the engine's own voice.
     announce: (a) => {
+      if (a.feature === "frases" && a.event === "dicha") return; // Y29: the client part says it again in this page's language («traducida»), so the server's id-only line is not read
       if (a.feature === "chat") return; // J3: the chat box's own list (role=log, polite) reads the chat
       if (a.feature === "director" && a.event === "narracion") return; // N6: the narrator's banner (a live region) reads it
       if (a.feature === "misiones" && a.event === "completada") return; // U14 (6): the «Misión completada» banner (a live region) reads it
@@ -346,6 +348,7 @@ const cable = montarCablePuerta({ constructor, disparadores, aqui: () => (sessio
 const cerradurasPagina = montarCerradura({ cerradura: cerraduras });
 // ---- U14: video controls — pause/resume (E, click or the controller in VR) and my own volume (slider, flat screen) ----
 const videoMandos = montarVideoMandos({ lista: () => constructor.lista(), controlVideo: (id) => view.controlVideo(id), panel: document.getElementById("video-mandos")! });
+alPrimerCuadro(() => cargarFrases().then((p) => import("./frases.ts").then((m) => m.montarFrases(p.frasesDePagina)))); // Y29: the fixed-phrases panel, after the first frame
 alPrimerCuadro(() => import("./entorno.ts").then((m) => m.montarEntorno(ambiente, elementos, view, interruptorNaturaleza, constructorUI.cajon("entorno"), interruptorBase, constructor, [
   { id: "baculo", etiqueta: "Báculo del Director", titulo: "Encender o apagar el báculo del Director de juego de este mundo (quien lo lleva dirige) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en baculos.json. / Turn the Game Director's staff on or off for the whole world.", encendida: "Báculo del Director encendido.", apagada: "Báculo del Director apagado.", interruptor: interruptorBaculo },
   { id: "asientos", etiqueta: "Asientos", titulo: "Encender o apagar los asientos de este mundo («E» junto a un asiento y te sientas) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en asientos.json. / Turn the seats on or off for the whole world.", encendida: "Asientos encendidos.", apagada: "Asientos apagados.", interruptor: interruptorAsiento },
