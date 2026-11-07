@@ -8,6 +8,7 @@ import avatar from "./avatar/server.ts"; // H10: your avatar — house or upload
 import chat from "./chat/server.ts";
 import misiones from "./misiones/server.ts"; // J5: two features, one engine: people (pnj) and quests (misiones)
 import entorno from "./entorno/server.ts";
+import franjas from "./franjas/server.ts"; // Y37: the band of the day (dawn, day, dusk, night), read from entorno's clock; announces each change once while the cycle runs
 import director from "./director/server.ts"; // N6: the Game Director (scenes, narration, summons)
 import elementos from "./elementos/server.ts";
 import pesca from "./pesca/server.ts"; // v1: fishing (the server decides the bite, the fish and the catch)
@@ -43,5 +44,5 @@ import sonido from "./sonido/server.ts"; // S6: the catalogue of house sounds (2
 import interruptores from "./funciones/server.ts"; // f1: feature switches (normas, dardos, pesca) the world's builder flips live; kept in funciones.json
 import espejo from "./espejo/server.ts"; // mundo-hermes: a mirror of objects that live outside (a world turns it on with espejo.json; inert without it)
 import fichaMundo from "./ficha-mundo/server.ts"; // H7: the world's title, picture, default avatar and people limit — set by its owner, kept in aventura/ficha.json
-const funciones: ServerPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, vuelo, naturaleza, espacioBase, fichaMundo, interruptores, espejo, espacios, sucesos, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido];
+const funciones: ServerPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, franjas, elementos, pesca, lucha, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, vuelo, naturaleza, espacioBase, fichaMundo, interruptores, espejo, espacios, sucesos, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido];
 export default funciones;

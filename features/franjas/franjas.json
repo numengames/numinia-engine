@@ -1,0 +1,26 @@
+{
+  "schema": "numinia-engine/franjas@1",
+  "_doc": "Time-of-day bands. `desde` = the world hour (0-24, multiples of 0.05) at which each band starts; a band lasts until the next one starts, around the clock. `textos`: one block per language, same keys; `idioma` picks the block a server says aloud (default en). Neutral wording on purpose: lore is the world's to add.",
+  "idioma": "en",
+  "desde": { "amanecer": 5, "dia": 7, "ocaso": 18, "noche": 20 },
+  "textos": {
+    "en": {
+      "siguiente": "Next: {nombre} at {hora}.",
+      "franjas": {
+        "amanecer": { "nombre": "Dawn", "anuncio": "Dawn breaks.", "estado": "It is dawn." },
+        "dia": { "nombre": "Day", "anuncio": "The day begins.", "estado": "It is day." },
+        "ocaso": { "nombre": "Dusk", "anuncio": "Dusk falls.", "estado": "It is dusk." },
+        "noche": { "nombre": "Night", "anuncio": "Night falls.", "estado": "It is night." }
+      }
+    },
+    "es": {
+      "siguiente": "Después: {nombre} a las {hora}.",
+      "franjas": {
+        "amanecer": { "nombre": "Amanecer", "anuncio": "Amanece.", "estado": "Es el amanecer." },
+        "dia": { "nombre": "Día", "anuncio": "Empieza el día.", "estado": "Es de día." },
+        "ocaso": { "nombre": "Ocaso", "anuncio": "Atardece.", "estado": "Es el ocaso." },
+        "noche": { "nombre": "Noche", "anuncio": "Cae la noche.", "estado": "Es de noche." }
+      }
+    }
+  }
+}
