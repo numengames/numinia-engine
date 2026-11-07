@@ -2,7 +2,7 @@
   "formato": "pnj@1",
   "id": "lumen",
   "nombre": "Lumen",
-  "descripcion": "La guardiana del taller: te enseña a construir de noche, un botón cada vez.",
+  "descripcion": "The guardian of the workshop: she teaches you to build at night, one button at a time.",
   "apariencia": {
     "modelo": "047f5e5fb3bb6d378bd1df16ca6137f2a596c99b3a1b5690b4020c05aaf6f319",
     "escala": 0.5
@@ -126,17 +126,17 @@
     ],
     "nodos": {
       "da-1": {
-        "texto": "Es de noche y esta plaza está a oscuras. Yo soy Lumen. Quiero que el farolillo se encienda cuando tú lo decidas, y te enseño cómo. Primero: pulsa Construir; te lo señalo con una flecha.",
+        "texto": "It is night and this plaza is dark. I am Lumen. I want the lantern to light up when you decide, and I will show you how. First: press Build («Construir»); I will point it out with an arrow.",
         "opciones": [
           {
-            "texto": "Vale, vamos.",
+            "texto": "Okay, let's go.",
             "accion": {
               "tipo": "dar_mision",
               "mision": "abre-el-taller"
             }
           },
           {
-            "texto": "Ahora no.",
+            "texto": "Not now.",
             "accion": {
               "tipo": "despedir"
             }
@@ -144,10 +144,10 @@
         ]
       },
       "pista-1": {
-        "texto": "Sigue con lo tuyo: Pulsa el botón Construir: el mundo tiene un modo construir y un modo jugar.",
+        "texto": "Carry on: Press the Build («Construir») button: the world has a build mode and a play mode.",
         "opciones": [
           {
-            "texto": "Vale.",
+            "texto": "Okay.",
             "accion": {
               "tipo": "despedir"
             }
@@ -155,17 +155,17 @@
         ]
       },
       "da-2": {
-        "texto": "Bien. Ahora, en Añadir hay una biblioteca: arrastra un Farolillo a la plaza. Aprenderás a colocar.",
+        "texto": "Good. Now, in Add («Añadir») there is a library: drag a Lantern («Farolillo») into the plaza. You will learn to place things.",
         "opciones": [
           {
-            "texto": "Vale, vamos.",
+            "texto": "Okay, let's go.",
             "accion": {
               "tipo": "dar_mision",
               "mision": "pon-un-farolillo"
             }
           },
           {
-            "texto": "Ahora no.",
+            "texto": "Not now.",
             "accion": {
               "tipo": "despedir"
             }
@@ -173,10 +173,10 @@
         ]
       },
       "pista-2": {
-        "texto": "Sigue con lo tuyo: Abre Añadir y coloca un farolillo en la plaza.",
+        "texto": "Carry on: Open Add («Añadir») and place a lantern in the plaza.",
         "opciones": [
           {
-            "texto": "Vale.",
+            "texto": "Okay.",
             "accion": {
               "tipo": "despedir"
             }
@@ -184,17 +184,17 @@
         ]
       },
       "da-3": {
-        "texto": "Muévelo con las flechas de colores (X roja, Y verde, Z azul) y gíralo. Si te equivocas, deshaz.",
+        "texto": "Move it with the coloured arrows (X red, Y green, Z blue) and turn it. If you make a mistake, undo.",
         "opciones": [
           {
-            "texto": "Vale, vamos.",
+            "texto": "Okay, let's go.",
             "accion": {
               "tipo": "dar_mision",
               "mision": "muevelo"
             }
           },
           {
-            "texto": "Ahora no.",
+            "texto": "Not now.",
             "accion": {
               "tipo": "despedir"
             }
@@ -202,10 +202,10 @@
         ]
       },
       "pista-3": {
-        "texto": "Sigue con lo tuyo: Mueve el farolillo con las flechas de colores y gíralo.",
+        "texto": "Carry on: Move the lantern with the coloured arrows and turn it.",
         "opciones": [
           {
-            "texto": "Vale.",
+            "texto": "Okay.",
             "accion": {
               "tipo": "despedir"
             }
@@ -213,17 +213,17 @@
         ]
       },
       "da-4": {
-        "texto": "Ahora apágalo: en su ficha, márcalo oculto al jugar. Tú lo sigues viendo; quien juega, no.",
+        "texto": "Now switch it off: in its card, mark it hidden while playing. You still see it; whoever plays does not.",
         "opciones": [
           {
-            "texto": "Vale, vamos.",
+            "texto": "Okay, let's go.",
             "accion": {
               "tipo": "dar_mision",
               "mision": "apagalo"
             }
           },
           {
-            "texto": "Ahora no.",
+            "texto": "Not now.",
             "accion": {
               "tipo": "despedir"
             }
@@ -231,10 +231,10 @@
         ]
       },
       "pista-4": {
-        "texto": "Sigue con lo tuyo: En la ficha del farolillo, márcalo para que no se vea al jugar.",
+        "texto": "Carry on: In the lantern's card, mark it so it is not seen while playing.",
         "opciones": [
           {
-            "texto": "Vale.",
+            "texto": "Okay.",
             "accion": {
               "tipo": "despedir"
             }
@@ -242,17 +242,17 @@
         ]
       },
       "da-5": {
-        "texto": "Hay un cable ya hecho: abre el panel Cable. «Cuando pasa ESTO, pasa AQUELLO». Pulsa Probar en el Botón rojo.",
+        "texto": "There is a cable already made: open the Cable panel. «When THIS happens, THAT happens». Press Test («Probar») on the Red button.",
         "opciones": [
           {
-            "texto": "Vale, vamos.",
+            "texto": "Okay, let's go.",
             "accion": {
               "tipo": "dar_mision",
               "mision": "mira-el-cable"
             }
           },
           {
-            "texto": "Ahora no.",
+            "texto": "Not now.",
             "accion": {
               "tipo": "despedir"
             }
@@ -260,10 +260,10 @@
         ]
       },
       "pista-5": {
-        "texto": "Sigue con lo tuyo: Abre el panel Cable, lee el cable de muestra y pulsa el Botón rojo.",
+        "texto": "Carry on: Open the Cable panel, read the sample cable and press the Red button.",
         "opciones": [
           {
-            "texto": "Vale.",
+            "texto": "Okay.",
             "accion": {
               "tipo": "despedir"
             }
@@ -271,17 +271,17 @@
         ]
       },
       "da-6": {
-        "texto": "Hazlo tú: en el panel Cable, «+ Nuevo cable». Eliges cuándo y qué.",
+        "texto": "Now you do it: in the Cable panel, «+ New cable» («+ Nuevo cable»). You choose when and what.",
         "opciones": [
           {
-            "texto": "Vale, vamos.",
+            "texto": "Okay, let's go.",
             "accion": {
               "tipo": "dar_mision",
               "mision": "tu-primer-cable"
             }
           },
           {
-            "texto": "Ahora no.",
+            "texto": "Not now.",
             "accion": {
               "tipo": "despedir"
             }
@@ -289,10 +289,10 @@
         ]
       },
       "pista-6": {
-        "texto": "Sigue con lo tuyo: Crea tu primer cable con «+ Nuevo cable».",
+        "texto": "Carry on: Create your first cable with «+ New cable» («+ Nuevo cable»).",
         "opciones": [
           {
-            "texto": "Vale.",
+            "texto": "Okay.",
             "accion": {
               "tipo": "despedir"
             }
@@ -300,17 +300,17 @@
         ]
       },
       "da-7": {
-        "texto": "Cambia el botón por una zona: el cable salta al entrar en el círculo.",
+        "texto": "Swap the button for a zone: the cable fires when someone steps into the circle.",
         "opciones": [
           {
-            "texto": "Vale, vamos.",
+            "texto": "Okay, let's go.",
             "accion": {
               "tipo": "dar_mision",
               "mision": "cuando-zona"
             }
           },
           {
-            "texto": "Ahora no.",
+            "texto": "Not now.",
             "accion": {
               "tipo": "despedir"
             }
@@ -318,10 +318,10 @@
         ]
       },
       "pista-7": {
-        "texto": "Sigue con lo tuyo: Cambia el botón por una zona: «entrar en este círculo».",
+        "texto": "Carry on: Swap the button for a zone: «enter this circle».",
         "opciones": [
           {
-            "texto": "Vale.",
+            "texto": "Okay.",
             "accion": {
               "tipo": "despedir"
             }
@@ -329,17 +329,17 @@
         ]
       },
       "da-8": {
-        "texto": "Ahora cuánto: pon unos segundos de espera y marca «un solo uso». El servidor vigila: el cable no hace trampas.",
+        "texto": "Now how much: set a few seconds of wait and tick «single use». The server watches: the cable cannot cheat.",
         "opciones": [
           {
-            "texto": "Vale, vamos.",
+            "texto": "Okay, let's go.",
             "accion": {
               "tipo": "dar_mision",
               "mision": "cuanto-espera"
             }
           },
           {
-            "texto": "Ahora no.",
+            "texto": "Not now.",
             "accion": {
               "tipo": "despedir"
             }
@@ -347,10 +347,10 @@
         ]
       },
       "pista-8": {
-        "texto": "Sigue con lo tuyo: Pon una espera de unos segundos y marca «un solo uso».",
+        "texto": "Carry on: Set a wait of a few seconds and tick «single use».",
         "opciones": [
           {
-            "texto": "Vale.",
+            "texto": "Okay.",
             "accion": {
               "tipo": "despedir"
             }
@@ -358,17 +358,17 @@
         ]
       },
       "da-9": {
-        "texto": "Un cuándo, muchos qué: añade a tu cable otra acción (suena, teletransporta, abre un enlace…).",
+        "texto": "One WHEN, many WHATs: add another action to your cable (play a sound, teleport, open a link…).",
         "opciones": [
           {
-            "texto": "Vale, vamos.",
+            "texto": "Okay, let's go.",
             "accion": {
               "tipo": "dar_mision",
               "mision": "varios-que"
             }
           },
           {
-            "texto": "Ahora no.",
+            "texto": "Not now.",
             "accion": {
               "tipo": "despedir"
             }
@@ -376,10 +376,10 @@
         ]
       },
       "pista-9": {
-        "texto": "Sigue con lo tuyo: Añade a tu cable otra acción: suena, teletransporta, abre un enlace o da paso de misión.",
+        "texto": "Carry on: Add another action to your cable: play a sound, teleport, open a link or advance a mission.",
         "opciones": [
           {
-            "texto": "Vale.",
+            "texto": "Okay.",
             "accion": {
               "tipo": "despedir"
             }
@@ -387,17 +387,17 @@
         ]
       },
       "da-10": {
-        "texto": "Último truco: que tu cable arranque con la señal de otra pieza. Así nacen las escape rooms.",
+        "texto": "Last trick: make your cable start from another piece's signal. That is how escape rooms are born.",
         "opciones": [
           {
-            "texto": "Vale, vamos.",
+            "texto": "Okay, let's go.",
             "accion": {
               "tipo": "dar_mision",
               "mision": "encadena"
             }
           },
           {
-            "texto": "Ahora no.",
+            "texto": "Not now.",
             "accion": {
               "tipo": "despedir"
             }
@@ -405,10 +405,10 @@
         ]
       },
       "pista-10": {
-        "texto": "Sigue con lo tuyo: Haz que un cable arranque cuando otra pieza avise (una señal).",
+        "texto": "Carry on: Make a cable start when another piece gives notice (a signal).",
         "opciones": [
           {
-            "texto": "Vale.",
+            "texto": "Okay.",
             "accion": {
               "tipo": "despedir"
             }
@@ -416,17 +416,17 @@
         ]
       },
       "da-11": {
-        "texto": "Reto final: escribe una misión de dos pasos con tu cable como segundo paso, y cuéntamela.",
+        "texto": "Final challenge: write a two-step mission with your cable as the second step, and tell me about it.",
         "opciones": [
           {
-            "texto": "Vale, vamos.",
+            "texto": "Okay, let's go.",
             "accion": {
               "tipo": "dar_mision",
               "mision": "tu-mini-mision"
             }
           },
           {
-            "texto": "Ahora no.",
+            "texto": "Not now.",
             "accion": {
               "tipo": "despedir"
             }
@@ -434,17 +434,17 @@
         ]
       },
       "pista-11": {
-        "texto": "Sigue con lo tuyo: Escribe una misión de 2 pasos con tu cable como segundo paso y enséñasela a Lumen.",
+        "texto": "Carry on: Write a 2-step mission with your cable as the second step and show it to Lumen.",
         "opciones": [
           {
-            "texto": "Aquí está mi mini-misión.",
+            "texto": "Here is my mini-mission.",
             "accion": {
               "tipo": "avanzar_paso",
               "mision": "tu-mini-mision"
             }
           },
           {
-            "texto": "Vale.",
+            "texto": "Okay.",
             "accion": {
               "tipo": "despedir"
             }
@@ -452,10 +452,10 @@
         ]
       },
       "final": {
-        "texto": "Lo has hecho: ya eres Constructor. Llévate la plaza a tu mundo con tu primer cable dentro.",
+        "texto": "You did it: you are a Builder now. Take the plaza to your own world with your first cable inside.",
         "opciones": [
           {
-            "texto": "Gracias, Lumen.",
+            "texto": "Thank you, Lumen.",
             "accion": {
               "tipo": "despedir"
             }
@@ -463,10 +463,10 @@
         ]
       },
       "hola": {
-        "texto": "Soy Lumen, guardiana del taller. Si tienes una misión en marcha, mírala en el libro (J): enseña un solo botón y avanza sola cuando lo usas. Vuelve a hablarme al acabarla.",
+        "texto": "I am Lumen, guardian of the workshop. If you have a mission under way, look at it in the book (J): it shows a single button and moves on by itself when you use it. Talk to me again when you finish it.",
         "opciones": [
           {
-            "texto": "Adiós.",
+            "texto": "Goodbye.",
             "accion": {
               "tipo": "despedir"
             }
@@ -475,5 +475,5 @@
       }
     }
   },
-  "notas": "Cerca de la aparición (0,0). Da cada misión al hablarle al acabar la anterior; en la 11 revisa el reto (sin IA)."
+  "notas": "Near the spawn point (0,0). She gives each mission when you talk to her after finishing the previous one; in the 11th she checks the challenge (no AI)."
 }

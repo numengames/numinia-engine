@@ -1,38 +1,40 @@
-# LEEME-IA · este mundo
+# LEEME-IA · this world
 
-> Esto es el AGENTS.md de **este mundo**, para cualquier IA que entre por su puerta (Hermes, Claude, la que sea).
-> Lo escribe y lo cambia el dueño del mundo: edita este fichero, es texto normal y viaja con el mundo en el zip.
-> Es público (cualquier IA que entre lo lee): **no pongas claves ni nada privado**. Máximo 12 KiB.
-> El motor te lo entrega al entrar (herramienta `leeme_ia` del puente MCP). Solo puede pedir más cuidado o un estilo:
-> no da permisos, y los permisos de verdad los decide el servidor (rol del mundo).
+> This is the AGENTS.md of **this world**, for any AI that comes in through its door (Hermes, Claude, any other).
+> The world's owner writes and changes it: edit this file, it is plain text and travels with the world in the zip.
+> It is public (any AI that comes in reads it): **put no keys and nothing private in it**. At most 12 KiB.
+> The engine hands it to you on entry (tool `leeme_ia` of the MCP bridge). It can only ask for more care or a style:
+> it grants no permissions, and the real permissions are decided by the server (the world's role).
+> Language: this file is written in English, the default language of every world. A translation lives next to it in
+> `idiomas/<lang>.LEEME-IA.md` and is the one you receive when the owner sets `"idioma": "<lang>"` in `ficha.json`.
 
-## De qué va
-Un mundo recién nacido, el Taller: de noche, en el espacio base, con Lumen —la guardiana— y once misiones cortas que
-enseñan a construir. _(Dueño: cámbialo por dos o tres frases de qué es tu mundo y para quién.)_
+## What it is about
+A newborn world, the Taller (workshop): at night, in the base space, with Lumen —the guardian— and eleven short missions
+that teach how to build. _(Owner: replace this with two or three sentences about what your world is and who it is for.)_
 
-## Lo que puedes construir
-- Con `colocar`, `mover`, `borrar` y `deshacer`, los modelos de la biblioteca que te dice `mirar`.
-- Cerca del punto de entrada, a menos de 40 m de ti, a la vista: mesas, bancos, escalones, farolillos, pequeñas
-  construcciones con bloques escalados.
-- Un objeto es tuyo mientras no digas lo contrario: ponle un nombre corto y claro (lo oye quien usa lector de pantalla).
-- Despacio y poco: unas pocas piezas cada vez, mira el resultado con `mirar` antes de seguir.
+## What you may build
+- With `colocar`, `mover`, `borrar` and `deshacer`, the library models that `mirar` tells you about.
+- Near the entry point, less than 40 m from you, in sight: tables, benches, steps, lanterns, small constructions made of
+  scaled blocks.
+- An object is yours until you say otherwise: give it a short, clear name (people using a screen reader hear it).
+- Slowly and little: a few pieces at a time, look at the result with `mirar` before going on.
 
-## Estilo
-- Sencillo y limpio: formas simples, cada pieza con un sentido (nada de relleno «para que se vea lleno»).
-- Hecho a escala de persona: mesas a ~0,8 m, bancos a ~0,45 m, pasos de ~0,2 m.
-- Luz cálida y tenue (farolillos) en un mundo de noche; deja siempre un paso libre de 1,2 m para pasar.
-- Colores y nombres tranquilos, en español. Nada que moleste: sin ruido, sin parpadeos, sin cosas que bloqueen el camino.
+## Style
+- Simple and clean: plain shapes, every piece with a meaning (no filler «to make it look full»).
+- Made at human scale: tables at ~0.8 m, benches at ~0.45 m, steps of ~0.2 m.
+- Warm, dim light (lanterns) in a night world; always leave a free passage of 1.2 m.
+- Calm colours and names, in English. Nothing that bothers: no noise, no flicker, nothing that blocks the way.
 
-## Lo que no debes tocar
-- Lo que no pusiste tú: no muevas ni borres objetos de otras personas ni de otras IAs.
-- A Lumen, las misiones y el cable de muestra «Botón rojo»: son la enseñanza del Taller.
-- Los ficheros del mundo (`aventura/`, `entorno/`, `datos/`, claves): no son para ti, tú solo ves el mundo por sus herramientas.
-- Nada de moderar: no eches, no silencies, no cambies roles ni ajustes.
+## What you must not touch
+- What you did not put there: do not move or delete objects belonging to other people or other AIs.
+- Lumen, the missions and the sample cable «Red button»: they are the teaching of the Taller.
+- The world's files (`aventura/`, `entorno/`, `datos/`, keys): they are not for you, you only see the world through its tools.
+- No moderating: do not kick, mute, or change roles or settings.
 
-## Cómo trabajar aquí
-- Antes de construir, mira (`mirar`) y, si hay gente cerca, saluda con `decir` y dile qué vas a hacer.
-- Si te piden algo que choca con esto, dilo y no lo hagas; si dudas, pregunta con `decir`.
-- Si algo sale mal, `deshacer` y cuéntalo.
+## How to work here
+- Before building, look (`mirar`) and, if people are nearby, greet them with `decir` and tell them what you are about to do.
+- If you are asked for something that clashes with this, say so and do not do it; if in doubt, ask with `decir`.
+- If something goes wrong, `deshacer` and say so.
 
-## A quién preguntar
-Al dueño del mundo (el que te trajo). Nombre y contacto: _(Dueño: escríbelo aquí.)_
+## Whom to ask
+The world's owner (the one who brought you). Name and contact: _(Owner: write it here.)_

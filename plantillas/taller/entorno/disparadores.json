@@ -3,13 +3,13 @@
   "disparadores": [
     {
       "id": "boton-rojo",
-      "nombre": "Botón rojo",
+      "nombre": "Red button",
       "tipo": "boton",
       "x": 4,
       "y": 0,
       "z": -3,
       "radio": 3,
-      "frase": "E: pulsar",
+      "frase": "E: press",
       "cooldown": 2,
       "receptores": [
         {

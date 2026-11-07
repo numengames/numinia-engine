@@ -1896,8 +1896,8 @@ avisos de la casa eran osciladores: pitidos sintetizados. Ahora son sonidos.
 
 `aventura/LEEME-IA.md` es el AGENTS.md **del mundo**: qué puede construir aquí una IA, en qué estilo y qué no tocar. Es markdown
 normal en la carpeta del mundo (viaja en el zip; lo reescribe el dueño o numinia.com por la puerta del mundo). Un mundo **nuevo** nace
-con el del Taller (`plantillas/taller/aventura/LEEME-IA.md`, que es también el modelo: «De qué va», «Lo que puedes construir»,
-«Estilo», «Lo que no debes tocar», «Cómo trabajar aquí», «A quién preguntar»). Reglas: público (nada de claves), ≤ 12 KiB
+con el del Taller (`plantillas/taller/aventura/LEEME-IA.md`, que es también el modelo: «What it is about», «What you may build»,
+«Style», «What you must not touch», «How to work here», «Whom to ask»; the Spanish translation keeps the old Spanish headings). Reglas: público (nada de claves), ≤ 12 KiB
 (`LEEME_IA_MAX`), UTF-8; solo puede pedir más cuidado o un estilo, nunca dar permisos (los decide el servidor).
 El servidor lo sirve en `GET /leeme-ia` (404 con el motivo si falta o está roto; `/status` dice `leemeIA: true` cuando hay); el puente
 MCP de `tools/mcp-mundo.ts` se lo entrega a la IA como herramienta `leeme_ia`, como recurso `numinia://mundo/leeme-ia` y en sus
@@ -2423,3 +2423,18 @@ Una app es una **carpeta de texto** que una persona o una IA lee y escribe con u
 - **Recarga en caliente, solo administración**: `PUT /apps/<id>/main.ts` (cuerpo = texto nuevo; se prueba en una caja desechable y, si no carga, **no se escribe nada**), `GET /apps/<id>/main.ts`, `POST /apps/<id>/recargar`; con `Authorization: Bearer` de un pase de numinia.com con `manage-organization` (o dueño) o el código de administración del mundo (5 códigos malos = 429 diez minutos). Sin pase ni código, la puerta está cerrada (404). Editar `main.ts` en disco (una IA con su editor de ficheros) también recarga (250 ms); un cambio que no carga se queda en el registro y sigue el script anterior.
 - **No hace** (todavía): la API de mundo para el script (estado, chat, jugadores), pintar el inspector (M22), meter una app en un mundo desde la página, portar scripts de Hyperfy solo, `.hyp` de varias apps a la vez.
 - **Pruebas**: `test/apps-ejecutar.test.ts` (11: el ejemplo corre, sin `process`/ficheros/reloj, corte por CPU informado, recarga en caliente por administración y por disco, 401/403/404/413/422/429, tope de scripts, límites) y `test/guion.test.ts` (la caja sola); `test/apps.test.ts` (16: ejemplo, no ejecuta, errores con ruta, hashes, licencias, topes, enlaces, `.hyp` real de ida, licencia desconocida, `GET /apps` y `/a/`).
+
+## Idiomas del mundo (R-1, primer trozo): inglés por defecto, traducciones como ficheros
+
+Las palabras de un mundo (ficha, personas, misiones, `LEEME-IA.md`) se escriben en **inglés**, el idioma por defecto de todo el sistema
+(Pablo, 2026-11-07: todo mundo público se puede jugar siempre en inglés). Una traducción es **un fichero más** (file over app), nunca código:
+`aventura/idiomas/<lang>.<carpeta>.<fichero>` (`es.misiones.01-abre-el-taller.json`, `es.pnj.lumen.json`) o `aventura/idiomas/<lang>.<fichero>`
+(`es.ficha.json`, `es.LEEME-IA.md`). Es el fichero **entero** traducido (mismos ids, pasos y números). El idioma del mundo es `idioma` en
+`ficha.json` (`"es"`, `"pt-br"`…; sin él, `en`): el servidor lee la traducción en lugar del fichero inglés, y si a un fichero le falta la suya
+lee el inglés. `ficha.json` traducida cambia `nombre` y `descripcion`; el panel de ajustes, al guardar un nombre, lo escribe también en la
+traducción activa. `node tools/aventura.ts <carpeta>` dice el idioma, las traducciones, y falla si una traducción no tiene su fichero inglés o
+cambia algo que no sean palabras (`paridad`, claves de texto: `titulo descripcion texto nombre aceptada completada notas aviso frase oficio`).
+Código: `packages/server/src/idiomas.ts`; pruebas: `test/idiomas.test.ts`. **Para añadir un idioma:** copia la carpeta `idiomas/es.*` con el
+nuevo código, traduce los valores, pon `"idioma"` en la ficha.
+**Lo que NO hace todavía** (siguientes trozos): un idioma por jugador (hoy es el del mundo); `entorno/` (el cable de muestra «Red button») y
+los botones de la página (Construir, Añadir…; por eso el inglés de las misiones los cita con su nombre en castellano entre paréntesis).

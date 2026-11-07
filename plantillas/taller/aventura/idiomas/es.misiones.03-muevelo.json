@@ -1,0 +1,31 @@
+{
+  "formato": "mision@1",
+  "id": "muevelo",
+  "titulo": "Muévelo y gíralo",
+  "descripcion": "Mueve el farolillo con las flechas de colores y gíralo.",
+  "requisitos": {
+    "misiones": [
+      "pon-un-farolillo"
+    ]
+  },
+  "pasos": [
+    {
+      "id": "mueve",
+      "tipo": "hace",
+      "texto": "Elige el farolillo y muévelo con las flechas de colores",
+      "accion": "mueve"
+    },
+    {
+      "id": "gira",
+      "tipo": "hace",
+      "texto": "Gíralo con la herramienta de girar",
+      "accion": "gira"
+    }
+  ],
+  "recompensas": [],
+  "textos": {
+    "aceptada": "Las flechas: X roja, Y verde, Z azul. Si te equivocas, deshaz.",
+    "completada": "Tienes las tres manos: mover, girar y escalar. Deshacer siempre está."
+  },
+  "repetible": false
+}

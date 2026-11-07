@@ -1,0 +1,25 @@
+{
+  "formato": "mision@1",
+  "id": "cuando-zona",
+  "titulo": "Cuándo: una zona",
+  "descripcion": "Cambia el botón por una zona: «entrar en este círculo».",
+  "requisitos": {
+    "misiones": [
+      "tu-primer-cable"
+    ]
+  },
+  "pasos": [
+    {
+      "id": "zona",
+      "tipo": "hace",
+      "texto": "Edita tu cable: cuando alguien entre en la zona",
+      "accion": "edita_cable"
+    }
+  ],
+  "recompensas": [],
+  "textos": {
+    "aceptada": "Hay tres cuándo: pulsar, entrar en una zona, o una señal de otra pieza.",
+    "completada": "Una zona se dispara al entrar; el radio se ajusta."
+  },
+  "repetible": false
+}
