@@ -18,10 +18,12 @@ const todos = (d: string) => readdirSync(d, { recursive: true, withFileTypes: tr
 const json = (f: string) => JSON.parse(readFileSync(f, "utf8"));
 
 const MISIONES = ["01-abre-el-taller", "02-pon-un-farolillo", "03-muevelo", "04-apagalo", "05-mira-el-cable", "06-tu-primer-cable", "07-cuando-zona", "08-cuanto-espera", "09-varios-que", "10-encadena", "11-tu-mini-mision"];
+/** The Spanish translation of the Taller (idiomas.ts): one file per English file of the sheet, the note for AIs, Lumen and the missions. */
+const IDIOMAS_ES = ["ficha.json", "LEEME-IA.md", "pnj.lumen.json", ...MISIONES.map((m) => `misiones.${m}.json`)].map((f) => `aventura/idiomas/es.${f}`);
 const ENTORNO = ["ancestros", "dardos", "disparadores", "espacio-base", "lucha", "naturaleza", "pesca"];
 /** Exactly what a new world's folder holds besides mundo.json / datos / claves (which the server makes after). */
 const ESPERADOS = [
-  "aventura/ficha.json", "aventura/LEEME-IA.md", ...MISIONES.map((m) => `aventura/misiones/${m}.json`), "aventura/pnj/lumen.json",
+  "aventura/ficha.json", "aventura/LEEME-IA.md", "aventura/LICENSE.md", ...IDIOMAS_ES, ...MISIONES.map((m) => `aventura/misiones/${m}.json`), "aventura/pnj/lumen.json",
   ...ENTORNO.map((e) => `entorno/${e}.json`),
 ].sort();
 
@@ -64,7 +66,7 @@ test("the born adventure loads clean: 11 chained missions, one person (Lumen), n
   const mis = MISIONES.map((m) => json(join(c.aventura, "misiones", `${m}.json`)));
   assert.equal(mis[0].requisitos, undefined);
   for (let i = 1; i < mis.length; i++) assert.deepEqual(mis[i].requisitos, { misiones: [ids[i - 1]] }, mis[i].id);
-  const f = leerFicha(c.aventura); assert.deepEqual(f.problemas, []); assert.equal(f.ficha?.nombre, "Mundo nuevo");
+  const f = leerFicha(c.aventura); assert.deepEqual(f.problemas, []); assert.equal(f.ficha?.nombre, "New world");
   // the shipped template is checked by the same CLI an author uses
   const cli = spawnSync(process.execPath, ["tools/aventura.ts", join(TALLER, "aventura")], { encoding: "utf8" });
   assert.equal(cli.status, 0, cli.stdout + cli.stderr);
@@ -127,10 +129,10 @@ test("the real server on a fresh folder starts the Taller and only it: 11 missio
   try {
     for (let i = 0; i < 150 && !log.includes("[instancia]"); i++) await new Promise((r) => setTimeout(r, 100));
     assert.ok(log.includes("[instancia]"), log);
-    for (const re of [/aventura: 11 misiones, 1 personas, 0 cosas/, /pesca: 0 sitio\(s\)/, /lucha: 0 criatura\(s\)/, /dardos: 0 diana\(s\)/, /naturaleza: apagada/, /espacio base: encendido \(semilla 42\)/, /disparadores: 1 disparador/, /\[ficha\] el mundo se llama «Mundo nuevo»/, /dardos enlazados apagados/]) assert.match(log, re);
+    for (const re of [/aventura: 11 misiones, 1 personas, 0 cosas/, /pesca: 0 sitio\(s\)/, /lucha: 0 criatura\(s\)/, /dardos: 0 diana\(s\)/, /naturaleza: apagada/, /espacio base: encendido \(semilla 42\)/, /disparadores: 1 disparador/, /\[ficha\] el mundo se llama «New world»/, /dardos enlazados apagados/]) assert.match(log, re);
     assert.doesNotMatch(log, /sin ficha|no se usa|problema|desconocida/i, "no file of the template is refused by the engine");
     const st = await (await fetch(`http://127.0.0.1:${PORT}/status`)).json() as Record<string, unknown>;
-    assert.equal(st.nombre, "Mundo nuevo"); assert.equal(st.espacioBase, true); assert.equal(st.dardosEnlace ?? null, null, "no AR darts link in /status");
+    assert.equal(st.nombre, "New world"); assert.equal(st.espacioBase, true); assert.equal(st.dardosEnlace ?? null, null, "no AR darts link in /status");
     // what the server added next to the template (data, keys, manifest) — and the template's own files still all there
     assert.ok(existsSync(join(raiz, "mundo.json"))); assert.ok(ESPERADOS.every((f) => existsSync(join(raiz, f))));
   } finally { srv.kill("SIGTERM"); await new Promise((r) => setTimeout(r, 300)); }

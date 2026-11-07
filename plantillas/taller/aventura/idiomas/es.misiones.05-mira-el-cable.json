@@ -1,0 +1,34 @@
+{
+  "formato": "mision@1",
+  "id": "mira-el-cable",
+  "titulo": "Mira el cable",
+  "descripcion": "Abre el panel Cable, lee el cable de muestra y pulsa el Botón rojo.",
+  "requisitos": {
+    "misiones": [
+      "apagalo"
+    ]
+  },
+  "pasos": [
+    {
+      "id": "abre-cable",
+      "tipo": "hace",
+      "texto": "Abre el cajón Cable",
+      "accion": "abre_cable",
+      "senala": "dock-cable"
+    },
+    {
+      "id": "prueba",
+      "tipo": "hace",
+      "texto": "Pulsa el Botón rojo y mira qué enciende",
+      "accion": "dispara_cable",
+      "disparador": "boton-rojo",
+      "senala": "cable-probar-boton-rojo"
+    }
+  ],
+  "recompensas": [],
+  "textos": {
+    "aceptada": "Un cable es «cuando pasa ESTO → pasa AQUELLO». El de muestra: al pulsar el Botón rojo, el farolillo se muestra.",
+    "completada": "Cuándo, cuánto, qué: la anatomía de un cable."
+  },
+  "repetible": false
+}

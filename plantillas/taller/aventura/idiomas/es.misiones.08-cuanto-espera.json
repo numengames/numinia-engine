@@ -1,0 +1,25 @@
+{
+  "formato": "mision@1",
+  "id": "cuanto-espera",
+  "titulo": "Cuánto: espera y un solo uso",
+  "descripcion": "Pon una espera de unos segundos y marca «un solo uso».",
+  "requisitos": {
+    "misiones": [
+      "cuando-zona"
+    ]
+  },
+  "pasos": [
+    {
+      "id": "espera",
+      "tipo": "hace",
+      "texto": "Edita tu cable: pon espera y marca un solo uso",
+      "accion": "edita_cable"
+    }
+  ],
+  "recompensas": [],
+  "textos": {
+    "aceptada": "Con un solo uso, el botón se gasta. El servidor es quien manda.",
+    "completada": "El cable no hace trampas: lo vigila el servidor."
+  },
+  "repetible": false
+}

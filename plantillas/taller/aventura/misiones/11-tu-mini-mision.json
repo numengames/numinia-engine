@@ -1,8 +1,8 @@
 {
   "formato": "mision@1",
   "id": "tu-mini-mision",
-  "titulo": "Tu mini-misión",
-  "descripcion": "Escribe una misión de 2 pasos con tu cable como segundo paso y enséñasela a Lumen.",
+  "titulo": "Your mini-mission",
+  "descripcion": "Write a 2-step mission with your cable as the second step and show it to Lumen.",
   "requisitos": {
     "misiones": [
       "encadena"
@@ -12,7 +12,7 @@
     {
       "id": "revisa",
       "tipo": "habla_con",
-      "texto": "Cuéntale tu mini-misión a Lumen",
+      "texto": "Tell Lumen about your mini-mission",
       "pnj": "lumen"
     }
   ],
@@ -20,12 +20,12 @@
     {
       "tipo": "insignia",
       "id": "constructor",
-      "nombre": "Constructor"
+      "nombre": "Builder"
     }
   ],
   "textos": {
-    "aceptada": "Dos pasos: el segundo es tu cable. Cuando la tengas, habla con Lumen.",
-    "completada": "Eres Constructor: llévate la plaza a tu mundo, con tu primer cable dentro."
+    "aceptada": "Two steps: the second one is your cable. When you have it, talk to Lumen.",
+    "completada": "You are a Builder: take the plaza to your own world, with your first cable inside."
   },
   "repetible": false
 }

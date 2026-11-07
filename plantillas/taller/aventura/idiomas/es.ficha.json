@@ -1,0 +1,6 @@
+{
+  "formato": "ficha@1",
+  "nombre": "Mundo nuevo",
+  "descripcion": "Un mundo recién nacido, de noche, con Lumen —la guardiana del taller—. Aprende a construir en 11 misiones cortas: colocar, mover, apagar y, al final, conectar cables para que el farolillo se encienda cuando tú lo decidas.",
+  "notas": "Plantilla «taller» del motor (plantillas/taller): con lo que nace todo mundo nuevo. Cámbiale el nombre y la descripción cuando quieras."
+}

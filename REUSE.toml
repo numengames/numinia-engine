@@ -174,3 +174,14 @@ path = [
 precedence = "closest"
 SPDX-FileCopyrightText = "2026 Numen Games S.L."
 SPDX-License-Identifier = "CC-BY-4.0"
+
+# ── The Taller world (decision of Pablo, 2026-11-07): its content is CC0 ─────
+# Last on purpose (the last matching annotation wins): this beats the engine's AGPL default and the CC-BY of *.md.
+# Content only: the engine's licence is not touched. The Numen/Numinia logo, isotype and wordmarks are NOT part of it
+# (trademarks, TRADEMARKS.md): none is shipped here; if one is ever added, give it its OWN exact-path annotation
+# below this one with LicenseRef-Numen-AllRightsReserved. See plantillas/taller/aventura/LICENSE.md.
+[[annotations]]
+path = "plantillas/taller/**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Numen Games S.L."
+SPDX-License-Identifier = "CC0-1.0"

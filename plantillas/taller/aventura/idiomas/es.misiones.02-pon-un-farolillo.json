@@ -1,0 +1,27 @@
+{
+  "formato": "mision@1",
+  "id": "pon-un-farolillo",
+  "titulo": "Pon un farolillo",
+  "descripcion": "Abre Añadir y coloca un farolillo en la plaza.",
+  "requisitos": {
+    "misiones": [
+      "abre-el-taller"
+    ]
+  },
+  "pasos": [
+    {
+      "id": "coloca",
+      "tipo": "hace",
+      "texto": "Abre Añadir y arrastra un Farolillo a la plaza",
+      "accion": "coloca",
+      "modelo": "farolillo",
+      "senala": "dock-anadir"
+    }
+  ],
+  "recompensas": [],
+  "textos": {
+    "aceptada": "En el cajón Añadir está la biblioteca: arrastra «Farolillo» al suelo.",
+    "completada": "Así se coloca un objeto: de la biblioteca al mundo."
+  },
+  "repetible": false
+}

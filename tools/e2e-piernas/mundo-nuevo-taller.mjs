@@ -258,7 +258,7 @@ try {
   console.log("tras abrir Cable:", JSON.stringify(l.filter((m) => m.id === "mira-el-cable")));
   await mirarFlecha(p, "cable-probar-boton-rojo");
   await foto(p, "34-m05-mira-el-cable-1");
-  await cableLi(p, "Botón rojo").locator(".cable-probar").first().click();
+  await cableLi(p, "Red button").locator(".cable-probar").first().click();
   await completa(p, "mira-el-cable");
   await sleep(800);
   await foto(p, "34-m05-mira-el-cable");
@@ -348,7 +348,7 @@ try {
   // insignia «Constructor» en el libro
   await p.mouse.move(640, 360); await p.keyboard.press("KeyJ"); await sleep(800);
   const libroTxt = await p.evaluate(() => document.getElementById("libro").innerText);
-  paso("insignia «Constructor» en el libro", /Constructor/.test(libroTxt), { extracto: libroTxt.slice(-400) });
+  paso("insignia «Builder» en el libro", /Builder/.test(libroTxt), { extracto: libroTxt.slice(-400) });
   await p.screenshot({ path: `${FOTOS}41-final.png` });
   { const lf = await libro(p); paso("al final el libro lista las 11 misiones del onboarding, hechas, y ninguna más", JSON.stringify(lf.map((m) => m.id).sort()) === JSON.stringify([...MISIONES].sort()) && lf.every((m) => m.estado === "hecha"), { libro: lf.map((m) => `${m.id}:${m.estado}`) }); }
   paso("sin errores de página", p.errores.length === 0, { errores: p.errores });

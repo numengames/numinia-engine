@@ -1,8 +1,8 @@
 {
   "formato": "mision@1",
   "id": "cuando-zona",
-  "titulo": "Cuándo: una zona",
-  "descripcion": "Cambia el botón por una zona: «entrar en este círculo».",
+  "titulo": "When: a zone",
+  "descripcion": "Swap the button for a zone: «enter this circle».",
   "requisitos": {
     "misiones": [
       "tu-primer-cable"
@@ -12,14 +12,14 @@
     {
       "id": "zona",
       "tipo": "hace",
-      "texto": "Edita tu cable: cuando alguien entre en la zona",
+      "texto": "Edit your cable: when someone enters the zone",
       "accion": "edita_cable"
     }
   ],
   "recompensas": [],
   "textos": {
-    "aceptada": "Hay tres cuándo: pulsar, entrar en una zona, o una señal de otra pieza.",
-    "completada": "Una zona se dispara al entrar; el radio se ajusta."
+    "aceptada": "There are three kinds of WHEN: press, enter a zone, or a signal from another piece.",
+    "completada": "A zone fires on entering; its radius can be adjusted."
   },
   "repetible": false
 }
