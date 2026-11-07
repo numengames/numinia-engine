@@ -22,7 +22,7 @@ Format of Pablo's `DECISIONES-MUNDOS.md` (2026-11-07, fourth round), for the wor
 | playable languages | English (default) and Spanish. Every file of `aventura/` is English; `aventura/idiomas/es.*` holds the Spanish translation of the 5 people, 4 AI inhabitants, 3 missions, 5 postcards, 3 scenes, the sheet and the note for AIs. The 22 signs and the names of the objects in the world are English only |
 | visibility | public |
 | dependencies | engine with the huecos (U12: `objetos` v5 with `huecoAncho`/`huecoAlto`/`huecoLleno`, verbs `hueco` and `rellenar`; already in `main`, see «Check» below); a template that carries `datos/` (this PR); the language mechanism R-1 (`aventura/idiomas/`, numinia-engine branch `motor-web-3d/t_59476c84-…`) to play the Spanish files |
-| evidence | `node tools/aventura.ts plantillas/art-gallery/aventura`; `test/mundo-nuevo-art-gallery.test.ts` (the real server started with `MOTOR_PLANTILLA=art-gallery`: «el mundo se llama Art Gallery», 64 objects, 21 holes) |
+| evidence | `node tools/aventura.ts plantillas/art-gallery/aventura`; `test/mundo-nuevo-art-gallery.test.ts` (the real server started with `MOTOR_PLANTILLA=art-gallery`: «el mundo se llama Art Gallery», 64 objects, 22 holes: 21 slots plus the facade sign) |
 
 ## Check: the huecos branch is in `main`
 
