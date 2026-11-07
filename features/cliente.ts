@@ -8,7 +8,6 @@ import avatar from "./avatar/client.ts"; // H10: your avatar — house or upload
 import chat from "./chat/client.ts";
 import misiones from "./misiones/client.ts"; // J5: two features: people (pnj) and quests (misiones)
 import entorno from "./entorno/client.ts";
-import franjas from "./franjas/client.ts"; // Y37: the band of the day (the notice is spoken by the engine; the «Time of day» button asks)
 import director from "./director/client.ts"; // N6: the Game Director (the panel and the cards: apps/plaza/director.ts)
 import elementos from "./elementos/client.ts";
 import pesca from "./pesca/client.ts"; // v1: fishing (rod, float and the big «Recoger» button live in apps/plaza/pesca.ts)
@@ -42,5 +41,5 @@ import sonido from "./sonido/client.ts"; // S6: the sounds of the house — the 
 import interruptores from "./funciones/client.ts"; // f1: the world's feature switches (`__numinia.funciones`; the panel is f3/v3)
 import fichaMundo from "./ficha-mundo/client.ts"; // H7: the world's settings (title, picture, default avatar, people limit)
 import espejo from "./espejo/client.ts"; // mundo-hermes: things from outside drawn as flat black-and-white shapes; the card to touch them is apps/plaza/espejo.ts (lazy)
-const funciones: ClientPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, franjas, elementos, pesca, lucha, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, vuelo, naturaleza, espacioBase, fichaMundo, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido, espejo];
+const funciones: ClientPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, vuelo, naturaleza, espacioBase, fichaMundo, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido, espejo];
 export default funciones;

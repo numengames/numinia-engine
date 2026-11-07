@@ -2434,7 +2434,7 @@ Una app es una **carpeta de texto** que una persona o una IA lee y escribe con u
 - **The hook** (no import: a feature imports only `core`, `schema` and `feature`):
   - server: `api.listen("franjas", "franja", (m) => …)` for the change; `api.estadoDe("franjas").get("zona")?.franja` for now. When the event arrives the state already says the new band.
   - page: `api.estadoDe("franjas")` the same way, or `franjas.actual()` from `features/franjas/client.ts` in the composition root.
-- **Verb**: `consultar` («ask the time of day»): the answer (`estado`) comes only to the asker. On the page it is the «Time of day» button (touch, VR) and `franjas.consultar()` (agents).
+- **Verb**: `consultar` («ask the time of day»): the answer (`estado`) comes only to the asker. Any page, agent or screen reader gets the notice and the card from the server's catalog with no page part (the first-load budget has 83 B of room left: `features/cliente.ts` does not list `franjas`, like `sucesos` and `espacios`). `features/franjas/client.ts` (state read, `consultar()`, the «Time of day» button for touch and VR) is ready for a composition root that wants it.
 - **Tests**: `test/franjas.test.ts` (12: all 480 steps covered with no gap or overlap, the reader, a whole day with one notice per change, midnight, no cycle, silent and Spanish worlds, `consultar`, no environment, a feature hooking on).
 - **Not done yet**: a world's own `franjas.json` (today the house file, or `crearFranjas(...)` in code); per-preset hours; one sound per band (the engine has a closed list of sounds, `suave` for all until Y30).
 

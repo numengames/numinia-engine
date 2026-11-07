@@ -202,8 +202,8 @@ test("another feature hooks on without touching entorno: listens to `franja`, re
   assert.equal(paginas[0].f.actual()?.franja, "noche");
 });
 
-test("the declaration meets the accessibility rules and is registered on both sides", () => {
+test("the declaration meets the accessibility rules and is registered on the server", () => {
   assert.deepEqual(franjas.issues, []);
   assert.ok(servidor.some((p) => p.feature.id === "franjas"));
-  assert.ok(cliente.some((p) => p.feature.id === "franjas"));
+  assert.ok(!cliente.some((p) => p.feature.id === "franjas"), "like sucesos and espacios, its page part is not in the first-load bundle (the announce path needs no page part; `features/franjas/client.ts` is for a composition root that wants the button)");
 });
