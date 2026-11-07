@@ -1038,6 +1038,13 @@ export type ViewHooks = {
    * notices) and the text whoever does not hear reads. Returns false when this view cannot play it (no Web Audio, the
    * table has not arrived, an id it does not know): the feature then only records it. */
   sonido?(s: { id: string; semilla: number; donde: { x: number; y: number; z: number } | null; texto: string }): boolean;
+  /** Y25: true while «reduce motion» is on (the engine setting `accesibilidad.menosMovimiento`; its default follows the system's
+   * prefers-reduced-motion and the person may force it). Pull it when you are about to shake, flash or pause something: with it on,
+   * skip that, and keep the text and the sound. A view without a settings menu says nothing (undefined = motion allowed). */
+  movimientoReducido?(): boolean;
+  /** Y25: hold the picture still for this many frames (the page clamps it to 2-5 and ignores it in VR/AR). Presentation only:
+   * the 20 Hz ticks, the network and the simulation go on. */
+  pausa?(fotogramas: number): void;
 };
 /** J7b: a move as the view plays it (features/gestos/movimientos.ts has the list). */
 export type MovimientoVista = { id: string; clips: readonly string[]; modo: "una" | "bucle" | "quedarse"; hastaS: number; viva: boolean; apoya?: boolean };
