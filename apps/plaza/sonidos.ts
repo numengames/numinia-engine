@@ -1,22 +1,22 @@
-// Que todo suene (S6s, fundido con S6 en S6f): la página engancha a lo que pasa en el mundo. Aquí solo hay pegamento:
-// cada función del motor sigue en su sitio y solo se le escucha.
+// Make everything sound (S6s, merged with S6 in S6f): the page hooks onto what happens in the world. Only glue is here:
+// every engine function stays where it is and is only listened to.
 //
-// Todo pasa por la PUERTA ÚNICA (`packages/render/src/audio/sonar.ts`): el fichero del catálogo si lo hay, y si no la
-// receta de `sintesis.ts`. Esta página ya no llama al sintetizador: así hay un solo tope de voces, un solo cooldown y
-// un solo sitio donde mirar cuando algo no suena.
+// Everything goes through the SINGLE DOOR (`packages/render/src/audio/sonar.ts`): the catalogue file if there is one, and if not the
+// recipe of `sintesis.ts`. This page no longer calls the synthesiser: so there is one voice cap, one cooldown and
+// one place to look when something does not sound.
 //
-// REPARTO DE AUTORIDAD (D-048: el servidor manda en lo compartido):
-//  - LOCAL (cada quien oye lo suyo, aquí): los botones de interfaz, MIS pasos, MI salto, MI aterrizaje, y lo que solo
-//    ocurre en mi caña de pescar (lanzar y el chapuzón). No se mandan por la red: son de cada quien y van en la cabeza
-//    o a mis pies. También la VOZ de un PNJ al abrir y al cerrar MI conversación con él (`pnj-voz.ts`): la charla es
-//    mía, así que solo la oigo yo, pero sale de la persona, colocada en 3D.
-//  - COMPARTIDO (lo manda el SERVIDOR, con su semilla, desde `features/sonido/server.ts`): la puerta, los dados, el
-//    dardo (lanzado e impacto), el pez cobrado y el teletransporte — tanto el mío como el de otra persona. Esta página
-//    NO los dispara: si lo hiciera, cada uno oiría su propia variante, y quien estuviera al lado oiría otra cosa.
-//    `COMPARTIDOS` es esa lista, y `sonarLocal` se niega a tocar cualquiera de ellos (si un día alguien lo intenta,
-//    sale en el registro una vez y no suena).
-//  - Pendientes de evento del servidor (quedan LOCALES, apuntados en docs/BACKLOG.md): la CERRADURA (su evento
-//    `cerradura.abierta` no dice dónde está) y la MÁQUINA (`movedores.llegada` tampoco).
+// SPLIT OF AUTHORITY (D-048: the server rules what is shared):
+//  - LOCAL (everyone hears their own, here): the interface buttons, MY steps, MY jump, MY landing, and what only
+//      happens at my fishing rod (the cast and the splash). They are not sent over the network: they belong to each person and sit at the head
+//      or at my feet. Also the VOICE of an NPC when MY conversation with it opens and closes (`pnj-voz.ts`): the chat is
+//      mine, so only I hear it, but it comes from the person, placed in 3D.
+//  - SHARED (sent by the SERVER, with its seed, from `features/sonido/server.ts`): the door, the dice, the
+//      dart (thrown and impact), the caught fish and the teleport — both mine and another person's. This page
+//      does NOT trigger them: if it did, each person would hear their own variant, and whoever stood beside them would hear something else.
+//      `COMPARTIDOS` is that list, and `sonarLocal` refuses to play any of them (if someday someone tries,
+//      it shows up in the log once and does not sound).
+//  - Waiting on a server event (they stay LOCAL, noted in docs/BACKLOG.md): the LOCK (its event
+//      `cerradura.abierta` does not say where it is) and the MACHINE (`movedores.llegada` neither).
 import { audio, type Nucleo } from "../../packages/render/src/audio/nucleo.ts";
 import { crearPuerta, materialDeSuelo, MATERIAL_DEF, type Material, type Opciones, type Puerta } from "../../packages/render/src/audio/sonar.ts";
 import { puente } from "./sonar.ts";
@@ -25,19 +25,19 @@ import { montarVozPnj, type ConversacionPnj } from "./pnj-voz.ts";
 export type Cuerpo = { y: number; speed: number; grounded: boolean };
 export type Paso = "izquierdo" | "derecho" | "salto" | "aterrizaje";
 
-/** Lo que avanza UN pie (m), no la zancada entera: cada pie que apoya suena una vez. Con la velocidad del motor
- *  (caminar 1,5 m/s, correr 4: packages/sim) salen ≈ 2 pasos por segundo caminando y ≈ 2,9 corriendo, la cadencia
- *  de una persona. Antes sonaba uno por cada 1,4 m: caminando, un solo pie cada segundo. */
+/** What ONE foot advances (m), not the whole stride: each foot that lands sounds once. With the engine's speed
+ *  (walking 1.5 m/s, running 4: packages/sim) that gives ≈ 2 steps per second walking and ≈ 2.9 running, a person's cadence.
+ *  Before, one sounded per 1.4 m: walking, a single foot every second. */
 export const PASO_M = { camina: 0.75, corre: 1.4 } as const;
-/** Por encima de esta velocidad (m/s) corre (caminar 1,5, correr 4). */
+/** Above this speed (m/s) it runs (walking 1.5, running 4). */
 export const UMBRAL_CORRE = 2.5;
-/** Hay que haber estado así de tiempo en el aire (s) para que el aterrizaje suene: bajar un escalón no es un golpe. */
+/** You must have been this long in the air (s) for the landing to sound: stepping down a stair is not a thump. */
 export const AIRE_MIN_S = 0.25;
 
-/** Los sonidos que SOLO manda el servidor: esta página se niega a tocarlos por su cuenta (D-048). */
+/** The sounds ONLY the server sends: this page refuses to play them by itself (D-048). */
 export const COMPARTIDOS: readonly string[] = ["puerta", "dados", "dardo-lanzar", "dardo-impacto", "pesca-cobrar", "teleport"];
 
-/** Máquina de pasos: se le da el cuerpo y el tiempo que pasó, y devuelve los sonidos que tocan. Sin DOM, sin audio. */
+/** Footstep machine: given the body and the time that passed, returns the sounds due. No DOM, no audio. */
 export function crearPasos() {
   let yAntes: number | null = null, enAire = false, aire = 0, dist = 0, quieto = true, izquierdo = false;
   return function paso(c: Cuerpo, dt: number): Paso[] {
@@ -52,7 +52,7 @@ export function crearPasos() {
     if (enAire) { enAire = false; if (aire >= AIRE_MIN_S) fuera.push("aterrizaje"); aire = 0; }
     const z = c.speed > UMBRAL_CORRE ? PASO_M.corre : PASO_M.camina;
     if (c.speed < 0.5) { quieto = true; return fuera; }
-    // al arrancar, el primer pie apoya a medio paso (no al primer centímetro, ni un paso entero después)
+    // on starting, the first foot lands at half a stride (not at the first centimetre, nor a whole stride later)
     if (quieto) { quieto = false; dist = z / 2; izquierdo = false; }
     dist += c.speed * dt;
     if (dist >= z) { dist -= z; fuera.push(izquierdo ? "izquierdo" : "derecho"); izquierdo = !izquierdo; }
@@ -64,30 +64,30 @@ export type Pagina = {
   session: { entity: number; selfPosition(alpha: number): Cuerpo };
   cerraduras: { alCambiar(fn: (q: string) => void): unknown };
   pesca: { estado(): { fase: string }; alCambiar(fn: (q: string) => void): unknown };
-  /** El tipo de suelo de la zona donde estoy (`entorno@1`), si el mundo lo dice. Sin esto, los pasos suenan a piedra. */
+  /** The ground type of the zone where I am (`entorno@1`), if the world says. Without it, steps sound like stone. */
   suelo?: () => string | null;
-  /** Las conversaciones con los PNJ (las misiones de la página): un saludo al abrir, una despedida al cerrar. */
+  /** NPC conversations (the page's quests): a greeting on opening, a farewell on closing. */
   misiones?: ConversacionPnj;
 };
 
 export type Montado = {
   puerta: Puerta;
-  /** Hacer sonar algo LOCAL. Devuelve false si el id es de los compartidos (eso lo manda el servidor) o si no sonó. */
+  /** Play something LOCAL. Returns false if the id is a shared one (the server sends those) or if nothing sounded. */
   sonarLocal(id: string, o?: Opciones, ms?: number): boolean;
-  /** Un paso con el material que toque (del suelo de la zona si el mundo lo dice; piedra si no). */
+  /** A step with the material that applies (from the zone's ground if the world says; stone if not). */
   paso(material?: Material): boolean;
   desmontar(): void;
 };
 
-/** Engancha todo. Devuelve la puerta, el disparador local y una función para desmontar (pruebas). */
+/** Hooks everything. Returns the door, the local trigger and a function to unmount (tests). */
 export function montarSonidos(p: Pagina, puerta: Puerta = crearPuerta({ nucleo: audio() as Nucleo })): Montado {
   const ultimo = new Map<string, number>();
   const dichos = new Set<string>();
-  /** Un mismo id no suena dos veces en menos de `ms` (clics a ráfagas, cambios que llegan duplicados). Es un freno de
-   *  página, encima del cooldown del catálogo: aquí se cortan los rebotes de la interfaz, no las voces. */
+  /** The same id does not sound twice within `ms` (bursts of clicks, changes that arrive duplicated). It is a page
+   *  brake, on top of the catalogue's cooldown: it cuts interface bounces here, not voices. */
   const sonarLocal = (id: string, o: Opciones = {}, ms = 60): boolean => {
     if (COMPARTIDOS.includes(id)) {
-      // no es un fallo de nadie: es el reparto. Se dice una vez para que no pase desapercibido en un cambio futuro.
+      // it is nobody's fault: it is the split. It is said once so it does not go unnoticed in a future change.
       if (!dichos.has(id)) { dichos.add(id); console.warn(`[sonidos] «${id}» lo manda el servidor (D-048): la página no lo toca`); }
       return false;
     }
@@ -97,29 +97,29 @@ export function montarSonidos(p: Pagina, puerta: Puerta = crearPuerta({ nucleo: 
     return puerta.sonar(id, o);
   };
   const quitar: (() => void)[] = [];
-  // las piezas de VR (dardos-vr, pesca-sonido) suenan por `sonar.ts` sin cargar este módulo: aquí se les da la puerta
+  // the VR pieces (dardos-vr, pesca-sonido) sound through `sonar.ts` without loading this module: here they are given the door
   puente.sonar = sonarLocal;
   quitar.push(() => { if (puente.sonar === sonarLocal) puente.sonar = null; });
 
-  // Los botones NO suenan (Pablo, 2026-10-19): suena lo que en el mundo haría ruido, no la interfaz. Un clic ya se ve y
-  // se siente; un tic encima de cada uno satura la mezcla y tapa lo que sí informa.
+  // Buttons do NOT sound (Pablo, 2026-10-19): what would make noise in the world sounds, not the interface. A click is already seen and
+  // felt; a tick on top of each one saturates the mix and covers what does inform.
 
-  // El material bajo los pies. Hoy el motor solo sabe el tipo de suelo de la ZONA (`entorno@1`: hierba, tierra, arena,
-  // roca, nieve, liso), no una etiqueta por superficie: un tablado de madera sobre una zona de roca sigue sonando a
-  // piedra (eso es la historia S8 del diseño). Con `p.suelo` enchufado, al menos la hierba y la roca suenan a lo suyo;
-  // sin él, piedra, que es lo que había.
+  // The material underfoot. Today the engine only knows the ground type of the ZONE (`entorno@1`: grass, earth, sand,
+  // rock, snow, smooth), not a label per surface: a wooden platform over a rock zone still sounds like
+  // stone (that is design story S8). With `p.suelo` plugged in, at least grass and rock sound like themselves;
+  // without it, stone, which is what there was.
   const materialAhora = (): Material => {
     try { return p.suelo ? materialDeSuelo(p.suelo()) : MATERIAL_DEF; } catch { return MATERIAL_DEF; }
   };
-  // Los pasos propios son lo que más se repite de todo el motor: tienen que quedarse DEBAJO de la mezcla, que se
-  // sientan más que se oigan. Cada pie suena distinto (el izquierdo un poco más grave y más suave: nadie pisa igual
-  // con los dos) y la puerta nunca repite la misma grabación dos veces seguidas; encima va su variación de ±4 % de
-  // tono y ±1 dB. Correr pisa más fuerte que caminar.
+  // Own steps are what repeats most in the whole engine: they must stay UNDER the mix, to be
+  // felt more than heard. Each foot sounds different (the left a little lower and softer: nobody steps the same
+  // with both) and the door never repeats the same recording twice in a row; on top comes its ±4 % variation of
+  // pitch and ±1 dB. Running steps harder than walking.
   const PIE = { izquierdo: { tono: 0.96, gain: 0.85 }, derecho: { tono: 1.02, gain: 1 } } as const;
   const paso = (material: Material = materialAhora(), pie: keyof typeof PIE = "derecho", corre = false): boolean =>
     sonarLocal(`pasos-${material}`, { gain: (corre ? 0.2 : 0.14) * PIE[pie].gain, tono: PIE[pie].tono }, 120);
 
-  // pasos, salto y aterrizaje: míos, locales, a mis pies (bus «pasos-propios»)
+  // steps, jump and landing: mine, local, at my feet (bus «pasos-propios»)
   const pasos = crearPasos();
   const reloj = setInterval(() => {
     if (p.session.entity < 0) return;
@@ -130,16 +130,16 @@ export function montarSonidos(p: Pagina, puerta: Puerta = crearPuerta({ nucleo: 
       else paso(undefined, q, c.speed > UMBRAL_CORRE);
     }
   }, 50);
-  // en Node (las pruebas) un intervalo mantiene vivo el proceso para siempre: `unref` lo deja sin voto
+  // in Node (the tests) an interval keeps the process alive forever: `unref` leaves it without a vote
   (reloj as unknown as { unref?: () => void })?.unref?.();
   quitar.push(() => clearInterval(reloj));
 
-  // la cerradura: LOCAL por ahora. Su evento de servidor (`cerradura.abierta`) no dice dónde está la cerradura, así
-  // que no se puede mandar a «quien esté cerca» sin inventarse un sitio. Apuntado en docs/BACKLOG.md.
+  // the lock: LOCAL for now. Its server event (`cerradura.abierta`) does not say where the lock is, so
+  // it cannot be sent to «whoever is near» without inventing a place. Noted in docs/BACKLOG.md.
   p.cerraduras.alCambiar((q) => { if (q === "abierta") sonarLocal("cerradura", { gain: 0.8 }, 300); });
 
-  // la pesca: lanzar y el chapuzón son MÍOS (mi caña, mi mano). El pez cobrado lo manda el servidor, porque lo oyen
-  // los de alrededor: aquí ya no se toca.
+  // fishing: the cast and the splash are MINE (my rod, my hand). The caught fish is sent by the server, because
+  // those around hear it: it is no longer touched here.
   let faseAntes = p.pesca.estado().fase;
   p.pesca.alCambiar((q) => {
     if (q !== "estado") return;
@@ -151,7 +151,7 @@ export function montarSonidos(p: Pagina, puerta: Puerta = crearPuerta({ nucleo: 
     faseAntes = f;
   });
 
-  // la voz de un PNJ: un saludo al abrir la conversación y una despedida al cerrarla, de su boca; las líneas, calladas
+  // an NPC's voice: a greeting on opening the conversation and a farewell on closing it, from its mouth; the lines, silent
   if (p.misiones) quitar.push(montarVozPnj(p.misiones, sonarLocal));
 
   return { puerta, sonarLocal, paso, desmontar: () => quitar.forEach((f) => f()) };

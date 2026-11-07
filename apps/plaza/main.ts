@@ -48,7 +48,7 @@ import { montarInteraccion, construyendo } from "./interactuar.ts";
 import { montarDialogo } from "./dialogo.ts";
 import { montarVerNombres } from "./nombres-ver.ts";
 import { montarLibro, ponerAvisosMundo, ponerCatalogoCasa } from "./misiones.ts";
-import { anunciar, crearDialogo } from "./paneles.ts"; // S6: el texto accesible de cada sonido (XAUR)
+import { anunciar, crearDialogo } from "./paneles.ts"; // S6: the accessible text of each sound (XAUR)
 import { montarMenuBarra } from "./menu-barra.ts"; // ux2-barra: the bar's «Cámara» (P) and «Menú» (O) drop-downs
 import { estadoCamara, filasDeAyuda } from "./menu-logica.ts";
 import { crearSonidos, ponerSonidos, RUTA_TABLA, sonidos } from "../../packages/render/src/audio/sonidos.ts"; // S6: the house catalogue (its table comes from /sonidos.json; the files are served by their sha256)
@@ -137,21 +137,21 @@ const tienda = crearTienda({ origen: activos, caches: typeof caches !== "undefin
 const catalogoSonidos = ponerSonidos(crearSonidos({ ruta: `${activos}${RUTA_TABLA}` }));
 ponerCatalogoCasa(catalogoSonidos);
 alPrimerCuadro(() => catalogoSonidos.cargar().then((hay) => { // t_45ef2f70: the table (25 kB) and the notices wait for the first frame
-  // los ocho avisos, descodificados ya: el primer «Misión completada» no llega tarde (son 18 kB entre todos)
+  // the eight notices, already decoded: the first «Misión completada» does not arrive late (18 kB all together)
   if (hay) void catalogoSonidos.precargar(Object.values(catalogoSonidos.tabla()?.casa ?? {}));
 }));
 alPrimerCuadro(() => ponerFuentes()); // t_45ef2f70: Geist + Geist Mono (115 kB) after the first frame, not before
-// S6f: el sonido que decide el SERVIDOR. Arranca tocando solo por fichero (lo que había) y lo cambia por la puerta
-// única en cuanto `./sonidos.ts` se carga: así las 47 recetas de `sintesis.ts` no entran en el paquete de arranque.
+// S6f: the sound the SERVER decides. It starts playing only from file (what there was) and changes to the single door
+// as soon as `./sonidos.ts` loads: so the 47 recipes of `sintesis.ts` stay out of the startup bundle.
 type PeticionSonido = { id: string; semilla?: number; donde?: { x: number; y: number; z: number } | null; texto?: string };
 let sonarServidor: (s: PeticionSonido) => boolean = (s) => catalogoSonidos.suena(s);
 // H7: the world's settings (its aventura/ficha.json, served by GET /status): its name on the entry screen and the tab,
 // everyone's avatar when it names one, how many fit (`aforo`). Asked once, before the first draw, but never waited for
 // long: a slow or absent /status leaves the house defaults (the tab name and the look are fixed again below when it answers).
-// S6f: `audio` es lo que el mundo pide del sonido (R-1: una línea en su ficha.json lo enciende). `ambiente` = el id
-// del catálogo que suena como cama única en bucle (hoy «ambiente-numinia», el colchón CC0); `ambiente_ganancia` = su
-// volumen (×0,042 por defecto, el que quiso su autor); `ambiente_sintetizado` = las camas y capas SINTETIZADAS que
-// este mundo enciende por nombre (de serie, ninguna).
+// S6f: `audio` is what the world asks of sound (R-1: one line in its ficha.json turns it on). `ambiente` = the id
+// of the catalogue that sounds as a single looping bed (today «ambiente-numinia», the CC0 mattress); `ambiente_ganancia` = its
+// volume (×0.042 by default, the one its author wanted); `ambiente_sintetizado` = the SYNTHESISED beds and layers that
+// this world turns on by name (by default, none).
 type Estado = { temaHud?: unknown; espejo?: unknown; dardosEnlace?: unknown; version?: string; nombre?: string; tema?: unknown; interfaz?: unknown; avatar?: string; avatares?: unknown; aforo?: number; conectados?: number;
   audio?: { ambiente?: string | null; ambiente_ganancia?: number; ambiente_sintetizado?: string[]; avisos?: Record<string, string> } };
 const estadoP: Promise<Estado | null> = fetch(`${activos}/status`).then((r) => r.json() as Promise<Estado>).catch(() => null);
@@ -216,10 +216,10 @@ const session = new ClientSession(transport, {
     // S6: a sound the SERVER chose (features/sonido): its id and its seed, so every page plays the same variant at
     // the same instant. `donde: null` = in the head, with no panner (the notices and the interface). The accessible
     // text ALWAYS reaches the notices region, whether the file played or not (XAUR: no sound without its text).
-    // S6f: por la PUERTA ÚNICA — si el id tiene fichero en el catálogo gana el fichero; si no, la receta de
-    // `sintesis.ts` con la MISMA semilla del servidor (así todas las páginas eligen la misma variante). La puerta
-    // llega con `./sonidos.ts`, que se carga aparte (las 47 recetas no entran en el paquete de arranque): hasta
-    // entonces, los sonidos del servidor suenan por fichero, que es lo que había.
+    // S6f: through the SINGLE DOOR — if the id has a file in the catalogue the file wins; if not, the recipe of
+    // `sintesis.ts` with the SAME seed as the server (so all pages choose the same variant). The door
+    // arrives with `./sonidos.ts`, which loads separately (the 47 recipes stay out of the startup bundle): until
+    // then, server sounds play from file, which is what there was.
     sonido: (s) => {
       const son = sonarServidor(s);
       if (s.texto) anunciar(s.texto);
@@ -344,7 +344,7 @@ const cable = montarCablePuerta({ constructor, disparadores, aqui: () => (sessio
   contexto: () => contextoDelCable({ objetos: constructor.lista(), movedores: movedores.lista(), misiones: misiones.libro(), sonidos: catalogoSonidos.tabla() }) });
 // ---- D-042: a code lock opens its own keypad (HTML); a key lock keeps the plain J4 flow ----
 const cerradurasPagina = montarCerradura({ cerradura: cerraduras });
-// ---- U14: mandos del vídeo — pausar/reanudar (E, clic o el mando en VR) y mi propio volumen (deslizador, pantalla plana) ----
+// ---- U14: video controls — pause/resume (E, click or the controller in VR) and my own volume (slider, flat screen) ----
 const videoMandos = montarVideoMandos({ lista: () => constructor.lista(), controlVideo: (id) => view.controlVideo(id), panel: document.getElementById("video-mandos")! });
 alPrimerCuadro(() => import("./entorno.ts").then((m) => m.montarEntorno(ambiente, elementos, view, interruptorNaturaleza, constructorUI.cajon("entorno"), interruptorBase, constructor, [
   { id: "baculo", etiqueta: "Báculo del Director", titulo: "Encender o apagar el báculo del Director de juego de este mundo (quien lo lleva dirige) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en baculos.json. / Turn the Game Director's staff on or off for the whole world.", encendida: "Báculo del Director encendido.", apagada: "Báculo del Director apagado.", interruptor: interruptorBaculo },
@@ -424,17 +424,17 @@ const dardosEnlace = {
 let dardosHud: Promise<unknown> | null = null;
 dardos.alCambiar(() => { if (!dardos.sitios().length) return; /* f2: darts switched off: nothing to load */ dardosHud ??= import("./dardos.ts").then((m) => m.montarDardos({ dardos, view, session, hud: document.getElementById("dardos-hud")! })).catch((e) => console.warn(`[dardos] no se pudo cargar la página de dardos: ${(e as Error)?.message ?? e}`)); });
 
-// ---- S6f: todo suena por UNA puerta — el fichero del catálogo si lo hay, y si no la receta sintetizada; los botones,
-// mis pasos, mi salto y mi aterrizaje son locales, y lo compartido (puerta, dados, dardos, pez, teleport) lo manda el
-// servidor. Perezoso, para que quede fuera del paquete de arranque. ----
+// ---- S6f: everything sounds through ONE door — the catalogue file if there is one, and if not the synthesised recipe; buttons,
+// my steps, my jump and my landing are local, and what is shared (door, dice, darts, fish, teleport) is sent by the
+// server. Lazy, so it stays out of the startup bundle. ----
 alPrimerCuadro(() => import("./sonidos.ts").then(async (m) => { // t_45ef2f70: the house sounds (and the voice pool behind them) wait for the first frame; until then the notices keep their oscillator notes
   const { crearPuerta, ponerPuerta } = await import("../../packages/render/src/audio/sonar.ts");
   const puerta = ponerPuerta(crearPuerta());
   sonarServidor = (s) => puerta.sonar(s.id, { semilla: s.semilla, donde: s.donde ?? null });
   m.montarSonidos({ session, cerraduras, pesca, suelo: () => view.entorno.estado().suelo?.tipo ?? null, misiones }, puerta);
-  // El COLCHÓN de ambiente: solo si el mundo lo pide en su ficha (`audio.ambiente`), y con la ganancia que diga
-  // (×0,042 por defecto, el volumen que quiso su autor). Encima manda el deslizador de «ambiente» del jugador: a cero,
-  // ni arranca. Las camas y capas SINTETIZADAS siguen apagadas salvo las que el mundo nombre en `ambiente_sintetizado`.
+  // The ambient BED: only if the world asks for it in its sheet (`audio.ambiente`), and with the gain it says
+  // (×0.042 by default, the volume its author wanted). On top rules the player's «ambiente» slider: at zero,
+  // it does not even start. The SYNTHESISED beds and layers stay off except those the world names in `ambiente_sintetizado`.
   // The Director's scene can bring a bed of its own (escena@1 `ambiente`): it replaces the world's while the scene is on, and a
   // scene without one gives the world's back. Applied now (a scene may already be on) and at every scene change.
   const a = (await estadoP)?.audio;
@@ -718,7 +718,7 @@ setInterval(() => { // the «…» menu's «Entrar en VR» clicks this button, s
 // <date>», what /health, the installer and the world zip carry) only as the tooltip, for whoever helps with a fault ----
 const versionMotor = document.getElementById("version-motor");
 if (versionMotor) versionMotor.textContent = `v${versionPaquete}`;
-montarNovedades(versionPaquete); // t_bdc2c2db: «qué hay de nuevo», una vez por versión que esta pestaña no haya visto
+montarNovedades(versionPaquete); // t_bdc2c2db: «what's new», once per version this tab has not seen
 void estadoP.then((st) => {
   if (!st) return;
   if (st.nombre) nombreDelMundo = st.nombre;
@@ -884,10 +884,10 @@ function drawHud() {
   const det = !probe.done ? "calculando…"
     : probe.browser === probe.server ? `<b>${hex(probe.browser)} = ${hex(probe.server)} ✓</b> (${probe.ms} ms)`
     : `${hex(probe.browser)} ≠ ${hex(probe.server)} ✗`;
-  // Auditoría UI móvil: cada línea es su propio bloque (antes un solo <pre> de 4 líneas se salía de
-  // la pantalla en 390 px — "white-space: pre" nunca envuelve — quedando cortado tras el minimapa).
-  // Cada .linea recorta con "…" en vez de desbordar; la huella navegador=servidor (depuración, no
-  // esencial para jugar) se oculta en pantallas estrechas o táctiles vía CSS (.detalle).
+  // Mobile UI audit: each line is its own block (before, a single 4-line <pre> ran off
+  // the screen at 390 px — "white-space: pre" never wraps — leaving it cut off behind the minimap).
+  // Each .linea clips with "…" instead of overflowing; the browser=server fingerprint (debugging, not
+  // essential for playing) is hidden on narrow or touch screens via CSS (.detalle).
   if (!hud.hidden) hud.innerHTML = // U23: statistics are off by default; a hidden block is not rewritten twice a second
     `<div class="linea">Render: <b>${view.backend}</b> · ${fps} fps${view.power.battery ? " · modo batería" : ""}${view.power.scale < 1 ? ` · resolución ${Math.round(view.power.scale * 100)} %` : ""}</div>` +
     `<div class="linea">Tú: ${session.who?.nombre ?? "…"} (avatar ${session.entity}) · conectados a la vista: ${s.visible + 1}</div>` +

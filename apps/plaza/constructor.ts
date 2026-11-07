@@ -43,7 +43,7 @@ type Builder = {
   duplicar(): Res; borrar(): Res; fijar(): Res; nombrar(nombre: string, decorado?: boolean): Res; deshacer(): Res; rehacer(): Res;
   ajustar(c: { oculto?: boolean; volumen?: number; solido?: boolean; caja?: [number, number, number, number, number, number] | null; alcance?: "burbuja" | "zona" | "todos"; radio?: number; enlace?: string; grupo?: "auto" | "musica" | "efectos" | "ambiente" }): Res;
   seleccionar(id: string): Res; transformar(id: string, t: Partial<Donde>, lote?: string): Res; modo(m: string): Res;
-  /** M22c: seleccionar varios (reemplaza), sumar/quitar uno (shift+clic), borrar por id con un lote (deshacer agrupado). */
+  /** M22c: select several (replaces), add/remove one (shift+click), delete by id with a batch (grouped undo). */
   seleccionarVarios(ids: string[]): Res; alternarSeleccion(id: string): Res;
   borrarId(id: string, lote?: string): Res; nuevoLote(): string;
   escuchar(fn: (que: string) => void): () => void;
@@ -633,7 +633,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
       default: c.seleccionar(""); decir("Nada seleccionado.");
     }
   }
-  /** M22c: borrar lo seleccionado; si hay varios, un `lote` compartido los junta en un solo paso de deshacer. */
+  /** M22c: delete the selection; with several, a shared `lote` joins them in a single undo step. */
   function borrarSeleccion(): Res {
     const ids = c.estado.seleccionados;
     if (ids.length <= 1) return c.borrar();
@@ -835,7 +835,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     if (fantasma) return soltarFantasma(e.clientX, e.clientY);
     if (agarre) return soltarAgarre(true);
     const k = ed.pick(e.clientX, e.clientY);
-    if (e.shiftKey && k) { // M22c: Mayús+clic suma/quita del grupo seleccionado, sin tocar el modo coger
+    if (e.shiftKey && k) { // M22c: Shift+click adds/removes from the selected group, without touching grab mode
       c.alternarSeleccion(k);
       decir(`${c.estado.seleccionados.length} seleccionados.`);
       return;

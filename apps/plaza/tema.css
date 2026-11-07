@@ -15,9 +15,9 @@
   /* what a world's tema can change besides the colours (ficha@1 `tema`): these values ARE the house look */
   --n-titulos: "Geist", system-ui, sans-serif; --n-titulos-peso: 600; --n-titulos-espacio: -.01em; --n-titulos-escala: 1;
   --n-titulos-sombra: none; --n-titulos-mayus: none; --n-r-control: 6px; --n-accion-tinta: #fff;
-  /* auditoría UI móvil: alto real de los botones del minimapa y de «Misiones», usado para que el
-     libro y la línea de misión no empiecen antes de que esos botones terminen (antes del arreglo de
-     objetivos táctiles de 44px quedaban 13-20px cortos y el libro tapaba la última fila de botones) */
+  /* mobile UI audit: real height of the minimap buttons and of «Misiones», used so that the
+     book and the mission line do not start before those buttons end (before the fix of the
+     44px touch targets they fell 13-20px short and the book covered the last row of buttons) */
   --botones-alto: 31px; --mis-alto: 37px;
 }
 @media (pointer: coarse) { :root { --botones-alto: 44px; --mis-alto: 44px; } }
