@@ -11,15 +11,15 @@
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; background: #c9d8e4; font: 13px/1.45 system-ui, sans-serif; }
     canvas { display: block; touch-action: none; }
-    /* auditoría UI móvil: ancho topado a la pantalla (antes "white-space: pre" nunca envolvía y el
-       texto largo se salía por el borde derecho, oculto bajo el minimapa); cada .linea recorta con "…" */
+    /* mobile UI audit: width capped to the screen (before, "white-space: pre" never wrapped and the
+       long text ran off the right edge, hidden under the minimap); each .linea clips with "…" */
     #hud { position: fixed; top: 10px; left: 10px; max-width: calc(100vw - 20px); box-sizing: border-box; padding: 8px 10px; border-radius: 8px; background: rgba(20, 24, 30, .72); color: #eef2f6; pointer-events: none; }
     #mundo-lleno { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(480px, calc(100vw - 32px)); margin: 0; padding: 16px 20px; border-radius: 10px; background: rgba(20, 24, 30, .92); color: #eef2f6; font-size: 16px; line-height: 1.4; text-align: center; z-index: 20; }
     #hud b { color: #ffd27a; font-weight: 600; }
     #hud .linea { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-    /* en móvil (pantalla estrecha o táctil) el HUD comparte la fila superior con la barra de iconos:
-       se recorta a su ancho disponible y se oculta la línea de depuración (huella navegador=servidor,
-       no esencial para jugar) para que no empuje el HUD contra el minimapa */
+    /* on mobile (narrow or touch screen) the HUD shares the top row with the icon bar:
+       it is clipped to its available width and the debugging line (browser=server fingerprint,
+       not essential for playing) is hidden so it does not push the HUD against the minimap */
     @media (max-width: 600px), (pointer: coarse) {
       #hud { max-width: calc(100vw - 220px); font-size: 11px; }
       #hud .detalle { display: none; }
@@ -42,9 +42,9 @@
     #panel-construir .estado { color: #ffd27a; }
     /* J3: the chat box, bottom left: the list is always there (an empty one takes no room), the input opens with Enter */
     #chat { position: fixed; left: 10px; bottom: 34px; width: min(380px, 62vw, calc(100vw - 240px)); display: flex; flex-direction: column; gap: 4px; }
-    /* auditoría UI móvil: en pantalla estrecha o táctil el minimapa/misiones viven arriba a la derecha
-       (no comparten fila con el chat, que está abajo), así que no hace falta reservar 240px a su derecha;
-       antes el campo de texto quedaba en ~80px (el placeholder se cortaba a media palabra) */
+    /* mobile UI audit: on a narrow or touch screen the minimap/missions live at the top right
+       (they do not share a row with the chat, which is at the bottom), so there is no need to reserve 240px to its right;
+       before, the text field ended up at ~80px (the placeholder was cut mid-word) */
     @media (max-width: 600px), (pointer: coarse) { #chat { width: calc(100vw - 20px); } }
     #chat-lista { margin: 0; padding: 6px 10px; list-style: none; max-height: min(30vh, 210px); overflow-y: auto; border-radius: 8px; background: rgba(20, 24, 30, .62); color: #eef2f6; overflow-wrap: anywhere; }
     #chat-lista:empty { padding: 0; background: transparent; }
@@ -61,10 +61,7 @@
     #chat .estado { margin: 0; color: #23303b; min-height: 0; }
     #chat .estado:not(:empty) { padding: 3px 8px; border-radius: 6px; background: rgba(238, 242, 246, .85); }
     /* J4/J5: the prompt «E: hablar con…», the conversation box, the quest book, the tracked step and a short note */
-    #interactuar { position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%); padding: 8px 14px 8px 30px; border: 0; border-radius: 8px; background: rgba(20, 24, 30, .82); color: #ffd27a; font: inherit; font-weight: 600; }
-    /* J4 mantener-pulsado: a small progress ring grows clockwise (--progreso 0..1) while E/the button/the VR trigger is held */
-    #interactuar::before { content: ""; position: absolute; left: 8px; top: 50%; translate: 0 -50%; width: 14px; height: 14px; border-radius: 50%; visibility: hidden; background: conic-gradient(#ffd27a calc(var(--progreso, 0) * 360deg), rgba(255, 255, 255, .25) 0); }
-    #interactuar.manteniendo::before { visibility: visible; }
+    #interactuar { position: fixed; bottom: 92px; left: 50%; transform: translateX(-50%); } /* the rest of its look (P15: amber, key cap, hold ring) is in tema.css */
     #dialogo { position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%); width: min(560px, calc(100% - 20px)); max-height: calc(100% - 90px); overflow: auto; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; background: rgba(20, 24, 30, .9); color: #eef2f6; }
     #dialogo h2 { margin: 0 0 4px; font-size: 15px; color: #ffd27a; }
     #dialogo .texto { margin: 0 0 8px; }
@@ -218,10 +215,10 @@
     html.alto-contraste #ajustes .describe { opacity: 1; }
     html.alto-contraste :focus-visible { outline: 3px solid #ffeb3b !important; outline-offset: 2px; }
     html.menos-movimiento *, html.menos-movimiento *::before, html.menos-movimiento *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
-  /* auditoría UI móvil: objetivo táctil mínimo 44x44 px (Apple HIG / Material) para los controles que
-     en escritorio ya iban sobrados de ratón pero en el dedo quedaban en 28-39px: el libro de misiones,
-     saltar/saludar/bailar/recoger, abrir el chat, los botones del minimapa (−/+/N/Mapa/Ficha) y la fila
-     de un ajuste (para que tocar cerca del interruptor, no solo encima del cuadrito de 22px, lo cambie) */
+  /* mobile UI audit: minimum touch target 44x44 px (Apple HIG / Material) for the controls that
+     were roomy enough for a mouse on desktop but ended up at 28-39px under a finger: the mission book,
+     jump/wave/dance/pick up, opening the chat, the minimap buttons (−/+/N/Mapa/Ficha) and the row
+     of a setting (so that touching near the switch, not only on top of the 22px box, toggles it) */
   @media (pointer: coarse) {
     #misiones, #chat-boton { min-height: 44px; }
     #acciones button { min-height: 44px; min-width: 64px; }
@@ -263,6 +260,7 @@
   <button id="misiones" type="button" aria-expanded="false" aria-controls="libro">Misiones (J)</button>
   <button id="inventario-abrir" type="button" aria-expanded="false" aria-controls="inventario">Bolsa (R)</button>
   <section id="libro" aria-label="Libro de misiones" hidden></section>
+  <section id="evaluacion" hidden></section>
   <p id="mision-seguida" hidden></p>
   <p id="mision-nota" aria-hidden="true" hidden></p>
   <div id="mision-completada" role="status" aria-live="polite" aria-atomic="true"></div><!-- U14 (6): «Misión completada» (misiones.ts; empty when idle) -->

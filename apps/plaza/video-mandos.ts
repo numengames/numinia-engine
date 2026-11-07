@@ -1,20 +1,20 @@
-// U14 (mandos del vídeo): Pablo, en directo (17-10) — «al vídeo que está en el mundo le faltan controles para
-// poder pararlo, pausarlo, bajar y subir el volumen». Primer corte, lo pequeño primero: un panel al mirar/apuntar
-// un vídeo (la misma oferta «E: …» de interactuar.ts, con E, un clic o — en VR — el mando, J4/xr.ts) con Pausar,
-// Parar y mi propio volumen. Funciona igual en pantalla plana y en VR para pausar/reanudar (el mismo gesto de
-// siempre: xr.ts dispara `interaccion.usar()` con el mando igual que la tecla E o un clic). El panel visual con el
-// deslizador de volumen y «Parar» es de pantalla plana por ahora: una sesión inmersiva (`immersive-vr`) no pide
-// `dom-overlay` (packages/render/src/vr.ts; sí lo pide AR) y el HTML de la página no se ve dentro del visor —
-// gemelo en VR = el panel en la muñeca (BACKLOG J13), sin construir aquí.
+// U14 (video controls): Pablo, live (17-10) — «the video in the world lacks controls to
+// stop it, pause it, turn the volume down and up». First cut, the small thing first: a panel when looking at/aiming at
+// a video (the same «E: …» offer of interactuar.ts, with E, a click or — in VR — the controller, J4/xr.ts) with Pausar,
+// Parar and my own volume. It works the same on a flat screen and in VR for pause/resume (the usual gesture:
+// xr.ts fires `interaccion.usar()` with the controller just like the E key or a click). The visual panel with the
+// volume slider and «Parar» is flat-screen only for now: an immersive session (`immersive-vr`) does not request
+// `dom-overlay` (packages/render/src/vr.ts; AR does) and the page's HTML is not visible inside the headset —
+// VR twin = the panel on the wrist (BACKLOG J13), not built here.
 //
-// DOS PREGUNTAS DE FONDO ESCRITAS, NO DECIDIDAS (Pablo lo pidió así; BACKLOG.md U14):
-//  (a) ¿el mando es MÍO o del MUNDO? Si alguien pausa, ¿para todos los que están dentro (cine compartido, ya que el
-//      reloj es compartido) o solo para quien toca? Lo que hay aquí es deliberadamente MÍO SOLO (medios.ts
-//      `ControlVideo`: nunca se manda al servidor, nunca toca el reloj compartido) para no decidir por Pablo; un
-//      «pausa de cine» de verdad sería un estado del lado del servidor, aparte.
-//  (b) Si se decide que pausar/parar es del mundo, ¿quién tiene permiso? Debe salir de los roles de la organización
-//      (STD-052, packages/server/src/roles.ts) — hoy no hay un permiso para esto (el más parecido es
-//      `build-in-worlds`), así que esto NO se inventa aquí: queda para cuando se decida (a).
+// TWO UNDERLYING QUESTIONS, WRITTEN DOWN, NOT DECIDED (Pablo asked for it this way; BACKLOG.md U14):
+//   (a) Is the control MINE or the WORLD's? If someone pauses, does it stop for everyone inside (shared cinema, since the
+//           clock is shared) or only for whoever touches it? What is here is deliberately MINE ONLY (medios.ts
+//           `ControlVideo`: never sent to the server, never touches the shared clock) so as not to decide for Pablo; a
+//           real «cinema pause» would be a server-side state, separate.
+//   (b) If pausing/stopping is decided to be the world's, who has permission? It must come from the organisation's roles
+//           (STD-052, packages/server/src/roles.ts) — today there is no permission for this (the closest is
+//           `build-in-worlds`), so this is NOT invented here: it waits until (a) is decided.
 import type { ControlVideo } from "../../packages/render/src/index.ts";
 
 type Obj = { id: string; tipo?: string; nombre?: string; x: number; y: number; z: number };
@@ -43,8 +43,8 @@ export function montarVideoMandos(o: OpcionesVideoMandos) {
   const nombre = document.createElement("span"); nombre.className = "nombre";
   const pausar = document.createElement("button"); pausar.type = "button";
   const parar = document.createElement("button"); parar.type = "button"; parar.textContent = "Parar";
-  // S4: silenciar — el que faltaba (hasta hoy el mute del vídeo era automático por volumen y no se podía pedir).
-  // Es MÍO, como el resto del mando: actúa sobre la ganancia del grafo, no se manda al servidor (U14 sigue abierta).
+  // S4: mute — the one that was missing (until today the video's mute was automatic by volume and could not be requested).
+  // It is MINE, like the rest of the control: it acts on the graph's gain, it is not sent to the server (U14 is still open).
   const silencio = document.createElement("button"); silencio.type = "button";
   const volumen = document.createElement("input"); volumen.type = "range"; volumen.min = "0"; volumen.max = "100"; volumen.step = "1";
   volumen.setAttribute("aria-label", "Mi volumen de este vídeo");

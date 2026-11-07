@@ -39,3 +39,21 @@ El número no lo mueve cada PR (todos tocaban las mismas líneas y al entrar uno
 - La barra de novedades de la página ya cuenta los fragmentos pendientes: una novedad se ve desde que está en `main`.
 - `test/version.test.ts` comprueba que la versión es semántica válida y al menos 0.1.0; `test/cambios.test.ts`, que cada
   fragmento es válido y que juntar funciona.
+
+## Dónde publica cada release su versión y sus novedades
+
+Cada release `motor-<corto>` (la crea `tools/publicar-version.sh`, que llama `publicar-motor.yml`) lleva dos ficheros
+que una máquina puede leer sin abrir el repositorio:
+
+- `imagen.json`: `{image, commit, build, digest, version}`. `version` es la versión semántica que esa release trae: la
+  que sale de los fragmentos de `.changeset/` pendientes (el salto más alto sobre `package.json`) o, sin fragmentos, la
+  de `package.json`. Los campos anteriores no cambian; quien lee y no conoce `version` la ignora.
+- `novedades.json`: una lista con una entrada por fragmento pendiente (o, sin ninguno, la última entrada del diario):
+  `{kind, text, title, date}`; `kind` es `patch`, `minor` o `major`, `text` la línea «Qué» del diario.
+
+```
+curl -sL https://github.com/numengames/numinia-engine/releases/latest/download/imagen.json
+curl -sL https://github.com/numengames/numinia-engine/releases/latest/download/novedades.json
+```
+
+El código está en `tools/novedades-release.mjs` (prueba: `test/novedades-release.test.ts`).

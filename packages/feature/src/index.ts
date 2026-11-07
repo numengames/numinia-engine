@@ -1058,8 +1058,10 @@ export type PlacedObject = { model: string; x: number; y: number; z: number; rx:
  * own phase (never in sync with the next); `reposo`: breathes and shifts its weight (or plays the model's idle clip); `mira`: turns its
  * body toward you when you are within this many metres (0 = never; the yaw it was placed with is where it goes back to); `atiende`:
  * keeps facing you whatever the distance (a conversation is open); `camina`: if this placement moves it a short way (≤ 10 m), it walks
- * there at ≤ 1.4 m/s instead of popping. */
-export type Vida = { id: string; reposo: boolean; mira: number; atiende?: boolean; camina?: boolean };
+ * there at ≤ 1.4 m/s instead of popping. `andando` (P16, a person on a round): the page places her again every frame she moves, so the render does
+ * not walk her itself or snap her yaw on each placement; `true` while she walks (the walking clip and the turn toward where she goes), `false`
+ * while she stands. Absent = as before. */
+export type Vida = { id: string; reposo: boolean; mira: number; atiende?: boolean; camina?: boolean; andando?: boolean };
 export const NO_VIEW: ViewHooks = { label() {}, bounce() {} };
 /** An event as a person hears and reads it (V1). `at` in metres; `who` = the entity it is about. */
 export type Announcement = { feature: string; event: string; text: string; sound: Sound; importance: Importance; at?: { x: number; z: number }; who?: number };
@@ -1067,8 +1069,11 @@ export type Announcement = { feature: string; event: string; text: string; sound
 export type CardView = { feature: string; key: string; role: Role; name: string; description?: string; importance: Importance; actions: string[]; at?: { x: number; z: number } };
 /** J4: a thing in reach as the page offers it: «E: <prompt>»; `use(feature, key)` sends its intent.
  * `hold` (seconds, J4 mantener-pulsado): undefined/0 = fires at once; otherwise the page must hold the key/button/
- * trigger that long (showing a progress ring) before it sends the intent. */
-export type Reachable = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number; hold?: number };
+ * trigger that long (showing a progress ring) before it sends the intent.
+ * `at` (P15): where the thing is for THIS player (metres; `y` only when its state has a numeric `y`), so the page can pick the one
+ * the player looks at (apps/plaza/interactuar-mirada.ts) and mark it in the world;
+ * `role` = its card's role (a person is circled at the chest, a thing near its base). */
+export type Reachable = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number; hold?: number; at?: { x: number; z: number; y?: number }; role?: Role };
 /** Fill `{field}` holes with the values (`{key}` = the state key). Unknown holes stay as they are. */
 export const fillTemplate = (t: string, values: Record<string, unknown>): string => t.replace(/\{([a-zA-Z0-9]+)\}/g, (all, k) => (values[k] === undefined ? all : String(values[k])));
 /** `disponible`: asked by the page when the state changes; false = the button is not shown (the `hidden` attribute), because the action is not possible now. None = always shown. */
@@ -1196,10 +1201,11 @@ export class ClientRuntime {
       for (const [key, v] of this.mirror.get(f.id) ?? []) {
         const r = typeof it.radius === "number" ? it.radius : Number(v[it.radius]);
         const L = this.lugares.size ? this.lugares.get(`${f.id}:${key}`) : undefined; // P2: where THIS player finds it
-        const d = L ? Math.hypot(L.x - x, L.z - z) : Math.hypot(Number(v[c.at[0]]) - x, Number(v[c.at[1]]) - z);
+        const ax = L ? L.x : Number(v[c.at[0]]), az = L ? L.z : Number(v[c.at[1]]), ay = L?.y ?? v.y;
+        const d = Math.hypot(ax - x, az - z);
         if (!(r > 0 && d <= r) || (y !== undefined && !alAlcanceEnAltura(y, L?.y ?? v.y))) continue; // J4: a thing whose radius field is 0 is not offered (e.g. carried)
         const vals = { key, ...v };
-        out.push({ feature: f.id, key, intent: it.intent, prompt: fillTemplate(it.prompt, vals), name: fillTemplate(c.name, vals).trim(), distance: d, ...(it.hold ? { hold: it.hold } : {}) });
+        out.push({ feature: f.id, key, intent: it.intent, prompt: fillTemplate(it.prompt, vals), name: fillTemplate(c.name, vals).trim(), distance: d, role: c.role, ...(it.hold ? { hold: it.hold } : {}), at: { x: ax, z: az, ...(typeof ay === "number" && Number.isFinite(ay) ? { y: ay } : {}) } });
       }
     }
     return out.sort((a, b) => a.distance - b.distance);

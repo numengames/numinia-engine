@@ -6,12 +6,18 @@ import { adoptarClaves, alAlcanceEnAltura, INTERACT_SLACK_M, serverPart } from "
 import type { ServerApi, ServerPart } from "../../packages/feature/src/index.ts";
 import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
 import { ACCIONES_PAGINA, cargarAventura, corta, LIM } from "./formato.ts";
-import type { Accion, Aventura, Cosa, Dialogo, Fichero, Mision, Nodo, Opcion, Paso, Pnj } from "./formato.ts";
+import type { Accion, Aventura, Cosa, Dialogo, Fichero, Lugar, Mision, Nodo, Opcion, Paso, Pnj } from "./formato.ts";
+import { aTexto, compilar, redondeaPunto, rondaEn } from "./ronda.ts"; // P16: a person's round
+import type { Plan, Ronda } from "./ronda.ts";
 import { leerCatalogo } from "../inventario/objeto.ts"; // Y3: the objeto@1 a `coge` step may hand over
 import type { ObjetoAventura } from "../inventario/objeto.ts";
-import { abandonar, aceptar, asentar, bloqueados, callan, cogePendiente, cuentaDe, desmarcar, enTexto, esperaLlegada, HECHAS_MAX, leerProgreso, marcablesAhora, marcados as marcadosDe, marcar, marcas, lugarDe, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
+import { filas as filasEvaluacion, resumen as resumenEvaluacion } from "./evaluacion.ts";
+import { abandonar, aceptar, asentar, bloqueados, callan, cogePendiente, cuentaDe, desmarcar, evaluacionDe, evaluar, enTexto, esperaLlegada, HECHAS_MAX, leerProgreso, marcablesAhora, marcados as marcadosDe, marcar, marcas, lugarDe, nodoInicial, nuevoProgreso, objetivo, opcionesDe, pasoHecho, primerPendiente, registrar, seguir } from "./maquina.ts";
 import type { Hecho, Progreso } from "./maquina.ts";
 import { esperando, faltaEspera, pendiente, proximaEspera } from "./maquina.ts"; // U14 (5): steps that wait
+import { fotografiar, pasosFoto } from "./maquina.ts"; // P10: the step `foto`
+import { FOTO_CADA_MS, FOTO_CAMARA_MAX_M, FOTO_OJO_M, poseInvalida } from "./foto.ts";
+import type { PoseFoto } from "./foto.ts";
 import type { Suceso } from "./maquina.ts";
 import { alSuelo, eventosDe } from "./secuencia.ts"; // U14 (5): a moment only its player sees
 import { sueloDe } from "../objetos/server.ts"; // the ground people and things stand on (the espacio base, the nature, or flat)
@@ -54,11 +60,19 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   const sobreSuelo = (suelo: { altura: (x: number, z: number) => number }, o: { posicion: { x: number; z: number; y: number }; sinY?: true }) => alSuelo(suelo.altura(o.posicion.x, o.posicion.z), o.posicion.y, o.sinY === true);
   let cargada = false;
   const enviadoSitio = new Map<number, Map<string, string>>(); // P2: connection -> person -> the place last sent to it
+  // P16: where each player is in each round. One clock per (player, person), made when the `posiciones` entry with a `ronda` begins to hold
+  // for that player (the first time the server looks after the change: the book going out) and thrown away when it stops holding or the
+  // player leaves. Elapsed time = now - desde - parado; while someone of that player talks to her `paro` holds the instant she stopped and
+  // time does not run. Kept in memory only: after a restart a round begins again.
+  type RelojRonda = { lugar: number; desde: number; parado: number; paro: number; quienes: Set<number> };
+  const rondas = new Map<string, Map<string, RelojRonda>>(); // progress key -> person -> clock
+  const planes = new WeakMap<Lugar, { clave: string; ronda: Ronda; plan: Plan }>(); // a round with its heights put on the ground (per ground)
   const progresos = new Map<string, Progreso>();      // "g:<guest>" (saved) or "e<entity>" (no identity: memory only)
   const claveDe = new Map<number, string>();          // entity -> its progress key (who() is gone by onLeave)
   const abiertos = new Map<number, { pnj: string; vistas: Vista[] }>(); // open conversations
   const llegadas = new Set<number>();                 // players whose current step somewhere is llega_a
   const esperas = new Map<number, number>();          // U14 (5): connection -> when its next wait ends (ms): then its book again, once
+  const ultimaFoto = new Map<number, number>();       // P10: connection -> when its last photo that counted for a step was looked at (ms)
   const avisosAntes = new Map<number, Map<string, number>>(); // P3: connection -> «<quest>:<step>» -> when its `antes` notice was last sent (ms)
   const ahora = () => (o.reloj ? o.reloj() : Date.now());
 
@@ -84,16 +98,61 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   const guardar = (e: number, p: Progreso) => { const w = M?.who(e); if (w && M && !M.store.set(`p:${w.id}`, p)) M.log(`no pude guardar el progreso de ${w.id}`); };
   /** Every connection of the same guest (two tabs of one browser share the book); just this one without identity. */
   const suyos = (e: number): number[] => { const k = claveDe.get(e) ?? clave(e); return k.startsWith("g:") ? (M?.players() ?? []).filter((x) => claveDe.get(x) === k) : [e]; };
-  /** P2: where this person stands for THIS player, as the world's ground puts it (`posiciones`, else its own place). */
-  const sitioPara = (suelo: { altura: (x: number, z: number) => number }, n: Pnj, p: Progreso): { x: number; z: number; y: number; giro: number; propio: boolean } => {
+  /** P16: the key under which a connection's progress (and so its rounds) is kept. */
+  const kx = (e: number) => claveDe.get(e) ?? clave(e);
+  /** P16: a round with each stop's height put on the ground at its x, z (a stop without `y` stands on it; one with `y` is absolute, never below it). */
+  const planDe = (suelo: { altura: (x: number, z: number) => number; clave: string }, l: Lugar, n: Pnj) => {
+    const c = planes.get(l);
+    if (c && c.clave === suelo.clave) return c;
+    const puntos = l.ronda!.puntos.map((q) => redondeaPunto({ ...q, y: alSuelo(suelo.altura(q.x, q.z), q.y ?? 0, q.y === undefined) }));
+    const ronda: Ronda = { ...l.ronda!, puntos }, nuevo = { clave: suelo.clave, ronda, plan: compilar(ronda, l.giro ?? n.giro) };
+    planes.set(l, nuevo);
+    return nuevo;
+  };
+  const relojDe = (k: string, n: Pnj, lugar: number): RelojRonda => {
+    let por = rondas.get(k);
+    if (!por) rondas.set(k, (por = new Map()));
+    let r = por.get(n.id);
+    if (!r || r.lugar !== lugar) por.set(n.id, (r = { lugar, desde: ahora(), parado: 0, paro: 0, quienes: new Set() }));
+    return r;
+  };
+  /** P16: ms of her round that have run for this player (time standing talking does not count). */
+  const transcurrido = (r: RelojRonda) => Math.max(0, (r.paro || ahora()) - r.desde - r.parado);
+  /** P2: where this person stands for THIS player, as the world's ground puts it (`posiciones`, else its own place). P16: with a `ronda` and the
+   * connection's progress key `k`, where she is on her round at this very moment (and what the page needs to walk it too). */
+  const sitioPara = (suelo: { altura: (x: number, z: number) => number; clave: string }, n: Pnj, p: Progreso, k?: string): { x: number; z: number; y: number; giro: number; propio: boolean; ronda?: { texto: string; vel: number; ida: boolean; rt: number; quieta: boolean; giro: number; firma: string } } => {
     const l = n.posiciones.length ? lugarDe(n, p, A) : null;
+    if (l?.ronda && k !== undefined) {
+      const { ronda, plan } = planDe(suelo, l, n), rel = relojDe(k, n, n.posiciones.indexOf(l)), ms = transcurrido(rel), pose = rondaEn(plan, ms);
+      const rt = plan.ciclo > 0 ? Math.round(ms % (plan.ciclo * 1000)) / 1000 : 0, quieta = rel.paro !== 0;
+      return { x: pose.x, z: pose.z, y: pose.y, giro: pose.giro, propio: false, ronda: { texto: aTexto(ronda.puntos), vel: ronda.velocidad, ida: ronda.modo === "ida_y_vuelta", rt, quieta, giro: l.giro ?? n.giro, firma: `r|${rel.lugar}|${rel.desde}|${rel.parado}|${quieta ? 1 : 0}|${suelo.clave}` } };
+    }
+    if (k !== undefined && rondas.size) rondas.get(k)?.delete(n.id); // not on a round any more (or yet): the next one begins at its start
     return l ? { x: l.posicion.x, z: l.posicion.z, y: sobreSuelo(suelo, l), giro: l.giro ?? n.giro, propio: false } : { x: n.posicion.x, z: n.posicion.z, y: sobreSuelo(suelo, n), giro: n.giro, propio: true };
+  };
+  /** P16: a conversation with her opens (or goes on): her clock for this player stops where she stands, facing the page's new `ronda`. */
+  const pararRonda = (e: number, n: Hablante) => {
+    if (!esPersona(n) || !n.posiciones.length) return;
+    const p = prog(e), l = lugarDe(n, p, A);
+    if (!l?.ronda) return;
+    const rel = relojDe(kx(e), n, n.posiciones.indexOf(l));
+    if (rel.quienes.has(e)) return;
+    rel.quienes.add(e);
+    if (!rel.paro) rel.paro = ahora();
+    for (const x of suyos(e)) enviarSitios(x, prog(x));
+  };
+  /** P16: the conversation with her closed: her round goes on from where she stopped, the time she stood talking not counted. */
+  const soltarRonda = (e: number, pnj: string, aviso = true) => {
+    const k = claveDe.get(e), rel = k ? rondas.get(k)?.get(pnj) : undefined;
+    if (!rel || !rel.quienes.delete(e)) return;
+    if (!rel.quienes.size && rel.paro) { rel.parado += ahora() - rel.paro; rel.paro = 0; }
+    if (aviso) for (const x of suyos(e)) enviarSitios(x, prog(x));
   };
   /** P2: is this player within reach of this person, where THIS player finds it? A person without `posiciones` (or standing at its own
    * place for this player) is api.within, exactly as before; elsewhere the same rule runs on the place the player's quests give it. */
   const cerca = (api: ServerApi, e: number, n: Pnj): boolean => {
     if (!n.posiciones.length) return api.within(e, n.id);
-    const s = sitioPara(sueloAhora(api), n, prog(e));
+    const s = sitioPara(sueloAhora(api), n, prog(e), kx(e));
     if (s.propio) return api.within(e, n.id);
     const me = api.position(e);
     if (!me) return false;
@@ -159,14 +218,23 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   // grupo, and `hecho` is true for what is already done in the block); `espera` = the seconds a step to do still waits
   /** P4: a quest's counters as the `mision` event carries them. */
   const cuentaWire = (p: Progreso, id: string) => { const c = cuentaDe(p, id); return { marcas: c.marcas, erroneas: c.marcas_erroneas, desmarcados: c.desmarcados }; };
+  const fotosWire = (p: Progreso, id: string) => ({ fotos: cuentaDe(p, id).fotos_erroneas ?? 0 }); // P10
   const enviarMision = (to: number, p: Progreso, m: Mision, t: number) => {
     const act = p.activas[m.id], hecha = !act, ahora = hecha ? m.pasos.length : Math.min(primerPendiente(m, act), m.pasos.length - 1);
     const señala = m.pistas !== false; // P3: a quest with pistas:false sends its steps without a place (nothing to point at, nothing to read off the wire)
-    M!.emit("mision", { id: m.id, titulo: m.titulo, descripcion: m.descripcion, estado: hecha ? "hecha" : "activa", paso: ahora, pasos: m.pasos.length, seguida: p.seguida === m.id, recompensa: recompensa(m), pistas: señala, ...(m.pasos.some((s) => s.tipo === "marca") ? cuentaWire(p, m.id) : {}) }, { to }); // P4: the counters only for a quest that marks
+    M!.emit("mision", { id: m.id, titulo: m.titulo, descripcion: m.descripcion, estado: hecha ? "hecha" : "activa", paso: ahora, pasos: m.pasos.length, seguida: p.seguida === m.id, recompensa: recompensa(m), pistas: señala, ...(m.pasos.some((s) => s.tipo === "marca") ? cuentaWire(p, m.id) : {}), ...(m.pasos.some((s) => s.tipo === "foto") ? fotosWire(p, m.id) : {}) }, { to }); // P4: the counters only for a quest that marks; P10: and the photos only for one that photographs
     m.pasos.forEach((s, n) => {
       const ob = señala ? objetivo(s, A, p) : { ...objetivo(s, A, p), x: 0, z: 0, nombre: "" }, espera = !hecha && pendiente(m, act, n) ? Math.ceil(faltaEspera(m, act, n, t) / 1000) : 0;
       M!.emit("paso", { mision: m.id, n, texto: s.texto, tipo: s.tipo, hecho: hecha || pasoHecho(m, act, n), x: ob.x, z: ob.z, donde: corta(ob.nombre, LIM.lugar), que: ob.que, grupo: s.grupo ?? "", espera, accion: s.tipo === "hace" ? s.accion : "", senala: s.senala ?? "" }, { to });
     });
+  };
+  /** P13: the end card of a completed quest that has `evaluacion` — one `evaluacion` and its rows, right after the quest's own messages. */
+  const enviarEvaluacion = (to: number, p: Progreso, m: Mision) => {
+    const ev = m.evaluacion, r = ev && evaluacionDe(p, m.id);
+    if (!ev || !r || p.activas[m.id]) return;
+    const fs = filasEvaluacion(m, ev, r);
+    M!.emit("evaluacion", { mision: m.id, titulo: corta(ev.titulo, LIM.titulo), puntos: r.puntos, base: ev.base, minimo: ev.minimo, filas: Math.min(32, fs.length), resumen: resumenEvaluacion(fs) }, { to });
+    fs.slice(0, 32).forEach((f, n) => M!.emit("evaluacionFila", { mision: m.id, n, tipo: f.tipo, clave: corta(f.clave, 32), etiqueta: corta(f.etiqueta, 80), texto: corta(f.texto, 40), valor: Math.min(360000, f.valor), resta: Math.min(99999, f.resta) }, { to }));
   };
   const conMarcables = () => [...A.cosas.values()].some((c) => c.marcable);
   const enviarLibro = (e: number, solo = false) => {
@@ -178,7 +246,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     const marcasMsg = { tiene: enTexto(mk.tiene, lim), hecho: enTexto(mk.hecho, lim), cosas: enTexto(mk.cosas, lim), callan: enTexto(callan(p, A), lim) };
     for (const x of solo ? [e] : suyos(e)) {
       M.emit("libro", { activas: activas.length, hechas: hechas.length }, { to: x });
-      for (const m of [...activas, ...hechas]) enviarMision(x, p, m, t);
+      for (const m of [...activas, ...hechas]) { enviarMision(x, p, m, t); enviarEvaluacion(x, p, m); }
       M.emit("marcas", marcasMsg, { to: x });
       if (conMarcables()) M.emit("marcados", { ids: enTexto(marcadosDe(p, A), lim) }, { to: x }); // P4: what is marked, in order (its place = its number); only in a world with marcable things
       enviarSitios(x, p);
@@ -192,12 +260,13 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     for (const n of A.pnjs.values()) {
       if (!n.posiciones.length) continue;
       suelo ??= sueloAhora(M);
-      const s = sitioPara(suelo, n, p), firma = `${s.x},${s.z},${s.y},${s.giro}`;
+      const s = sitioPara(suelo, n, p, kx(to)), firma = s.ronda ? s.ronda.firma : `${s.x},${s.z},${s.y},${s.giro}`; // P16: a round is sent when it begins, stops or goes on, never as she walks (the page walks it)
       let vistos = enviadoSitio.get(to);
       if (vistos?.get(n.id) === firma) continue;
       if (!vistos) enviadoSitio.set(to, (vistos = new Map()));
       vistos.set(n.id, firma);
       P.emit("sitio", { pnj: n.id, x: s.x, z: s.z, y: s.y, giro: s.giro }, { to });
+      if (s.ronda) P.emit("ronda", { pnj: n.id, puntos: s.ronda.texto, vel: s.ronda.vel, ida: s.ronda.ida, rt: s.ronda.rt, quieta: s.ronda.quieta, giro: s.ronda.giro }, { to });
     }
   };
   /** U14 (6): a quest with rewards completed by someone with identity: ONE grant record (concesion.ts), written only if
@@ -218,6 +287,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   const tras = (e: number, p: Progreso, hechos: Hecho[]) => {
     guardar(e, p);
     let abrirLibro = false; // P3: a `coge` step with abreLibro was done
+    const tarjetas: Mision[] = []; // P13: quests completed now that have an end card
     for (const h of hechos) {
       const m = A.misiones.get(h.mision)!, s = m.pasos[h.paso];
       const texto = s.tipo === "recibe" ? corta(`Has recibido: ${A.cosas.get(s.cosa)?.nombre ?? s.cosa}`, LIM.textoPaso) : s.texto;
@@ -230,8 +300,13 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
         if (h.completada) M!.emit("completada", { mision: m.id, titulo: m.titulo, texto: m.textos.completada, recompensa: recompensa(m) }, { to: x });
       }
       if (h.completada) otorgar(e, m);
+      if (h.completada && m.evaluacion && evaluacionDe(p, m.id)) tarjetas.push(m);
     }
     enviarLibro(e);
+    for (const m of tarjetas) { // P13: after the book, so the card is whole on the page when it is told to open
+      const ev = m.evaluacion!, r = evaluacionDe(p, m.id)!;
+      for (const x of suyos(e)) M!.emit("abrirEvaluacion", { mision: m.id, titulo: corta(ev.titulo, LIM.titulo), puntos: r.puntos, resumen: resumenEvaluacion(filasEvaluacion(m, ev, r)) }, { to: x });
+    }
     if (abrirLibro) for (const x of suyos(e)) M!.emit("abrirLibro", {}, { to: x }); // P3: after the book, so the page opens it whole
     revisarLlegadas(e);
     revisarEsperas(e); // U14 (5): a new block may start a wait
@@ -264,6 +339,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     try { return corta(o.frasear?.({ pnj: n.id, nodo, texto, jugador: M?.who(e)?.nombre ?? "" }) || texto, LIM.linea); } catch { return texto; } // the written line is the fallback
   };
   const abrir = (e: number, n: Hablante, nodo: string) => {
+    pararRonda(e, n); // P16: she stands still while you talk (before the card goes out)
     const p = prog(e), marcando = !esPersona(n) && n.marcable !== undefined && marcablesAhora(p, A, ahora()).includes(n.id);
     let vistas: Vista[] = opcionesDe(nodoDe(n, nodo), p, A);
     if (marcando) { // P4: the card of a marcable thing ends with its two buttons (the author's options are at most two: formato.ts checks it)
@@ -273,7 +349,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     abiertos.set(e, { pnj: n.id, vistas });
     P?.emit("dialogo", { pnj: n.id, nombre: n.nombre, texto: decir(e, n, nodo), o1: vistas[0]?.texto ?? "", o2: vistas[1]?.texto ?? "", o3: vistas[2]?.texto ?? "", o4: vistas[3]?.texto ?? "" }, { to: e });
   };
-  const cerrar = (e: number, n: Hablante) => { abiertos.delete(e); P?.emit("fin", { pnj: n.id, nombre: n.nombre }, { to: e }); };
+  const cerrar = (e: number, n: Hablante) => { abiertos.delete(e); soltarRonda(e, n.id); P?.emit("fin", { pnj: n.id, nombre: n.nombre }, { to: e }); };
   const hacer = (e: number, n: Hablante, ac: Exclude<Accion, { tipo: "despedir" }>): { ok: true } | { ok: false; motivo: string } => {
     const m = A.misiones.get(ac.mision);
     if (!m) return { ok: false, motivo: "Esa misión ya no existe." };
@@ -345,8 +421,8 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       if (op.accion?.tipo === "despedir" || !op.ir) return cerrar(e, n);
       abrir(e, n, op.ir);
     });
-    api.on("adios", (e, msg) => { if (abiertos.get(e)?.pnj === String(msg.pnj)) abiertos.delete(e); });
-    api.onLeave((e) => { abiertos.delete(e); });
+    api.on("adios", (e, msg) => { if (abiertos.get(e)?.pnj === String(msg.pnj)) { abiertos.delete(e); soltarRonda(e, String(msg.pnj)); } });
+    api.onLeave((e) => { const d = abiertos.get(e); abiertos.delete(e); if (d) soltarRonda(e, d.pnj, false); });
   });
 
   const misionesPart = serverPart(misionesDecl, (api) => {
@@ -374,8 +450,8 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     });
     api.onLeave((e) => {
       const k = claveDe.get(e);
-      claveDe.delete(e); llegadas.delete(e); esperas.delete(e); avisosAntes.delete(e); enviadoSitio.delete(e);
-      if (k && ![...claveDe.values()].includes(k)) progresos.delete(k); // saved in the store already
+      claveDe.delete(e); llegadas.delete(e); esperas.delete(e); avisosAntes.delete(e); enviadoSitio.delete(e); ultimaFoto.delete(e);
+      if (k && ![...claveDe.values()].includes(k)) { progresos.delete(k); rondas.delete(k); } // saved in the store already
     });
     // T1: step `hace`. Nothing here runs per tick: a builder's action reaches us as an event another piece already emits
     // (objetos `hizo`, disparadores `hizo` and `senal`; only the author's entity counts) and is turned into a Suceso; the
@@ -428,6 +504,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       act.paso = destino; act.hechos = [];
       const completada = destino >= mis.pasos.length;
       if (completada) {
+        evaluar(p, mis, act, ahora()); // P13: the card of a quest with `evaluacion` (the block times it did not see are left out)
         delete p.activas[mis.id];
         if (!p.hechas.includes(mis.id)) p.hechas.push(mis.id);
         if (p.hechas.length > HECHAS_MAX) p.hechas.splice(0, p.hechas.length - HECHAS_MAX);
@@ -459,6 +536,33 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       if (!seguir(p, id)) return rechazarM(e, "Solo se puede seguir una misión activa.");
       guardar(e, p);
       enviarLibro(e);
+    });
+    // P10: step `foto`. The page says WHERE its camera was and which way it looked when the photo was taken; the server decides. The camera
+    // must be within the photo mode's leash of where the SERVER has the player (never its own word), at most one photo a second is looked
+    // at, and a wall between the player's eye and the corner (the world's collision mesh: api.rayo) hides it. Outside a block with a
+    // `foto` step to do, a photo counts for nothing and says nothing.
+    api.on("foto", (e, msg) => {
+      const p = prog(e);
+      asentarYa(e, p, true);
+      if (!pasosFoto(p, A, ahora()).length) return;
+      const t = ahora(), ultima = ultimaFoto.get(e);
+      if (ultima !== undefined && t - ultima < FOTO_CADA_MS) return rechazarM(e, "Espere un momento antes de hacer otra foto.");
+      ultimaFoto.set(e, t);
+      const pose: PoseFoto = { x: Number(msg.x), y: Number(msg.y), z: Number(msg.z), fx: Number(msg.fx), fy: Number(msg.fy), fz: Number(msg.fz), fov: Number(msg.fov), aspecto: Number(msg.aspecto) };
+      const mal = poseInvalida(pose);
+      if (mal) return rechazarM(e, mal);
+      const yo = api.position(e);
+      if (!yo) return;
+      const ojo = { x: yo.x, y: yo.y + FOTO_OJO_M, z: yo.z };
+      if (Math.hypot(pose.x - ojo.x, pose.y - ojo.y, pose.z - ojo.z) > FOTO_CAMARA_MAX_M) return rechazarM(e, "La cámara queda demasiado lejos de usted para esa foto.");
+      const r = fotografiar(p, A, pose, t, (o) => {
+        const dir = { x: o.x - ojo.x, y: o.y - ojo.y, z: o.z - ojo.z }, d = Math.hypot(dir.x, dir.y, dir.z);
+        if (d <= o.radio) return false; // the player's eye is inside the corner
+        const golpe = api.rayo(e, dir, d); // null = a clear line, no mesh in this world, or no budget left (RAYO_RATE): nothing to hide it
+        return !!golpe && golpe.distancia < d - o.radio; // a wall inside the sphere (a window in its wall) does not hide it
+      });
+      if (r.hechos.length) tras(e, p, r.hechos);
+      else if (r.erroneas.length) { guardar(e, p); enviarLibro(e); } // the counter changed: the page's libro()[i].cuenta follows (it says nothing else)
     });
     api.on("usar", (e, msg) => {
       const c = A.cosas.get(String(msg.cosa));
@@ -505,7 +609,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       }
       for (const [e, d] of abiertos) {
         if ((e + t) % LLEGADA_CADA !== 0) continue;
-        const n = hablante(d.pnj), pos = api.position(e), st = n ? (esPersona(n) && n.posiciones.length ? sitioPara(sueloAhora(api), n, prog(e)) : n.posicion) : null; // P2: where this player finds it
+        const n = hablante(d.pnj), pos = api.position(e), st = n ? (esPersona(n) && n.posiciones.length ? sitioPara(sueloAhora(api), n, prog(e), kx(e)) : n.posicion) : null; // P2: where this player finds it (P16: on her round, where she stands, which is still while you talk)
         if (n && st && pos && (pos.x - st.x) ** 2 + (pos.z - st.z) ** 2 <= (n.radio + ALEJARSE_M) ** 2) continue;
         if (n) cerrar(e, n); else abiertos.delete(e);
       }

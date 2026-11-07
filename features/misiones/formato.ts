@@ -18,15 +18,18 @@
 // Evidence markers (P4, optional): a cosa may be `marcable` (its card gets «Marcar»/«Desechar» while a `marca` step is the one to do;
 // a marked thing shows a numbered marker for that player only) and a step of type `marca` ({ cosas: [...] }) is done when the player has
 // marked EXACTLY those things. Counters per quest (wrong marks, unmarks) are kept in the progress (maquina.ts `cuenta`).
+// End evaluation (P13, optional): a mision@1 may carry `evaluacion` — the card the player gets when the quest is completed: the time of the
+// whole quest and of each block, any counter by name, and a score (base minus integer weights; see evaluacion.ts for the arithmetic).
 // The recipe for authors (people or LLMs) is docs/EXTENDER.md «Misiones y PNJ». Every check returns Result with paths
 // that say how to fix each problem; nothing here throws, touches the network or the world.
 import type { Issue, Result } from "../../packages/core/src/index.ts";
 import { SOUNDS } from "../../packages/feature/src/index.ts"; // U14 (5): a sequence's sounds are the house's
 import type { Sound } from "../../packages/feature/src/index.ts";
 import biblioteca from "../objetos/biblioteca.json" with { type: "json" }; // U14 (5): what a missing model can be instead
+import { FOTO_DISTANCIA_MAX_M } from "./foto.ts"; // P10: the step `foto`'s numbers
 
 export const FORMATOS = { mision: "mision@1", pnj: "pnj@1", cosa: "cosa@1" } as const;
-export const TIPOS_PASO = ["llega_a", "habla_con", "usa", "coge", "entrega", "recibe", "hace", "marca"] as const; // new kinds go at the end (the wire's enum)
+export const TIPOS_PASO = ["llega_a", "habla_con", "usa", "coge", "entrega", "recibe", "hace", "marca", "foto"] as const; // new kinds go at the end (the wire's enum)
 /** T1, step `hace` (the builder DOES something): the closed list of actions. The server decides the first ten from events the
  * other pieces already emit (objetos `hizo`, disparadores `hizo` / `senal`); the last three happen on the page, which the server
  * cannot see: the page says so with the intent `hace`, and only for those (ACCIONES_PAGINA). New ones go at the end. */
@@ -37,6 +40,24 @@ const CON_CABLE: readonly string[] = ["crea_cable", "edita_cable", "borra_cable"
 /** The sha256 of a library model by its id (`bloque`, `farolillo`…), or "" when the library has none. */
 export const shaDeBiblioteca = (id: string): string => biblioteca.modelos.find((m) => m.id === id)?.modelo ?? "";
 export const ESTADOS = ["sin_empezar", "disponible", "activa", "hecha"] as const;
+// P16: a person's round. Its limits and rounding live HERE (not in ronda.ts): the page loads the maths of ronda.ts only when a round comes
+import type { ModoRonda, PuntoRonda, Ronda } from "./ronda.ts";
+
+export const RONDA = {
+  puntosMin: 2, puntosMax: 8,
+  pausaMax: 60,            // s
+  velMin: 0.3, velMax: 1.4, // m/s: never faster than the page's calm walk (render/vida.ts CAMINA_MS)
+  velDefecto: 1.1,         // m/s
+  lejosM: 30,              // m: every stop within this of the person's own place (the page knows her only near it)
+  cicloMaxS: 7200,         // s: the `rt` field of the event holds up to this; the limits above can never reach it (8 pauses of 60 s + 8 legs of 60 m at 0.3 m/s = 2080 s)
+  texto: 300,              // bytes of the stops as the event carries them
+} as const;
+export const MODOS_RONDA: readonly ModoRonda[] = ["vuelta", "ida_y_vuelta"];
+
+export const r2 = (n: number) => Math.round(n * 100) / 100, r1 = (n: number) => Math.round(n * 10) / 10;
+/** The numbers of a stop as the wire keeps them: x, z, y in cm, giro in 0.1°, pausa in 0.1 s. */
+export const redondeaPunto = (p: PuntoRonda): PuntoRonda => ({ x: r2(p.x), z: r2(p.z), ...(p.y === undefined ? {} : { y: r2(p.y) }), ...(p.giro === undefined ? {} : { giro: r1(p.giro) }), pausa: r1(p.pausa) });
+
 export const ACCIONES = ["dar_mision", "avanzar_paso", "entregar", "despedir"] as const;
 /** The voices a person can have (pnj@1 `voz`): the house's NPC voice takes, a short wordless greeting when you start
  *  talking and a farewell when you stop (features/sonido/catalogo.json: `pnj-saludo-<voz>`, `pnj-despedida-<voz>`). New
@@ -74,6 +95,7 @@ export type Paso = PasoBase & (
   | { tipo: "entrega"; cosas: string[]; pnj: string } // …or several at once (1–8); cosasDe() reads either
   | { tipo: "hace"; accion: AccionHace; modelo?: string; disparador?: string } // T1: the builder does something (modelo = a library id, only with coloca; disparador = a cable's id, only with the cable actions)
   | { tipo: "marca"; cosas: string[] } // P4: done when the things the player has marked are EXACTLY these (1–16 cosas marcables, order irrelevant)
+  | { tipo: "foto"; objetivo: { x: number; y: number; z: number; radio: number }; distancia?: number } // P10: done by a photo of the engine's camera whose frame holds the objetivo's centre (≤ distancia m from the camera, nothing solid between)
 );
 /** What an entrega asks for (its `cosa` or its `cosas`); for coge, usa and recibe, their one thing; else nothing. */
 export const cosasDe = (s: Paso): string[] => ("cosas" in s ? s.cosas : "cosa" in s ? [s.cosa] : []);
@@ -93,7 +115,32 @@ export type ColorSemilla = (typeof COLORES_SEMILLA)[number];
 export type Mision = {
   formato: "mision@1"; id: string; titulo: string; descripcion: string; requisitos: { misiones: string[] }; pasos: Paso[];
   recompensas: Recompensa[]; textos: { aceptada: string; completada: string }; repetible: boolean; pistas?: false;
+  /** P13 (optional): the evaluation card shown when the quest is completed. Absent = nothing of it anywhere. */
+  evaluacion?: Evaluacion;
 };
+
+// ---------- evaluacion (P13): the end-of-quest card ----------
+/** The counters the engine keeps and how the card calls them (formal «usted» wording is for sentences; these are labels). Any other name is
+ *  a counter too (a piece may add its own: `fotos_erroneas` from the photo step), and then the author gives its label in `etiquetas`. */
+export const CONTADORES_CONOCIDOS: Readonly<Record<string, string>> = {
+  marcas: "Marcas hechas", marcas_erroneas: "Marcas erróneas", desmarcados: "Marcas retiradas", desmarcados_correctos: "Indicios correctos desmarcados", fotos_erroneas: "Fotos no relevantes",
+};
+/** The counters kept by the `marca` steps (maquina.ts `cuenta`): only a quest with such a step has them. */
+export const CONTADORES_DE_MARCA = ["marcas", "marcas_erroneas", "desmarcados", "desmarcados_correctos"] as const;
+export const TITULO_EVALUACION = "Evaluación";
+export const ETIQUETA_TIEMPO = "Tiempo de la misión";
+export const LIM_EVAL = { titulo: 80, etiqueta: 40, contadores: 12, tope: 9999, minutos: 999 } as const; // bytes / counts / points and weights / minutes
+/** `resta`: points taken for each unit of a counter (integers, no formulas). `tiempo`: from `referencia_min` minutes on, `resta_por_minuto` for each whole
+ *  minute over. `muestra`: the rows of the card, in order (`"tiempo"` or a counter); `etiquetas`: the author's own wording of a row. All resolved
+ *  (a missing `muestra` is the time, if it counts, and every counter that takes points). */
+export type Evaluacion = {
+  titulo: string; base: number; minimo: number; resta: Record<string, number>; tiempo?: { referencia_min: number; resta_por_minuto: number };
+  muestra: string[]; etiquetas: Record<string, string>;
+  /** Named phases (optional): each runs from the end of the one before (or from accepting the quest) until the block holding the step `hasta` is done.
+   *  With them the card shows these rows under the time instead of one per block. */
+  fases?: { nombre: string; hasta: string }[];
+};
+export const LIM_FASES = 8; // most named phases of a card
 /** True when every listed fact holds for this player. `paso` and `tiene` only with estado "activa"; `paso` = that step is
  * to do now (inside a grupo: one of the block's steps not done yet). */
 export type Condicion = { mision: string; estado: Estado; paso?: string; tiene?: string };
@@ -124,7 +171,10 @@ export type Marcable = { marcar: string; desechar: string; desmarcar: string; de
 export const MARCABLE_POR_DEFECTO: Marcable = { marcar: "Marcar", desechar: "Desechar", desmarcar: "Desmarcar", dejar: "Dejar marcado", offset: { x: 0, y: 0.6, z: 0 } };
 /** One entry of pnj@1 `posiciones`: where the person stands for the player whose quests meet `si` (empty = always), and the yaw it
  * keeps there (`giro`: absent = the person's own). `sinY` as for `posicion`. */
-export type Lugar = { si: Condicion[]; posicion: { x: number; z: number; y: number }; sinY?: true; giro?: number };
+export type Lugar = { si: Condicion[]; posicion: { x: number; z: number; y: number }; sinY?: true; giro?: number;
+  /** P16: instead of standing still, she walks this round (from stop to stop, pausing at each) while this entry holds; `posicion` is then
+   * the first stop unless the file says otherwise. Absent = she stands at `posicion`, exactly as before. */
+  ronda?: Ronda };
 /** A thing's `posicion.y` (optional, absolute metres: a thing on a table or held up at chest height, reachable
  * with a hand in VR) and `apariencia.color` (optional «#rrggbb»: the house block in a colour, so two things differ).
  * `apariencia.usada` (optional, U14 (6)): how it looks for a player once THEY did the step that uses it (`usa`/`coge`)
@@ -243,6 +293,16 @@ function paso(v: unknown, path: string, is: Issue[]): Paso {
     cosas.forEach((c, j) => { if (c && cosas.indexOf(c) < j) is.push({ path: en(en(path, "cosas"), j), message: `«${c}» ya está en la lista: cada cosa, una vez` }); });
     p = { ...base, tipo, cosas };
   }
+  else if (tipo === "foto") { // P10: done by a photo of the engine's camera with the objetivo in the frame (maquina.ts `fotografiar`)
+    permite("objetivo", "distancia");
+    const en_ = en(path, "objetivo"), ob = o.objetivo === undefined ? null : objeto(o.objetivo, en_, is);
+    if (o.objetivo === undefined) is.push({ path: en_, message: 'el rincón a fotografiar, una esfera en metros: { "x": 5, "y": 0.5, "z": -8.3, "radio": 1 }' });
+    if (ob) campos(ob, ["x", "y", "z", "radio"], en_, is);
+    const objetivo = ob ? { x: numero(ob.x, en(en_, "x"), -MUNDO, MUNDO, is), y: numero(ob.y, en(en_, "y"), -ALTURA_MAX, ALTURA_MAX, is), z: numero(ob.z, en(en_, "z"), -MUNDO, MUNDO, is), radio: numero(ob.radio, en(en_, "radio"), 0.1, 20, is) } : { x: 0, y: 0, z: 0, radio: 1 };
+    const f: Extract<Paso, { tipo: "foto" }> = { ...base, tipo, objetivo };
+    if (o.distancia !== undefined) f.distancia = numero(o.distancia, en(path, "distancia"), 1, FOTO_DISTANCIA_MAX_M, is); // without it: FOTO_DISTANCIA_M
+    p = f;
+  }
   else if (tipo === "coge") { // Y3: a `coge` may hand over a weapon or relic the adventure defines (objeto@1); cargarAventura checks the id exists
     permite("cosa", "otorga", "abreLibro");
     const c: Extract<Paso, { tipo: "coge" }> = { ...base, tipo, cosa: id(o.cosa, en(path, "cosa"), is) };
@@ -313,7 +373,7 @@ export function leerMision(v: unknown): Result<Mision> {
   const is: Issue[] = [];
   const o = objeto(v, "", is);
   if (!o) return resultado(is, null as never);
-  campos(o, ["formato", "id", "titulo", "descripcion", "requisitos", "pasos", "recompensas", "textos", "repetible", "pistas", "notas"], "", is);
+  campos(o, ["formato", "id", "titulo", "descripcion", "requisitos", "pasos", "recompensas", "textos", "repetible", "pistas", "evaluacion", "notas"], "", is);
   formato(o, FORMATOS.mision, is);
   const req = objeto(o.requisitos, "requisitos", is, true);
   if (req) campos(req, ["misiones"], "requisitos", is);
@@ -337,6 +397,8 @@ export function leerMision(v: unknown): Result<Mision> {
   });
   const ids = new Set<string>();
   recompensas.forEach((r, i) => { if (r.tipo === "semilla") return; if (r.id && ids.has(r.id)) is.push({ path: en(en("recompensas", i), "id"), message: `«${r.id}» ya es otra recompensa de esta misión: cada una, un id distinto` }); ids.add(r.id); });
+  const evaluacion = leerEvaluacion(o.evaluacion, is, pasos);
+  if (evaluacion && !pasos.some((p) => p.tipo === "marca")) evaluacion.muestra.forEach((c, i) => { if ((CONTADORES_DE_MARCA as readonly string[]).includes(c)) is.push({ path: en("evaluacion.muestra", i), message: `«${c}» lo cuentan los pasos "marca" y esta misión no tiene ninguno: quítelo o añada un paso marca` }); });
   const tx = objeto(o.textos, "textos", is, true) ?? {};
   campos(tx, ["aceptada", "completada"], "textos", is);
   if (o.repetible !== undefined && typeof o.repetible !== "boolean") is.push({ path: "repetible", message: "true o false" });
@@ -345,9 +407,91 @@ export function leerMision(v: unknown): Result<Mision> {
   return resultado(is, {
     formato: FORMATOS.mision, id: id(o.id, "id", is), titulo: texto(o.titulo, "titulo", LIM.titulo, is), descripcion: texto(o.descripcion, "descripcion", LIM.descripcion, is),
     requisitos: { misiones: lista(req?.misiones, "requisitos.misiones", 0, LIM.requisitos, is, true).map((m, i) => id(m, `requisitos.misiones[${i}]`, is)) },
-    pasos, recompensas, repetible: o.repetible === true, ...(o.pistas === false ? { pistas: false as const } : {}),
+    pasos, recompensas, repetible: o.repetible === true, ...(o.pistas === false ? { pistas: false as const } : {}), ...(evaluacion ? { evaluacion } : {}),
     textos: { aceptada: texto(tx.aceptada, "textos.aceptada", LIM.textoMision, is, true), completada: texto(tx.completada, "textos.completada", LIM.textoMision, is, true) },
   });
+}
+
+const CONTADOR = /^[a-z][a-z0-9_]{0,31}$/;
+const entero = (v: unknown, path: string, min: number, max: number, is: Issue[], def?: number): number => {
+  const n = numero(v, path, min, max, is, def);
+  if (!Number.isInteger(n)) { is.push({ path, message: `un número entero entre ${min} y ${max}` }); return def ?? min; }
+  return n;
+};
+/** mision@1 `evaluacion` (P13):
+ *  `{ "titulo"?, "base"?: 100, "minimo"?: 0, "resta"?: { "<contador>": peso }, "tiempo"?: { "referencia_min", "resta_por_minuto" }, "muestra"?: [...], "etiquetas"?: { "<fila>": "texto" },
+ *     "fases"?: [{ "nombre": "Fase 1 · Datos preliminares", "hasta": "<id del paso que la cierra>" }] }`.
+ *  Whole numbers only; a counter missing from the progress counts 0 (so a name the engine does not know yet is harmless, but it needs its label). */
+function leerEvaluacion(v: unknown, is: Issue[], pasos: readonly Paso[] = []): Evaluacion | undefined {
+  if (v === undefined) return undefined;
+  const p = "evaluacion", L = LIM_EVAL;
+  if (!esObjeto(v)) { is.push({ path: p, message: 'un objeto { "base": 100, "resta": { "fotos_erroneas": 5 }, "tiempo": { "referencia_min": 20, "resta_por_minuto": 1 } }: la tarjeta que ve el jugador al terminar la misión' }); return undefined; }
+  campos(v, ["titulo", "base", "minimo", "resta", "tiempo", "muestra", "etiquetas", "fases"], p, is);
+  const n0 = is.length;
+  const titulo = v.titulo === undefined ? TITULO_EVALUACION : texto(v.titulo, en(p, "titulo"), L.titulo, is);
+  const base = entero(v.base, en(p, "base"), 1, L.tope, is, 100), minimo = entero(v.minimo, en(p, "minimo"), 0, L.tope, is, 0);
+  if (minimo > base) is.push({ path: en(p, "minimo"), message: `no puede pasar de «base» (${base}): es la nota más baja posible` });
+  const resta: Record<string, number> = {};
+  const ro = objeto(v.resta, en(p, "resta"), is, true) ?? {};
+  const claves = Object.keys(ro);
+  if (claves.length > L.contadores) is.push({ path: en(p, "resta"), message: `como mucho ${L.contadores} contadores` });
+  for (const k of claves) {
+    const pk = en(en(p, "resta"), k);
+    if (!CONTADOR.test(k) || k === "tiempo") { is.push({ path: pk, message: k === "tiempo" ? 'el tiempo se resta con "tiempo": { "referencia_min", "resta_por_minuto" }, no aquí' : 'el nombre de un contador: minúsculas, cifras y "_", de 1 a 32 (p. ej. "fotos_erroneas")' }); continue; }
+    resta[k] = entero(ro[k], pk, 1, L.tope, is);
+  }
+  let tiempo: Evaluacion["tiempo"];
+  const to = objeto(v.tiempo, en(p, "tiempo"), is, true);
+  if (to) {
+    campos(to, ["referencia_min", "resta_por_minuto"], en(p, "tiempo"), is);
+    tiempo = { referencia_min: entero(to.referencia_min, en(en(p, "tiempo"), "referencia_min"), 0, L.minutos, is), resta_por_minuto: entero(to.resta_por_minuto, en(en(p, "tiempo"), "resta_por_minuto"), 1, L.tope, is) };
+  }
+  const defecto = [...(tiempo ? ["tiempo"] : []), ...Object.keys(resta)];
+  const muestra = v.muestra === undefined ? defecto : lista(v.muestra, en(p, "muestra"), 1, L.contadores + 1, is).map((c, i) => {
+    const pm = en(en(p, "muestra"), i);
+    if (typeof c === "string" && (c === "tiempo" || CONTADOR.test(c))) return c;
+    is.push({ path: pm, message: '"tiempo" o el nombre de un contador (minúsculas, cifras y "_")' });
+    return "";
+  }).filter(Boolean);
+  muestra.forEach((c, i) => { if (muestra.indexOf(c) < i) is.push({ path: en(en(p, "muestra"), i), message: `«${c}» ya está en la lista: cada fila, una vez` }); });
+  if (v.muestra !== undefined) {
+    for (const k of Object.keys(resta)) if (!muestra.includes(k)) is.push({ path: en(p, "muestra"), message: `«${k}» resta puntos y tiene que verse en la tarjeta: añádalo a la lista` });
+    if (tiempo && !muestra.includes("tiempo")) is.push({ path: en(p, "muestra"), message: '"tiempo" resta puntos y tiene que verse en la tarjeta: añádalo a la lista' });
+  }
+  const etiquetas: Record<string, string> = {};
+  const eo = objeto(v.etiquetas, en(p, "etiquetas"), is, true) ?? {};
+  for (const k of Object.keys(eo)) {
+    const pk = en(en(p, "etiquetas"), k);
+    if (!muestra.includes(k)) { is.push({ path: pk, message: `«${k}» no está en «muestra»: no sale en la tarjeta, así que no necesita texto` }); continue; }
+    etiquetas[k] = texto(eo[k], pk, L.etiqueta, is);
+  }
+  for (const k of muestra) if (k !== "tiempo" && !Object.hasOwn(CONTADORES_CONOCIDOS, k) && !Object.hasOwn(etiquetas, k)) is.push({ path: en(en(p, "etiquetas"), k), message: `el motor no conoce el contador «${k}»: escriba cómo se llama en la tarjeta, p. ej. "${k}": "Fotos repetidas"` });
+  const fases = leerFases(v.fases, en(p, "fases"), pasos, is);
+  return is.length > n0 ? undefined : { titulo, base, minimo, resta, ...(tiempo ? { tiempo } : {}), muestra, etiquetas, ...(fases ? { fases } : {}) };
+}
+
+/** `evaluacion.fases`: 1–8 named phases, each closed by a step of the quest (`hasta`). A step in a `grupo` closes with its block, so two
+ *  phases may not end in the same block, and they must follow the order of the quest. */
+function leerFases(v: unknown, p: string, pasos: readonly Paso[], is: Issue[]): { nombre: string; hasta: string }[] | undefined {
+  if (v === undefined) return undefined;
+  const bloque = new Map<string, number>(); // step id → number of its block (consecutive steps with the same grupo are one)
+  let b = -1;
+  pasos.forEach((s, i) => { if (!(i > 0 && s.grupo && s.grupo === pasos[i - 1].grupo)) b++; if (s.id) bloque.set(s.id, b); });
+  const out: { nombre: string; hasta: string }[] = [];
+  let ultimo = -1, ultimoId = "";
+  lista(v, p, 1, LIM_FASES, is).forEach((f, i) => {
+    const pf = en(p, i), fo = objeto(f, pf, is);
+    if (!fo) return;
+    campos(fo, ["nombre", "hasta"], pf, is);
+    const nombre = texto(fo.nombre, en(pf, "nombre"), LIM.nombre, is);
+    const hasta = typeof fo.hasta === "string" ? fo.hasta : "";
+    const k = bloque.get(hasta);
+    if (k === undefined) is.push({ path: en(pf, "hasta"), message: hasta ? `«${hasta}» no es un paso de esta misión: use el id de uno de ellos (${pasos.map((s) => s.id).filter(Boolean).slice(0, 8).join(", ")}${pasos.length > 8 ? ", …" : ""})` : "el id del paso que cierra esta fase (p. ej. \"hablar-con-la-jefa\")" });
+    else if (k <= ultimo) is.push({ path: en(pf, "hasta"), message: k === ultimo ? `«${hasta}» cierra el mismo bloque de pasos que «${ultimoId}»: dos fases no pueden acabar a la vez, elija un paso de un bloque posterior` : `«${hasta}» va antes que «${ultimoId}», el final de la fase anterior: ordene las fases como van los pasos de la misión` });
+    else { ultimo = k; ultimoId = hasta; }
+    out.push({ nombre, hasta });
+  });
+  return out;
 }
 
 /** N10: `{ "tipo": "objeto", "id", "nombre", "descripcion"?, "modelo"?: "<sha256 de un .glb>", "licencia"?: "CC0-1.0" }`. */
@@ -511,6 +655,32 @@ function leerDialogo(v: unknown, path: string, is: Issue[], cosa = false): Dialo
   return { entradas, nodos };
 }
 
+/** P16: `ronda` of a `posiciones` entry: `{ "puntos": [{ "x", "z", "y"?, "giro"?, "pausa"? }, …2–8], "velocidad"?: m/s, "modo"?: "vuelta" | "ida_y_vuelta" }`.
+ * Returns the round with its numbers rounded as the wire keeps them (cm, 0.1°, 0.1 s), or undefined when it has errors. */
+function leerRonda(v: unknown, path: string, base: { x: number; z: number }, is: Issue[]): Ronda | undefined {
+  const o = objeto(v, path, is);
+  if (!o) return undefined;
+  const antes = is.length;
+  campos(o, ["puntos", "velocidad", "modo"], path, is);
+  const puntos = lista(o.puntos, en(path, "puntos"), RONDA.puntosMin, RONDA.puntosMax, is).map((x, i): PuntoRonda => {
+    const p = en(en(path, "puntos"), i), po = objeto(x, p, is) ?? {};
+    campos(po, ["x", "z", "y", "giro", "pausa"], p, is);
+    const q: PuntoRonda = { x: numero(po.x, en(p, "x"), -MUNDO, MUNDO, is), z: numero(po.z, en(p, "z"), -MUNDO, MUNDO, is), pausa: numero(po.pausa, en(p, "pausa"), 0, RONDA.pausaMax, is, 0) };
+    if (po.y !== undefined) q.y = numero(po.y, en(p, "y"), 0, ALTURA_MAX, is);
+    if (po.giro !== undefined) q.giro = numero(po.giro, en(p, "giro"), -180, 180, is);
+    if (po.x !== undefined && po.z !== undefined && Math.hypot(q.x - base.x, q.z - base.z) > RONDA.lejosM) is.push({ path: p, message: `a ${RONDA.lejosM} m o menos de la «posicion» de la persona (la página sabe de ella solo mientras estás cerca)` });
+    return redondeaPunto(q);
+  });
+  const velocidad = o.velocidad === undefined ? RONDA.velDefecto : numero(o.velocidad, en(path, "velocidad"), RONDA.velMin, RONDA.velMax, is);
+  let modo: ModoRonda = "vuelta";
+  if (o.modo !== undefined) { if (MODOS_RONDA.includes(o.modo as ModoRonda)) modo = o.modo as ModoRonda; else is.push({ path: en(path, "modo"), message: `uno de: ${MODOS_RONDA.join(", ")} (sin «modo», vuelta: al último punto vuelve al primero)` }); }
+  if (is.length > antes) return undefined;
+  const ronda: Ronda = { puntos, velocidad: Math.round(velocidad * 100) / 100, modo };
+  // a round with no length: every stop in the same place and none with a pause (the same test as `compilar(ronda).ciclo > 0`)
+  if (puntos.every((q) => q.pausa === 0 && q.x === puntos[0].x && q.z === puntos[0].z)) { is.push({ path, message: "la ronda no tiene ni recorrido ni pausas: pon puntos distintos o alguna «pausa»" }); return undefined; }
+  return ronda;
+}
+
 /** One person's file, on its own. The LAST entrada usually has no `si`: it is what the person says when nothing else applies. If
  * it has one (P3), the person has nothing to say outside that phase: no «E» offered and the server refuses the talk. */
 export function leerPnj(v: unknown): Result<Pnj> {
@@ -524,11 +694,15 @@ export function leerPnj(v: unknown): Result<Pnj> {
   const base = { ...posicion(o.posicion, "posicion", is, ["y"]), y: altura(o.posicion, is, ALTURA_MAX) };
   const posiciones = lista(o.posiciones, "posiciones", 1, LIM.lugares, is, true).map((x, i): Lugar => {
     const p = `posiciones[${i}]`, lo = objeto(x, p, is) ?? {};
-    campos(lo, ["si", "posicion", "giro"], p, is);
-    const pos = { ...posicion(lo.posicion, `${p}.posicion`, is, ["y"]), y: altura(lo.posicion, is, ALTURA_MAX, `${p}.posicion.y`) };
+    campos(lo, ["si", "posicion", "giro", "ronda"], p, is);
+    const ronda = lo.ronda === undefined ? undefined : leerRonda(lo.ronda, `${p}.ronda`, base, is); // P16
+    const primero = ronda?.puntos[0]; // with a round, `posicion` may be left out: she starts at the first stop
+    const dePrimero = lo.posicion === undefined && primero ? { posicion: { x: primero.x, z: primero.z, y: primero.y ?? 0 } } : null;
+    const pos = dePrimero ? dePrimero.posicion : { ...posicion(lo.posicion, `${p}.posicion`, is, ["y"]), y: altura(lo.posicion, is, ALTURA_MAX, `${p}.posicion.y`) };
     if (lo.posicion !== undefined && Math.hypot(pos.x - base.x, pos.z - base.z) > LUGAR_LEJOS_M) is.push({ path: `${p}.posicion`, message: `a ${LUGAR_LEJOS_M} m o menos de su «posicion» (la página sabe de una persona solo mientras estás cerca de ella)` });
-    const out: Lugar = { si: condiciones(lo.si, `${p}.si`, is), posicion: pos, ...sinY(lo.posicion) };
+    const out: Lugar = { si: condiciones(lo.si, `${p}.si`, is), posicion: pos, ...(dePrimero ? (primero?.y === undefined ? { sinY: true as const } : {}) : sinY(lo.posicion)) };
     if (lo.giro !== undefined) out.giro = numero(lo.giro, `${p}.giro`, -180, 180, is);
+    if (ronda) out.ronda = ronda;
     return out;
   });
   posiciones.forEach((l, i) => { if (!l.si.length && i < posiciones.length - 1) is.push({ path: `posiciones[${i}].si`, message: "una entrada sin «si» vale siempre: solo puede ser la última (las de después nunca se verían)" }); });

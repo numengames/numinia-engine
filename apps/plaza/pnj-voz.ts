@@ -1,18 +1,18 @@
-// La voz de los PNJ: un saludo corto, sin palabras, cuando una conversación SE ABRE y una despedida cuando SE CIERRA.
-// Nada más: una línea nueva o una respuesta elegida no suenan (cada paso de la charla con su «hmm» saturaría la mezcla,
-// y lo que se dice ya está escrito y lo lee el lector). Suena el mundo, no la interfaz (Pablo, 2026-10-19): la voz
-// sale de la persona, colocada en 3D a la altura de su boca, no de la caja del diálogo.
+// The NPC voice: a short wordless greeting when a conversation OPENS and a farewell when it CLOSES.
+// Nothing more: a new line or a chosen answer does not sound (each step of the chat with its «hmm» would saturate the mix,
+// and what is said is already written and read by the reader). The world sounds, not the interface (Pablo, 2026-10-19): the voice
+// comes from the person, placed in 3D at mouth height, not from the dialogue box.
 //
-// LOCAL: la conversación es mía (el servidor solo me la manda a mí), así que solo la oigo yo; los de alrededor no ven
-// el panel y tampoco lo oyen. Por eso no es de los COMPARTIDOS de `sonidos.ts` y no lleva semilla: sin semilla, la
-// puerta no repite la misma toma dos veces seguidas (`voces.ts`).
+// LOCAL: the conversation is mine (the server only sends it to me), so only I hear it; those around do not see
+// the panel and do not hear it either. That is why it is not one of the SHARED sounds of `sonidos.ts` and carries no seed: without a seed, the
+// door does not repeat the same take twice in a row (`voces.ts`).
 //
-// Cada persona tiene SIEMPRE la misma voz: la de su ficha (pnj@1 `voz`) o, si no la dice, una elegida por su id con un
-// hash (FNV-1a): la misma en todas las páginas y en todas las visitas.
+// Each person ALWAYS has the same voice: the one in their sheet (pnj@1 `voz`) or, if it names none, one chosen by their id with a
+// hash (FNV-1a): the same on every page and on every visit.
 import { VOCES_PNJ, type VozPnj } from "../../features/misiones/formato.ts";
 import type { Opciones } from "../../packages/render/src/audio/sonar.ts";
 
-/** Lo que mira de las misiones de la página (`features/misiones/client.ts`). */
+/** What it watches of the page's quests (`features/misiones/client.ts`). */
 export type ConversacionPnj = {
   dialogo(): { pnj: string } | null;
   alCambiar(fn: (que: "libro" | "dialogo" | "nota") => void): unknown;
@@ -20,39 +20,39 @@ export type ConversacionPnj = {
   vozDe(pnj: string): string;
 };
 
-/** Bajito: los sonidos de hoy son provisionales (mejor bajos que altos). Encima va el ×0,32 del bus «efectos». */
+/** Quiet: today's sounds are provisional (better low than loud). On top comes the ×0.32 of the «efectos» bus. */
 export const GAIN_VOZ_PNJ = 0.5;
-/** Freno de página: quien abre y cierra deprisa no apila saludos (el catálogo trae además su propio cooldown). */
+/** Page brake: whoever opens and closes quickly does not stack greetings (the catalogue also brings its own cooldown). */
 export const MS_VOZ_PNJ = 800;
-/** A qué altura sobre sus pies habla una persona de escala 1 (la boca, no el suelo). */
+/** How high above their feet a person of scale 1 speaks (the mouth, not the floor). */
 export const BOCA_M = 1.5;
 
-/** FNV-1a de 32 bits: corto, estable y el mismo en el navegador y en Node. */
+/** 32-bit FNV-1a: short, stable and the same in the browser and in Node. */
 function hash(s: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
   return h >>> 0;
 }
 
-/** La voz de una persona: la de su ficha si es una de las de la casa; si no, la que le toque por su id (siempre la misma). */
+/** A person's voice: the one in their sheet if it is a house one; otherwise the one that falls to them by their id (always the same). */
 export function vozPnj(pnj: string, voz = ""): VozPnj {
   return (VOCES_PNJ as readonly string[]).includes(voz) ? (voz as VozPnj) : VOCES_PNJ[hash(pnj) % VOCES_PNJ.length];
 }
 
-/** Engancha el saludo y la despedida a las conversaciones de la página. `sonar` es la puerta local (`sonarLocal`).
- *  Devuelve cómo desengancharse. */
+/** Hooks the greeting and the farewell to the page's conversations. `sonar` is the local door (`sonarLocal`).
+ *  Returns how to unhook. */
 export function montarVozPnj(m: ConversacionPnj, sonar: (id: string, o?: Opciones, ms?: number) => boolean): () => void {
   let abierta: string | null = m.dialogo()?.pnj ?? null;
   const decir = (pnj: string, que: "saludo" | "despedida"): void => {
     const p = m.personaDe(pnj);
-    if (!p) return; // esta página no la dibuja (ya no está): no hay de dónde sacar la voz
+    if (!p) return; // this page does not draw it (it is gone): there is nowhere to get the voice from
     const donde = { x: p.x, y: p.y + BOCA_M * (p.escala || 1), z: p.z };
     sonar(`pnj-${que}-${vozPnj(pnj, m.vozDe(pnj))}`, { donde, gain: GAIN_VOZ_PNJ }, MS_VOZ_PNJ);
   };
   const quitar = m.alCambiar((que) => {
     if (que !== "dialogo") return;
     const ahora = m.dialogo()?.pnj ?? null;
-    if (ahora === abierta) return; // la misma conversación con otra línea: callada
+    if (ahora === abierta) return; // the same conversation with another line: silent
     const antes = abierta;
     abierta = ahora;
     if (antes) decir(antes, "despedida");

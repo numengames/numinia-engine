@@ -1,8 +1,8 @@
-// Puente de sonido de la página: las piezas de VR (dardos-vr, pesca-sonido) suenan por aquí sin importar `sonidos.ts`
-// (que llega aparte, perezoso). Al montarse, `sonidos.ts` engancha su `sonarLocal` —la PUERTA ÚNICA: fichero si lo hay,
-// receta si no, el mismo pool de voces y los buses del núcleo—. Antes de eso, o sin audio, todo es silencio: nadie falla.
-// Solo sonidos LOCALES (mi mano, mi caña): lo compartido (dardo lanzado e impacto, pez cobrado…) lo manda el servidor
-// con su semilla y `sonarLocal` se niega a tocarlo (D-048), así que aquí no hace falta ninguna marca anti-doble.
+// The page's sound bridge: the VR pieces (dardos-vr, pesca-sonido) sound through here without importing `sonidos.ts`
+// (which arrives separately, lazily). When mounted, `sonidos.ts` hooks in its `sonarLocal` —the SINGLE DOOR: file if there is one,
+// recipe if not, the same voice pool and the core's buses—. Before that, or without audio, everything is silent: nobody fails.
+// LOCAL sounds only (my hand, my rod): what is shared (dart thrown and impact, fish caught…) is sent by the server
+// with its seed and `sonarLocal` refuses to play it (D-048), so no anti-double mark is needed here.
 import type { Opciones } from "../../packages/render/src/audio/sonar.ts";
 
 export type Sonar = (id: string, o?: Opciones, ms?: number) => boolean;
