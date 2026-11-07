@@ -8,6 +8,8 @@ import { idiomaDe, LISTA } from "../../features/frases/frases.ts";
 import type { Frase } from "../../features/frases/pagina.ts";
 import { gancho } from "../../features/frases/client.ts";
 
+await import("./frases-estilo.ts").catch(() => null); // the panel's look (CSS) is in before this module is; under node (the tests) there is no CSS and it does not matter
+
 type Res = { ok: true } | { ok: false; why: string };
 type Pagina = {
   lista(): Frase[]; decir(id: string): Res;
