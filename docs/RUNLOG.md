@@ -1960,3 +1960,10 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5.
 - Commit: rama `wt/t_8ea805d7`. Versión 0.105.0 → 0.105.1 (parche; mezclado con main tras #312).
 - Siguiente (del mismo perfil): el barrido de candidatos de `selectVisible` (la división `1/(1+d²·0,01)` y las cinco tablas tipadas) y las dos poblaciones del Bot (solo cuentan en el banco).
+
+## 2026-11-07 05:10 · t_c9331c8a · hecho
+- Qué: merge de main en #315 (derribado). Conflictos en `features/mundo.ts` y `features/servidor.ts`: main trajo `sucesos` y `espacios`; se mantienen las dos piezas y `derribado`. Versión 0.106.0.
+- Números: puertas en verde (3084 pruebas, 0 errores nuevos de tipos, página 634,4 kB gz).
+- Consumo: n/d.
+- Commit: merge de origin/main.
+- Siguiente: marcar #315 como listo para revisión, pedir revisores.
