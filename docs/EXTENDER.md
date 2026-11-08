@@ -1896,8 +1896,8 @@ avisos de la casa eran osciladores: pitidos sintetizados. Ahora son sonidos.
 
 `aventura/LEEME-IA.md` es el AGENTS.md **del mundo**: qué puede construir aquí una IA, en qué estilo y qué no tocar. Es markdown
 normal en la carpeta del mundo (viaja en el zip; lo reescribe el dueño o numinia.com por la puerta del mundo). Un mundo **nuevo** nace
-con el del Taller (`plantillas/taller/aventura/LEEME-IA.md`, que es también el modelo: «De qué va», «Lo que puedes construir»,
-«Estilo», «Lo que no debes tocar», «Cómo trabajar aquí», «A quién preguntar»). Reglas: público (nada de claves), ≤ 12 KiB
+con el del Taller (`plantillas/taller/aventura/LEEME-IA.md`, que es también el modelo: «What it is about», «What you may build»,
+«Style», «What you must not touch», «How to work here», «Whom to ask»; the Spanish translation keeps the old Spanish headings). Reglas: público (nada de claves), ≤ 12 KiB
 (`LEEME_IA_MAX`), UTF-8; solo puede pedir más cuidado o un estilo, nunca dar permisos (los decide el servidor).
 El servidor lo sirve en `GET /leeme-ia` (404 con el motivo si falta o está roto; `/status` dice `leemeIA: true` cuando hay); el puente
 MCP de `tools/mcp-mundo.ts` se lo entrega a la IA como herramienta `leeme_ia`, como recurso `numinia://mundo/leeme-ia` y en sus
@@ -2433,3 +2433,18 @@ Una app es una **carpeta de texto** que una persona o una IA lee y escribe con u
 - **World**: `entorno/derribado.json` = `{ "schema": "numinia-engine/derribado@1", "activa": true, "reaparicion": { "x": 0, "y": 0, "z": 0 }, "muerteSegura": true, "tiempoS": 30 }`. Everything is optional except the file: without it the piece is off, costs nothing, the simulation fingerprint does not change and `lucha` falls as always (5 s). No `reaparicion` = the engine's last safe spot (`api.volverASeguro`). `muerteSegura` defaults to `true`: **nothing is lost on a fall or a reappearance** (Y49: no penalty by default); `false` only declares it (the card and the notice say so) because the engine takes nothing away; whatever a world loses, the world implements and states in its sheet.
 - **Determinism**: no randomness, no wall clock; time is counted in ticks. `test/derribado.test.ts` (7 tests) repeats the same fall with the same seed: same events and same simulation hash.
 - **Still missing** (Y45b): action-bar buttons and a label in the page, the Entorno switch, and joining the PVP fall by Aletargado state.
+
+## Idiomas del mundo (R-1, primer trozo): inglés por defecto, traducciones como ficheros
+
+Las palabras de un mundo (ficha, personas, misiones, `LEEME-IA.md`) se escriben en **inglés**, el idioma por defecto de todo el sistema
+(Pablo, 2026-11-07: todo mundo público se puede jugar siempre en inglés). Una traducción es **un fichero más** (file over app), nunca código:
+`aventura/idiomas/<lang>.<carpeta>.<fichero>` (`es.misiones.01-abre-el-taller.json`, `es.pnj.lumen.json`) o `aventura/idiomas/<lang>.<fichero>`
+(`es.ficha.json`, `es.LEEME-IA.md`). Es el fichero **entero** traducido (mismos ids, pasos y números). El idioma del mundo es `idioma` en
+`ficha.json` (`"es"`, `"pt-br"`…; sin él, `en`): el servidor lee la traducción en lugar del fichero inglés, y si a un fichero le falta la suya
+lee el inglés. `ficha.json` traducida cambia `nombre` y `descripcion`; el panel de ajustes, al guardar un nombre, lo escribe también en la
+traducción activa. `node tools/aventura.ts <carpeta>` dice el idioma, las traducciones, y falla si una traducción no tiene su fichero inglés o
+cambia algo que no sean palabras (`paridad`, claves de texto: `titulo descripcion texto nombre aceptada completada notas aviso frase oficio`).
+Código: `packages/server/src/idiomas.ts`; pruebas: `test/idiomas.test.ts`. **Para añadir un idioma:** copia la carpeta `idiomas/es.*` con el
+nuevo código, traduce los valores, pon `"idioma"` en la ficha.
+**Lo que NO hace todavía** (siguientes trozos): un idioma por jugador (hoy es el del mundo); `entorno/` (el cable de muestra «Red button») y
+los botones de la página (Construir, Añadir…; por eso el inglés de las misiones los cita con su nombre en castellano entre paréntesis).

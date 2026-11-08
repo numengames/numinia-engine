@@ -6,6 +6,7 @@
 // It is read when asked (an edit is seen at once), cached by mtime + size, at most LEEME_IA_MAX bytes of valid UTF-8.
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { IDIOMA_DEFECTO, idiomaDelMundo, rutaTraducida } from "./idiomas.ts";
 
 export const LEEME_IA = "LEEME-IA.md";
 /** Bytes. An AI reads it whole at the start of every visit, so it must stay short (~3,000 words at most). */
@@ -17,7 +18,9 @@ const cache = new Map<string, { clave: string; r: LeemeIA }>();
 /** The world's LEEME-IA text, or why there is none. No file = `{texto: null, problema: null}` (an old world, nothing wrong). */
 export function leerLeemeIA(aventura: string | null): LeemeIA {
   if (!aventura) return { texto: null, problema: null };
-  const p = join(aventura, LEEME_IA);
+  const idioma = idiomaDelMundo(aventura); // the world's language: idiomas/<lang>.LEEME-IA.md when it has one (idiomas.ts), else the file itself
+  let p = join(aventura, LEEME_IA);
+  if (idioma !== IDIOMA_DEFECTO) { const t = join(aventura, rutaTraducida(idioma, LEEME_IA)); try { if (statSync(t).isFile()) p = t; } catch { /* no translation: the English file */ } }
   let st;
   try { st = statSync(p); } catch { return { texto: null, problema: null }; }
   if (!st.isFile()) return { texto: null, problema: `${LEEME_IA} no es un fichero` };

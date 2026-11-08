@@ -1,0 +1,25 @@
+{
+  "formato": "mision@1",
+  "id": "encadena",
+  "titulo": "Encadena",
+  "descripcion": "Haz que un cable arranque cuando otra pieza avise (una señal).",
+  "requisitos": {
+    "misiones": [
+      "varios-que"
+    ]
+  },
+  "pasos": [
+    {
+      "id": "senal",
+      "tipo": "hace",
+      "texto": "Edita tu cable: cuándo = señal de otra pieza",
+      "accion": "edita_cable"
+    }
+  ],
+  "recompensas": [],
+  "textos": {
+    "aceptada": "Las piezas se hablan entre sí: así nacen las escape rooms.",
+    "completada": "Las piezas se encadenan por señales."
+  },
+  "repetible": false
+}

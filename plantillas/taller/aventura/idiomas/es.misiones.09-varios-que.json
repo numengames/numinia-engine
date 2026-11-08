@@ -1,0 +1,25 @@
+{
+  "formato": "mision@1",
+  "id": "varios-que",
+  "titulo": "Varios qué a la vez",
+  "descripcion": "Añade a tu cable otra acción: suena, teletransporta, abre un enlace o da paso de misión.",
+  "requisitos": {
+    "misiones": [
+      "cuanto-espera"
+    ]
+  },
+  "pasos": [
+    {
+      "id": "varios",
+      "tipo": "hace",
+      "texto": "Edita tu cable: añade otra acción",
+      "accion": "edita_cable"
+    }
+  ],
+  "recompensas": [],
+  "textos": {
+    "aceptada": "Un cable tiene un cuándo y hasta 8 qué.",
+    "completada": "Un cuándo, muchos qué."
+  },
+  "repetible": false
+}

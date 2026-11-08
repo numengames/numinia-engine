@@ -10,12 +10,14 @@ Un mundo que ya existe no cambia.
 
 El onboarding de quien llega a un mundo nuevo, y nada más:
 
-- `aventura/` — `ficha.json` («Mundo nuevo»), `pnj/lumen.json` (la guía) y las 11 misiones encadenadas de «cómo se
+- `aventura/` — `ficha.json` («Learn to Build» (antes «Taller»; id interno `taller`)), `pnj/lumen.json` (la guía) y las 11 misiones encadenadas de «cómo se
   construye un mundo» (`misiones/01-abre-el-taller.json` … `11-tu-mini-mision.json`; usan los pasos `hace` y `senala`).
   Recompensa final: la insignia «Constructor». Sin misiones de ejemplo, sin otras personas, sin habitantes.
 - `aventura/LEEME-IA.md` — la nota del mundo para las IAs que entran (qué pueden construir, estilo, qué no tocar): el modelo de todo
-  LEEME-IA (`## Lo que puedes construir`, `## Estilo`, `## Lo que no debes tocar`). Pública, hasta 12 KiB; el dueño la reescribe.
+  LEEME-IA (`## What you may build`, `## Style`, `## What you must not touch`). Pública, hasta 12 KiB; el dueño la reescribe.
   El puente MCP se la entrega a la IA (`leeme_ia`); lo comprueba `node tools/aventura.ts`.
+- Idioma: todo el texto está en **inglés** (por defecto); el castellano vive en `aventura/idiomas/es.*` y se enciende con `"idioma": "es"` en `ficha.json` (`docs/EXTENDER.md`, «Idiomas del mundo»).
+- `aventura/LICENSE.md` — la licencia del mundo: **CC0**, salvo el logo y los nombres de Numen/Numinia (marca, `TRADEMARKS.md`). `docs/FICHA-MUNDO-TALLER.md` — la ficha del mundo (formato de `DECISIONES-MUNDOS`).
 - `entorno/` — `espacio-base.json` (nace en el espacio base, de noche), `naturaleza.json` apagada, `disparadores.json`
   con el cable de muestra «Botón rojo» (que enseña el farolillo que pone la misión 2), y `pesca`, `dardos` (sin enlace de
   AR a la Torre), `lucha` y `ancestros` **vacíos**: sin ellos el motor pondría el estanque, la diana, la criatura y el
