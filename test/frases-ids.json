@@ -1,0 +1,4 @@
+{
+  "_doc": "The ids of features/frases/frases.json, in their fixed order. An id is never renamed, moved or removed (a retired id goes to `retiradas` and stays reserved); a new phrase is added at the END of both files. test/frases.test.ts fails otherwise.",
+  "ids": ["hello", "goodbye", "thanks", "welcome", "good-luck", "well-done", "help", "can-you-help", "i-can-help", "sorry", "follow-me", "come-here", "over-here", "wait-here", "lets-go", "yes", "no", "ok", "not-sure", "dont-understand"]
+}
