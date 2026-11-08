@@ -6,6 +6,7 @@ import despertar from "./despertar/server.ts";
 import objetos from "./objetos/server.ts";
 import avatar from "./avatar/server.ts"; // H10: your avatar — house or uploaded .vrm, saved with your identity
 import chat from "./chat/server.ts";
+import frases from "./frases/server.ts"; // Y29: fixed phrases (the page picks an id from a short list; the server checks it and tells whoever is near, in their own language)
 import misiones from "./misiones/server.ts"; // J5: two features, one engine: people (pnj) and quests (misiones)
 import entorno from "./entorno/server.ts";
 import director from "./director/server.ts"; // N6: the Game Director (scenes, narration, summons)
@@ -13,6 +14,7 @@ import elementos from "./elementos/server.ts";
 import pesca from "./pesca/server.ts"; // v1: fishing (the server decides the bite, the fish and the catch)
 import dardos from "./dardos/server.ts"; // v1: darts (the page sends aim + strength; the server decides where it lands and the score)
 import bienes from "./bienes/server.ts";
+import derribado from "./derribado/server.ts"; // Y45–Y47: falling is not dying (a world turns it on with derribado.json; lucha tells it who fell)
 import asiento from "./asiento/server.ts"; // v1: sitting down for real (a world turns it on with asientos.json; the simulation seats the avatar)
 import burbujas from "./burbujas/server.ts"; // v1: voice bubbles (only those inside hear each other; a world turns it on with burbujas.json; the relay decides)
 import baculo from "./baculo/server.ts"; // v1: the Director's staff (whoever holds it directs; a world turns it on with baculos.json)
@@ -43,5 +45,5 @@ import sonido from "./sonido/server.ts"; // S6: the catalogue of house sounds (2
 import interruptores from "./funciones/server.ts"; // f1: feature switches (normas, dardos, pesca) the world's builder flips live; kept in funciones.json
 import espejo from "./espejo/server.ts"; // mundo-hermes: a mirror of objects that live outside (a world turns it on with espejo.json; inert without it)
 import fichaMundo from "./ficha-mundo/server.ts"; // H7: the world's title, picture, default avatar and people limit — set by its owner, kept in aventura/ficha.json
-const funciones: ServerPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, vuelo, naturaleza, espacioBase, fichaMundo, interruptores, espejo, espacios, sucesos, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido];
+const funciones: ServerPart[] = [gestos, despertar, objetos, avatar, chat, frases, ...misiones, entorno, elementos, pesca, lucha, derribado, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, vuelo, naturaleza, espacioBase, fichaMundo, interruptores, espejo, espacios, sucesos, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido];
 export default funciones;

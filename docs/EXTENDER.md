@@ -2424,6 +2424,16 @@ Una app es una **carpeta de texto** que una persona o una IA lee y escribe con u
 - **No hace** (todavía): la API de mundo para el script (estado, chat, jugadores), pintar el inspector (M22), meter una app en un mundo desde la página, portar scripts de Hyperfy solo, `.hyp` de varias apps a la vez.
 - **Pruebas**: `test/apps-ejecutar.test.ts` (11: el ejemplo corre, sin `process`/ficheros/reloj, corte por CPU informado, recarga en caliente por administración y por disco, 401/403/404/413/422/429, tope de scripts, límites) y `test/guion.test.ts` (la caja sola); `test/apps.test.ts` (16: ejemplo, no ejecuta, errores con ruta, hashes, licencias, topes, enlaces, `.hyp` real de ida, licencia desconocida, `GET /apps` y `/a/`).
 
+## Derribado (v1): falling is not dying
+
+`features/derribado`: the piece that turns a person's fall into a third life state, decided by the server. Today it is entered through `lucha`'s fall (the creature takes all their life: the `jugadorCaido` event now carries `quien`, and `derribado` hears it with `api.listen`). While down, the person is held still (a `quieto` order in 1 s chunks, renewed every 15 ticks) and loses nothing; creatures do not attack them, they cannot strike, and `lucha`'s 5 s timer stops deciding: the fall lasts until they are lifted or reappear.
+- **Verbs** (each with `spoken`): `levantar` (a companion: `cosa` = `d:<entity>`; within 2.5 m, no item, no cost, not while down yourself, never yourself; also with «E» beside them, because the downed person's card carries `interact`), `pedirAyuda` (call for help) and `rendirse` (go back to the reappearance spot now), plus `encender` (the world's switch: whoever directs or rules).
+- **Events** (all with text and sound): `derribado` (to the person: how many seconds, and whether the world is safe), `cae`, `ayuda`, `levanta`, `reaparece` (to those within 40 m), `rechazado`; `permiso` is silent.
+- **Card** (`state.card`): one per downed person, key `d:<entity>`, `role: persona`, action `levantar`; it exists only while the state lasts. An agent reads it exactly like a page does.
+- **World**: `entorno/derribado.json` = `{ "schema": "numinia-engine/derribado@1", "activa": true, "reaparicion": { "x": 0, "y": 0, "z": 0 }, "muerteSegura": true, "tiempoS": 30 }`. Everything is optional except the file: without it the piece is off, costs nothing, the simulation fingerprint does not change and `lucha` falls as always (5 s). No `reaparicion` = the engine's last safe spot (`api.volverASeguro`). `muerteSegura` defaults to `true`: **nothing is lost on a fall or a reappearance** (Y49: no penalty by default); `false` only declares it (the card and the notice say so) because the engine takes nothing away; whatever a world loses, the world implements and states in its sheet.
+- **Determinism**: no randomness, no wall clock; time is counted in ticks. `test/derribado.test.ts` (7 tests) repeats the same fall with the same seed: same events and same simulation hash.
+- **Still missing** (Y45b): action-bar buttons and a label in the page, the Entorno switch, and joining the PVP fall by Aletargado state.
+
 ## Idiomas del mundo (R-1, primer trozo): inglés por defecto, traducciones como ficheros
 
 Las palabras de un mundo (ficha, personas, misiones, `LEEME-IA.md`) se escriben en **inglés**, el idioma por defecto de todo el sistema

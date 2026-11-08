@@ -6,6 +6,7 @@ import despertar from "./despertar/client.ts";
 import objetos from "./objetos/client.ts";
 import avatar from "./avatar/client.ts"; // H10: your avatar — house or uploaded .vrm, saved with your identity
 import chat from "./chat/client.ts";
+import frases from "./frases/client.ts"; // Y29: fixed phrases (the list and its panel: apps/plaza/frases.ts; bubbles in the page's language)
 import misiones from "./misiones/client.ts"; // J5: two features: people (pnj) and quests (misiones)
 import entorno from "./entorno/client.ts";
 import director from "./director/client.ts"; // N6: the Game Director (the panel and the cards: apps/plaza/director.ts)
@@ -41,5 +42,5 @@ import sonido from "./sonido/client.ts"; // S6: the sounds of the house — the 
 import interruptores from "./funciones/client.ts"; // f1: the world's feature switches (`__numinia.funciones`; the panel is f3/v3)
 import fichaMundo from "./ficha-mundo/client.ts"; // H7: the world's settings (title, picture, default avatar, people limit)
 import espejo from "./espejo/client.ts"; // mundo-hermes: things from outside drawn as flat black-and-white shapes; the card to touch them is apps/plaza/espejo.ts (lazy)
-const funciones: ClientPart[] = [gestos, despertar, objetos, avatar, chat, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, vuelo, naturaleza, espacioBase, fichaMundo, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido, espejo];
+const funciones: ClientPart[] = [gestos, despertar, objetos, avatar, chat, frases, ...misiones, entorno, elementos, pesca, lucha, bienes, dardos, dados, baculo, asiento, burbujas, director, teletransporte, web, puertas, botones, cogibles, suelo, vuelo, naturaleza, espacioBase, fichaMundo, interruptores, contadores, disparadores, cerradura, movedores, inventario, ancestros, ia, burbuja, llamar, sonido, espejo];
 export default funciones;
