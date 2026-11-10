@@ -1,0 +1,51 @@
+{
+  "formato": "mision@1",
+  "id": "aprendiz",
+  "titulo": "La mesa del aprendiz",
+  "descripcion": "Diez minutos para quien no ha jugado nunca: siéntate, coge tu ficha, tira tu reserva en la torre y aprende a leer los dados de la casa.",
+  "pasos": [
+    {
+      "id": "mesa",
+      "tipo": "llega_a",
+      "texto": "Siéntate a la mesa (cualquier asiento menos el alto del norte)",
+      "x": 0,
+      "z": 0,
+      "radio": 3,
+      "lugar": "la mesa"
+    },
+    {
+      "id": "ficha",
+      "tipo": "coge",
+      "texto": "Coge tu ficha de la mesa, delante del asiento de la puerta",
+      "cosa": "ficha-aprendiz"
+    },
+    {
+      "id": "torre",
+      "tipo": "llega_a",
+      "texto": "Ve a la torre de dados y tira 3d6 (botón 3d6 o /tirar 3d6)",
+      "x": 3.08,
+      "z": 0,
+      "radio": 1.6,
+      "lugar": "la torre de dados"
+    },
+    {
+      "id": "leer",
+      "tipo": "habla_con",
+      "texto": "Cuéntale a Senet qué has sacado",
+      "pnj": "senet"
+    }
+  ],
+  "recompensas": [
+    {
+      "tipo": "insignia",
+      "id": "aprendiz-de-la-mesa",
+      "nombre": "Aprendiz de la mesa"
+    }
+  ],
+  "textos": {
+    "aceptada": "La mesa te espera. El libro de misiones (tecla J) te marca cada paso.",
+    "completada": "Ya sabes leer los dados: los seises cuentan, los unos pesan."
+  },
+  "repetible": false,
+  "notas": "Plantilla de la mesa de rol: la mesa del aprendiz (PLANTILLAS-MUNDOS §4). La tirada no la comprueba la misión: la ve toda la mesa. El cierre es una opción de Senet (avanzar_paso)."
+}

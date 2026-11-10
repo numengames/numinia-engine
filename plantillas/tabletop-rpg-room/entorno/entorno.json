@@ -1,0 +1,45 @@
+{
+  "schema": "numinia-engine/entorno@1",
+  "preset": "propio",
+  "cielo": {
+    "tipo": "degradado",
+    "arriba": "#018EA1",
+    "horizonte": "#F9EBDC",
+    "nubes": 0.2
+  },
+  "sol": {
+    "altura": 52,
+    "rumbo": 160,
+    "intensidad": 2.6,
+    "color": "#F9EBDC"
+  },
+  "luz": {
+    "hdr": "",
+    "ambiente": 1.35,
+    "cielo": "#F9EBDC",
+    "suelo": "#A08F7E"
+  },
+  "niebla": {
+    "cerca": 60,
+    "lejos": 260,
+    "color": "#C4B5A6",
+    "delCielo": true
+  },
+  "suelo": {
+    "tipo": "liso",
+    "color": "#C4B5A6",
+    "escala": 1
+  },
+  "tono": {
+    "curva": "neutro",
+    "exposicion": 1
+  },
+  "hitos": false,
+  "rejilla": false,
+  "aparicion": {
+    "x": 0,
+    "z": 6.3,
+    "radio": 1
+  },
+  "notas": "Tabletop RPG Room template. Morning light from the south (it comes in through the door and the arches); high ambient light because the conical roof shades the whole hall. Gradient sky Turquoise → Sand (DES-015). The director's scenes are put ON TOP of this environment (escena@1). People appear inside, by the door, looking at the table."
+}

@@ -1,0 +1,15 @@
+{
+  "schema": "numinia-engine/dados@1",
+  "activa": true,
+  "torres": [
+    {
+      "id": "engranajes",
+      "nombre": "The gear tower",
+      "x": 3.08,
+      "y": 0,
+      "z": 0,
+      "radio": 2.2,
+      "dados": "3d6"
+    }
+  ]
+}

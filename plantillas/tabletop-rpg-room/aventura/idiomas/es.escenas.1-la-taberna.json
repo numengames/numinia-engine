@@ -1,0 +1,17 @@
+{
+  "schema": "numinia-engine/escena@1",
+  "nombre": "La taberna",
+  "preset": "atardecer",
+  "entorno": {
+    "niebla": {
+      "cerca": 8,
+      "lejos": 60,
+      "color": "#3a2a20",
+      "delCielo": false
+    },
+    "tono": {
+      "exposicion": 0.85
+    }
+  },
+  "narracion": "Huele a vino especiado. Alguien rasga una cítara en el rincón."
+}

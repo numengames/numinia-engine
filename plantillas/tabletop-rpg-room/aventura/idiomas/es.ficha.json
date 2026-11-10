@@ -1,0 +1,9 @@
+{
+  "formato": "ficha@1",
+  "nombre": "Sala de rol (el tholos)",
+  "version": "1.0.0",
+  "creador": "Numen Games",
+  "dueno": "pending",
+  "descripcion": "Una sala redonda para cinco jugadores y quien dirige: mesa de olivo con el plano en el centro, una torre de dados de engranajes que tira el servidor (todos ven lo mismo) y escenas que cambian la luz, la niebla y el cielo entre los arcos.",
+  "notas": "Plantilla «tabletop-rpg-room» del motor (plantillas/tabletop-rpg-room), elegida con MOTOR_PLANTILLA=tabletop-rpg-room: trae consigo la sala construida (datos/). Primera versión pública de la antigua «Sala de rol para 5 (el tholos)». `version` es la versión semántica de este mundo; `creador` y `dueno` siguen la ficha del mundo (docs/FICHA-MUNDO-TABLETOP-RPG-ROOM.md). Sin `tema`: el aire de la casa. Cambia el nombre y la descripción cuando quieras."
+}

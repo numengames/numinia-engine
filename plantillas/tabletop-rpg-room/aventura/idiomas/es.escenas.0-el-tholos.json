@@ -1,0 +1,10 @@
+{
+  "schema": "numinia-engine/escena@1",
+  "nombre": "El tholos",
+  "entorno": {
+    "tono": {
+      "exposicion": 1
+    }
+  },
+  "narracion": "Sentaos. Entre los arcos, el mar; en la mesa, el plano. Empieza la sesión."
+}

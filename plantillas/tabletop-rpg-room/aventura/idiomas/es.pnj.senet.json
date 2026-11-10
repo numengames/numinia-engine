@@ -1,0 +1,233 @@
+{
+  "formato": "pnj@1",
+  "id": "senet",
+  "nombre": "Senet",
+  "descripcion": "Director de juego de la casa (los Exégetas). Cuida la mesa y enseña a tirar a quien no ha jugado nunca.",
+  "apariencia": {
+    "modelo": "047f5e5fb3bb6d378bd1df16ca6137f2a596c99b3a1b5690b4020c05aaf6f319",
+    "escala": 0.5
+  },
+  "posicion": {
+    "x": 4.358,
+    "z": 1.761
+  },
+  "giro": 68,
+  "radio": 3,
+  "dialogo": {
+    "entradas": [
+      {
+        "si": {
+          "mision": "aprendiz",
+          "estado": "disponible"
+        },
+        "nodo": "bienvenida"
+      },
+      {
+        "si": {
+          "mision": "aprendiz",
+          "estado": "activa",
+          "paso": "leer"
+        },
+        "nodo": "leer"
+      },
+      {
+        "si": {
+          "mision": "aprendiz",
+          "estado": "activa"
+        },
+        "nodo": "aprendiz"
+      },
+      {
+        "si": {
+          "mision": "espejo",
+          "estado": "activa",
+          "paso": "entregar"
+        },
+        "nodo": "fragmento"
+      },
+      {
+        "si": {
+          "mision": "espejo",
+          "estado": "activa"
+        },
+        "nodo": "buscando"
+      },
+      {
+        "si": {
+          "mision": "espejo",
+          "estado": "disponible"
+        },
+        "nodo": "espejo"
+      },
+      {
+        "si": {
+          "mision": "espejo",
+          "estado": "hecha"
+        },
+        "nodo": "reserva"
+      },
+      {
+        "nodo": "hola"
+      }
+    ],
+    "nodos": {
+      "bienvenida": {
+        "texto": "Bienvenida al tholos. Aquí el Director de juego no es un juez ni un enemigo: presenta escenas, da voz al mundo y deja huecos para que los llenéis. ¿Nunca has jugado? Te enseño en diez minutos.",
+        "opciones": [
+          {
+            "texto": "Sí, enséñame.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "aprendiz"
+            },
+            "ir": "sientate"
+          },
+          {
+            "texto": "Ahora no.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "sientate": {
+        "texto": "Primero, la mesa: siéntate donde quieras, menos en el asiento alto del norte, que es de quien dirige. Tu ficha te espera sobre la mesa.",
+        "opciones": [
+          {
+            "texto": "Voy.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "aprendiz": {
+        "texto": "Coge tu ficha de la mesa y ven a la torre de engranajes: tira tu reserva, tres dados de seis caras. Pulsa 3d6 en la torre, o escribe /tirar 3d6 en el chat. La tira el servidor: todos vemos lo mismo.",
+        "opciones": [
+          {
+            "texto": "Voy a tirar.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "leer": {
+        "texto": "¿Ya has tirado? Aquí no se suman los dados: cada 6 es un éxito y cada 1 un fallo. Un 1 se perdona; cada 1 de más anula un 6. Tres éxitos, éxito total. Ni seis ni unos: fallo sin consecuencias. La carta de la tirada te lo dice.",
+        "opciones": [
+          {
+            "texto": "Entendido: los seises cuentan, los unos pesan.",
+            "si": {
+              "mision": "aprendiz",
+              "estado": "activa",
+              "paso": "leer"
+            },
+            "accion": {
+              "tipo": "avanzar_paso",
+              "mision": "aprendiz"
+            },
+            "ir": "aprendido"
+          },
+          {
+            "texto": "Déjame tirar otra vez.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "aprendido": {
+        "texto": "Ya sabes leer los dados. Recuerda: la ficción conduce a los dados, y los dados devuelven a la ficción. Si quieres una historia de verdad, pregúntame por el espejo.",
+        "opciones": [
+          {
+            "texto": "¿Qué espejo?",
+            "ir": "espejo"
+          },
+          {
+            "texto": "Gracias, Senet.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "espejo": {
+        "texto": "En el Distrito Ouroboros la memoria se está torciendo: calles que los mapas niegan, canciones que pierden versos. La investigadora Drusa Malter encontró un Espejo Astillado en un depósito del Museo de Artes y Reliquias, y desapareció. Una astilla llegó hasta aquí. ¿La buscas?",
+        "opciones": [
+          {
+            "texto": "La busco.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "espejo"
+            }
+          },
+          {
+            "texto": "Otro día.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "buscando": {
+        "texto": "La astilla brilla poco: búscala junto al olivo, al suroeste de la sala, cerca del muro. No la mires mucho rato.",
+        "opciones": [
+          {
+            "texto": "Sigo buscando.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "fragmento": {
+        "texto": "¿La tienes? Con cuidado: no devuelve solo tu reflejo.",
+        "opciones": [
+          {
+            "texto": "Aquí está la astilla del espejo.",
+            "si": {
+              "mision": "espejo",
+              "estado": "activa",
+              "paso": "entregar",
+              "tiene": "fragmento-espejo"
+            },
+            "accion": {
+              "tipo": "entregar",
+              "mision": "espejo"
+            },
+            "ir": "reserva"
+          },
+          {
+            "texto": "Todavía no.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "reserva": {
+        "texto": "Es una Pieza del Conflicto: un objeto que se recoge y se lleva, y que puede aparecer donde la ficción lo pida. Cuando quien dirige abra «El espejo roto» en esta mesa, ya llevarás una.",
+        "opciones": [
+          {
+            "texto": "Hasta la próxima sesión.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "hola": {
+        "texto": "La mesa está abierta. Quien dirige pone las escenas; los dados, la torre. Lo demás es vuestro.",
+        "opciones": [
+          {
+            "texto": "Adiós.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "notas": "Plantilla de la mesa de rol. Senet es el agente DJ de la casa (agents/senet); aquí, con guion y sin modelo (coste cero). Está junto a la torre de dados, mirando a la mesa. Da «La mesa del aprendiz» y abre «El espejo roto». Nunca tira por nadie: los dados los tira el servidor."
+}
