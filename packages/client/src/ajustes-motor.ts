@@ -185,8 +185,8 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
   { grupo: "controles", id: "teclaBateria", tipo: "tecla", soloVer: true, nombre: "Modo batería", describe: "La tecla que enciende y apaga el modo batería.", defecto: "KeyB" },
   // ---- Accesibilidad (V7, V11, V1): the system's preferences are the first defaults ----
   {
-    grupo: "accesibilidad", id: "menosMovimiento", tipo: "bool", nombre: "Menos movimiento",
-    describe: "Nada se mueve solo: sin saltitos ni animaciones de la interfaz. Empieza como lo tenga tu sistema.",
+    grupo: "accesibilidad", id: "menosMovimiento", tipo: "bool", nombre: "Reducir movimiento",
+    describe: "Quita pausas, sacudidas y destellos al golpear, y los saltitos de la interfaz. Empieza como lo tenga tu sistema.",
     defecto: { valor: false, si: [{ requiere: ["menosMovimiento"], valor: true }] },
   },
   { grupo: "accesibilidad", id: "textoGrande", tipo: "bool", nombre: "Texto grande", describe: "Letra más grande en paneles, botones y avisos (18 px en vez de 13).", defecto: false },
