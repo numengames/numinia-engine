@@ -1,0 +1,18 @@
+{
+  "formato": "cosa@1",
+  "id": "postal-21",
+  "nombre": "Postcard of slot 21",
+  "descripcion": "The postcard of the artwork hanging in slot 21. Today it shows the empty slot; when the artwork arrives, it will show that instead.",
+  "posicion": {
+    "x": 7.5,
+    "z": 11.39,
+    "y": 1
+  },
+  "radio": 1.6,
+  "aviso": "pick up the postcard of slot 21",
+  "apariencia": {
+    "escala": 0.22,
+    "color": "#EFA517"
+  },
+  "notas": "Gallery template: in front of slot 21 (south), 1.3 m from the wall."
+}

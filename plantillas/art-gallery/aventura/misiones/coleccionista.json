@@ -1,0 +1,56 @@
+{
+  "formato": "mision@1",
+  "id": "coleccionista",
+  "titulo": "Postcard collector",
+  "descripcion": "Collect a postcard from each wall and take them to the curator.",
+  "requisitos": {
+    "misiones": [
+      "primera-visita"
+    ]
+  },
+  "pasos": [
+    {
+      "id": "oeste",
+      "tipo": "coge",
+      "texto": "The postcard of slot 3, on the west wall",
+      "cosa": "postal-03"
+    },
+    {
+      "id": "norte",
+      "tipo": "coge",
+      "texto": "The postcard of slot 9, on the north wall",
+      "cosa": "postal-09"
+    },
+    {
+      "id": "este",
+      "tipo": "coge",
+      "texto": "The postcard of slot 17, on the east wall",
+      "cosa": "postal-17"
+    },
+    {
+      "id": "sur",
+      "tipo": "coge",
+      "texto": "The postcard of slot 20, on the south wall",
+      "cosa": "postal-20"
+    },
+    {
+      "id": "volver",
+      "tipo": "habla_con",
+      "texto": "Go back to the ticket booth and show your postcards to the curator",
+      "pnj": "comisaria"
+    }
+  ],
+  "recompensas": [
+    {
+      "tipo": "insignia",
+      "id": "mecenas-de-la-stoa",
+      "nombre": "Stoa patron"
+    }
+  ],
+  "textos": {
+    "aceptada": "Four postcards, one per wall: slots 3, 9, 17 and 20.",
+    "completada": "Your name goes into the book of patrons."
+  },
+  "repetible": false,
+  "notas": "Gallery template: it walks the four walls. The hand-in is an option of the curator (avanzar_paso)."
+}

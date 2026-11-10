@@ -1,0 +1,38 @@
+{
+  "formato": "pnj@1",
+  "id": "ana",
+  "nombre": "Ana",
+  "oficio": "Visitante",
+  "descripcion": "Mira el hueco 6 (oeste) con calma.",
+  "apariencia": {
+    "modelo": "6841b7c0583fd438e2226c07a407fb55e7a65527c26e5ce44095870b83e1f4c1",
+    "escala": 1
+  },
+  "posicion": {
+    "x": -15.69,
+    "z": -3.2
+  },
+  "giro": -123,
+  "radio": 3,
+  "dialogo": {
+    "entradas": [
+      {
+        "nodo": "hola"
+      }
+    ],
+    "nodos": {
+      "hola": {
+        "texto": "Llevo un rato aquí. Cuando se llene la pared, volveré a ver qué ha cambiado.",
+        "opciones": [
+          {
+            "texto": "Hasta luego.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "notas": "Plantilla de galería: de pie delante del hueco 6 (oeste), mirándolo. Modelo propio (modelos/ana.glb, CC0). No da misiones."
+}

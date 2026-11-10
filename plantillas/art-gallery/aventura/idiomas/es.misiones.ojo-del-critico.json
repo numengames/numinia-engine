@@ -1,0 +1,48 @@
+{
+  "formato": "mision@1",
+  "id": "ojo-del-critico",
+  "titulo": "El ojo del crítico",
+  "descripcion": "El crítico quiere saber si sabes mirar: date la vuelta, busca el hueco 21 y tráele su postal.",
+  "requisitos": {
+    "misiones": [
+      "primera-visita"
+    ]
+  },
+  "pasos": [
+    {
+      "id": "hueco",
+      "tipo": "llega_a",
+      "texto": "Acércate al hueco 21, en la pared de la puerta (a la derecha según entras)",
+      "x": 7.5,
+      "z": 10.49,
+      "radio": 2.5,
+      "lugar": "el hueco 21"
+    },
+    {
+      "id": "postal",
+      "tipo": "coge",
+      "texto": "Coge la postal del hueco 21",
+      "cosa": "postal-21"
+    },
+    {
+      "id": "entregar",
+      "tipo": "entrega",
+      "texto": "Llévale la postal al crítico, junto al mural",
+      "cosa": "postal-21",
+      "pnj": "critico"
+    }
+  ],
+  "recompensas": [
+    {
+      "tipo": "insignia",
+      "id": "ojo-de-critico",
+      "nombre": "Ojo de crítico"
+    }
+  ],
+  "textos": {
+    "aceptada": "El hueco 21 está en la pared de la puerta, a la derecha según entras.",
+    "completada": "El crítico asiente: has mirado donde nadie mira."
+  },
+  "repetible": false,
+  "notas": "Plantilla de galería. Cuando haya obras, el dueño cambia la pista por una sobre la obra («busca el cuadro donde el mar no es azul»)."
+}

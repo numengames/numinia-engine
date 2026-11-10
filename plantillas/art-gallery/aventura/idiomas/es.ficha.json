@@ -1,0 +1,9 @@
+{
+  "formato": "ficha@1",
+  "nombre": "Art Gallery",
+  "version": "1.0.0",
+  "creador": "Numen Games",
+  "dueno": "pending",
+  "descripcion": "Una stoa mediterránea para enseñar arte: un pórtico de columnas alrededor de un patio con fuente, 21 marcos vacíos que esperan una obra y dos peanas. Una comisaria, un crítico, tres IA visitantes y tres misiones cortas te llevan de paseo. Pincha un marco, elige tu imagen y se encaja sola.",
+  "notas": "Plantilla «art-gallery» del motor (plantillas/art-gallery), elegida con MOTOR_PLANTILLA=art-gallery: trae consigo la galería construida (datos/). Primera versión pública de la antigua «Galería Stoa». `version` es la versión semántica de este mundo; `creador` y `dueno` siguen la ficha del mundo (docs/FICHA-MUNDO-ART-GALLERY.md). Cámbiale el nombre y la descripción cuando quieras."
+}

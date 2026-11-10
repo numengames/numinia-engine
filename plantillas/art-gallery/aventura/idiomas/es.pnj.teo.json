@@ -1,0 +1,38 @@
+{
+  "formato": "pnj@1",
+  "id": "teo",
+  "nombre": "Teo",
+  "oficio": "Visitante",
+  "descripcion": "Mira el hueco 13 (norte) con calma.",
+  "apariencia": {
+    "modelo": "cc858fbfd241d007c35ff546798da34b09d8a794cffa36480e6ccfa93c9f81d1",
+    "escala": 1
+  },
+  "posicion": {
+    "x": 8.7,
+    "z": -10.69
+  },
+  "giro": 147,
+  "radio": 3,
+  "dialogo": {
+    "entradas": [
+      {
+        "nodo": "hola"
+      }
+    ],
+    "nodos": {
+      "hola": {
+        "texto": "¡Hola! Yo vengo por el mural, pero me quedo mirando los pequeños.",
+        "opciones": [
+          {
+            "texto": "Hasta luego.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "notas": "Plantilla de galería: de pie delante del hueco 13 (norte), mirándolo. Modelo propio (modelos/teo.glb, CC0). No da misiones."
+}

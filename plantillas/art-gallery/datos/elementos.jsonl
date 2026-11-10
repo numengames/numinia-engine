@@ -1,0 +1,3 @@
+{"t":"2026-10-26T16:19:18.084Z","v":1,"op":"k","key":"siguiente","value":2}
+{"t":"2026-10-26T16:19:18.084Z","v":1,"op":"s","key":"e1","value":{"tipo":"agua","x":0,"y":0.45,"z":0,"ancho":3.2,"largo":3.2,"alto":0,"tamano":1,"giro":0,"color":93821,"intensidad":1,"nombre":"The fountain water"},"at":{"x":0,"z":0}}
+{"t":"2026-10-26T16:19:18.084Z","v":1,"op":"k","key":"a:e1","value":{"autor":null,"nombre":null,"cuando":"2026-10-26T16:19:18.084Z"}}
