@@ -12,3 +12,9 @@ lists the engine's own settings; `densidad.ts` (U20) is the density dial's table
 - **Main API:** `ClientSession` (`tick(mx, mz, buttons?)` with `BTN_JUMP`/`BTN_RUN` from sim; `selfPosition(alpha)` → `{x, y, z, speed, grounded}`; `remotePositions()` → `{id, x, y, z, speed}`: `y` = height of the feet in metres, `speed` = horizontal m/s, ≈4 walking, ≈8 running), `serverUrl`, `INTERP_TICKS`; settings: `crearAjustes` (`declarar`, `aplicarMundo`, `alAplicar`, `aplicarTodo`, `get`, `set`, `forzar`, `restablecer`, `lista`, `grupos`, `alCambiar`), `AJUSTES_MOTOR`, `leerTextoGuardado`; capabilities: `leerNavegador`, `crearCapacidades` (`poner`, `agregar`, `describir`, `alCambiar`), `nivelAparato`
 - **The movement wheel's arithmetic (J7b, `src/rueda.ts`, pure, `test/rueda.test.ts`):** `porcionDe` (direction → one of 8 slices, 0 at the top, clockwise; dead zone), `centroDe`/`trazoDe` (drawing), `siguiente` (arrows skip empty slices), `anillos` (rings of eight), `leerFavoritos`/`alternarFavorito` (the saved favourites, checked), `esToque` (G tapped or held).
 - **The map's arithmetic (J5, `src/mapa.ts`, pure, `test/mapa.test.ts`):** `proyectar`/`desproyectar` (north-up or turned), `rumbo`/`enPalabras` («al noreste, a 23 m»), `lado`, `crearLimitador` (redraw only on change, ≤ 5/s), `crearRegistro` (marker kinds; card roles → kinds), `reunir` (sources), `cercanos` (the HTML twin's rows), `firma`.
+
+## Details moved from llms.txt
+
+These clauses were in the one-line `llms.txt` bullet for this package and are kept here verbatim.
+
+- the game features' client runtime.

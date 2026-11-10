@@ -165,3 +165,10 @@ bundle, and that the BUNDLE enters an in-memory world with a fake `PedirPase` an
 **Not yet:** the tools served by the world itself (MCP over HTTPS from the engine, M26 next), the «doorbell» that wakes an
 on-demand agent (`presencia` is stored but only informative), the installer passing `--dominio` as `MOTOR_DOMINIO`, and
 visitors talking to Hermes as a chat channel.
+
+## Details moved from llms.txt
+
+These clauses were in the one-line `llms.txt` bullet for this package and are kept here verbatim.
+
+- reads what a page has (`sentidos()`: untrusted names and words only inside one `<material>` fence);
+- reading `habitantes/*.json` (`habitante@1`; optional `cerebro.modelo` and `cerebro.tope` = that inhabitant's model and calls per UTC day, never a key; optional `cerebro.saber` = `saber/<name>.md|txt` of the adventure, up to 16 kB, a text it knows beyond the 1500-byte persona: read once at start and put in its system prompt after the persona, an inhabitant whose file is missing, too big or outside the adventure folder does not load; it travels in the world zip like the rest of `aventura/`) of the adventure.
