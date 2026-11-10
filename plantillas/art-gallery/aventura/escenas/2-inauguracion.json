@@ -1,0 +1,12 @@
+{
+  "schema": "numinia-engine/escena@1",
+  "nombre": "Opening",
+  "preset": "atardecer",
+  "entorno": {
+    "niebla": {
+      "cerca": 120,
+      "lejos": 600
+    }
+  },
+  "narracion": "The stoa's lamps come on: the exhibition is open."
+}

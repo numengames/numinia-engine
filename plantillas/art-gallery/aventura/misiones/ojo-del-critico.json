@@ -1,0 +1,48 @@
+{
+  "formato": "mision@1",
+  "id": "ojo-del-critico",
+  "titulo": "The critic's eye",
+  "descripcion": "The critic wants to know whether you know how to look: turn around, find slot 21 and bring him its postcard.",
+  "requisitos": {
+    "misiones": [
+      "primera-visita"
+    ]
+  },
+  "pasos": [
+    {
+      "id": "hueco",
+      "tipo": "llega_a",
+      "texto": "Walk up to slot 21, on the door wall (to the right as you enter)",
+      "x": 7.5,
+      "z": 10.49,
+      "radio": 2.5,
+      "lugar": "slot 21"
+    },
+    {
+      "id": "postal",
+      "tipo": "coge",
+      "texto": "Pick up the postcard of slot 21",
+      "cosa": "postal-21"
+    },
+    {
+      "id": "entregar",
+      "tipo": "entrega",
+      "texto": "Take the postcard to the critic, next to the mural",
+      "cosa": "postal-21",
+      "pnj": "critico"
+    }
+  ],
+  "recompensas": [
+    {
+      "tipo": "insignia",
+      "id": "ojo-de-critico",
+      "nombre": "Critic's eye"
+    }
+  ],
+  "textos": {
+    "aceptada": "Slot 21 is on the door wall, to the right as you enter.",
+    "completada": "The critic nods: you looked where nobody looks."
+  },
+  "repetible": false,
+  "notas": "Gallery template. When there are artworks, the owner replaces the hint with one about an artwork («find the painting where the sea is not blue»)."
+}

@@ -1,0 +1,36 @@
+{
+  "formato": "mision@1",
+  "id": "primera-visita",
+  "titulo": "La primera visita",
+  "descripcion": "La comisaria te invita a conocer la stoa: el patio de la fuente y, al fondo, el crítico.",
+  "pasos": [
+    {
+      "id": "patio",
+      "tipo": "llega_a",
+      "texto": "Cruza la puerta y asómate al patio de la fuente",
+      "x": 0,
+      "z": 0,
+      "radio": 5,
+      "lugar": "el patio de la fuente"
+    },
+    {
+      "id": "critico",
+      "tipo": "habla_con",
+      "texto": "Busca al crítico en el pórtico del norte, junto al mural",
+      "pnj": "critico"
+    }
+  ],
+  "recompensas": [
+    {
+      "tipo": "insignia",
+      "id": "visita-a-la-stoa",
+      "nombre": "Visitante de la stoa"
+    }
+  ],
+  "textos": {
+    "aceptada": "La comisaria te espera de vuelta cuando quieras. El libro de misiones (tecla J) te marca el camino.",
+    "completada": "Ya conoces la stoa. La comisaria tiene otro encargo para ti."
+  },
+  "repetible": false,
+  "notas": "Plantilla de galería: el paseo de bienvenida. Sirve con la galería vacía y con la galería llena."
+}

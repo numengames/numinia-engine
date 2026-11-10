@@ -1,0 +1,9 @@
+{
+  "formato": "ficha@1",
+  "nombre": "Art Gallery",
+  "version": "1.0.0",
+  "creador": "Numen Games",
+  "dueno": "pending",
+  "descripcion": "A Mediterranean stoa for showing art: a colonnade around a courtyard with a fountain, 21 empty frames waiting for an artwork and two pedestals. A curator, a critic, three visiting AIs and three short missions walk you round it. Click a frame, choose your image, and it fits itself.",
+  "notas": "The engine's «art-gallery» template (plantillas/art-gallery), chosen with MOTOR_PLANTILLA=art-gallery: it brings the built gallery (datos/) with it. The first public version of the former «Stoa Gallery». `version` is the semantic version of this world; `creador` and `dueno` follow the world sheet (docs/FICHA-MUNDO-ART-GALLERY.md). Change the name and the description whenever you like."
+}

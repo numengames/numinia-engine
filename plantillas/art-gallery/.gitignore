@@ -1,0 +1,3 @@
+# The 22 signs of the gallery are PNG files that belong to the template; the root .gitignore drops every *.png.
+# Kept here (not in the root file) so a template never edits shared lines. Not copied into a new world.
+!datos/activos/*.png

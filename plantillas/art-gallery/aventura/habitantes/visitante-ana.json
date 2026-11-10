@@ -1,0 +1,58 @@
+{
+  "formato": "habitante@1",
+  "id": "visitante-ana",
+  "nombre": "Lía",
+  "descripcion": "Visits the gallery and stops in front of every artwork.",
+  "responsable": "Numen Games (gallery template)",
+  "escalon": 0,
+  "ruta": [
+    {
+      "x": -15.69,
+      "z": 9
+    },
+    {
+      "x": -15.69,
+      "z": 0
+    },
+    {
+      "x": -15.69,
+      "z": -9
+    },
+    {
+      "x": -10,
+      "z": -10.69
+    },
+    {
+      "x": -5,
+      "z": -10.69
+    }
+  ],
+  "pausa": 25,
+  "saludo": {
+    "radio": 3,
+    "cada": 300,
+    "frases": [
+      "Hello, {nombre}. Take your time: nobody is in a hurry here."
+    ]
+  },
+  "respuestas": [
+    {
+      "si": [
+        "who are you",
+        "what are you",
+        "are you an ai"
+      ],
+      "dice": "I am a visitor to the gallery, an AI of this world. I stop in front of every artwork."
+    },
+    {
+      "si": [
+        "what are you looking at",
+        "what do you think",
+        "do you like it"
+      ],
+      "dice": "This slot is still waiting for its artwork. I imagine what will come."
+    }
+  ],
+  "siNoEntiende": "Sorry, I was looking. Ask the guide in the courtyard or the curator at the ticket booth.",
+  "notas": "Gallery template: step 0 (no language model, zero cost). Its route passes in front of several slots and it stops for 25 s at each one."
+}

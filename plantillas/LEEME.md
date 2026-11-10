@@ -38,3 +38,14 @@ espejo (`entorno/espejo.json`) y el enlace con el plugin llegan en las historias
 
 La aventura de ejemplo (`aventuras/ejemplo`) sigue en el motor para quien la pida (`AVENTURA_DIR=aventuras/ejemplo`) y
 para un mundo antiguo con datos pero sin `aventura/`.
+
+## art-gallery/
+
+A **world type**: the Art Gallery («Art Gallery», public, CC0; formerly the «Galería Stoa»). Chosen with `MOTOR_PLANTILLA=art-gallery` when a new
+world is created. Unlike the others it also ships `datos/`: the built gallery (a Mediterranean stoa with a courtyard and fountain, 21 empty
+frame slots that a builder fills by clicking them, two pedestals, the facade sign) and its 30 files in `datos/activos/` (named by their sha256);
+a new world gets them copied whole. `aventura/` has the curator, the critic, three standing visitors (Ana, Teo, Iris), three missions, five postcards, three scenes and the
+guide and three visiting AIs (Lía, Pau and Nora); every word is English, the Spanish translation is in `aventura/idiomas/es.*`.
+`aventura/ficha.json` carries the name, the semantic `version`, the creator (Numen Games) and the owner (`pending`); `aventura/LICENSE.md`
+is the CC0 licence file (marks excluded, see `TRADEMARKS.md`); the world sheet is `docs/FICHA-MUNDO-ART-GALLERY.md`.
+Tests: `test/mundo-nuevo-art-gallery.test.ts`.

@@ -18,7 +18,9 @@ export const IDIOMAS_CARPETA = "idiomas";
 /** A language code as ficha.json writes it: «en», «es», «pt-br». */
 export const IDIOMA_CODIGO = /^[a-z]{2,3}(-[a-z]{2,4})?$/;
 /** The keys whose string is a WORD of the world (the rest — ids, actions, kinds — must be the same in every language). */
-export const CLAVES_DE_TEXTO: ReadonlySet<string> = new Set(["titulo", "descripcion", "texto", "nombre", "aceptada", "completada", "notas", "aviso", "frase", "oficio"]);
+export const CLAVES_DE_TEXTO: ReadonlySet<string> = new Set(["titulo", "descripcion", "texto", "nombre", "aceptada", "completada", "notas", "aviso", "frase", "oficio",
+  // words of a person (a resident): what they say, the phrases that trigger an answer, who they answer for; of a scene: its narration; of a step: its place
+  "dice", "frases", "si", "siNoEntiende", "persona", "responsable", "narracion", "lugar"]);
 
 /** Where the translation of `ruta` («misiones/x.json», «ficha.json») lives, relative to the adventure folder. */
 export const rutaTraducida = (idioma: string, ruta: string): string => `${IDIOMAS_CARPETA}/${idioma}.${ruta.replace("/", ".")}`;
