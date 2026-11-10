@@ -28,7 +28,7 @@ test("a new folder is born with the whole gallery: adventure, environment and th
   const c = carpetaMundo(join(tmp("pv-galeria-"), "mundo")), log: string[] = [];
   assert.equal(esMundoNuevo(c), true);
   assert.equal(sembrar(c, (l) => log.push(l), undefined, ruta(), "art-gallery"), true);
-  assert.deepEqual(todos(c.raiz), todos(ruta()), "the folder is the template, file for file");
+  assert.deepEqual(todos(c.raiz), todos(ruta()).filter((x) => x !== "REUSE.toml" && x !== ".gitignore"), "the folder is the template, file for file (the template's own licence map and ignore file stay behind)");
   assert.match(log.join("\n"), /nace de la plantilla «art-gallery»/);
   assert.deepEqual(readdirSync(c.raiz).filter((f) => f.startsWith(".")), [], "no half copy left behind");
   assert.equal(readdirSync(c.activos).length, 30, "8 models + 22 signs");
@@ -73,7 +73,7 @@ test("the licence file is CC0, points to TRADEMARKS.md; the only images are the 
   assert.match(lic, /CC0 1\.0 Universal/); assert.match(lic, /TRADEMARKS\.md/);
   assert.deepEqual(todos(ruta()).filter((x) => /\.(jpe?g|svg|webp)$/i.test(x)), [], "no image but the signs (png) and the models (glb)");
   assert.equal(todos(join(ruta(), "datos", "activos")).filter((x) => x.endsWith(".png")).length, 22);
-  assert.match(readFileSync("REUSE.toml", "utf8"), /path = "plantillas\/art-gallery\/\*\*"/);
+  assert.match(readFileSync(join(ruta(), "REUSE.toml"), "utf8"), /SPDX-License-Identifier = "CC0-1\.0"/); // the template's own licence map, not the root file
 });
 
 test("the CLI an author uses accepts the shipped template", () => {
