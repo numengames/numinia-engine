@@ -6,10 +6,13 @@
 // and the pause is off inside a headset (pause + shake together make people sick).
 // Reusable: any feature with a «hit» can ask `crearPeso(...).golpe(...)`; L5 (camera shake, vignette) must ask `reducido()` too.
 
+import { crearLimitadorDestellos, DESTELLOS_POR_S_MAX } from "../../packages/feature/src/destellos.ts";
+export { DESTELLOS_POR_S_MAX };   // the one limit now lives in packages/feature/src/destellos.ts (V7)
+
 /** Hit pause in frames of the page (2-5, a longer one reads as a network fault). */
 export const PAUSA_MIN = 2, PAUSA_MAX = 5, PAUSA_FOTOGRAMAS = 3;
-/** Flash on the creature (ms, 80-120) and the most flashes one second may hold. */
-export const DESTELLO_MS = 100, DESTELLOS_POR_S_MAX = 3;
+/** Flash on the creature (ms, 80-120) (the most flashes per second: DESTELLOS_POR_S_MAX). */
+export const DESTELLO_MS = 100;
 /** The low, dry thud (catalogue id of features/sonido) and how a page asks for the setting. */
 export const SONIDO_GOLPE = "golpe-material";
 export const AJUSTE_REDUCIR_MOVIMIENTO = "accesibilidad.menosMovimiento";
@@ -25,18 +28,11 @@ export type Entradas = {
 
 export function crearPeso(e: Entradas) {
   const reloj = e.reloj ?? Date.now;
-  const destellos: number[] = [];   // when each recent flash started (ms)
-  const hay = (ahora: number): boolean => {
-    while (destellos.length && ahora - destellos[0] >= 1000) destellos.shift();
-    return destellos.length < DESTELLOS_POR_S_MAX;
-  };
+  const limite = crearLimitadorDestellos(reloj);   // V7: the shared flash limiter (≤ 3 per second)
   /** A flash alone (an ability, a creature's lunge): false with «reduce motion» or when this second already holds the maximum. */
   const destello = (): boolean => {
     if (e.reducido()) return false;
-    const ahora = reloj();
-    if (!hay(ahora)) return false;
-    destellos.push(ahora);
-    return true;
+    return limite.pedir();
   };
   /** A blow landed: what the presentation does. `propio` = it is my blow (only mine pauses: a crowd must not stutter the picture). */
   const golpe = (propio: boolean): Peso => {
