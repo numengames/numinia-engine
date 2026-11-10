@@ -6,7 +6,7 @@
 // settings and adds its own (schema numinia-engine/ajustes-mundo@1). What the person chooses is kept in local storage —
 // versioned, old or unknown values dropped safely — per device for the engine's settings and per world for features' and
 // worlds' ones, until the identity holds them (V8). No DOM: the page passes the storage; it runs in Node tests.
-// Nothing here throws. Recipe: docs/EXTENDER.md («Añadir un ajuste»).
+// Nothing here throws. Recipe: docs/extender/anadir-un-ajuste.md.
 import type { Issue, Result } from "../../core/src/index.ts";
 import { faltan, grupoValido, idAjusteValido, resolverDefecto, validarAjuste, validarAjustes, validarDefecto, validarValor, AJUSTES_POR_FUNCION_MAX, NOMBRE_MAX } from "../../feature/src/ajustes.ts";
 import type { AjusteDecl, Alcance, Defecto, Opcion, Tipo, Valor } from "../../feature/src/ajustes.ts";

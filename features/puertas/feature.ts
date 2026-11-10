@@ -2,7 +2,7 @@
 // from close by (the same «E: abrir Puerta norte» on a PC, the button on a phone, the ray and trigger in VR) and the
 // server flips it for everyone near; a door may close itself after `cierraEn` seconds. A world brings its doors in
 // MUNDO_DIR/interacciones.json (`puertas`); without the file there is none. The page only draws the slab turned on its
-// hinge. Recipe: docs/EXTENDER.md «Puertas, botones y cosas que se cogen».
+// hinge. Recipe: docs/extender/puertas-botones-y-cosas-que-se-cogen.md.
 import { defineFeature } from "../../packages/feature/src/index.ts";
 
 /** Who gets a door in the shared state, from afar (m). */

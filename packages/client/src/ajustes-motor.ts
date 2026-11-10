@@ -1,5 +1,5 @@
 // ajustes-motor (N2): the engine's own settings, as data. The page attaches what each one does (apps/plaza/menu-ajustes.ts);
-// features add theirs with `ajustes` in defineFeature, worlds with their JSON (docs/EXTENDER.md «Añadir un ajuste»).
+// features add theirs with `ajustes` in defineFeature, worlds with their JSON (docs/extender/anadir-un-ajuste.md).
 // Defaults by tier follow limits.json and H12 (phones and headsets start cool: no shadows, no HDR, few particles);
 // defaults by capability carry the system's preferences (V7): reduced motion, more contrast, save-data.
 import type { AjusteDecl } from "../../feature/src/ajustes.ts";

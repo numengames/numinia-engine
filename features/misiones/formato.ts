@@ -20,7 +20,7 @@
 // marked EXACTLY those things. Counters per quest (wrong marks, unmarks) are kept in the progress (maquina.ts `cuenta`).
 // End evaluation (P13, optional): a mision@1 may carry `evaluacion` — the card the player gets when the quest is completed: the time of the
 // whole quest and of each block, any counter by name, and a score (base minus integer weights; see evaluacion.ts for the arithmetic).
-// The recipe for authors (people or LLMs) is docs/EXTENDER.md «Misiones y PNJ». Every check returns Result with paths
+// The recipe for authors (people or LLMs) is docs/extender/misiones-y-personas-pnj.md. Every check returns Result with paths
 // that say how to fix each problem; nothing here throws, touches the network or the world.
 import type { Issue, Result } from "../../packages/core/src/index.ts";
 import { SOUNDS } from "../../packages/feature/src/index.ts"; // U14 (5): a sequence's sounds are the house's

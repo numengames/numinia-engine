@@ -4,7 +4,7 @@ Session on the player's side: prediction of the own avatar (height and jumps inc
 Also the settings registry and the device capabilities (N2): `ajustes.ts` keeps what the person chooses (versioned local
 storage, per device or per world), picks defaults by device tier and capability, applies them through functions the page
 attaches, and reads a world's JSON; `capacidades.ts` reads what the device can do into one flat object; `ajustes-motor.ts`
-lists the engine's own settings; `densidad.ts` (U20) is the density dial's table — which panel shows at Mínimo/Normal/Completo and when (`siempre`/`al_cambiar`/`bajo_demanda`), and (U3) where each one sits (`caja`) and its glass; `reloj.ts` is the clock beside the minimap (format, local/UTC). Recipe: `docs/EXTENDER.md` («Añadir un ajuste», «Añadir una capacidad»).
+lists the engine's own settings; `densidad.ts` (U20) is the density dial's table — which panel shows at Mínimo/Normal/Completo and when (`siempre`/`al_cambiar`/`bajo_demanda`), and (U3) where each one sits (`caja`) and its glass; `reloj.ts` is the clock beside the minimap (format, local/UTC). Recipe: `docs/extender/anadir-un-ajuste.md`, `docs/extender/anadir-una-capacidad.md`.
 
 - **Does not:** Drawing; it never touches three.js or the DOM beyond a location object (settings: the page passes the storage and the browser globals).
 - **Depends on:** core, schema, ecs, sim, net, feature (rule: `tools/layers.json`)

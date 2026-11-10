@@ -1,6 +1,6 @@
 # Scripts de mundo (M19 + M20): cómo se escribe uno sin romper el mundo
 
-Estado: construido (0.67.0+). Cartas `t_ae9eb860` (M20) y `t_83ab6adf` (el diseño). Código: `packages/server/src/{guion,guion-trabajador,apps-ejecutar,apps-http}.ts`, pruebas `test/guion.test.ts` y `test/apps-ejecutar.test.ts`. Guía de uso: `docs/EXTENDER.md` «Apps».
+Estado: construido (0.67.0+). Cartas `t_ae9eb860` (M20) y `t_83ab6adf` (el diseño). Código: `packages/server/src/{guion,guion-trabajador,apps-ejecutar,apps-http}.ts`, pruebas `test/guion.test.ts` y `test/apps-ejecutar.test.ts`. Guía de uso: `docs/extender/apps.md`.
 
 ## Qué es
 

@@ -5,7 +5,7 @@
 // world (state entry WITH `at`, a card and `interact`: «E: tirar los dados» beside it, with the tower's own default
 // dice) and shows its last roll to whoever arrives later; without a tower you roll where you stand (`/tirar 2d6` in
 // the chat). A roll may be hidden (`oculta`: the Game Director behind the screen): the others see THAT you rolled,
-// never the values. Same verbs for a page, a phone, VR (the chat) and an agent. Recipe: docs/EXTENDER.md «Dados».
+// never the values. Same verbs for a page, a phone, VR (the chat) and an agent. Recipe: docs/extender/dados.md.
 import { defineFeature } from "../../packages/feature/src/index.ts";
 
 /** Who gets a dice tower in the shared state, from afar (m). */

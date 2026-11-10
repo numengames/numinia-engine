@@ -1,7 +1,7 @@
 // ajustes (N2): the FORMAT of a setting and its validation — what the engine (client/src/ajustes-motor.ts), each game
 // feature (`ajustes` in defineFeature) and each world's file declare. Pure data rules; the registry that keeps values,
 // applies them and decides defaults on this device is packages/client/src/ajustes.ts. Validation returns issues with
-// paths; nothing here throws. Recipe: docs/EXTENDER.md («Añadir un ajuste»).
+// paths; nothing here throws. Recipe: docs/extender/anadir-un-ajuste.md.
 import type { Issue, Result } from "../../core/src/index.ts";
 
 export type Nivel = "A" | "B" | "C" | "D";
@@ -124,7 +124,7 @@ const texto = (t: unknown, max: number, ruta: string, que: string, out: Issue[])
 
 /** Check one declaration. `ruta` names it in the issues (e.g. "gestos.ajustes.etiquetas"). */
 export function validarAjuste(d: unknown, ruta: string): Issue[] {
-  if (typeof d !== "object" || d === null) return [{ path: ruta, message: "a setting is an object: { id, tipo, nombre, describe, defecto } (docs/EXTENDER.md)" }];
+  if (typeof d !== "object" || d === null) return [{ path: ruta, message: "a setting is an object: { id, tipo, nombre, describe, defecto } (docs/extender/anadir-un-ajuste.md)" }];
   const a = d as AjusteDecl, out: Issue[] = [];
   if (!idAjusteValido(a.id)) out.push({ path: `${ruta}.id`, message: "camelCase id, letter first, up to 32 characters, e.g. 'resolucion'" });
   if (a.grupo !== undefined && !grupoValido(a.grupo)) out.push({ path: `${ruta}.grupo`, message: "lowercase group id, e.g. 'graficos'" });
@@ -166,7 +166,7 @@ export function validarAjuste(d: unknown, ruta: string): Issue[] {
 
 /** Check the settings a feature declares (defineFeature calls this): each lives in the feature's own group. */
 export function validarAjustes(lista: unknown, ruta: string, grupo: string): Issue[] {
-  if (!Array.isArray(lista)) return [{ path: ruta, message: "ajustes: a list [{ id, tipo, nombre, describe, defecto }] (docs/EXTENDER.md «Añadir un ajuste»)" }];
+  if (!Array.isArray(lista)) return [{ path: ruta, message: "ajustes: a list [{ id, tipo, nombre, describe, defecto }] (docs/extender/anadir-un-ajuste.md)" }];
   const out: Issue[] = [], vistos = new Set<string>();
   if (lista.length > AJUSTES_POR_FUNCION_MAX) out.push({ path: ruta, message: `at most ${AJUSTES_POR_FUNCION_MAX} settings` });
   lista.forEach((d, i) => {

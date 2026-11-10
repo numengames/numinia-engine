@@ -142,7 +142,7 @@ Tú y los jugadores más cercanos, como humanoides VRM con animaciones; el resto
 ## Misiones y personas (J5) y cosas que se usan de cerca (J4)
 
 Las misiones, las personas que las dan y las cosas que se cogen las escribe la aventura como texto (`mision@1`,
-`pnj@1`, `cosa@1`; `docs/EXTENDER.md`). Medido por `test/misiones.test.ts` y `tools/e2e-piernas/misiones.mjs`.
+`pnj@1`, `cosa@1`; `docs/extender/misiones-y-personas-pnj.md`). Medido por `test/misiones.test.ts` y `tools/e2e-piernas/misiones.mjs`.
 
 | Dato | Valor |
 |---|---|
@@ -176,7 +176,7 @@ en Quest entra en todo.
 ## Ajustes (N2)
 
 El menú de ajustes (tecla O o el engranaje) es HTML de verdad; lo leen los lectores de pantalla y los agentes
-(`window.__numinia.ajustes`). Cómo crece: [`EXTENDER.md`](EXTENDER.md) («Añadir un ajuste», «Añadir una capacidad»).
+(`window.__numinia.ajustes`). Cómo crece: [`extender/anadir-un-ajuste.md`](extender/anadir-un-ajuste.md), [`extender/anadir-una-capacidad.md`](extender/anadir-una-capacidad.md).
 
 | Dato | Valor |
 |---|---|

@@ -8,7 +8,7 @@
 // (decided by Pablo: his estate's publicity rights). The hologram says so on its own label («dramatización»).
 // The hall and the hologram are things of the world (state WITH `at`): the walls are solid boxes (`solido` + bx…bz,
 // the same fields the simulation reads for any feature) with no name (decoration), the hologram has a card and
-// `interact`. Recipe: docs/EXTENDER.md «Salón de los Ancestros».
+// `interact`. Recipe: docs/extender/salon-de-los-ancestros-y-el-tributo-a-asimov.md.
 import { defineFeature } from "../../packages/feature/src/index.ts";
 
 /** From how far a page gets the hall and the hologram (m): the hall is seen from the plaza. */

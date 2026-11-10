@@ -98,7 +98,7 @@ Keep gates light: seconds, one core. Never add a gate that needs a GPU or an LLM
 - The image is built from the installer only (`Dockerfile`, `.dockerignore`): what the bare install runs, the image
   runs. `deploy-check` and `test/flota.test.ts` guard both.
 - A world also carries its own note for AIs, `aventura/LEEME-IA.md` (what an AI may build there, the style, what not to touch): a new
-  world is born with one (`plantillas/taller/aventura/`) and the MCP bridge hands it to an AI first (`docs/EXTENDER.md`, «LEEME-IA»).
+  world is born with one (`plantillas/taller/aventura/`) and the MCP bridge hands it to an AI first (`docs/extender/leeme-ia.md`).
 
 ## Version and diary in a pull request
 A pull request never moves the version and never writes in `docs/RUNLOG.md` or `apps/plaza/novedades-datos.ts` (generated,

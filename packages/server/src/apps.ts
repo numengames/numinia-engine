@@ -9,7 +9,7 @@
 // Why a folder (principles in AGENTS.md): AI-native — an agent reads and writes it with no tool but a file editor; the schema
 // is the one a builder's inspector (M22) paints its fields from, and the card is what a screen reader and an agent read
 // (the same rule as every feature: a spoken name, an announcement or "silent", a card). The ids are camelCase like every
-// engine verb and event. A world's apps/ is another part of the world folder (see docs/EXTENDER.md «Apps»).
+// engine verb and event. A world's apps/ is another part of the world folder (see docs/extender/apps.md).
 // Rules that make a bad app fail loud and early (each problem says the file and the JSON path):
 //   - a key the format does not know is an error (a typo must not pass for a setting);
 //   - every file is named by its hash and the hash is checked: a file whose bytes are not its name is refused;
@@ -88,7 +88,7 @@ const sha256 = (b: Uint8Array): string => createHash("sha256").update(b).digest(
 export function validarApp(raw: unknown, idCarpeta?: string): { ok: true; app: App } | { ok: false; issues: Issue[] } {
   const is: Issue[] = [];
   const mal = (path: string, message: string) => { is.push({ path, message }); };
-  if (!esObj(raw)) return { ok: false, issues: [{ path: "app.json", message: "tiene que ser un objeto JSON: { \"schema\": \"numinia-engine/app@1\", \"id\": …, … } (mira apps/ejemplo en plantillas/ o docs/EXTENDER.md «Apps»)" }] };
+  if (!esObj(raw)) return { ok: false, issues: [{ path: "app.json", message: "tiene que ser un objeto JSON: { \"schema\": \"numinia-engine/app@1\", \"id\": …, … } (mira apps/ejemplo en plantillas/ o docs/extender/apps.md)" }] };
   const a = raw;
   for (const k of Object.keys(a)) if (!CLAVES_APP.has(k)) mal(k, `«${k}» no es un campo de app@1 (los hay: ${[...CLAVES_APP].join(", ")}); si es una nota para personas, va en «notas»`);
   if (a.schema !== APP_ESQUEMA) mal("schema", `tiene que ser exactamente "${APP_ESQUEMA}" (es ${JSON.stringify(a.schema)})`);

@@ -2,7 +2,7 @@
 // pulsar Botón rojo» on a PC, the button on a phone, the ray and trigger in VR). The SERVER counts the press, lights
 // the button for a moment, tells whoever is near, and fires a server-only signal (`senal`) other features hear: a
 // button whose `puerta` names a door (features/puertas) opens it. A world brings its buttons in
-// MUNDO_DIR/interacciones.json (`botones`). Recipe: docs/EXTENDER.md «Puertas, botones y cosas que se cogen».
+// MUNDO_DIR/interacciones.json (`botones`). Recipe: docs/extender/puertas-botones-y-cosas-que-se-cogen.md.
 import { defineFeature } from "../../packages/feature/src/index.ts";
 
 export const ALCANCE_M = 64;

@@ -5,7 +5,7 @@
 // `dirigir` for as long as the staff is in a hand (event `concesion`, heard only by the server): it is no new role (roles
 // are numinia.com's, STD-052), only a loan like a pass, and what a role already let you direct stays. Who rules the world
 // (`administrator` / owner) says how many staffs there are (1 by default, 1–5) and may call them all back. AIs never take
-// it. A world turns the piece on with `entorno/baculos.json`; without the file nothing changes. Recipe: docs/EXTENDER.md «Báculo».
+// it. A world turns the piece on with `entorno/baculos.json`; without the file nothing changes. Recipe: docs/extender/baculo-del-director.md.
 import { defineFeature } from "../../packages/feature/src/index.ts";
 
 /** Who sees a staff change hands (m), and who gets the staffs in the shared state from afar (m). */

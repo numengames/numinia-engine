@@ -3,7 +3,7 @@
 // Decide by capability, never by browser name (AGENTS.md, principle 2). No DOM: the browser is read through an
 // `entorno` argument (globalThis by default), so Node tests pass a fake one. The `requiere` grammar lives with the
 // settings format (packages/feature/src/ajustes.ts). A new capability = one line in CAPACIDADES (what it means) + one
-// probe (how to read it): docs/EXTENDER.md «Añadir una capacidad».
+// probe (how to read it): docs/extender/anadir-una-capacidad.md.
 import { NIVELES } from "../../feature/src/ajustes.ts";
 import type { Capacidades, Nivel, ValorCapacidad } from "../../feature/src/ajustes.ts";
 export { NIVELES, cumple, faltan, exprValida } from "../../feature/src/ajustes.ts";

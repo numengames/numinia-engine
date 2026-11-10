@@ -13,7 +13,7 @@
 //      two things while the camera drifts across the gap.
 // The heading is the camera's yaw (packages/render/src/camara-orbita.ts: 0 = along −z, + turns left). Measured on the floor
 // plane from the PLAYER, not from the camera: in third person the camera sits behind the avatar, but «what is ahead» is the same.
-// VR: the controllers keep their own logic (xr.ts aims with the ray); the head heading is not used there — see EXTENDER.
+// VR: the controllers keep their own logic (xr.ts aims with the ray); the head heading is not used there — see docs/extender/cosas-que-se-usan-de-cerca.md.
 
 export const MIRADA_MAX_RAD = (40 * Math.PI) / 180;
 export const EMPATE_RAD = (3 * Math.PI) / 180;

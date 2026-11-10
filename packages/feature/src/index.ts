@@ -117,7 +117,7 @@ function checkFields(fields: Fields, path: string, issues: Issue[]): void {
   }
 }
 
-const HOW = "(accessibility, docs/EXTENDER.md)";
+const HOW = "(accessibility, docs/extender/lo-que-toda-funcion-declara.md)";
 const holes = (t: string) => [...t.matchAll(/\{([a-zA-Z0-9]+)\}/g)].map((m) => m[1]);
 function checkTemplate(t: unknown, max: number, names: string[], path: string, issues: Issue[], what: string): void {
   if (typeof t !== "string" || t.trim().length === 0 || t.length > max) { issues.push({ path, message: `${what}: 1-${max} characters ${HOW}` }); return; }

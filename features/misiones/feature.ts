@@ -1,7 +1,7 @@
 // misiones — declarations (J5 + the generic J4 interaction). Two features from one folder, one engine behind:
 //   pnj       people of the world (PNJ): talk to them from close by; their dialogue depends on your quests
 //   misiones  your quest book (only to you, saved by guest) and the quest things in the world (take or use)
-// What exists (quests, people, things) comes from the adventure's text files (formato.ts; docs/EXTENDER.md).
+// What exists (quests, people, things) comes from the adventure's text files (formato.ts; docs/extender/misiones-y-personas-pnj.md).
 import { defineFeature, SOUNDS } from "../../packages/feature/src/index.ts";
 import { ACCIONES_PAGINA, ALTURA_MAX, ESPERA_MAX, LIM, LIM_SECUENCIA, MUNDO, RONDA, TIPOS_PASO, TIPOS_PISTA } from "./formato.ts";
 
@@ -73,7 +73,7 @@ export const misiones = defineFeature({
     seguir: { describe: "Seguir una misión activa: su objetivo se marca en el mundo y en el mapa (vacío = no seguir ninguna).", spoken: "seguir una misión", fields: { mision: { kind: "text", maxBytes: LIM.id, default: "" } } },
     hace: { describe: `T1: avisar de algo que solo la página ve (${ACCIONES_PAGINA.join(", ")}: abrir el panel de construir, la biblioteca o el cable) para un paso «hace» de tu misión. Solo vale con permiso de construir y esas tres acciones; el resto de lo que hace quien construye lo ve el servidor solo.`, spoken: "avisar de que has abierto un panel", fields: { accion: { kind: "text", maxBytes: 16 } }, rate: { perSecond: 2, burst: 4 } },
     foto: {
-      describe: "P10: avisar de una foto del motor con la pose de su cámara; solo cuenta para un paso «foto» (docs/EXTENDER.md).",
+      describe: "P10: avisar de una foto del motor con la pose de su cámara; solo cuenta para un paso «foto» (docs/extender/misiones-y-personas-pnj.md).",
       spoken: "hacer una foto para una misión",
       fields: { x: X, y: X, z: X, fx: DIR, fy: DIR, fz: DIR, fov: { kind: "fixed", min: 10, max: 120, step: 0.1 }, aspecto: { kind: "fixed", min: 0.2, max: 5, step: 0.01 } },
       rate: { perSecond: 2, burst: 3 },

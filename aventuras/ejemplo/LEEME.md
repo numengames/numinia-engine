@@ -16,7 +16,7 @@ lo que hablar. Las aventuras de verdad viven en su propio repositorio y el servi
 - `LEEME-IA.md`: la nota de este mundo para las IAs que entran (qué construir, estilo, qué no tocar); ejemplo de LEEME-IA, el modelo está en `plantillas/taller/aventura/`.
 - `ficha.json` (`ficha@1`): cómo se llama el mundo y de qué va (la página y `/status` lo dicen); `portada` opcional.
 
-Cómo se escribe una aventura (formatos, reglas, errores): `docs/EXTENDER.md`, «Misiones y personas (PNJ)».
+Cómo se escribe una aventura (formatos, reglas, errores): `docs/extender/misiones-y-personas-pnj.md`.
 Comprobar una carpeta sin arrancar nada: `node tools/aventura.ts aventuras/ejemplo`.
 
 ## Qué hay en la plaza de casa y para qué (MIS-224)
