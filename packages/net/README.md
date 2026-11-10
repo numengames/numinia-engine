@@ -9,3 +9,9 @@ Bit packing, quantized snapshots (6 bytes per visible entity at ground level, 8 
 - **Files over HTTP (H9, `ficheros.ts`, pure, shared by page and server):** `TIPOS` (kinds and content types), `TOPES_MB` /
   `SUBIDAS_TOTAL_MB` (caps, also in `limits.json`), `comprobarGlb` / `comprobarFichero` (Result with paths, never throws),
   `sha256Hex` (for pages without `crypto.subtle`). Tested by `test/subidas.test.ts`.
+
+## Details moved from llms.txt
+
+These clauses were in the one-line `llms.txt` bullet for this package and are kept here verbatim.
+
+- schema codec (`writeFields`/`readFields`).

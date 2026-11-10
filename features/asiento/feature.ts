@@ -8,7 +8,7 @@
 // `api.sentado` and frees the seat). Whoever directs (a role, /dueño or the Director's staff), or may remove people, or
 // rules the world, may stand another person up (`/levantar <nombre>`). A world turns the piece on with
 // `entorno/asientos.json`; without the file nothing changes. It is a piece with a switch (Entorno panel).
-// Recipe: docs/EXTENDER.md «Asiento».
+// Recipe: docs/extender/asiento.md.
 import { defineFeature } from "../../packages/feature/src/index.ts";
 
 /** How near you must be to sit (m), and how many seats a world may have. */

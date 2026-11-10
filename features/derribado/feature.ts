@@ -5,7 +5,7 @@
 // cost, within 2,5 m, «E» on the card, a button or an agent through the same verb) or the time runs out / they give up
 // (`rendirse`) and the server puts them on the world's reappearance spot. NOTHING is lost either way (Y49: no penalty by
 // default). The world declares in `entorno/derribado.json` where people reappear and whether death is «segura» (nothing is
-// lost): without the file the piece is OFF, costs nothing and lucha behaves as before. Recipe: docs/EXTENDER.md «Derribado».
+// lost): without the file the piece is OFF, costs nothing and lucha behaves as before. Recipe: docs/extender/derribado.md.
 import { defineFeature } from "../../packages/feature/src/index.ts";
 
 /** Seconds a person stays down before the server brings them back (default; a world may set 5–120 in derribado.json). */

@@ -35,4 +35,4 @@ The engine also plants a few objects of its own when a world is born (the base s
 ## Checking it
 
 `REUSE.toml` of the engine gives `plantillas/taller/**` the licence `CC0-1.0`. The words of the world are in English by default;
-the language is `idioma` in `ficha.json` and each translation is a file in `idiomas/` (engine docs: `docs/EXTENDER.md`, «Idiomas del mundo»).
+the language is `idioma` in `ficha.json` and each translation is a file in `idiomas/` (engine docs: `docs/extender/idiomas-del-mundo.md`).

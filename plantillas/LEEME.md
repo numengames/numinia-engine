@@ -16,7 +16,7 @@ El onboarding de quien llega a un mundo nuevo, y nada más:
 - `aventura/LEEME-IA.md` — la nota del mundo para las IAs que entran (qué pueden construir, estilo, qué no tocar): el modelo de todo
   LEEME-IA (`## What you may build`, `## Style`, `## What you must not touch`). Pública, hasta 12 KiB; el dueño la reescribe.
   El puente MCP se la entrega a la IA (`leeme_ia`); lo comprueba `node tools/aventura.ts`.
-- Idioma: todo el texto está en **inglés** (por defecto); el castellano vive en `aventura/idiomas/es.*` y se enciende con `"idioma": "es"` en `ficha.json` (`docs/EXTENDER.md`, «Idiomas del mundo»).
+- Idioma: todo el texto está en **inglés** (por defecto); el castellano vive en `aventura/idiomas/es.*` y se enciende con `"idioma": "es"` en `ficha.json` (`docs/extender/idiomas-del-mundo.md`).
 - `aventura/LICENSE.md` — la licencia del mundo: **CC0**, salvo el logo y los nombres de Numen/Numinia (marca, `TRADEMARKS.md`). `docs/FICHA-MUNDO-TALLER.md` — la ficha del mundo (formato de `DECISIONES-MUNDOS`).
 - `entorno/` — `espacio-base.json` (nace en el espacio base, de noche), `naturaleza.json` apagada, `disparadores.json`
   con el cable de muestra «Botón rojo» (que enseña el farolillo que pone la misión 2), y `pesca`, `dardos` (sin enlace de

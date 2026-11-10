@@ -63,7 +63,8 @@ blocks; what binds today: <https://numinia.org/binding>). This file does not cha
 only. A package imports only what `layers.json` allows. Adding a package means adding it there first.
 Game features live in `features/<id>/` and import only `core`, `schema` and `feature`; packages never
 import `features/` except the composition roots listed in `layers.json` (`_composition`). Recipe:
-`docs/EXTENDER.md`. A feature never touches the simulation or the fingerprint.
+`docs/EXTENDER.md`. A feature never touches the simulation or the fingerprint. A new piece documents itself in its own
+file `docs/extender/<piece>.md` and adds ONE line to the index of `docs/EXTENDER.md`; `llms.txt` is not edited per feature.
 
 ## Determinism contract (see `docs/DETERMINISM.md`)
 - `sim` decides with integers / Q16.16 fixed point only (`core`). No `Math.sin/cos/exp`, no
@@ -98,7 +99,7 @@ Keep gates light: seconds, one core. Never add a gate that needs a GPU or an LLM
 - The image is built from the installer only (`Dockerfile`, `.dockerignore`): what the bare install runs, the image
   runs. `deploy-check` and `test/flota.test.ts` guard both.
 - A world also carries its own note for AIs, `aventura/LEEME-IA.md` (what an AI may build there, the style, what not to touch): a new
-  world is born with one (`plantillas/taller/aventura/`) and the MCP bridge hands it to an AI first (`docs/EXTENDER.md`, «LEEME-IA»).
+  world is born with one (`plantillas/taller/aventura/`) and the MCP bridge hands it to an AI first (`docs/extender/leeme-ia.md`).
 
 ## Version and diary in a pull request
 A pull request never moves the version and never writes in `docs/RUNLOG.md` or `apps/plaza/novedades-datos.ts` (generated,

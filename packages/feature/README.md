@@ -28,3 +28,9 @@ gives `{ x, y, z }`. An adventure's text files (J5): `api.aventura(carpeta)` (se
 - **Settings (N2):** `ajustes?: AjusteDecl[]` in a declaration (≤ 16, validated like the rest: a bad one refuses the
   feature, with its path); format, validation and the `requiere` grammar live in `src/ajustes.ts`; the page reads a value
   with the view hook `ajuste(id)`. Page side only: nothing new on the wire or in the catalog.
+
+## Details moved from llms.txt
+
+These clauses were in the one-line `llms.txt` bullet for this package and are kept here verbatim.
+
+- The plug for game features: `defineFeature` (intents, events, shared state, all by schema; accessibility built in: `spoken` verbs, `announce` events, `state.card` things — refused otherwise; S4: `state.persist` and a server-only `store` survive restarts; J9: state set with `at` is a thing in the world that reaches only players within `state.radius`; H1: `api.puede(entity, "construir")` asks the server for permission, `view.place` draws a model by its sha256, a card with an empty name is decoration; H9: `api.activo(sha, ext)`; J3: `api.listen` hears other features' events, scope "server", `api.visible(entity)`),

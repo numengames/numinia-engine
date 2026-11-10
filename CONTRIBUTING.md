@@ -8,7 +8,13 @@ issues and pull requests, and the same review applies to everyone, people and AI
 - [`AGENTS.md`](AGENTS.md): the binding rules (layers, determinism, gates, style). If this file and `AGENTS.md`
   disagree, `AGENTS.md` wins.
 - [`llms.txt`](llms.txt): the one-page map of the code.
-- [`docs/EXTENDER.md`](docs/EXTENDER.md): how to add a feature (a minigame, a gesture, a door).
+- [`docs/EXTENDER.md`](docs/EXTENDER.md): how to add a feature (a minigame, a gesture, a door). Each piece has its own
+  file in [`docs/extender/`](docs/extender/).
+
+**Documenting a new piece:** write it in its own file `docs/extender/<piece>.md` and add ONE line to the index at the
+end of `docs/EXTENDER.md`. Do not append a section to `docs/EXTENDER.md` and do not edit `llms.txt` per feature (its
+package bullets stay one sentence; details go in the package's README): those shared lines are what made pull requests
+conflict.
 
 ## Language
 
