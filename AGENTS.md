@@ -63,7 +63,8 @@ blocks; what binds today: <https://numinia.org/binding>). This file does not cha
 only. A package imports only what `layers.json` allows. Adding a package means adding it there first.
 Game features live in `features/<id>/` and import only `core`, `schema` and `feature`; packages never
 import `features/` except the composition roots listed in `layers.json` (`_composition`). Recipe:
-`docs/EXTENDER.md`. A feature never touches the simulation or the fingerprint.
+`docs/EXTENDER.md`. A feature never touches the simulation or the fingerprint. A new piece documents itself in its own
+file `docs/extender/<piece>.md` and adds ONE line to the index of `docs/EXTENDER.md`; `llms.txt` is not edited per feature.
 
 ## Determinism contract (see `docs/DETERMINISM.md`)
 - `sim` decides with integers / Q16.16 fixed point only (`core`). No `Math.sin/cos/exp`, no
