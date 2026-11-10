@@ -83,7 +83,12 @@ export class ClientSession {
   private mallaReintentar = false;
   private readonly construirGlb?: ConstruirMallaCliente;
   /** The GLB mesh and the terrain are ONE tree for the local sim, like `Instance.aplicarMalla`. */
-  private aplicarMalla(): void { setMesh(this.local, combinarMallas(this.mallaGlb, this.terreno?.bvh ?? null), this.terreno ? PISO_SIN_SUELO : 0); }
+  private aplicarMalla(): void {
+    setMesh(this.local, combinarMallas(this.mallaGlb, this.terreno?.bvh ?? null), this.terreno ? PISO_SIN_SUELO : 0);
+    // «in the air» is measured against the real floor: a world whose floor is only a collision GLB (no hills) has one too
+    const bvh = this.terreno?.bvh ?? this.mallaGlb;
+    this.suelo = bvh ? crearSueloTerreno(this.local, bvh) : null;
+  }
   /** M6 h9: follows the shared state's `malla` things; rebuilds off the tick (async: a fetch and a parse) only when what the mesh is made of changed. */
   private sincronizarMalla(): void {
     if (!this.construirGlb || this.mallaBuilding) return; // one build in flight; `finally` looks again if the state moved on
@@ -109,8 +114,7 @@ export class ClientSession {
     const clave = m ? M.claveTerreno(m) : null;
     if (clave === (this.terreno?.clave ?? null)) return;
     this.terreno = m ? M.terrenoMalla(m) : null;
-    this.suelo = this.terreno ? crearSueloTerreno(this.local, this.terreno.bvh) : null;
-    this.aplicarMalla();
+    this.aplicarMalla(); // also rebuilds `suelo` from the terrain (or, with none, from the GLB mesh)
     if (this.terreno) { // the body that was standing at the flat ground height now stands on the hill
       const b = getBody(this.local, 0), g = groundHeight(b.x, b.z, this.local, this.terreno.hmax * 65536 + 65536);
       if (b.y < g) { this.setLocal({ ...b, y: g, vy: 0 }); this.prev = this.cur; }
