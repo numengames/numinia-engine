@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   MARCOS_PLAZA, ANCLAS, ANCHO_MIN_MARCOS, ANCHO_COMPACTO, TOPE_AVISOS, AVISOS_MAX, SEGUNDOS_AL_CAMBIAR, apilarAviso, avisosVisibles, cajaDe, rectDe, cssMarcos, validarMarcos, marcosVisibles,
-  formatoHora, etiquetaHora, modoHora, msHastaMinuto, MODOS_HORA, AJUSTES_MOTOR, validarAjuste, crearAjustes, crearCapacidades, leerNavegador,
+  formatoHora, etiquetaHora, modoHora, msHastaMinuto, MODOS_HORA, AJUSTES_MOTOR, resolverTexto, validarAjuste, crearAjustes, crearCapacidades, leerNavegador,
 } from "../packages/client/src/ajustes.ts";
 import type { MarcoDensidad, Densidad, Guardado } from "../packages/client/src/ajustes.ts";
 
@@ -93,7 +93,7 @@ test("the clock: «Normal», 8 px glass, HH:MM local or «HH:MM UTC», once a mi
 
 test("the setting «Hora del reloj»: Interfaz group, Local or UTC, Local by default, kept on the device", () => {
   const d = AJUSTES_MOTOR.find((a) => a.grupo === "interfaz" && a.id === "hora")!;
-  assert.deepEqual(validarAjuste(d, "hora"), []);
+  assert.deepEqual(validarAjuste({ ...d, nombre: resolverTexto(d.nombre, "en"), describe: resolverTexto(d.describe, "en") } as never, "hora"), []);
   assert.deepEqual(d.opciones!.map((o) => o.valor), [...MODOS_HORA]); assert.equal(d.defecto, "local");
   const datos = new Map<string, string>(), guardado: Guardado = { leer: (k) => datos.get(k) ?? null, escribir: (k, v) => { datos.set(k, v); } };
   const a = crearAjustes({ capacidades: crearCapacidades(leerNavegador({})), guardado, mundo: "plaza" });

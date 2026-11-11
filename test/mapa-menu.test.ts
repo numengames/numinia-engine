@@ -18,7 +18,7 @@ test("no menu section is called «mapa» or «map», in either language; the map
 });
 
 test("the words the player reads next to the menu say «dónde estoy»: help line, gamepad sheet, phone tab", () => {
-  assert.doesNotMatch(leer("apps/plaza/index.html").match(/<div id="help">([^<]*)</)![1], /\bmapa\b/i, "the key help line");
+  assert.doesNotMatch(leer("apps/plaza/index.html").match(/<div id="help"[^>]*>([^<]*)</)![1], /\bmapa\b/i, "the key help line");
   assert.match(leer("apps/plaza/index.html"), /M: dónde estoy/);
   assert.equal(ACCIONES.mapa.nombre, "dónde estoy");
   assert.match(leer("apps/plaza/movil.ts"), /texto: nombreDe\("mapa"\)/, "the phone's tab takes the list's name");
