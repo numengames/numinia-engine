@@ -21,15 +21,36 @@ export type Sitio = { id: string; nombre: string; x: number; z: number; y?: numb
 export const HZ = 20, DT = 1 / HZ;
 /** The default spot of a world without its own pesca.json: north-east of the plaza, between the landmark pillars (r 18 and 27, every 15°) so none stands in the water (-z is north). */
 export const SITIOS_DEFECTO: Sitio[] = [{ id: "estanque", nombre: "Estanque de la plaza", x: 18, z: -14, y: 0, radio: 4 }];
-const TEXTO: Record<(typeof MOTIVOS)[number], string> = {
-  tarde: "Se ha ido: tardaste en recoger.",
-  rota: "¡El sedal se ha roto! Demasiada tensión.",
-  escapa: "El pez se ha soltado del anzuelo.",
-  agotado: "El pez te ha cansado y se ha ido.",
-  lejos: "Te alejaste del agua y el pez se fue.",
-  desconectado: "Te fuiste.",
-  apagada: "La pesca se ha apagado en este mundo: recoges la caña.",
+// i18n (5/5): the words a player READS from the fishing server, in English (the fallback) and Spanish. Same convention as
+// misiones/formato.ts: a catalogue of our own (features may not import the client's t()); the language is the WORLD's
+// (`idioma` of its ficha.json). An omitted language is Spanish (what every call said before); an unknown language, or a
+// key missing in one language, reads the English text, never an empty one. `{x}` is filled from `vars`.
+export const IDIOMA_PESCA = "es";
+export const TEXTOS_PESCA: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  en: {
+    tarde: "It is gone: you took too long to reel in.", rota: "The line snapped! Too much tension.", escapa: "The fish got off the hook.",
+    agotado: "The fish wore you out and left.", lejos: "You walked away from the water and the fish left.", desconectado: "You left.",
+    apagada: "Fishing has been switched off in this world: you reel the rod in.",
+    si_apagada: "Fishing is switched off in this world.", sitio_no: "There is no fishing spot «{id}».",
+    ya_pescando: "You are already fishing: reel in or let go of the rod first.", acercate: "Go closer to the water to fish at {nombre}.",
+    ocupado: "Someone is already fishing there: wait until they finish.", no_lanzado: "You are not fishing: cast the rod at a fishing spot.",
+    no_pescando: "You are not fishing.", sitio_defecto: "Fishing spot",
+  },
+  es: {
+    tarde: "Se ha ido: tardaste en recoger.", rota: "¡El sedal se ha roto! Demasiada tensión.", escapa: "El pez se ha soltado del anzuelo.",
+    agotado: "El pez te ha cansado y se ha ido.", lejos: "Te alejaste del agua y el pez se fue.", desconectado: "Te fuiste.",
+    apagada: "La pesca se ha apagado en este mundo: recoges la caña.",
+    si_apagada: "La pesca está apagada en este mundo.", sitio_no: "No hay ningún sitio de pesca «{id}».",
+    ya_pescando: "Ya estás pescando: recoge o suelta la caña antes.", acercate: "Acércate al agua para pescar en {nombre}.",
+    ocupado: "Ahí ya pesca alguien: espera a que termine.", no_lanzado: "No estás pescando: lanza la caña en un sitio de pesca.",
+    no_pescando: "No estás pescando.", sitio_defecto: "Sitio de pesca",
+  },
 };
+/** The text for `clave` in `idioma` (fallback: English), with `{x}` filled from `vars`. Pure; never throws, never empty for a known key. */
+export function textoPesca(idioma: string, clave: string, vars: Readonly<Record<string, string | number>> = {}): string {
+  const t = TEXTOS_PESCA[idioma]?.[clave] ?? TEXTOS_PESCA.en[clave] ?? clave;
+  return t.replace(/\{(\w+)\}/g, (_, k: string) => (Object.hasOwn(vars, k) ? String(vars[k]) : `{${k}}`));
+}
 
 type Pelea = { pez: Pez & { cm: number; fuerza: number }; tension: number; progreso: number; recogiendo: boolean; t: number; arrancada: "no" | "aviso" | "si"; proxima: number; dura: number };
 type Partida = { sitio: string; fase: "espera" | "picada" | "pelea"; t0: number; espera: number; mordisqueo: number; picadaEn: number; ventana: number; pez: Pez & { cm: number; fuerza: number }; pelea: Pelea | null };
@@ -72,7 +93,9 @@ export function pasoPelea(p: Pelea, dt: number): "captura" | "rota" | "escapa" |
   return null;
 }
 
-export const crearPesca = (opts: { sitios?: Sitio[]; peces?: Pez[]; semilla?: number } = {}) => serverPart(pesca, (api: ServerApi) => {
+export const crearPesca = (opts: { sitios?: Sitio[]; peces?: Pez[]; semilla?: number; /** the WORLD's language (ficha.json `idioma`); omitted = Spanish */ idioma?: string } = {}) => serverPart(pesca, (api: ServerApi) => {
+  const idioma = opts.idioma ?? IDIOMA_PESCA;
+  const tx = (clave: string, vars?: Record<string, string | number>) => textoPesca(idioma, clave, vars);
   const peces: Pez[] = (opts.peces ?? (tabla as { peces: Pez[] }).peces).filter((p) => RAREZAS.includes(p.rareza) && p.peso > 0 && p.cm[0] < p.cm[1]);
   if (!peces.length) { api.log("pesca: la tabla de peces está vacía; la función no hace nada"); return; }
   const rng = new Uint32Array([(opts.semilla ?? 0x5e5ca) >>> 0]);
@@ -82,7 +105,7 @@ export const crearPesca = (opts: { sitios?: Sitio[]; peces?: Pez[]; semilla?: nu
   // the spots: a world's pesca.json or the house default; one state entry each (a thing of the world, with a card)
   const lista = (opts.sitios ?? SITIOS_DEFECTO).filter((s) => /^[a-z0-9-]{1,16}$/.test(String(s.id)) && Number.isFinite(s.x) && Number.isFinite(s.z));
   for (const s of lista) {
-    const v: Msg = { nombre: String(s.nombre || "Sitio de pesca").slice(0, 60), x: s.x, y: s.y ?? 0, z: s.z, radio: s.radio ?? 3, ocupado: false };
+    const v: Msg = { nombre: String(s.nombre || tx("sitio_defecto")).slice(0, 60), x: s.x, y: s.y ?? 0, z: s.z, radio: s.radio ?? 3, ocupado: false };
     if (api.state.set(s.id, v, { at: { x: s.x, z: s.z } })) sitios.set(s.id, s); else api.log(`pesca: el sitio «${s.id}» no cabe en el esquema y no se pone`);
   }
   api.log(`pesca: ${sitios.size} sitio(s), ${peces.length} pez/peces en la tabla`);
@@ -90,7 +113,7 @@ export const crearPesca = (opts: { sitios?: Sitio[]; peces?: Pez[]; semilla?: nu
   const rechazar = (e: number, motivo: string) => { api.emit("rechazado", { motivo }, { to: e }); };
   // f2: the world's switch (features/funciones: state «pesca» { activa, fija }; no entry = on, as before). The server decides: off refuses every action…
   const apagada = () => !encendida(api.estadoDe("funciones").get("pesca"));
-  const SI_APAGADA = "La pesca está apagada en este mundo.";
+  const SI_APAGADA = tx("si_apagada");
   const ocupar = (id: string, si: boolean) => { const v = api.state.get(id); const s = sitios.get(id); if (v && s) api.state.set(id, { ...v, ocupado: si }, { at: { x: s.x, z: s.z } }); };
   const cesta = (e: number) => {
     const w = api.who(e); if (!w) return;
@@ -111,7 +134,7 @@ export const crearPesca = (opts: { sitios?: Sitio[]; peces?: Pez[]; semilla?: nu
     const p = partidas.get(e); if (!p) return;
     partidas.delete(e);
     ocupar(p.sitio, false);
-    if (motivo) api.emit("escape", { motivo, texto: TEXTO[motivo] }, { to: e });
+    if (motivo) api.emit("escape", { motivo, texto: tx(motivo) }, { to: e });
     const s = sitios.get(p.sitio)!;
     const pez = resultado === "captura" ? { pez: p.pez.nombre, cm: p.pez.cm, rareza: p.pez.rareza, color: p.pez.color ?? "" } : {}; // v2: the neighbours see the fish in the hand (v5: in its own colour)
     api.emit("fin", { quien: e, sitio: p.sitio, resultado, ...pez }, { near: { x: s.x, z: s.z }, radius: CERCA_M });
@@ -128,10 +151,10 @@ export const crearPesca = (opts: { sitios?: Sitio[]; peces?: Pez[]; semilla?: nu
   api.on("lanzar", (e, m) => {
     if (apagada()) return rechazar(e, SI_APAGADA);
     const id = String(m.sitio), s = sitios.get(id);
-    if (!s) return rechazar(e, `No hay ningún sitio de pesca «${id}».`);
-    if (partidas.has(e)) return rechazar(e, "Ya estás pescando: recoge o suelta la caña antes.");
-    if (!api.within(e, id)) return rechazar(e, `Acércate al agua para pescar en ${s.nombre}.`);
-    if (api.state.get(id)?.ocupado) return rechazar(e, "Ahí ya pesca alguien: espera a que termine.");
+    if (!s) return rechazar(e, tx("sitio_no", { id }));
+    if (partidas.has(e)) return rechazar(e, tx("ya_pescando"));
+    if (!api.within(e, id)) return rechazar(e, tx("acercate", { nombre: s.nombre }));
+    if (api.state.get(id)?.ocupado) return rechazar(e, tx("ocupado"));
     rng[0] = (rng[0] ^ Math.imul(api.tick() + 1, 0x9e3779b1)) >>> 0; // mix the tick in: another cast, another wait (still replayable)
     const espera = Math.round(entre(rng, ESPERA_S[0], ESPERA_S[1]) * HZ);
     const pez = tirarPez(rng, peces);
@@ -143,7 +166,7 @@ export const crearPesca = (opts: { sitios?: Sitio[]; peces?: Pez[]; semilla?: nu
   api.on("recoger", (e, m) => {
     if (apagada()) return rechazar(e, SI_APAGADA);
     const p = partidas.get(e);
-    if (!p) return rechazar(e, "No estás pescando: lanza la caña en un sitio de pesca.");
+    if (!p) return rechazar(e, tx("no_lanzado"));
     const activo = !!m.activo;
     if (p.fase === "picada" && activo) {
       p.fase = "pelea";
@@ -159,7 +182,7 @@ export const crearPesca = (opts: { sitios?: Sitio[]; peces?: Pez[]; semilla?: nu
   api.on("soltar", (e) => {
     if (apagada()) return rechazar(e, SI_APAGADA);
     const p = partidas.get(e);
-    if (!p) return rechazar(e, "No estás pescando.");
+    if (!p) return rechazar(e, tx("no_pescando"));
     if (p.fase === "pelea") return terminar(e, "escape", "escapa");
     api.emit("recogida", {}, { to: e });
     terminar(e, "suelto");

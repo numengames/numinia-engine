@@ -14,14 +14,27 @@ export const INSTRUCCION = {
   capturado: "Agarre otra vez para dejar la caña",
 } as const;
 
-/** The one line to show above the rod I hold. In the fight it switches to «let go» when the line is about to snap or the fish surges. */
-export function instruccion(e: EntradaInstruccion): string {
+// i18n (5/5): the same lines in English (the fallback for any language not listed). `idioma` omitted = Spanish, what the page showed before.
+export const INSTRUCCION_EN: Readonly<Record<keyof typeof INSTRUCCION, string>> = {
+  reposo: "Cast with a flick of the wrist, forward",
+  espera: "Wait for a bite",
+  mordisqueo: "Do not pull yet",
+  picada: "PULL UP now!",
+  pelea: "Hold the trigger to reel in; let go if the line gets tight",
+  tensa: "Let go of the trigger, the line is too tight!",
+  capturado: "Grip again to put the rod away",
+};
+export const TEXTOS_INSTRUCCION: Readonly<Record<string, Readonly<Record<keyof typeof INSTRUCCION, string>>>> = { en: INSTRUCCION_EN, es: INSTRUCCION };
+
+/** The one line to show above the rod I hold, in the world's language (`idioma`, default Spanish; unknown = English). In the fight it switches to «let go» when the line is about to snap or the fish surges. */
+export function instruccion(e: EntradaInstruccion, idioma: string = "es"): string {
+  const TX = TEXTOS_INSTRUCCION[idioma] ?? INSTRUCCION_EN;
   switch (e.fase) {
-    case "nada": return e.capturado ? INSTRUCCION.capturado : INSTRUCCION.reposo;
-    case "espera": return INSTRUCCION.espera;
-    case "mordisqueo": return INSTRUCCION.mordisqueo;
-    case "picada": return INSTRUCCION.picada;
-    case "pelea": return e.arrancada !== "no" || e.tension >= 80 ? INSTRUCCION.tensa : INSTRUCCION.pelea;
+    case "nada": return e.capturado ? TX.capturado : TX.reposo;
+    case "espera": return TX.espera;
+    case "mordisqueo": return TX.mordisqueo;
+    case "picada": return TX.picada;
+    case "pelea": return e.arrancada !== "no" || e.tension >= 80 ? TX.tensa : TX.pelea;
   }
 }
 
