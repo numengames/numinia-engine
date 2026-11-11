@@ -10,9 +10,12 @@
 //   TOKEN WAY (easiest; the panel «Agentes» shows the token once): AGENTE_TOKEN=ntk_… (or --token) instead of AGENTE_CLAVE; the bridge
 //   then asks for the pass with `Authorization: Bearer <token>` and never prints it. Both set = error. A 401 = token wrong or
 //   renewed: the bridge says so on stderr and stops (final).
+//   CARD ANSWERS (optional): AGENTE_TARJETA=<agents/<id>/OPERATOR.md, or the numinia-archive folder> (or --tarjeta). A person typing `/<id> hello` in the world
+//   chat is answered with one line from that card while the agent's brain is not listening (read-only; no model). Any agent with a card, any world.
 //   MOTOR_BIBLIOTECA = what it may place (default: this engine's features/objetos/biblioteca.json).
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { clavePrivada, firmarBillete } from "../packages/agent/src/llave.ts";
 import { ServidorMcp } from "../packages/agent/src/mcp.ts";
@@ -46,8 +49,17 @@ try {
   biblioteca = (b.modelos ?? []).filter((m) => /^[a-z0-9-]{1,32}$/.test(m.id) && /^[0-9a-f]{64}$/.test(m.modelo)).map(({ id, nombre, modelo }) => ({ id, nombre, modelo }));
 } catch { log("[puente] sin biblioteca de modelos: puedo hablar y moverme, no colocar"); }
 
+// The agent's card (read-only answers to «/<agent> <text>» while its brain is not listening): AGENTE_TARJETA = the card's file, or the archive's
+// folder (<dir>/agents/<id>/OPERATOR.md or <dir>/<id>/OPERATOR.md). Read again at every call, so an edited card answers at once; unreadable = silent.
+const tarjetaRuta = (opcion("--tarjeta") ?? process.env.AGENTE_TARJETA ?? "").replace(/^~(?=\/)/, homedir());
+const tarjeta = tarjetaRuta ? (): string | null => {
+  const candidatas = /\.md$/i.test(tarjetaRuta) ? [tarjetaRuta] : [join(tarjetaRuta, "agents", id, "OPERATOR.md"), join(tarjetaRuta, id, "OPERATOR.md")];
+  for (const f of candidatas) { try { return readFileSync(f, "utf8"); } catch { /* next */ } }
+  return null;
+} : undefined;
+
 let puente: PuenteMundo;
-try { puente = new PuenteMundo({ url, id, ...(privada ? { firmar: (b) => firmarBillete({ ...b, privada: privada! }) } : {}), biblioteca, log, ...(numiniaUrl ? { pedirPase: token ? pedirPaseToken({ numiniaUrl, org, agente: id, token }) : pedirPaseHttp({ numiniaUrl, org, agente: id, privada: privada! }), ...(mundoId ? { mundo: mundoId } : {}) } : {}) }); } catch (e) { log(`[puente] ${(e as Error).message}`); process.exit(2); }
+try { puente = new PuenteMundo({ url, id, ...(tarjeta ? { tarjeta } : {}), ...(privada ? { firmar: (b) => firmarBillete({ ...b, privada: privada! }) } : {}), biblioteca, log, ...(numiniaUrl ? { pedirPase: token ? pedirPaseToken({ numiniaUrl, org, agente: id, token }) : pedirPaseHttp({ numiniaUrl, org, agente: id, privada: privada! }), ...(mundoId ? { mundo: mundoId } : {}) } : {}) }); } catch (e) { log(`[puente] ${(e as Error).message}`); process.exit(2); }
 const mcp = new ServidorMcp({ nombre: "numinia-mundo", version: infoMotor().build, herramientas: () => puente.herramientas(), instrucciones: INSTRUCCIONES, log });
 mcp.escuchar(process.stdin, process.stdout);
 puente.arrancar();

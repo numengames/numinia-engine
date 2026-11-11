@@ -155,3 +155,10 @@ bundle, and that the BUNDLE enters an in-memory world with a fake `PedirPase` an
 **Not yet:** the tools served by the world itself (MCP over HTTPS from the engine, M26 next), the «doorbell» that wakes an
 on-demand agent (`presencia` is stored but only informative), the installer passing `--dominio` as `MOTOR_DOMINIO`, and
 visitors talking to Hermes as a chat channel.
+
+## Card answers: `/<agent> <text>` (read-only)
+
+Set `AGENTE_TARJETA` (or `--tarjeta`) to the agent's card (`agents/<id>/OPERATOR.md`) or to the numinia-archive folder. When someone calls the
+AI (`/ursa hello` in the world chat, the «Hablar con ella» button, its name) and its brain is not listening (no `llamadas` / `esperar_llamada`
+in the last 90 s), the bridge says one short line taken from the card, near. No model, no writes, no new protocol frame: it is the same
+`llamar` call the bubble uses. The caller's words only choose which part of the card is read; they are never echoed. Any agent with a card works.
