@@ -1,5 +1,5 @@
 // J5 on the page: the conversation box. The person's name, what they say, the answers as real buttons (Tab, Enter,
-// a tap, or the digits 1-4 while the box is open) and «Adiós» (Esc). Focus moves to the first answer so a keyboard or
+// a tap, E for the first one, or the digits 1-4 while the box is open) and «Adiós» (Esc). Focus moves to the first answer so a keyboard or
 // a screen reader lands in it; the line itself reaches screen readers once, through the engine's announcements (the
 // polite #avisos region, V1), so the box does not repeat it. It only asks: features/misiones decides on the server.
 import { escribiendo, construyendo } from "./interactuar.ts";
@@ -45,7 +45,7 @@ export function montarDialogo(c: Ctl, caja: HTMLElement, view: Vista): void {
     texto.textContent = d.texto;
     opciones.replaceChildren(...d.opciones.map((t, i) => {
       const b = document.createElement("button");
-      b.type = "button"; b.textContent = esMovil(perfil().clase) ? t : `${i + 1}. ${t}`; b.dataset.n = String(i + 1);
+      b.type = "button"; b.textContent = esMovil(perfil().clase) ? t : `${i === 0 ? "E" : i + 1}. ${t}`; b.dataset.n = String(i + 1); // QA Simposio 2026-11-11: the key you talk with (E) also answers the first option
       b.addEventListener("click", () => c.elegir(i + 1));
       return b;
     }));
@@ -57,6 +57,7 @@ export function montarDialogo(c: Ctl, caja: HTMLElement, view: Vista): void {
   addEventListener("keydown", (e) => {
     if (caja.hidden || e.repeat || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e) || construyendo(view)) return;
     if (e.code === "Escape") { e.preventDefault(); c.adios(); return; }
+    if (e.code === "KeyE") { e.preventDefault(); c.elegir(1); return; } // the key you talked with goes on (Continuar / Aceptar)
     const n = /^(?:Digit|Numpad)([1-4])$/.exec(e.code);
     if (n) { e.preventDefault(); c.elegir(Number(n[1])); }
   });
