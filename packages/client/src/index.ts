@@ -2,7 +2,7 @@
 // Own avatar: predicted with the SAME sim step the server runs, reconciled exactly on each snapshot.
 // Others: drawn slightly in the past, interpolated between snapshots.
 import { fxToFloat } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, combinarMallas, barridoMalla, PISO_SIN_SUELO, TICK_HZ } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, combinarMallas, barridoMalla, PISO_SIN_SUELO, sinSueloDelEstado, TICK_HZ } from "../../sim/src/index.ts";
 import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
 import { crearSueloTerreno } from "./suelo-terreno.ts";
 import type { ConstruirMallaCliente } from "./malla-glb.ts"; // type only: the .glb reader (and its decoder) is the PAGE's chunk, never the AI bridge's
@@ -74,6 +74,7 @@ export class ClientSession {
   readonly features: ClientRuntime;
   private solidsVersion = -1; // U10: the solid boxes follow the shared state
   private terreno: TerrenoMalla | null = null; // N5: the hills of naturaleza.json, built from the same alturaEn as the server's mesh
+  private sinSuelo = false; // entorno `suelo: "ninguno"`: no flat floor under the world (the server's `Instance.sinSuelo`)
   private suelo: ReturnType<typeof crearSueloTerreno> | null = null; // the ground the view measures «in the air» and «buried» against (null = flat world)
   private terrenoMod: typeof import("../../sim/src/terreno-malla.ts") | null = null;
   // M6 h9: the world's GLB mesh (colision: "malla"), built from the same files as the server's, so the replay in `reconcile` stands on it
@@ -84,7 +85,7 @@ export class ClientSession {
   private readonly construirGlb?: ConstruirMallaCliente;
   /** The GLB mesh and the terrain are ONE tree for the local sim, like `Instance.aplicarMalla`. */
   private aplicarMalla(): void {
-    setMesh(this.local, combinarMallas(this.mallaGlb, this.terreno?.bvh ?? null), this.terreno ? PISO_SIN_SUELO : 0);
+    setMesh(this.local, combinarMallas(this.mallaGlb, this.terreno?.bvh ?? null), this.terreno || this.sinSuelo ? PISO_SIN_SUELO : 0);
     // «in the air» is measured against the real floor: a world whose floor is only a collision GLB (no hills) has one too
     const bvh = this.terreno?.bvh ?? this.mallaGlb;
     this.suelo = bvh ? crearSueloTerreno(this.local, bvh) : null;
@@ -105,6 +106,10 @@ export class ClientSession {
   /** N5: follows the shared state's «naturaleza:mundo» like the server does (same function, same numbers → same triangles), so the
    * prediction walks over the same hills. The terrain code (noise, mesh) is a separate chunk of the page, asked for only the first time
    * a world says it has nature: a world without naturaleza.json never downloads it and its flat path is untouched. */
+  private sincronizarSuelo(): void {
+    const sin = sinSueloDelEstado(this.features.allState());
+    if (sin !== this.sinSuelo) { this.sinSuelo = sin; this.aplicarMalla(); }
+  }
   private sincronizarTerreno(): void {
     let pide = false;
     for (const [k, v] of this.features.allState()) if (k === "naturaleza:mundo" || k === "espacio-base:mundo") { pide = (v as { activa?: boolean }).activa !== false; break; }
@@ -146,7 +151,7 @@ export class ClientSession {
     this.pending.push({ seq: this.seq, mx, mz, buttons });
     if (this.pending.length > 64) this.pending.shift();
     this.prev = this.cur;
-    if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.local, solidsFrom(this.features.allState())); this.sincronizarTerreno(); this.sincronizarMalla(); } // U10: the same walls as the server; N5: and the same hills
+    if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.local, solidsFrom(this.features.allState())); this.sincronizarSuelo(); this.sincronizarTerreno(); this.sincronizarMalla(); } // U10: the same walls as the server; N5: and the same hills
     step(this.local, new Int32Array([0, mx, mz, buttons]));
     this.cur = getBody(this.local, 0);
   }

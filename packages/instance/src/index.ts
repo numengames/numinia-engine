@@ -1,7 +1,7 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
 import { rngNext, fxToFloat, fx, FX_ONE } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, groundHeight, PISO_SIN_SUELO, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX, MODO_SENTADO, getMotionExtra } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, groundHeight, PISO_SIN_SUELO, sinSueloDelEstado, SUELO_MINIMO_SIN_SUELO, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX, MODO_SENTADO, getMotionExtra } from "../../sim/src/index.ts";
 import type { SimState, SpawnArea, Bvh } from "../../sim/src/index.ts";
 import { terrenoDelEstado, terrenoMalla, claveTerreno, combinarMallas, sueloMinimoTerreno } from "../../sim/src/terreno-malla.ts";
 import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
@@ -590,6 +590,8 @@ export class Instance {
   // ---- N5: the seeded terrain of naturaleza.json is part of the world's collision mesh (same `sim.mesh` the GLB mesh uses) ----
   private terreno: TerrenoMalla | null = null;
   private terrenoVersion = -1;
+  /** The world has no ground (entorno `suelo: "ninguno"`): the mesh has no flat floor under it, like a terrain, and the void is 100 m down unless the world says. */
+  private sinSuelo = false;
   private mallaGlb: Bvh | null = null;
   /** N5: follows the shared state's «naturaleza:mundo»: builds the terrain mesh from `alturaEn` (a few ms, once per change of the
    * world's numbers, never inside `step`) and merges it with the GLB mesh. A world without naturaleza.json never gets here:
@@ -598,9 +600,11 @@ export class Instance {
     const v = this.features.stateVersion;
     if (v === this.terrenoVersion) return;
     this.terrenoVersion = v;
+    const sin = sinSueloDelEstado(this.features.allState()), cambioSuelo = sin !== this.sinSuelo; // entorno `suelo: "ninguno"`: no flat floor
+    this.sinSuelo = sin;
     const m = terrenoDelEstado(this.features.allState());
     const clave = m ? claveTerreno(m) : null;
-    if (clave === (this.terreno?.clave ?? null)) return;
+    if (clave === (this.terreno?.clave ?? null)) { if (cambioSuelo) this.aplicarMalla(); return; }
     this.terreno = m ? terrenoMalla(m) : null;
     this.aplicarMalla();
     this.asentarAvatares();
@@ -621,11 +625,11 @@ export class Instance {
   }
   /** The GLB mesh and the terrain are ONE tree for the sim; with a terrain there is no flat floor under it (`piso`). */
   private aplicarMalla(): void {
-    setMesh(this.sim, combinarMallas(this.mallaGlb, this.terreno?.bvh ?? null), this.terreno ? PISO_SIN_SUELO : 0);
+    setMesh(this.sim, combinarMallas(this.mallaGlb, this.terreno?.bvh ?? null), this.terreno || this.sinSuelo ? PISO_SIN_SUELO : 0);
   }
   /** D-045: the world's void, or (naturaleza on, world gives none) a little under the lowest ground, so a fall off the map comes back. */
   private sueloEfectivo(): Suelo | null {
-    return this.opts.suelo ?? (this.terreno ? { minimo: sueloMinimoTerreno(this.terreno.hmin), vuelta: null } : null);
+    return this.opts.suelo ?? (this.terreno ? { minimo: sueloMinimoTerreno(this.terreno.hmin), vuelta: null } : this.sinSuelo ? { minimo: SUELO_MINIMO_SIN_SUELO, vuelta: null } : null);
   }
   /** N5: with naturaleza on and no `aparicion` in the world, people appear inside the flat plaza (its disc, 60 % of the radius so the square's corners stay in). */
   private aparicionTerreno(): SpawnArea | null {
