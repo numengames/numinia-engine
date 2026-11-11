@@ -71,6 +71,7 @@ export function onFloor(s: SimState, e: number): boolean {
 export function groundHeight(x: number, z: number, s?: SimState, y = 0): number {
   if (!s) return 0;
   let g = s.piso; // 0 (the flat plaza) unless a terrain mesh replaced it (N5: hills and a pond bed lie under y = 0)
+  if (s.disco > 0 && fueraDelDisco(s.disco, x, z)) g = PISO_SIN_SUELO; // a disc world: past its edge the flat floor is gone (solids and the mesh still count)
   const grid = solidGrid(s);
   if (grid) {
     const k0 = cellOf(x), k1 = cellOf(z);
@@ -95,7 +96,7 @@ const MESH_FLOOR = fx(500);
  * is a wall or a ceiling, never a floor or a ramp to walk up. cos(50°) in Q16.16. */
 export const MAX_SLOPE_COS = 42126;
 /** Does the state have any geometry (solid boxes or a mesh) that the step must look at? */
-const hasGeometry = (s: SimState): boolean => s.solids.length > 0 || s.mesh !== null || s.piso !== 0; // a world with no flat floor (`piso`) always looks at its ground
+const hasGeometry = (s: SimState): boolean => s.solids.length > 0 || s.mesh !== null || s.piso !== 0 || s.disco > 0; // a world with no flat floor (`piso`) or a disc floor (`disco`) always looks at its ground
 
 // ---- U10: solid things (a boolean on a placed thing). World geometry, like the ground: NOT part of the state's
 // fingerprint (both sides build it from the same shared state). Boxes are axis-aligned, Q16.16:
@@ -239,6 +240,22 @@ export function sinSueloDelEstado(objetos: Iterable<[string, Record<string, unkn
 }
 /** Where the void starts (m) in a world with no ground that gives no `sueloMinimo` (D-045): 100 m under y = 0. Its own `sueloMinimo` wins. */
 export const SUELO_MINIMO_SIN_SUELO = -100;
+/** A world whose flat floor is a DISC (entorno `suelo.forma: "disco"` + `suelo.radio`, metres): centred on the origin, the flat floor at y = 0
+ * exists only within `radio`; past it nobody is held up (a fall, then D-045's void and the return to the spawn point, instance). `disco` in
+ * `SimState` is the radius in Q16.16 (0 = no disc: the flat floor is endless, as always; the reference fingerprint never sees it). Integers
+ * only: the squares are taken on x, z, R shifted 4 bits (1/4096 m), so they stay exact in a float64 (2000 m → 8.2e6, squared 6.7e13). */
+export function setDisco(s: SimState, radioM: number): void { s.disco = radioM > 0 ? fx(radioM) : 0; }
+function fueraDelDisco(r: number, x: number, z: number): boolean {
+  const a = x >> 4, b = z >> 4, c = r >> 4;
+  return a * a + b * b > c * c;
+}
+/** The disc's radius (m) the shared state «entorno:zona» asks for (`sueloForma: "disco"`, `sueloRadio`), 0 = none. Pure: the instance and the page both ask it. */
+export function discoDelEstado(objetos: Iterable<[string, Record<string, unknown>]>): number {
+  for (const [k, v] of objetos) if (k === CLAVE_ENTORNO) return !!v && v.sueloForma === "disco" && Number(v.sueloRadio) > 0 ? Number(v.sueloRadio) : 0;
+  return 0;
+}
+/** The void under a disc world that gives no `sueloMinimo` (m): 50 m down, a few seconds of fall. Its own `sueloMinimo` wins. */
+export const SUELO_MINIMO_DISCO = -50;
 /** The boxes of every value with `solido: true` and its world box (bx0…bz1, metres), at most SOLIDS_MAX, in key order. */
 export function solidsFrom(values: Iterable<[string, Record<string, unknown>]>): Int32Array {
   const list = [...values].filter(([, v]) => v.solido === true && Number(v.bx1) > Number(v.bx0) && Number(v.bz1) > Number(v.bz0))
@@ -269,14 +286,14 @@ export const Motion = defineSchema("Motion", 2, {
   iz: { kind: "fixed", min: -2, max: 2, step: 1 / 65536 },
 });
 
-export type SimState = { world: World; tf: Store; av: Store; mo: Store; tick: number; rng: Uint32Array; solids: Int32Array; mesh: Bvh | null; piso: number };
+export type SimState = { world: World; tf: Store; av: Store; mo: Store; tick: number; rng: Uint32Array; solids: Int32Array; mesh: Bvh | null; piso: number; disco: number };
 
 export function createSim(capacity: number, seed: number): SimState {
   const world = new World(capacity);
   const tf = world.register(Transform);
   const av = world.register(Avatar);
   const mo = world.register(Motion);
-  return { world, tf, av, mo, tick: 0, rng: new Uint32Array([seed >>> 0]), solids: new Int32Array(0), mesh: null, piso: 0 };
+  return { world, tf, av, mo, tick: 0, rng: new Uint32Array([seed >>> 0]), solids: new Int32Array(0), mesh: null, piso: 0, disco: 0 };
 }
 
 /** Where new avatars appear (metres): the square of half-side `radio` centred at (x, z). A vertical world (a tower)

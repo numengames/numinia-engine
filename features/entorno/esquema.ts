@@ -6,7 +6,7 @@
 // that height (a floor plan inside a building), and the world's file says it again at each start (server.ts).
 import type { Issue, Result } from "../../packages/core/src/index.ts";
 import { defineSchema, validate } from "../../packages/schema/src/index.ts";
-import { CAMARA_INICIOS, CAMARA_MAX_MAX, CAMARA_MAX_MIN, CAMPOS, entorno } from "./feature.ts";
+import { CAMARA_INICIOS, CAMARA_MAX_MAX, CAMARA_MAX_MIN, CAMPOS, DISCO_RADIO_MAX, DISCO_RADIO_MIN, SUELO_FORMAS, entorno } from "./feature.ts";
 
 export const ESQUEMA = "numinia-engine/entorno@1";
 export type Plano = Record<string, unknown>;
@@ -63,6 +63,8 @@ export function validarEntorno(json: unknown, base: Plano = porDefecto()): Resul
   if (!ca.ok) issues.push(...ca.issues);
   const su = leerSuelo(json);
   if (!su.ok) issues.push(...su.issues);
+  const di = leerDisco(json);
+  if (!di.ok) issues.push(...di.issues);
   const vu = leerVuelo(json);
   if (!vu.ok) issues.push(...vu.issues);
   const te = leerTema(json);
@@ -81,6 +83,8 @@ export function validarEntorno(json: unknown, base: Plano = porDefecto()): Resul
     if (ca.value.inicio !== undefined) plano.camaraInicio = ca.value.inicio;
     if (ca.value.distanciaMax !== undefined) plano.camaraMax = ca.value.distanciaMax;
   }
+  // the shape of the ground rides the flat state too (the page's prediction and the server's sim agree): only when the file says it
+  if (di.ok && di.value) { plano.sueloForma = di.value.forma; plano.sueloRadio = di.value.radio; }
   if (ap.ok && ap.value?.giro !== undefined) { plano.llegadaGira = true; plano.llegadaGiro = ap.value.giro; }
   const v = validate(SCHEMA, plano);
   if (!v.ok) {
@@ -138,6 +142,20 @@ export function leerCamara(json: unknown): Result<CamaraFichero | null> {
     else issues.push({ path: "entorno.camara.distanciaMax", message: `un número entre ${CAMARA_MAX_MIN} y ${CAMARA_MAX_MAX} (metros): lo más lejos que se pone la cámara detrás de ti en tercera persona; en una casa, 2.5. La tercera persona no baja de 1.5 m` });
   }
   return issues.length ? { ok: false, issues } : { ok: true, value: out };
+}
+
+/** `suelo.forma` + `suelo.radio` of an `entorno@1` file: «disco» makes the flat floor a disc of `radio` metres around the origin (the
+ * simulation holds nobody past its edge: a fall, then D-045's void and the return to the spawn point); «plano» (or no `forma`) is the
+ * endless flat floor as always. null when the file says nothing about it (or says «plano»). Additive: a file without them is untouched. */
+export type DiscoFichero = { forma: "disco"; radio: number };
+export function leerDisco(json: unknown): Result<DiscoFichero | null> {
+  const o = typeof json === "object" && json !== null && !Array.isArray(json) ? (json as Record<string, unknown>).suelo : undefined;
+  if (typeof o !== "object" || o === null || Array.isArray(o)) return { ok: true, value: null };
+  const f = (o as Record<string, unknown>).forma, r = (o as Record<string, unknown>).radio;
+  if (f === undefined || f === "plano") return { ok: true, value: null };
+  if (typeof f !== "string" || !(SUELO_FORMAS as readonly string[]).includes(f)) return { ok: false, issues: [{ path: "entorno.suelo.forma", message: `${SUELO_FORMAS.map((v) => `«${v}»`).join(" o ")}: la forma del suelo llano; «disco» pide también suelo.radio (sin la clave, plano e infinito como siempre)` }] };
+  if (typeof r !== "number" || !Number.isFinite(r) || r < DISCO_RADIO_MIN || r > DISCO_RADIO_MAX) return { ok: false, issues: [{ path: "entorno.suelo.radio", message: `un número entre ${DISCO_RADIO_MIN} y ${DISCO_RADIO_MAX} (metros): hasta dónde llega el suelo desde el origen; más allá se cae y se vuelve al punto de aparición` }] };
+  return { ok: true, value: { forma: "disco", radio: r } };
 }
 
 /** D-045: the world's void. `sueloMinimo` (metres, SUELO_MIN–SUELO_MAX): under it you have fallen and the server puts you
@@ -211,6 +229,8 @@ export function aFichero(p: Plano): Record<string, unknown> {
     for (const k of partes) o = (o[k] ??= {}) as Record<string, unknown>;
     o[ultima] = color ? hex(Number(p[campo])) : p[campo];
   }
+  // the disc goes back into `suelo` only when the world has one (a file without `forma` stays without)
+  if (p.sueloForma === "disco" && Number(p.sueloRadio) > 0) { (out.suelo as Record<string, unknown>).forma = "disco"; (out.suelo as Record<string, unknown>).radio = p.sueloRadio; }
   // P1: the world's camera goes back to its place in the file only when the world has one (a file without `camara` stays without)
   const max = Number(p.camaraMax ?? 0), inicio = p.camaraInicio ?? "tercera";
   if (inicio !== "tercera" || max > 0) out.camara = { inicio, ...(max > 0 ? { distanciaMax: max } : {}) };

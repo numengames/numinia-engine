@@ -2,7 +2,7 @@
 // Own avatar: predicted with the SAME sim step the server runs, reconciled exactly on each snapshot.
 // Others: drawn slightly in the past, interpolated between snapshots.
 import { fxToFloat } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, combinarMallas, barridoMalla, PISO_SIN_SUELO, sinSueloDelEstado, TICK_HZ } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, combinarMallas, barridoMalla, PISO_SIN_SUELO, sinSueloDelEstado, discoDelEstado, setDisco, TICK_HZ } from "../../sim/src/index.ts";
 import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
 import { crearSueloTerreno } from "./suelo-terreno.ts";
 import type { ConstruirMallaCliente } from "./malla-glb.ts"; // type only: the .glb reader (and its decoder) is the PAGE's chunk, never the AI bridge's
@@ -109,6 +109,7 @@ export class ClientSession {
   private sincronizarSuelo(): void {
     const sin = sinSueloDelEstado(this.features.allState());
     if (sin !== this.sinSuelo) { this.sinSuelo = sin; this.aplicarMalla(); }
+    setDisco(this.local, discoDelEstado(this.features.allState())); // entorno `suelo.forma: "disco"`: the same round floor as the server's
   }
   private sincronizarTerreno(): void {
     let pide = false;
