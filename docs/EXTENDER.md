@@ -127,6 +127,7 @@ PR que añaden piezas no chocan).
 - [Vuelo (v1): volar con permiso](extender/vuelo.md)
 - [Burbujas de voz (v1): voz solo entre los de la mesa](extender/burbujas-de-voz.md)
 - [Espejo (v1): cosas de fuera dentro del mundo](extender/espejo.md)
+- [Caminos (v1): luz que recorre el suelo hasta cada zona, por mundo](extender/caminos.md)
 - [Sucesos (v1, Y48): a world event that announces itself, advances alone and rewards everyone](extender/sucesos.md)
 - [Avatares propios del mundo (E3): CC0 o CC BY con su crédito, solo en ese mundo](extender/avatares-propios-del-mundo.md)
 - [Apps (M19 y H11 `.hyp`): una carpeta por app, que el motor lee y valida; su `main.ts` corre en una caja SES (M20)](extender/apps.md)

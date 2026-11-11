@@ -400,8 +400,10 @@ export function crearEntorno(h: EntornoHooks) {
     else if (hdr) { cargarHdr(hdr); if (hdrTex.rt) scene.environment = hdrTex.rt.texture; }
     hornearEn = performance.now() + (horneados ? 200 : 0);
     sombras();
+    for (const f of alAplicar) f(v);
     avisar();
   }
+  const alAplicar: ((v: EntornoDatos) => void)[] = [];
 
   // H12b: the extra effects (bloom, AO, soft shadows): level A only, off by default; the page asks (settings menu), the tier clamps
   let efectos: Efectos = { ...EFECTOS_APAGADOS }, pedidoEf: Partial<Efectos> = {};
@@ -433,6 +435,8 @@ export function crearEntorno(h: EntornoHooks) {
     get nivel(): Nivel { return nivel; },
     get calidadActual(): Calidad { return calidad; },
     aplicar,
+    /** A piece that reads other fields of the environment (the glowing paths) is told after each one is applied. */
+    alAplicar(f: (v: EntornoDatos) => void): void { alAplicar.push(f); if (d && world.visible) f(d); },
     /** F4: the last environment data applied (the world's hour for the fauna reads it); null before the first. */
     get datos(): EntornoDatos | null { return d; },
     /** H12 + settings menu: choose quality (any subset); asking for more than this device allows is clamped. Returns what applies now. */

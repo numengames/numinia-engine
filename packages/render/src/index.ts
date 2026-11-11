@@ -97,6 +97,7 @@ import type { Fundido } from "./fundir.ts";
 import type { Parte } from "./lotes.ts";
 import { INSTANCIAR_DESDE, INSTANCIAR_DESDE_VR, instanciarDesde, lejosDeNiebla, tapadoPorNiebla, esGrupoDeFuncion } from "./dibujo-politica.ts";
 import { crearTeletransporte } from "./teletransporte.ts";
+import { crearCaminos } from "./caminos.ts";
 import { crearPrecompilador, calentarOcultos, ESPERA_MAX_MS } from "./precompilar.ts";
 import { contarCompiles } from "./compilaciones.ts";
 export { INSTANCIAR_DESDE, INSTANCIAR_DESDE_VR, instanciarDesde, lejosDeNiebla, tapadoPorNiebla } from "./dibujo-politica.ts";
@@ -417,6 +418,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   const entorno = crearEntorno({ renderer, scene, world, camera, hemi, sun, ground, grid, hitos, aparato: { mobile: power.mobile, deviceMemoryGB: readCaps().deviceMemoryGB, saveData: readCaps().saveData }, foco: () => selfXZ,
     fichero: (f) => { const i = f.lastIndexOf("."); return (opts.assetUrl ?? ((m: string) => `/a/${m}.glb`))(f.slice(0, i)).replace(/\.glb$/, f.slice(i)); } });
   const elementos = vistaElementos({ renderer, scene, world, camera, entorno, luzCambiada }); // H4/H8: water, fire, smoke, dust (lazy)
+  const caminos = crearCaminos({ padre: world, nivel: () => entorno.nivel, yo: () => selfXZ }); entorno.alAplicar((v) => caminos.aplicar(v)); // the glowing paths of the world's entorno.json (one draw call; builds nothing without `caminos`)
   const tele = crearTeletransporte({ world, nivel: () => entorno.nivel }); // N16: the light of a trip (none on tier D)
 
   const yoNat = { x: 0, y: 0, z: 0 }; // F4 audit: one object reused every frame (the nature reads it at once)
@@ -1407,7 +1409,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     updateThings(dtSeconds);
     selfMat.visible = renderer.xr.isPresenting || !cam.primeraPersona(); // N1: in first person your body is not drawn
     editor.frame();
-    entorno.actualizar(); naturaleza.actualizar(dtSeconds); espacioBase.actualizar(dtSeconds); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds); ancestros.actualizar(dtSeconds, selfXZ); formas.actualizar();
+    entorno.actualizar(); naturaleza.actualizar(dtSeconds); espacioBase.actualizar(dtSeconds); elementos.actualizar(dtSeconds); tele.actualizar(dtSeconds); caminos.actualizar(dtSeconds); graboso3d?.actualizar(dtSeconds); ancestros.actualizar(dtSeconds, selfXZ); formas.actualizar();
     if (renderer.xr.isPresenting) { cam.planoVR(); ar.update(dtSeconds); vr.update(selfXZ, dtSeconds); cuerpoEnVR(); pesca.actualizar(dtSeconds); dardosVR.actualizar(dtSeconds); pincelVR.actualizar(dtSeconds); colocarLlevados(); puestos.actualizar(); web.actualizar(); oyente?.actualizar(); dibujarCuadro(); return; } // S5: tras vr.update, el oyente lee la pose de la cabeza de este cuadro // N4: after the hands moved, so a held rod does not trail a frame
     pesca.actualizar(dtSeconds); dardos.actualizar(dtSeconds); dados3d.actualizar(dtSeconds);
     if (selfXZ) { feet.x = selfXZ.x; feet.y = selfXZ.y ?? 0; feet.z = selfXZ.z; } // N1b: the height too (jumps, floors)
@@ -1440,6 +1442,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     vrSupported,
     /** H4 + H12: the environment (aplicar, estado, calidad, capacidades) — packages/render/src/entorno.ts. */
     entorno,
+    /** Glowing paths on the floor (estado) — packages/render/src/caminos.ts; builds nothing until the world's entorno.json has `caminos`. */
+    caminos,
     /** H12b: bloom + AO passes (activo, vigilar, alApagar, estado) — packages/render/src/posproceso.ts, loaded the first time an effect is switched on, level A only. */
     posproceso,
     /** N4: the world's low-poly nature (aplicar, estadisticas, terreno) — packages/render/src/naturaleza/naturaleza.ts; builds nothing until a world asks. */
@@ -1852,7 +1856,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     verOcultos(si: boolean): void { verOcultos = si; for (const s of things.values()) placeGroup(s); },
     /** MIS-200 (t_9687b5fc): the world still loads models or shaders: the entry buttons wait (the same gate as the VR entry, not busy()). */
     cargando(): boolean { return loading > 0 || precompilar.pendientes() > 0; },
-    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || vivosCerca || reacciones.size > 0 || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || marcaR?.busy() || ojosIA.busy() || orbesIA.busy() || burbujas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || elementos.ocupado() || pesca.ocupado() || dados3d.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ) || formas.ocupado(); },
+    busy(): boolean { return mediosSonando || labels.size > 0 || bounces.size > 0 || beacons.length > 0 || animatingNear || vivosCerca || reacciones.size > 0 || loading > 0 || precompilar.pendientes() > 0 || cam.ocupada() || editor.activo() || avs.busy() || nombres.busy() || pompas.busy() || aros.busy() || marcaR?.busy() || ojosIA.busy() || orbesIA.busy() || burbujas.busy() || verTodos || rotulosPendiente || entorno.ocupado() || caminos.ocupado() || elementos.ocupado() || pesca.ocupado() || dados3d.ocupado() || tele.ocupado() || graboso.visible() || ancestros.ocupado(selfXZ) || formas.ocupado(); },
     /** Apply the power policy's current pixel ratio (call after `power.reportCost` returns true or battery changes). */
     applyPixelRatio(): void { renderer.setPixelRatio(power.pixelRatio()); renderer.setSize(innerWidth, innerHeight); power.paron(2); }, // B4: the next frames pay the resize
     /** What the last draw cost: draw calls and triangles (three's own counters; no screen needed). */
