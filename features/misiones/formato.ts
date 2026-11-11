@@ -369,7 +369,7 @@ function antesInutil(pasos: Paso[], is: Issue[]): void {
 }
 
 /** One quest file, on its own (references to people, things and other quests are checked by cargarAventura). */
-export function leerMision(v: unknown): Result<Mision> {
+export function leerMision(v: unknown, idioma: string = IDIOMA_MISIONES): Result<Mision> {
   const is: Issue[] = [];
   const o = objeto(v, "", is);
   if (!o) return resultado(is, null as never);
@@ -397,7 +397,7 @@ export function leerMision(v: unknown): Result<Mision> {
   });
   const ids = new Set<string>();
   recompensas.forEach((r, i) => { if (r.tipo === "semilla") return; if (r.id && ids.has(r.id)) is.push({ path: en(en("recompensas", i), "id"), message: `«${r.id}» ya es otra recompensa de esta misión: cada una, un id distinto` }); ids.add(r.id); });
-  const evaluacion = leerEvaluacion(o.evaluacion, is, pasos);
+  const evaluacion = leerEvaluacion(o.evaluacion, is, pasos, idioma);
   if (evaluacion && !pasos.some((p) => p.tipo === "marca")) evaluacion.muestra.forEach((c, i) => { if ((CONTADORES_DE_MARCA as readonly string[]).includes(c)) is.push({ path: en("evaluacion.muestra", i), message: `«${c}» lo cuentan los pasos "marca" y esta misión no tiene ninguno: quítelo o añada un paso marca` }); });
   const tx = objeto(o.textos, "textos", is, true) ?? {};
   campos(tx, ["aceptada", "completada"], "textos", is);
@@ -422,13 +422,13 @@ const entero = (v: unknown, path: string, min: number, max: number, is: Issue[],
  *  `{ "titulo"?, "base"?: 100, "minimo"?: 0, "resta"?: { "<contador>": peso }, "tiempo"?: { "referencia_min", "resta_por_minuto" }, "muestra"?: [...], "etiquetas"?: { "<fila>": "texto" },
  *     "fases"?: [{ "nombre": "Fase 1 · Datos preliminares", "hasta": "<id del paso que la cierra>" }] }`.
  *  Whole numbers only; a counter missing from the progress counts 0 (so a name the engine does not know yet is harmless, but it needs its label). */
-function leerEvaluacion(v: unknown, is: Issue[], pasos: readonly Paso[] = []): Evaluacion | undefined {
+function leerEvaluacion(v: unknown, is: Issue[], pasos: readonly Paso[] = [], idioma: string = IDIOMA_MISIONES): Evaluacion | undefined {
   if (v === undefined) return undefined;
   const p = "evaluacion", L = LIM_EVAL;
   if (!esObjeto(v)) { is.push({ path: p, message: 'un objeto { "base": 100, "resta": { "fotos_erroneas": 5 }, "tiempo": { "referencia_min": 20, "resta_por_minuto": 1 } }: la tarjeta que ve el jugador al terminar la misión' }); return undefined; }
   campos(v, ["titulo", "base", "minimo", "resta", "tiempo", "muestra", "etiquetas", "fases"], p, is);
   const n0 = is.length;
-  const titulo = v.titulo === undefined ? TITULO_EVALUACION : texto(v.titulo, en(p, "titulo"), L.titulo, is);
+  const titulo = v.titulo === undefined ? (idioma === IDIOMA_MISIONES ? TITULO_EVALUACION : textoMision(idioma, "titulo_evaluacion")) : texto(v.titulo, en(p, "titulo"), L.titulo, is);
   const base = entero(v.base, en(p, "base"), 1, L.tope, is, 100), minimo = entero(v.minimo, en(p, "minimo"), 0, L.tope, is, 0);
   if (minimo > base) is.push({ path: en(p, "minimo"), message: `no puede pasar de «base» (${base}): es la nota más baja posible` });
   const resta: Record<string, number> = {};
@@ -466,6 +466,7 @@ function leerEvaluacion(v: unknown, is: Issue[], pasos: readonly Paso[] = []): E
     etiquetas[k] = texto(eo[k], pk, L.etiqueta, is);
   }
   for (const k of muestra) if (k !== "tiempo" && !Object.hasOwn(CONTADORES_CONOCIDOS, k) && !Object.hasOwn(etiquetas, k)) is.push({ path: en(en(p, "etiquetas"), k), message: `el motor no conoce el contador «${k}»: escriba cómo se llama en la tarjeta, p. ej. "${k}": "Fotos repetidas"` });
+  if (idioma !== IDIOMA_MISIONES && muestra.includes("tiempo") && !Object.hasOwn(etiquetas, "tiempo")) etiquetas.tiempo = textoMision(idioma, "etiqueta_tiempo"); // evaluacion.ts would use the Spanish default
   const fases = leerFases(v.fases, en(p, "fases"), pasos, is);
   return is.length > n0 ? undefined : { titulo, base, minimo, resta, ...(tiempo ? { tiempo } : {}), muestra, etiquetas, ...(fases ? { fases } : {}) };
 }
@@ -716,14 +717,14 @@ export function leerPnj(v: unknown): Result<Pnj> {
 
 // ---------- cosa@1 ----------
 /** One thing's file: what it is called, where it lies, what the prompt says («coger la caja») and how close you must be. */
-export function leerCosa(v: unknown): Result<Cosa> {
+export function leerCosa(v: unknown, idioma: string = IDIOMA_MISIONES): Result<Cosa> {
   const is: Issue[] = [];
   const o = objeto(v, "", is);
   if (!o) return resultado(is, null as never);
   campos(o, ["formato", "id", "nombre", "descripcion", "apariencia", "posicion", "radio", "aviso", "dialogo", "marcable", "notas"], "", is);
   formato(o, FORMATOS.cosa, is);
   const ap = apariencia(o.apariencia, "apariencia", is, ["color", "usada"]), usada = usadaDe(o.apariencia, ap.escala, is);
-  const marcable = leerMarcable(o.marcable, is);
+  const marcable = leerMarcable(o.marcable, is, idioma);
   return resultado(is, {
     formato: FORMATOS.cosa, id: id(o.id, "id", is), nombre: texto(o.nombre, "nombre", LIM.nombre, is), descripcion: texto(o.descripcion, "descripcion", LIM.descripcionCosa, is, true),
     apariencia: { ...ap, color: color(o.apariencia, is), ...(usada ? { usada } : {}) },
@@ -735,9 +736,9 @@ export function leerCosa(v: unknown): Result<Cosa> {
 }
 /** cosa@1 `marcable` (P4): `true` (the house labels) or `{ "marcar"?, "desechar"?, "desmarcar"?, "dejar"?: label (1–40 bytes), "offset"?: { x, y, z } }`
  * (metres over the thing where its numbered marker floats). `false` or absent = not marcable (nothing is added). */
-function leerMarcable(v: unknown, is: Issue[]): Marcable | undefined {
+function leerMarcable(v: unknown, is: Issue[], idioma: string = IDIOMA_MISIONES): Marcable | undefined {
   if (v === undefined || v === false) return undefined;
-  const D = MARCABLE_POR_DEFECTO;
+  const D: Marcable = idioma === IDIOMA_MISIONES ? MARCABLE_POR_DEFECTO : { ...MARCABLE_POR_DEFECTO, marcar: textoMision(idioma, "marcar"), desechar: textoMision(idioma, "desechar"), desmarcar: textoMision(idioma, "desmarcar"), dejar: textoMision(idioma, "dejar") };
   if (v === true) return { ...D, offset: { ...D.offset } };
   const p = "marcable";
   if (!esObjeto(v)) { is.push({ path: p, message: "true (con los textos de la casa: «Marcar» / «Desechar» / «Desmarcar» / «Dejar marcado») o un objeto { \"marcar\": \"…\", \"desechar\": \"…\", \"desmarcar\": \"…\", \"dejar\": \"…\", \"offset\": { \"x\": 0, \"y\": 0.6, \"z\": 0 } }" }); return undefined; }
@@ -822,7 +823,7 @@ function revisaDialogo(d: Dialogo, base: string, dueño: string, cosa: boolean, 
  * (the server: api.activo; tools/aventura.ts: the library and the world's datos/activos/): a sequence whose model is
  * not there does not load. Y3: `o.objetos` = the ids of the valid objeto@1 the adventure defines (inventario's leerCatalogo): a
  * `coge` whose `otorga` names another one does not load; without it (tests, tools that cannot read the catalogue) that is not checked. */
-export function cargarAventura(f: { misiones: Fichero[]; pnj: Fichero[]; cosas: Fichero[]; secuencias?: Fichero[] }, o: { modelo?: (sha256: string) => boolean; objetos?: ReadonlySet<string> } = {}): { aventura: Aventura; issues: Issue[] } {
+export function cargarAventura(f: { misiones: Fichero[]; pnj: Fichero[]; cosas: Fichero[]; secuencias?: Fichero[] }, o: { modelo?: (sha256: string) => boolean; objetos?: ReadonlySet<string>; idioma?: string } = {}): { aventura: Aventura; issues: Issue[] } {
   const issues: Issue[] = [];
   const leer = <T extends { id: string }>(fs: Fichero[], fn: (v: unknown) => Result<T>, into: Map<string, T>) => {
     for (const x of fs) {
@@ -837,9 +838,10 @@ export function cargarAventura(f: { misiones: Fichero[]; pnj: Fichero[]; cosas: 
     }
   };
   const misiones = new Map<string, Mision>(), pnjs = new Map<string, Pnj>(), cosas = new Map<string, Cosa>();
-  leer(f.misiones, leerMision, misiones);
+  const idioma = o.idioma ?? IDIOMA_MISIONES; // the world's language (the defaults the files do not say); omitted = Spanish
+  leer(f.misiones, (v) => leerMision(v, idioma), misiones);
   leer(f.pnj, leerPnj, pnjs);
-  leer(f.cosas, leerCosa, cosas);
+  leer(f.cosas, (v) => leerCosa(v, idioma), cosas);
   const hay = (m: Map<string, unknown>) => [...m.keys()].join(", ") || "ninguna";
   // U14 (5): the scripted moments, and the models they show (only this server's: a page would load nothing)
   const secuencias = new Map<string, Secuencia>();
@@ -912,6 +914,51 @@ export function cargarAventura(f: { misiones: Fichero[]; pnj: Fichero[]; cosas: 
     explicitos.set(n.id, x);
   }
   return { aventura: { misiones, pnjs, cosas, secuencias, dadores, explicitos }, issues };
+}
+
+// i18n (5/5): the words a player READS from the quests engine, in English (the fallback) and Spanish. Same convention as
+// franjas/esquema.ts: a catalogue of our own here (features may not import the client's t()); the language is the WORLD's
+// (`idioma` of its ficha.json). An omitted language is Spanish, which is what every call said before this catalogue; an
+// unknown language, or a key missing in one language, reads the English text, never an empty one. `{x}` is filled from `vars`.
+// Author-facing validation messages (the `issues` of leer*) are NOT here yet: they stay in Spanish.
+export const IDIOMA_MISIONES = "es";
+export const TEXTOS_MISIONES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  en: {
+    // house defaults of a loaded file
+    titulo_evaluacion: "Evaluation", etiqueta_tiempo: "Quest time",
+    marcar: "Mark", desechar: "Discard", desmarcar: "Unmark", dejar: "Leave marked",
+    // what the server tells a player (rechazado / aviso events)
+    espera_1: "Not yet: 1 s left for «{texto}».", espera_n: "Not yet: {s} s left for «{texto}».",
+    mision_no_existe: "That quest no longer exists.", eso_no_toca: "Not now.", no_llevas: "You are not carrying what {nombre} is waiting for.",
+    nadie: "There is nobody like that here.", acercate_hablar: "Go closer to {nombre} to talk.", nada_que_decir: "{nombre} has nothing to tell you right now.",
+    no_hablas: "You are not talking to that person.", te_alejaste: "You have walked away from {nombre}.", respuesta_no: "That answer is not there.",
+    solo_servidor: "The server sees that on its own: you do not need to tell me.", mision_no_hay: "There is no such quest.",
+    mision_la_da: "That quest is given by {quien}: go closer to talk.", o: " or ", alguien_ausente: "someone who is not here",
+    no_activa: "You do not have that quest active.", dejaste: "You have left «{titulo}».", solo_seguir: "Only an active quest can be followed.",
+    foto_espera: "Wait a moment before taking another photo.", foto_lejos: "The camera is too far from you for that photo.",
+    nada_asi: "There is nothing like that here.", acercate_mas: "Go closer to {nombre}.", nada_inspeccionar: "There is nothing to inspect on {nombre} right now.",
+    no_hace_falta: "You do not need {nombre} right now.",
+  },
+  es: {
+    titulo_evaluacion: "Evaluación", etiqueta_tiempo: "Tiempo de la misión",
+    marcar: "Marcar", desechar: "Desechar", desmarcar: "Desmarcar", dejar: "Dejar marcado",
+    espera_1: "Todavía no: falta 1 s para «{texto}».", espera_n: "Todavía no: faltan {s} s para «{texto}».",
+    mision_no_existe: "Esa misión ya no existe.", eso_no_toca: "Eso ahora no toca.", no_llevas: "No llevas lo que {nombre} espera.",
+    nadie: "No hay nadie así por aquí.", acercate_hablar: "Acércate a {nombre} para hablar.", nada_que_decir: "{nombre} no tiene nada que decirle ahora.",
+    no_hablas: "No estás hablando con esa persona.", te_alejaste: "Te has alejado de {nombre}.", respuesta_no: "Esa respuesta no está.",
+    solo_servidor: "Eso lo ve el servidor solo: no hace falta que me lo cuentes.", mision_no_hay: "No hay ninguna misión así.",
+    mision_la_da: "Esa misión la da {quien}: acércate a hablar.", o: " o ", alguien_ausente: "alguien que no está",
+    no_activa: "No tienes esa misión activa.", dejaste: "Has dejado «{titulo}».", solo_seguir: "Solo se puede seguir una misión activa.",
+    foto_espera: "Espere un momento antes de hacer otra foto.", foto_lejos: "La cámara queda demasiado lejos de usted para esa foto.",
+    nada_asi: "No hay nada así por aquí.", acercate_mas: "Acércate más a {nombre}.", nada_inspeccionar: "Ahora no hay nada que inspeccionar en {nombre}.",
+    no_hace_falta: "Ahora no te hace falta {nombre}.",
+  },
+};
+/** The text for `clave` in `idioma` (fallback: English), with `{x}` filled from `vars`. Pure; never throws, never empty for a known key. */
+export function textoMision(idioma: string, clave: string, vars: Readonly<Record<string, string | number>> = {}): string {
+  const base = TEXTOS_MISIONES.en[clave] ?? clave;
+  const t = TEXTOS_MISIONES[idioma]?.[clave] ?? base;
+  return t.replace(/\{(\w+)\}/g, (_, k: string) => (Object.hasOwn(vars, k) ? String(vars[k]) : `{${k}}`));
 }
 
 /** Cut a text to at most `max` UTF-8 bytes without breaking a character (what goes on the wire). */

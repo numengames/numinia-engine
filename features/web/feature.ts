@@ -93,21 +93,72 @@ export function normalizarDominio(d: unknown): string | null {
   return /^(\[::1\]|[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*)(:[0-9]{1,5})?$/.test(s) ? s : null;
 }
 
+// i18n (5/5): the words a player READS from the web screens, in English (the fallback) and Spanish. Same convention as
+// misiones/formato.ts: a catalogue of our own (features may not import the client's t()); the language is the WORLD's
+// (`idioma` of its ficha.json). An omitted language is Spanish (what every call said before); an unknown language, or a
+// key missing in one language, reads the English text, never an empty one. `{x}` is filled from `vars`. The messages for
+// whoever writes entorno/web.json (leerWebMundo `problemas`) are not here yet: they stay in Spanish.
+export const IDIOMA_WEB = "es";
+export const TEXTOS_WEB: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  en: {
+    url_incompleta: "That address is not a full URL (it starts with https://).", url_larga: "The address is too long (more than {max} characters).",
+    url_usuario: "The address cannot carry a user name or password.", url_https: "Only https pages (http only for this same machine, for tests).",
+    fuera_lista: "{host} is not on this world's list of sites ({lista}). It is added in entorno/web.json.",
+    sin_lista: "This world has no list of web sites: whoever runs it sets it in entorno/web.json («dominios»).",
+    no_puedes: "Putting up or taking down web screens belongs to the world's owners and whoever directs (permission «Manage rituals»).",
+    no_pantalla: "There is no screen «{id}».", de_fichero_cambiar: "That screen comes from entorno/web.json: change it in the file.",
+    de_fichero_quitar: "That screen comes from entorno/web.json: remove it from the file.", max_pantallas: "This world already has {max} web screens: remove one first.",
+    no_dominio: "«{crudo}» is not a domain (like this: numinia.org, or 127.0.0.1:8123 for tests).", dominio_ya: "{d} is already on this world's list of sites.",
+    max_dominios: "This world already has {max} allowed domains (the maximum): remove one first.", dominio_fichero: "{d} comes from entorno/web.json: remove it from the file.",
+    dominio_no_esta: "«{crudo}» is not in the list of domains added from the world.",
+    video_uso: "Put up a YouTube video with /video <address> [title]. Remove it with /web quitar <id>.", video_no: "That does not look like a YouTube video (watch?v=…, youtu.be/…).",
+    video_puesto: "Video {id} put up in front of you (to the north). It starts muted: tap the player to turn the sound on. Remove it with /web quitar {id}.",
+    lista_pantallas: "Web screens: {lista}.", sin_pantallas: "There are no web screens.{sitios} Put one up with /web <address> [title].", sitios_permitidos: " Allowed sites: {dominios}.",
+    dominios_permitidos: "Allowed domains: {dominios}.", sin_dominios: "This world has no allowed domains. Add one with /web dominio <domain>.",
+    dominio_quitado: "Domain {d} removed from the list.", dominio_anadido: "Domain {d} added to the list of sites. Put up a screen with /web <address> [title].",
+    pantalla_quitada: "Screen {id} removed.", pantalla_puesta: "Screen {id} put up in front of you (to the north). Remove it with /web quitar {id}.",
+  },
+  es: {
+    url_incompleta: "Esa dirección no es una URL completa (empieza por https://).", url_larga: "La dirección es demasiado larga (más de {max} caracteres).",
+    url_usuario: "La dirección no puede llevar usuario ni contraseña.", url_https: "Solo páginas https (http solo para esta misma máquina, en pruebas).",
+    fuera_lista: "{host} no está en la lista de sitios de este mundo ({lista}). Se añade en entorno/web.json.",
+    sin_lista: "Este mundo no tiene lista de sitios web: quien lo administra la pone en entorno/web.json («dominios»).",
+    no_puedes: "Poner o quitar pantallas web es cosa de los dueños del mundo y de quien dirige (permiso «Gestionar rituales»).",
+    no_pantalla: "No hay ninguna pantalla «{id}».", de_fichero_cambiar: "Esa pantalla viene de entorno/web.json: se cambia en el fichero.",
+    de_fichero_quitar: "Esa pantalla viene de entorno/web.json: se quita del fichero.", max_pantallas: "Este mundo ya tiene {max} pantallas web: quita alguna antes.",
+    no_dominio: "«{crudo}» no es un dominio (así: numinia.org, o 127.0.0.1:8123 para pruebas).", dominio_ya: "{d} ya está en la lista de sitios de este mundo.",
+    max_dominios: "Este mundo ya tiene {max} dominios permitidos (el máximo): quita alguno antes.", dominio_fichero: "{d} viene de entorno/web.json: se quita del fichero.",
+    dominio_no_esta: "«{crudo}» no está en la lista de dominios añadidos desde el mundo.",
+    video_uso: "Pon un vídeo de YouTube con /video <dirección> [título]. Se quita con /web quitar <id>.", video_no: "Eso no parece un vídeo de YouTube (watch?v=…, youtu.be/…).",
+    video_puesto: "Vídeo {id} puesto delante (al norte). Empieza sin sonido: toca el reproductor para activarlo. Quítalo con /web quitar {id}.",
+    lista_pantallas: "Pantallas web: {lista}.", sin_pantallas: "No hay pantallas web.{sitios} Pon una con /web <dirección> [título].", sitios_permitidos: " Sitios permitidos: {dominios}.",
+    dominios_permitidos: "Dominios permitidos: {dominios}.", sin_dominios: "Este mundo no tiene dominios permitidos. Añade uno con /web dominio <dominio>.",
+    dominio_quitado: "Dominio {d} quitado de la lista.", dominio_anadido: "Dominio {d} añadido a la lista de sitios. Pon una pantalla con /web <dirección> [título].",
+    pantalla_quitada: "Pantalla {id} quitada.", pantalla_puesta: "Pantalla {id} puesta delante (al norte). Quítala con /web quitar {id}.",
+  },
+};
+/** The text for `clave` in `idioma` (fallback: English), with `{x}` filled from `vars`. Pure; never throws, never empty for a known key. */
+export function textoWeb(idioma: string, clave: string, vars: Readonly<Record<string, string | number>> = {}): string {
+  const t = TEXTOS_WEB[idioma]?.[clave] ?? TEXTOS_WEB.en[clave] ?? clave;
+  return t.replace(/\{(\w+)\}/g, (_, k: string) => (Object.hasOwn(vars, k) ? String(vars[k]) : `{${k}}`));
+}
+
 /** Is this address allowed on a screen of a world with this allow-list? Returns the reason it is not, or "" when it
  * is. https only (http only for loopback hosts); no user:password; the host must be a listed domain or a subdomain
  * of one (a listed entry with a port matches only that host and port). */
-export function motivoUrl(url: string, dominios: readonly string[]): string {
+export function motivoUrl(url: string, dominios: readonly string[], idioma: string = IDIOMA_WEB): string {
+  const tx = (clave: string, vars?: Record<string, string | number>) => textoWeb(idioma, clave, vars);
   let u: URL;
-  try { u = new URL(url); } catch { return "Esa dirección no es una URL completa (empieza por https://)."; }
-  if (url.length > URL_MAX) return `La dirección es demasiado larga (más de ${URL_MAX} caracteres).`;
-  if (u.username || u.password) return "La dirección no puede llevar usuario ni contraseña.";
+  try { u = new URL(url); } catch { return tx("url_incompleta"); }
+  if (url.length > URL_MAX) return tx("url_larga", { max: URL_MAX });
+  if (u.username || u.password) return tx("url_usuario");
   const host = u.hostname.toLowerCase(), local = LOCAL.has(host);
-  if (u.protocol !== "https:" && !(u.protocol === "http:" && local)) return "Solo páginas https (http solo para esta misma máquina, en pruebas).";
+  if (u.protocol !== "https:" && !(u.protocol === "http:" && local)) return tx("url_https");
   const conPuerto = u.port ? `${host}:${u.port}` : host;
   // the youtube family counts as one site: «youtube.com» on the list also lets youtu.be and the no-cookie player (what the page really embeds)
   const familia = VIDEO_HOSTS.includes(host) && dominios.some((d) => d === "youtube.com");
   const ok = familia || dominios.some((d) => d.includes(":") ? d === conPuerto : host === d || host.endsWith(`.${d}`));
-  if (!ok) return dominios.length ? `${host} no está en la lista de sitios de este mundo (${dominios.slice(0, 6).join(", ")}${dominios.length > 6 ? "…" : ""}). Se añade en entorno/web.json.` : "Este mundo no tiene lista de sitios web: quien lo administra la pone en entorno/web.json («dominios»).";
+  if (!ok) return dominios.length ? tx("fuera_lista", { host, lista: `${dominios.slice(0, 6).join(", ")}${dominios.length > 6 ? "…" : ""}` }) : tx("sin_lista");
   return "";
 }
 

@@ -13,6 +13,7 @@ import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
 import { contadores, EQUIPOS_MAX, formato, HITOS_S, PUBLICA_CADA_TICKS, SEGUNDOS_MAX, VALOR_MAX } from "./feature.ts";
 import type { ContadorFichero } from "./feature.ts";
+import { IDIOMA_CONTADORES, textoContadores } from "./textos.ts";
 
 type Vivo = { f: ContadorFichero; equipo: string; valor: number; marcha: boolean; ticks: number };
 
@@ -23,19 +24,20 @@ const cortar = (t: string, max: number): string => {
   let out = ""; for (const ch of s) { if (enc.encode(out + ch).length > max - 3) break; out += ch; }
   return out + "…";
 };
-const NO_PUEDES = "Ese contador lo maneja quien dirige (permiso «Gestionar rituales» de la organización).";
 /** A team's name: 1-16 lowercase letters, digits or hyphens (same shape as a counter's id). */
 const EQUIPO_RE = /^[a-z0-9-]{1,16}$/;
 /** The state (and `vivos`) key for a counter: `id` alone, or `id:equipo` when it has one. */
 const clave = (id: string, equipo: string): string => (equipo ? `${id}:${equipo}` : id);
 
 /** What a countdown says at a milestone, or "" (none at this second). */
-export function hitoDe(segundos: number): string {
+export function hitoDe(segundos: number, idioma: string = IDIOMA_CONTADORES): string {
   if (!(HITOS_S as readonly number[]).includes(segundos)) return "";
-  return segundos >= 60 ? `quedan ${segundos / 60} minuto${segundos === 60 ? "" : "s"}` : `quedan ${segundos} segundos`;
+  return segundos >= 60 ? textoContadores(idioma, segundos === 60 ? "quedan_minuto" : "quedan_minutos", { n: segundos / 60 }) : textoContadores(idioma, "quedan_segundos", { n: segundos });
 }
 
-export const crearContadores = (opts: { contadores?: ContadorFichero[] } = {}) => serverPart(contadores, (api: ServerApi) => {
+export const crearContadores = (opts: { contadores?: ContadorFichero[]; /** the WORLD's language (ficha.json `idioma`); omitted = Spanish */ idioma?: string } = {}) => serverPart(contadores, (api: ServerApi) => {
+  const tx = (clave: string, vars?: Record<string, string | number>) => textoContadores(opts.idioma, clave, vars);
+  const NO_PUEDES = tx("no_puedes");
   const vivos = new Map<string, Vivo>();
   const fichas = new Map<string, ContadorFichero>(); // id -> the file entry, kept even for teams not created yet
   const equiposDe = new Map<string, Set<string>>(); // id -> team names already alive (cap EQUIPOS_MAX)
@@ -74,7 +76,7 @@ export const crearContadores = (opts: { contadores?: ContadorFichero[] } = {}) =
   /** The counter reached its end: stop, publish, say it (to the zone and to the server's other features). */
   const llegada = (v: Vivo) => {
     v.marcha = false; v.ticks = 0; publicar(v);
-    const texto = v.f.tipo === "contador" ? `${v.f.nombre}${v.equipo ? ` (${v.equipo})` : ""}: ${formato("contador", v.valor, v.f.tope)}, tope alcanzado` : `${v.f.nombre}${v.equipo ? ` (${v.equipo})` : ""}: tiempo`;
+    const texto = `${v.f.nombre}${v.equipo ? ` (${v.equipo})` : ""}: ${v.f.tipo === "contador" ? tx("tope_alcanzado", { valor: formato("contador", v.valor, v.f.tope) }) : tx("tiempo")}`;
     api.emit("llegada", { id: v.f.id, nombre: v.f.nombre, tipo: v.f.tipo, valor: v.valor, evento: v.f.evento, texto: cortar(texto, 120), equipo: v.equipo }, { near: { x: v.f.x, z: v.f.z }, radius: Number(contadores.state?.radius ?? 64) });
     api.log(`[contadores] ${clave(v.f.id, v.equipo)} llegó (${v.valor})${v.f.evento ? ` → evento «${v.f.evento}»` : ""}`);
   };
@@ -83,22 +85,22 @@ export const crearContadores = (opts: { contadores?: ContadorFichero[] } = {}) =
   /** May `e` order this counter? `todos` = anyone within reach; `dirige` = who directs, from anywhere. */
   const puede = (e: number, v: Vivo): string => {
     if (v.f.manda === "dirige") return api.puede(e, "dirigir") ? "" : NO_PUEDES;
-    return api.within(e, clave(v.f.id, v.equipo)) ? "" : `Acércate a ${v.f.nombre} para manejarlo.`;
+    return api.within(e, clave(v.f.id, v.equipo)) ? "" : tx("acercate", { nombre: v.f.nombre });
   };
   /** Finds (and, for a `variante: "equipo"` counter, creates on first use) the live counter an order targets. */
   const busca = (e: number, id: string, equipoCrudo: unknown): Vivo | null => {
     const f = fichas.get(id);
-    if (!f) { rechazar(e, `No hay ningún contador «${cortar(id, 16)}».`); return null; }
+    if (!f) { rechazar(e, tx("no_hay", { id: cortar(id, 16) })); return null; }
     let equipo = "";
     if (f.variante === "equipo") {
       equipo = String(equipoCrudo ?? "").trim().toLowerCase();
-      if (!EQUIPO_RE.test(equipo)) { rechazar(e, `Di el equipo de ${f.nombre}: 1 a 16 letras minúsculas, cifras o guiones (p. ej. /contador ${id}:rojo arranca).`); return null; }
+      if (!EQUIPO_RE.test(equipo)) { rechazar(e, tx("di_equipo", { nombre: f.nombre, id })); return null; }
     }
     const k = clave(id, equipo);
     let v = vivos.get(k);
     if (!v) {
       const equipos = equiposDe.get(id) ?? new Set<string>();
-      if (equipos.size >= EQUIPOS_MAX) { rechazar(e, `${f.nombre} ya tiene ${EQUIPOS_MAX} equipos (el máximo).`); return null; }
+      if (equipos.size >= EQUIPOS_MAX) { rechazar(e, tx("equipos_tope", { nombre: f.nombre, max: EQUIPOS_MAX })); return null; }
       v = { f, equipo, valor: f.inicio, marcha: false, ticks: 0 };
       vivos.set(k, v); equipos.add(equipo); equiposDe.set(id, equipos);
       publicar(v);
@@ -112,9 +114,9 @@ export const crearContadores = (opts: { contadores?: ContadorFichero[] } = {}) =
     if (v.marcha) return;
     if (v.f.tipo === "cuenta_atras" && v.valor <= 0) v.valor = v.f.inicio; // a finished countdown starts over
     if (enTope(v)) return;
-    v.marcha = true; v.ticks = 0; publicar(v); hito(v, v.f.tipo === "contador" ? "en marcha" : "arranca");
+    v.marcha = true; v.ticks = 0; publicar(v); hito(v, tx(v.f.tipo === "contador" ? "en_marcha" : "arranca"));
   };
-  const para = (v: Vivo) => { if (!v.marcha) return; v.marcha = false; v.ticks = 0; publicar(v); hito(v, `parado en ${formato(v.f.tipo, v.valor, v.f.tope)}`); };
+  const para = (v: Vivo) => { if (!v.marcha) return; v.marcha = false; v.ticks = 0; publicar(v); hito(v, tx("parado_en", { valor: formato(v.f.tipo, v.valor, v.f.tope) })); };
   const suma = (v: Vivo, cuanto: number) => {
     if (!Number.isInteger(cuanto) || cuanto === 0) return;
     if (v.f.tipo === "contador") {
@@ -132,7 +134,7 @@ export const crearContadores = (opts: { contadores?: ContadorFichero[] } = {}) =
       publicar(v); hito(v, `${cuanto > 0 ? "+" : ""}${cuanto} s, ${formato(v.f.tipo, v.valor)}`);
     }
   };
-  const reinicia = (v: Vivo) => { v.marcha = false; v.ticks = 0; v.valor = v.f.inicio; publicar(v); hito(v, `reiniciado a ${formato(v.f.tipo, v.valor, v.f.tope)}`); };
+  const reinicia = (v: Vivo) => { v.marcha = false; v.ticks = 0; v.valor = v.f.inicio; publicar(v); hito(v, tx("reiniciado_a", { valor: formato(v.f.tipo, v.valor, v.f.tope) })); };
 
   api.on("arranca", (e, m) => { const v = busca(e, String(m.id ?? ""), m.equipo); if (v) arranca(v); });
   api.on("para", (e, m) => { const v = busca(e, String(m.id ?? ""), m.equipo); if (v) para(v); });
@@ -153,7 +155,7 @@ export const crearContadores = (opts: { contadores?: ContadorFichero[] } = {}) =
         v.valor -= 1;
         if (v.valor <= 0) { v.valor = 0; llegada(v); continue; }
         publicar(v);
-        const h = hitoDe(v.valor); if (h) hito(v, h);
+        const h = hitoDe(v.valor, opts.idioma); if (h) hito(v, h);
       } else if (v.f.tipo === "reloj") {
         v.valor += 1;
         if (v.valor >= SEGUNDOS_MAX) { v.valor = SEGUNDOS_MAX; v.marcha = false; }
@@ -170,15 +172,15 @@ export const crearContadores = (opts: { contadores?: ContadorFichero[] } = {}) =
     if (palabra !== "contador" && palabra !== "contadores") return false;
     if (palabra === "contadores" || partes.length < 3) {
       const lista = [...vivos.values()].map((v) => `${clave(v.f.id, v.equipo)} (${v.f.nombre}): ${formato(v.f.tipo, v.valor, v.f.tope)}${v.marcha ? " ▶" : ""}`).join(" · ");
-      rechazar(from, lista ? `Contadores: ${lista}. Orden: /contador <id>[:equipo] arranca|para|suma [n]|reinicia` : "Este mundo no tiene contadores (se ponen en entorno/contadores.json).");
+      rechazar(from, lista ? tx("lista", { lista }) : tx("sin_contadores"));
       return true;
     }
     const [idTok, equipoTok] = partes[1].includes(":") ? partes[1].split(":", 2) : [partes[1], undefined];
     const v = busca(from, idTok, equipoTok); if (!v) return true;
     const orden = partes[2].toLowerCase();
     if (orden === "arranca") arranca(v); else if (orden === "para") para(v); else if (orden === "reinicia") reinicia(v);
-    else if (orden === "suma" || orden === "resta") { const n = partes[3] === undefined ? 1 : Number(partes[3]); if (!Number.isInteger(n)) rechazar(from, "Cuánto: un número entero (/contador marcador suma 3)."); else suma(v, orden === "resta" ? -n : n); }
-    else rechazar(from, `No entiendo «${cortar(orden, 16)}»: arranca, para, suma [n], reinicia.`);
+    else if (orden === "suma" || orden === "resta") { const n = partes[3] === undefined ? 1 : Number(partes[3]); if (!Number.isInteger(n)) rechazar(from, tx("cuanto")); else suma(v, orden === "resta" ? -n : n); }
+    else rechazar(from, tx("no_entiendo", { orden: cortar(orden, 16) }));
     return true;
   });
 });
