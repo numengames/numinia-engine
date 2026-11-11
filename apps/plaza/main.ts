@@ -99,6 +99,7 @@ import { montarAncestros } from "./ancestros.ts";
 import { montarVoz } from "./voz.ts";
 import { montarSubtitulosPuerta } from "./subtitulos-puerta.ts"; // V13: voice subtitles (name + direction), loaded on first use
 import { montarPantalla } from "./pantalla.ts";
+import type { montarPantallaRed as MontarPantallaRed } from "./pantalla-red.ts"; // type only: the code itself is a lazy chunk
 import { montarCondicionesPuerta } from "./condiciones-puerta.ts"; // condiciones/c3: the bubble of entry (only when the world's gate is on; the server decides). t_45ef2f70: its façade now (holds the page while the offer is on and the bubble is not here); the bubble itself loads after the first frame
 import { montarGraboso } from "./graboso.ts"; // M18b: the relic that records what you see (K)
 import { icono } from "./iconos.ts";
@@ -465,10 +466,25 @@ const graboso = montarGraboso({ lienzo: view.renderer.domElement, view, xr: { pr
 const cajaChat = montarChat(chatDePagina, document.getElementById("chat")!);
 montarPensando({ ia: iaPagina, nombre: (q) => chatDePagina.nombres.get(q) ?? null, distancia: distanciaA, idioma: () => document.documentElement.lang, raiz: document.getElementById("chat")! }); // t_466efdb8: «Ada está pensando…» with a tiny orb, under the chat list
 
-// ---- M18 (trozo 2, local only): «Compartir pantalla» (button or P): your screen on the nearest video screen of the world,
-// or in a floating window; only this page sees it — nothing is sent (apps/plaza/pantalla.ts) ----
+// ---- M18 (trozos 2 y 3): «Compartir pantalla» (button or P): your screen on the nearest video screen of the world, seen by
+// everyone near it through the server's relay (apps/plaza/pantalla-red.ts, WebCodecs), or in a floating window only you see ----
+const decirPantalla = (t: string) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } };
+// The network side is a lazy chunk (first-load budget): it is fetched the first time a share is announced to this page or this page starts
+// one. What arrives meanwhile is kept (a few hundred messages at most) and replayed to it in order; a viewer then waits for a key frame.
+type PantallaRed = ReturnType<typeof MontarPantallaRed>;
+let pantallaRedCargada: PantallaRed | null = null, pantallaRedPromesa: Promise<PantallaRed> | null = null;
+const pantallaRedCola: ((r: PantallaRed) => void)[] = [];
+const cargarPantallaRed = (): Promise<PantallaRed> => pantallaRedPromesa ??= import("./pantalla-red.ts").then((m) => {
+  const r = m.montarPantallaRed({ session, view, decir: decirPantalla, nombreDe: (key) => String(constructor.objeto(key)?.nombre ?? ""), alPararPropia: (key) => compartir.alPararPropia(key) });
+  pantallaRedCargada = r;
+  for (const f of pantallaRedCola.splice(0)) f(r);
+  return r;
+});
+const alCargar = (f: (r: PantallaRed) => void) => { if (pantallaRedCargada) { f(pantallaRedCargada); return; } if (pantallaRedCola.length < 300) pantallaRedCola.push(f); void cargarPantallaRed(); };
+session.onPantallaEstado = (e) => alCargar(() => session.onPantallaEstado?.(e));
+const pantallaRed = { get estado() { return pantallaRedCargada?.estado ?? { enviando: null, viendo: 0, tramasEnviadas: 0, saltadas: 0, bytesEnviados: 0, tramasVistas: 0, error: "" }; } };
 const compartir = montarPantalla({
-  view, escribiendo, construyendo: () => construyendo(view),
+  view, escribiendo, construyendo: () => construyendo(view), red: { empezar: (k, s) => cargarPantallaRed().then((r) => r.empezar(k, s)), parar: () => { if (pantallaRedPromesa) void pantallaRedPromesa.then((r) => r.parar()); } },
   yo: () => (session.entity >= 0 ? session.selfPosition(1) : null),
   nombreDe: (key) => String(constructor.objeto(key)?.nombre ?? ""),
   decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } },
@@ -904,7 +920,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { pintar, gemelos, ajustesMundo, session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones, medidorVivo: medidorUI, espejo: espejoCtl };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { pintar, gemelos, ajustesMundo, session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones, medidorVivo: medidorUI, espejo: espejoCtl, pantallaRed };
 
 // ---- t_5cff4f06: back to the city — hidden unless this world's mundo.ajustes.json sets ciudadUrl; ux2-barra: an entry
 // of the bar's «Menú» (O), no longer a corner button ----

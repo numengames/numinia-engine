@@ -1,0 +1,12 @@
+---
+"numinia-engine": minor
+---
+
+## 2026-11-11 15:00 · game · M18 trozo 3: a shared screen is seen by everyone near the video screen · hecho
+- Qué: when you share your screen while standing near a video screen of the world (30 m), everyone within 40 m of that screen sees it there, live. The server relays it like the proximity voice: short encoded frames over the game's own WebSocket (new additive message type 17, `PANTALLA`), cut into pieces under the 1024-byte frame cap, never opened and never stored. The page encodes and decodes with WebCodecs (VP8, or H.264 where that is all the browser has) at most 1280 px a side and 15 fps, about 1.2 Mbit/s. No paid service, no TURN, no new dependency.
+- Reglas del servidor (`packages/instance/src/pantallas.ts`): one share per screen and per person (the second to ask gets «ocupada»); you must stand within 30 m; the share ends when you leave, walk far, are stopped by someone who directs, or the screen is deleted, and every viewer is told; people behind the conditions gate, visits by link, blocked people and closed voice bubbles neither share nor see it; a per-share bandwidth guard drops a whole frame (and the deltas after it) and asks the sharer for a key frame; a viewer who arrives mid-stream waits for the next key frame.
+- Página: `apps/plaza/pantalla-red.ts` sends from the stream you already share and draws what arrives on a canvas whose `captureStream()` goes to the same `pantallaEnVivo` the local share used. Without WebCodecs the page neither sends nor decodes and says so once; in the floating window nothing leaves the page. Includes the follow-you change (the share moves to the nearest screen when you walk up to it and back to the window when you walk away).
+- Números: `test/pantalla-red.test.ts` (14 tests): wire round-trips and fuzz, frame joining, the rules above with a fake world, a real `Instance` with three pages (near gets the pieces, far gets nothing, leaving ends it), page helpers, and the limits published in `limits.json` (`pantalla_alcance_m`, `pantalla_ancho_max`, `pantalla_fps`, `pantalla_bytes_s`). `docs/FICHA-TECNICA.md` has the four new rows. **Not measured on real devices or with two real browsers**: the encode/decode path needs a browser with WebCodecs.
+- Siguiente: a real two-browser e2e (`tools/e2e-piernas`) and a measurement of CPU and bandwidth on a phone; LiveKit remains the plan for audio of the screen.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor.
