@@ -8,7 +8,7 @@
 // moment its source exists. The three skill slots under the HUD (#habilidades) are combate.ts too.
 // Only the name (session.who.nombre) is real today. Redraws once a second, touching the DOM only when something changed; no live region.
 // Rediseño v2 (B): your portrait on the left — the bust render of the avatar you wear (tu-logica.ts; the house silhouette for an
-// upload); the whole card is the button that opens «Tú» (I) (ux2-barra).
+// upload); the whole card is the button that opens «Tú» (C, keymap v1) (ux2-barra).
 import { icono } from "./iconos.ts";
 import { tx, ligar } from "../../packages/feature/src/idioma.ts";
 import { ESCALERA } from "./ficha.ts";
@@ -52,7 +52,7 @@ export function montarHudPersonaje(): void {
   if (!raiz) return;
   ligar(raiz, "aria-label", "Your character", "Tu personaje");
   raiz.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
-  // ux2-barra: the whole card is the button of your sheet (I) — a real <button> laid over it (index.html), kept on every
+  // ux2-barra: the whole card is the button of your sheet (C) — a real <button> laid over it (index.html), kept on every
   // repaint; main.ts hands it to the sheet's dialog, so the card opens and closes it and the focus comes back to it
   const abrir = raiz.querySelector<HTMLButtonElement>("#hud-personaje-abrir");
   if (abrir) abrir.addEventListener("click", (e) => { if (e.detail > 0) abrir.blur(); }); // a mouse click leaves no focus (Space jumps)

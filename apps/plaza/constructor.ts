@@ -275,7 +275,10 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   const sepDock = () => { const d = el("span", { className: "sep" }); d.setAttribute("aria-hidden", "true"); return d; };
   const dDeshacer = botonDock(ACCIONES_DOCK.deshacer[0], () => ACCIONES_DOCK.deshacer[1], () => c.deshacer()); dDeshacer.id = "dock-deshacer";
   const dRehacer = botonDock(ACCIONES_DOCK.rehacer[0], () => ACCIONES_DOCK.rehacer[1], () => c.rehacer()); dRehacer.id = "dock-rehacer";
-  const dSalir = botonDock(ACCIONES_DOCK.salir[0], () => ACCIONES_DOCK.salir[1], () => abrir(false)); dSalir.id = "dock-salir";
+  const rotuloSalir = (): string => { const base = ACCIONES_DOCK.salir[1].replace(/ \(.+\)$/, ""), k = teclas.etiqueta("construir"); return k ? `${base} (${k})` : base; };
+  const dSalir = botonDock(ACCIONES_DOCK.salir[0], rotuloSalir, () => abrir(false)); dSalir.id = "dock-salir";
+  const rotularSalir = (): void => { const t = rotuloSalir(); dSalir.title = t; dSalir.dataset.tip = t; dSalir.setAttribute("aria-label", t); dSalir.setAttribute("aria-keyshortcuts", teclas.etiqueta("construir")); };
+  rotularSalir(); teclas.alCambiar(rotularSalir); // keymap v1: the key in effect (B by default), never a fixed letter
   dock.append(...CAJONES.map((f) => botonesCajon[f[0]]), sepDock(), dDeshacer, dRehacer, sepDock(), dSalir);
 
   // «Añadir»: ONE library (search + grid) and «Subir» (soltar.ts' picker). A press on a piece puts it 3 m in front of you;
