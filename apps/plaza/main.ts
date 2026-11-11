@@ -209,7 +209,7 @@ const session = new ClientSession(transport, {
     moverForma: (key, x, z, r) => view.moverForma(key, x, z, r),
     marcador: (key, t) => view.marcador(key, t), // P4: evidence markers (features/misiones)
     // H4/H8: the zone's environment and its elements (water, fire, smoke, dust)
-    entorno: (v) => { view.entorno.aplicar(v); view.cam.mundo(v); session.movimiento(v); }, // P1: the same values carry the world's camera (camaraInicio, camaraMax, llegadaGira, llegadaGiro) and its pace (movAndar, movCorrer: the prediction; movFov: the camera)
+    entorno: (v) => { view.entorno.aplicar(v); view.cam.mundo(v); }, // P1: the same values carry the world's camera (camaraInicio, camaraMax, llegadaGira, llegadaGiro) and its field of view (movFov); the pace (movAndar, movCorrer) reaches the prediction from ClientSession itself
 
     naturaleza: (v) => void view.naturaleza.aplicar(v), // N4
     espacioBase: (v) => void view.espacioBase.aplicar(v), // H2

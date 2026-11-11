@@ -100,7 +100,7 @@ test("prediction: the page, given the world's pace by the environment state, end
   const inst = new Instance({ seed: 1, capacity: 8, k: 50, snapshotEvery: 2, features: [crearEntorno(json)], log: () => {}, puede: () => true, movimiento: TARUGO });
   const t = inst.join(0), cli = crearCliente(), vistos: Msg[] = [];
   let s!: ClientSession;
-  s = new ClientSession(t, { features: [cli.part as ClientPart], view: { label() {}, bounce() {}, entorno: (v) => { vistos.push(v); s.movimiento(v); } } });
+  s = new ClientSession(t, { features: [cli.part as ClientPart], view: { label() {}, bounce() {}, entorno: (v) => { vistos.push(v); } } });
   const pump = () => { t.flush(); inst.tick(); t.flush(); };
   for (let k = 0; k < 4; k++) pump();
   const v = s.features.stateOf("entorno").get(ZONA)!;

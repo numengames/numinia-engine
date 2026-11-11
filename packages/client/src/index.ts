@@ -151,7 +151,7 @@ export class ClientSession {
     this.pending.push({ seq: this.seq, mx, mz, buttons });
     if (this.pending.length > 64) this.pending.shift();
     this.prev = this.cur;
-    if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.local, solidsFrom(this.features.allState())); this.sincronizarSuelo(); this.sincronizarTerreno(); this.sincronizarMalla(); } // U10: the same walls as the server; N5: and the same hills
+    if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; this.movimiento(this.features.stateOf("entorno").get("zona")); setSolids(this.local, solidsFrom(this.features.allState())); this.sincronizarSuelo(); this.sincronizarTerreno(); this.sincronizarMalla(); } // U10: the same walls as the server; N5: and the same hills
     step(this.local, new Int32Array([0, mx, mz, buttons]));
     this.cur = getBody(this.local, 0);
   }
