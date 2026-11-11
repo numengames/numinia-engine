@@ -10,9 +10,10 @@ import type { Fields } from "../../packages/feature/src/index.ts";
 export const PRESETS = ["día", "amanecer", "atardecer", "noche", "niebla", "tormenta", "nublado", "jardín"] as const;
 /** «ninguno» = a world with no ground at all (floating islands): no plane, no grid, the sky above AND below, no flat floor in the simulation
  * (a fall ends in the void of `sueloMinimo`, 100 m down if the world says none). Last, so the default stays «hierba». */
-export const FORMAS_SUELO = ["plano", "disco"] as const;
-export const RADIO_SUELO_MAX = 2000;
 export const SUELOS = ["hierba", "tierra", "arena", "roca", "nieve", "liso", "ninguno"] as const;
+/** The shape of the flat floor: «plano» (endless, as always) or «disco» (round, `sueloRadio` metres around the origin; past its edge you fall). */
+export const SUELO_FORMAS = ["plano", "disco"] as const;
+export const DISCO_RADIO_MIN = 5, DISCO_RADIO_MAX = 1900;
 export const CIELOS = ["atmosfera", "degradado", "color"] as const;
 /** P1: the views a person may start in. «tercera» first: it is the house's, and an enum's default is its first value. */
 export const CAMARA_INICIOS = ["tercera", "primera"] as const;
@@ -57,9 +58,11 @@ export const CAMPOS: Fields = {
   suelo: { kind: "enum", values: SUELOS, default: "hierba" },
   sueloColor: { ...COLOR, default: 0xffffff },
   sueloEscala: { kind: "fixed", min: 0.1, max: 20, step: 0.05, default: 1 },
-  // `suelo.forma: "disco"` + `suelo.radio` (m): the ground is drawn as a disc around the origin with a visible edge (render only; the simulation floor is unchanged).
-  sueloForma: { kind: "enum", values: FORMAS_SUELO, default: "plano" },
-  sueloRadio: { kind: "fixed", min: 0, max: RADIO_SUELO_MAX, step: 0.5, default: 0 },
+  // The shape of the ground (entorno.json `suelo.forma` + `suelo.radio`), the world's file's like the camera: no panel moves it (server.ts DE_ARCHIVO).
+  // «disco»: the flat floor ends `sueloRadio` m from the origin and the simulation holds nobody past it (a fall, then the return to the spawn point).
+  // The render draws the same disc with a visible edge (packages/render/src/entorno.ts): it reads these two keys, it defines none of its own.
+  sueloForma: { kind: "enum", values: SUELO_FORMAS, default: "plano" },
+  sueloRadio: { kind: "fixed", min: 0, max: DISCO_RADIO_MAX, step: 0.5, default: 0 },
   tono: { kind: "enum", values: TONOS, default: "neutro" },
   exposicion: { kind: "fixed", min: 0.05, max: 8, step: 0.01, default: 1 },
   hitos: { kind: "bool", default: true },
@@ -81,7 +84,7 @@ export const entorno = defineFeature({
   level: "base",
   describe: "El entorno de la zona: cielo, sol, luz, niebla, viento, suelo y exposición. Llega a todos al entrar; quien tiene permiso de construir lo cambia en directo con un preset (día, atardecer, noche, niebla, tormenta…) o con valores finos.",
   state: {
-    describe: "Una sola entrada, «zona». Colores en entero 0xRRGGBB; ángulos en grados (altura del sol sobre el horizonte, rumbo desde el norte hacia el este); niebla en metros (lejos 0 = sin niebla; nieblaAuto = su color sale del horizonte del cielo); viento en m/s; sueloEscala 1 = cada textura a su tamaño (suelos.json); suelo «ninguno» = sin suelo (cielo arriba y abajo; quien pisa el vacío cae hasta sueloMinimo); imagen y hdr = «<sha256>.<ext>» de /a/ o vacío (vacío: la luz sale del propio cielo); mapaCorte = altura en metros a la que el minimapa y el mapa cortan el mundo, como el plano de un edificio (0 = sin corte: se ven los tejados).",
+    describe: "Una sola entrada, «zona». Colores en entero 0xRRGGBB; ángulos en grados (altura del sol sobre el horizonte, rumbo desde el norte hacia el este); niebla en metros (lejos 0 = sin niebla; nieblaAuto = su color sale del horizonte del cielo); viento en m/s; sueloEscala 1 = cada textura a su tamaño (suelos.json); suelo «ninguno» = sin suelo (cielo arriba y abajo; quien pisa el vacío cae hasta sueloMinimo); sueloForma «disco» = el suelo llano acaba a sueloRadio metros del origen y quien lo pasa cae y vuelve al punto de aparición (del fichero del mundo, ningún panel lo mueve); imagen y hdr = «<sha256>.<ext>» de /a/ o vacío (vacío: la luz sale del propio cielo); mapaCorte = altura en metros a la que el minimapa y el mapa cortan el mundo, como el plano de un edificio (0 = sin corte: se ven los tejados).",
     fields: CAMPOS,
     persist: true,
   },

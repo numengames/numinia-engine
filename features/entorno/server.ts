@@ -38,8 +38,8 @@ export const crearEntorno = (mundo?: unknown) => serverPart(entorno, (api) => {
   // N6: whoever directs (api.puede "dirigir", STD-052 manage-rituals) changes it live too: the director's light and fog
   const puede = (from: number) => api.puede(from, "construir") || api.puede(from, "dirigir") || rechazar(from, "No puedes cambiar el entorno: el mundo está cerrado a construir (lo abre quien lo administra) y no diriges aquí.");
   const actual = (): Plano => (api.state.get(ZONA) as Plano | undefined) ?? base;
-  // P1: the camera of the world and the arrival's heading are the world's file's (no panel moves them), like the map cut
-  const DE_ARCHIVO = ["camaraInicio", "camaraMax", "llegadaGira", "llegadaGiro", "sueloForma", "sueloRadio"] as const; // + the ground's shape (disc and its radius): the file's, so an older saved state never hides it
+  // P1: the camera of the world and the arrival's heading are the world's file's (no panel moves them), like the map cut; so is the ground's shape (a disc)
+  const DE_ARCHIVO = ["camaraInicio", "camaraMax", "llegadaGira", "llegadaGiro", "sueloForma", "sueloRadio"] as const;
   const delArchivo = (v: Msg): Msg => { const o: Msg = { ...v }; for (const k of DE_ARCHIVO) o[k] = base[k]; return o; };
   const poner = (v: Msg, avisar = true) => {
     const ok = api.state.set(ZONA, conSol(delArchivo(v)));
