@@ -9,6 +9,7 @@
 // (touch HUD = pointer: coarse), except on a headset's own browser (see `esVisor`), which is always the `vr` class. No DOM: the browser is read through `Entorno`, so Node tests pass a fake one.
 import { leerTextoGuardado } from "./ajustes.ts";
 import type { Capacidades, Nivel } from "../../feature/src/ajustes.ts";
+import { tx } from "./idioma.ts";
 
 export const APARATOS = ["auto", "escritorio", "movil-vertical", "movil-horizontal", "vr"] as const;
 export type Eleccion = (typeof APARATOS)[number];
@@ -83,7 +84,7 @@ export function claseReal(r: Real): Clase {
 /** Which profile was asked: the URL first, then what the person kept in the setting; neither outside development. */
 export function eleccionDesde(o: { url?: string | null; guardado?: string | null; desarrollo: boolean }): { eleccion: Eleccion; de: "url" | "ajuste" | "auto"; aviso?: string } {
   const url = o.url ?? null;
-  if (!o.desarrollo) return url ? { eleccion: "auto", de: "auto", aviso: `?${PARAM_APARATO} solo vale en desarrollo o con ?debug` } : { eleccion: "auto", de: "auto" };
+  if (!o.desarrollo) return url ? { eleccion: "auto", de: "auto", aviso: tx(`?${PARAM_APARATO} only works in development or with ?debug`, `?${PARAM_APARATO} solo vale en desarrollo o con ?debug`) } : { eleccion: "auto", de: "auto" };
   if (url !== null && url !== "") {
     if (esEleccion(url)) return { eleccion: url, de: "url" }; // ?aparato=auto too: it beats a kept setting
     return { eleccion: "auto", de: "auto", aviso: `?${PARAM_APARATO}=${url} no existe: ${APARATOS.join(", ")}` };
@@ -97,7 +98,7 @@ export function eleccionDesde(o: { url?: string | null; guardado?: string | null
 export function decidirAparato(o: { eleccion?: Eleccion; real: Real; enMarco?: boolean }): Perfil {
   const r = o.real, eleccion = o.eleccion && esEleccion(o.eleccion) ? o.eleccion : "auto";
   if (eleccion === "auto") {
-    const memoriaBaja = r.memoriaGB > 0 && r.memoriaGB <= 4;
+    const memoriaBaja = r.punteroGrueso && r.memoriaGB > 0 && r.memoriaGB <= 4; // QA 2026-11-11: memory alone never makes a desktop a phone
     // a headset: the `vr` class with its declared capabilities (controllers point like a fine pointer, no touch HUD, no
     // phone-size screen); phone-class power only by the memory rule, never because the pointer reads «coarse»
     if (r.visor) return { eleccion, clase: "vr", forzado: false, ...DECLARADAS.vr, movil: memoriaBaja, marco: null };

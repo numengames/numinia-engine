@@ -8,7 +8,9 @@ import type { Fields } from "../../packages/feature/src/index.ts";
 /** Named environments (presets.json). «propio» = adjusted by hand after a preset. */
 /** «jardín» is the house look (STD-023: the Mediterranean garden — Verdemar sky over an Arena horizon, a warm haze). */
 export const PRESETS = ["día", "amanecer", "atardecer", "noche", "niebla", "tormenta", "nublado", "jardín"] as const;
-export const SUELOS = ["hierba", "tierra", "arena", "roca", "nieve", "liso"] as const;
+/** «ninguno» = a world with no ground at all (floating islands): no plane, no grid, the sky above AND below, no flat floor in the simulation
+ * (a fall ends in the void of `sueloMinimo`, 100 m down if the world says none). Last, so the default stays «hierba». */
+export const SUELOS = ["hierba", "tierra", "arena", "roca", "nieve", "liso", "ninguno"] as const;
 export const CIELOS = ["atmosfera", "degradado", "color"] as const;
 /** P1: the views a person may start in. «tercera» first: it is the house's, and an enum's default is its first value. */
 export const CAMARA_INICIOS = ["tercera", "primera"] as const;
@@ -74,7 +76,7 @@ export const entorno = defineFeature({
   level: "base",
   describe: "El entorno de la zona: cielo, sol, luz, niebla, viento, suelo y exposición. Llega a todos al entrar; quien tiene permiso de construir lo cambia en directo con un preset (día, atardecer, noche, niebla, tormenta…) o con valores finos.",
   state: {
-    describe: "Una sola entrada, «zona». Colores en entero 0xRRGGBB; ángulos en grados (altura del sol sobre el horizonte, rumbo desde el norte hacia el este); niebla en metros (lejos 0 = sin niebla; nieblaAuto = su color sale del horizonte del cielo); viento en m/s; sueloEscala 1 = cada textura a su tamaño (suelos.json); imagen y hdr = «<sha256>.<ext>» de /a/ o vacío (vacío: la luz sale del propio cielo); mapaCorte = altura en metros a la que el minimapa y el mapa cortan el mundo, como el plano de un edificio (0 = sin corte: se ven los tejados).",
+    describe: "Una sola entrada, «zona». Colores en entero 0xRRGGBB; ángulos en grados (altura del sol sobre el horizonte, rumbo desde el norte hacia el este); niebla en metros (lejos 0 = sin niebla; nieblaAuto = su color sale del horizonte del cielo); viento en m/s; sueloEscala 1 = cada textura a su tamaño (suelos.json); suelo «ninguno» = sin suelo (cielo arriba y abajo; quien pisa el vacío cae hasta sueloMinimo); imagen y hdr = «<sha256>.<ext>» de /a/ o vacío (vacío: la luz sale del propio cielo); mapaCorte = altura en metros a la que el minimapa y el mapa cortan el mundo, como el plano de un edificio (0 = sin corte: se ven los tejados).",
     fields: CAMPOS,
     persist: true,
   },

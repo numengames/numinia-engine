@@ -6,6 +6,7 @@
 // back is only data: `leerSalida` checks its shape and the world's names; server.ts then runs the SAME reader as
 // disparadores.json (`leerDisparador`) and nothing is applied until the person confirms. The model's text is never run.
 import { ACCIONES, COOLDOWN_MAX_S, RECEPTORES_MAX, TIPOS } from "./feature.ts";
+import { IDIOMA_DISPARADORES, textoDisparadores } from "./textos.ts";
 
 export const HERRAMIENTA = "proponer_cable";
 /** How many names of each list go to the model (the validator still knows them all). */
@@ -90,39 +91,41 @@ const CLAVES_ACCION: Record<string, readonly string[]> = {
 export type LineaCable = { nombre: string; tipo: string; senal: string; cooldown: number; un_solo_uso: boolean; receptores: Record<string, unknown>[] };
 /** The model's tool input → one line of disparadores.json (without id or place), or why not. Shape only: it knows no
  * names and does not clamp numbers; `server.ts` runs `leerDisparador` (the file's own reader) and `referenciasDe` on it. */
-export function leerSalida(salida: unknown): { ok: true; linea: LineaCable } | { ok: false; motivo: string } {
+export function leerSalida(salida: unknown, idioma: string = IDIOMA_DISPARADORES): { ok: true; linea: LineaCable } | { ok: false; motivo: string } {
+  const tx = (clave: string, vars?: Record<string, string | number>) => textoDisparadores(idioma, clave, vars);
   const no = (motivo: string) => ({ ok: false as const, motivo });
-  if (typeof salida !== "object" || salida === null || Array.isArray(salida)) return no("La IA no ha propuesto ningún cable. Dilo de otra manera.");
+  if (typeof salida !== "object" || salida === null || Array.isArray(salida)) return no(tx("ia_nada"));
   const o = salida as Record<string, unknown>;
   const raro = Object.keys(o).find((k) => !CLAVES.has(k));
-  if (raro) return no(`La IA ha propuesto algo fuera de lo permitido («${raro.slice(0, 24)}»): no se aplica nada.`);
-  if (typeof o.no_se_puede === "string" && o.no_se_puede.trim()) return no(`Con las piezas de este mundo no se puede: ${o.no_se_puede.replace(/\s+/g, " ").trim().slice(0, 120)}`);
-  if (typeof o.tipo !== "string" || !(TIPOS as readonly string[]).includes(o.tipo)) return no("La IA no ha dicho si es un botón, una zona o una señal: no se aplica nada.");
-  if (!Array.isArray(o.receptores) || o.receptores.length === 0) return no("La IA no ha propuesto ninguna acción: no se aplica nada.");
-  if (o.receptores.length > RECEPTORES_MAX) return no(`La IA ha propuesto más de ${RECEPTORES_MAX} acciones: no se aplica nada.`);
+  if (raro) return no(tx("ia_fuera", { raro: raro.slice(0, 24) }));
+  if (typeof o.no_se_puede === "string" && o.no_se_puede.trim()) return no(tx("ia_no_se_puede", { texto: o.no_se_puede.replace(/\s+/g, " ").trim().slice(0, 120) }));
+  if (typeof o.tipo !== "string" || !(TIPOS as readonly string[]).includes(o.tipo)) return no(tx("ia_sin_tipo"));
+  if (!Array.isArray(o.receptores) || o.receptores.length === 0) return no(tx("ia_sin_accion"));
+  if (o.receptores.length > RECEPTORES_MAX) return no(tx("ia_mas_acciones", { max: RECEPTORES_MAX }));
   const receptores: Record<string, unknown>[] = [];
   for (const [i, r] of o.receptores.entries()) {
-    if (typeof r !== "object" || r === null || Array.isArray(r)) return no(`Acción ${i + 1}: no es una acción.`);
+    if (typeof r !== "object" || r === null || Array.isArray(r)) return no(tx("accion_no_accion", { n: i + 1 }));
     const a = r as Record<string, unknown>, accion = String(a.accion ?? "");
-    if (!(ACCIONES as readonly string[]).includes(accion)) return no(`Acción ${i + 1}: «${accion.slice(0, 24)}» no es una de las acciones del cable.`);
+    if (!(ACCIONES as readonly string[]).includes(accion)) return no(tx("accion_desconocida", { n: i + 1, accion: accion.slice(0, 24) }));
     const sobra = Object.keys(a).find((k) => k !== "accion" && !CLAVES_ACCION[accion]!.includes(k));
-    if (sobra) return no(`Acción ${i + 1}: lleva «${sobra.slice(0, 24)}», que no es suyo.`);
+    if (sobra) return no(tx("accion_sobra", { n: i + 1, sobra: sobra.slice(0, 24) }));
     receptores.push({ ...a });
   }
-  if (o.cooldown !== undefined && !Number.isFinite(Number(o.cooldown))) return no("La IA ha puesto una espera que no es un número.");
+  if (o.cooldown !== undefined && !Number.isFinite(Number(o.cooldown))) return no(tx("ia_espera_mala"));
   return { ok: true, linea: { nombre: typeof o.nombre === "string" ? o.nombre : "", tipo: o.tipo, senal: typeof o.senal === "string" ? o.senal : "", cooldown: Number(o.cooldown ?? 0), un_solo_uso: o.un_solo_uso === true, receptores } };
 }
 
 /** The world's own names, as the server holds them: what a checked cable may point at. */
 export type ConocidoCable = { objetos: ReadonlySet<string>; movedores: ReadonlySet<string>; misiones: ReadonlySet<string>; sonidos: ReadonlySet<string> };
 /** Every name in the checked receivers must exist in THIS world (the model's schema is a courtesy; this is the rule). */
-export function referenciasMalas(receptores: readonly { accion: string; objeto?: string; mision?: string; sonido?: string }[], k: ConocidoCable): string | null {
+export function referenciasMalas(receptores: readonly { accion: string; objeto?: string; mision?: string; sonido?: string }[], k: ConocidoCable, idioma: string = IDIOMA_DISPARADORES): string | null {
+  const tx = (clave: string, vars: Record<string, string | number>) => textoDisparadores(idioma, clave, vars);
   for (const [i, r] of receptores.entries()) {
-    const n = `Acción ${i + 1}`;
-    if ((r.accion === "muestra" || r.accion === "oculta") && !k.objetos.has(String(r.objeto))) return `${n}: en este mundo no hay ningún objeto «${String(r.objeto).slice(0, 40)}».`;
-    if (r.accion === "mueve" && !k.movedores.has(String(r.objeto))) return `${n}: en este mundo no hay ningún movedor «${String(r.objeto).slice(0, 40)}».`;
-    if (r.accion === "da_paso" && !k.misiones.has(String(r.mision))) return `${n}: en este mundo no hay ninguna misión «${String(r.mision).slice(0, 40)}».`;
-    if (r.accion === "suena" && !k.sonidos.has(String(r.sonido))) return `${n}: no hay ningún sonido «${String(r.sonido).slice(0, 40)}» en el catálogo.`;
+    const n = i + 1;
+    if ((r.accion === "muestra" || r.accion === "oculta") && !k.objetos.has(String(r.objeto))) return tx("ref_objeto", { n, x: String(r.objeto).slice(0, 40) });
+    if (r.accion === "mueve" && !k.movedores.has(String(r.objeto))) return tx("ref_movedor", { n, x: String(r.objeto).slice(0, 40) });
+    if (r.accion === "da_paso" && !k.misiones.has(String(r.mision))) return tx("ref_mision", { n, x: String(r.mision).slice(0, 40) });
+    if (r.accion === "suena" && !k.sonidos.has(String(r.sonido))) return tx("ref_sonido", { n, x: String(r.sonido).slice(0, 40) });
   }
   return null;
 }

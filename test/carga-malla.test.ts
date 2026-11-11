@@ -46,14 +46,14 @@ test("C: las piezas reales mueven las líneas entre la bienvenida y el 97 %, esc
   c.activar(); c.etapa("codigo"); c.etapa("estado"); c.etapa("vista");
   c.piezas({ listas: 5, total: 10 });
   assert.equal(p.props["--p"], String(ETAPAS.vista), "sin bienvenida las piezas no mueven las líneas (el 55 % de la vista manda)");
-  assert.equal(sitios[0].textContent, "5 de 10 piezas"); assert.equal(sitios[1].textContent, "5 de 10 piezas");
+  assert.equal(sitios[0].textContent, "5 of 10 pieces"); assert.equal(sitios[1].textContent, "5 of 10 pieces");
   c.etapa("bienvenida");
   assert.equal(c.fraccion(), ETAPAS.bienvenida + (TRAMO_PIEZAS.hasta - TRAMO_PIEZAS.desde) * 0.5);
   c.piezas({ listas: 10, total: 10 });
   assert.equal(p.props["--p"], String(TRAMO_PIEZAS.hasta));
   c.piezas({ listas: 10, total: 20 }); // new pieces join the count (a late placement)
   assert.equal(p.props["--p"], String(TRAMO_PIEZAS.hasta), "el trazo no vuelve atrás");
-  assert.equal(sitios[0].textContent, "10 de 20 piezas", "…pero el texto dice la verdad");
+  assert.equal(sitios[0].textContent, "10 of 20 pieces", "…pero el texto dice la verdad");
   c.etapa("listo"); assert.equal(p.props["--p"], "1");
 });
 

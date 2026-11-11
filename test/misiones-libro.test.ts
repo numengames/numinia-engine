@@ -19,6 +19,8 @@ import type { EstadoPaso } from "../apps/plaza/misiones.ts";
 import { montarXR } from "../apps/plaza/xr.ts";
 import { icono } from "../apps/plaza/iconos.ts";
 import { aplicarTema } from "../apps/plaza/tema-mundo.ts";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // these checks assert the Spanish text; English is covered in test/idioma-simposio-b.test.ts
 
 const G = "Piezas reunidas";
 /** The states of a quest's steps as the page computes them: «ahora» from the controller's objetivos() (here, the same

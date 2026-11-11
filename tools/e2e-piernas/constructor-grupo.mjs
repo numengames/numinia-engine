@@ -81,7 +81,7 @@ async function pierna() {
     await a.bringToFront();
     // 1. build mode, three blocks in a row 3 m ahead (camera looks to -z): left, middle, right, 3 m centre to centre
     await a.mouse.move(550, 150);
-    await a.keyboard.press("KeyC");
+    await a.keyboard.press("KeyB");
     paso("abrir con C", await a.waitForFunction(() => !document.getElementById("panel-construir").hidden && globalThis.__numinia.view.editor.estado().cargado, null, { timeout: 10000 }).then(() => true, () => false));
     const n0 = await a.evaluate(() => globalThis.__numinia.session.features.stateOf("objetos").size);
     for (const dx of [-3, 0, 3]) {

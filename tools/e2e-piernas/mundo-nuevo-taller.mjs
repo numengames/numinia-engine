@@ -56,7 +56,7 @@ async function entrar(ctx) {
 }
 async function abrirConstruir(p) {
   if (await panelAbierto(p)) return;
-  await p.mouse.move(640, 360); await p.keyboard.press("KeyC");
+  await p.mouse.move(640, 360); await p.keyboard.press("KeyB");
   await p.waitForFunction(() => !document.getElementById("panel-construir").hidden && globalThis.__numinia.view.editor.estado().cargado, null, { timeout: 15000 });
   await sleep(500);
 }
@@ -151,7 +151,7 @@ try {
   { const l1 = await libro(p); paso("tras hablar con Lumen el libro lista solo «abre-el-taller»", l1.length === 1 && l1[0].id === "abre-el-taller", { libro: l1 });
     await p.mouse.move(640, 360); await p.keyboard.press("KeyJ"); await sleep(800); await p.screenshot({ path: `${FOTOS}21-libro-tras-hablar-con-lumen.png` }); await cerrarLibro(p); }
   await mirarFlecha(p, "construir");
-  await p.mouse.move(640, 360); await p.keyboard.press("KeyC");
+  await p.mouse.move(640, 360); await p.keyboard.press("KeyB");
   await p.waitForFunction(() => !document.getElementById("panel-construir").hidden, null, { timeout: 15000 });
   await completa(p, "abre-el-taller");
   await foto(p, "30-m01-abre-el-taller");
@@ -208,7 +208,7 @@ try {
   paso("movido con la flecha X (el servidor lo guarda)", Math.abs(o1.x - o0.x) >= 0.3, { x0: o0.x, x1: o1.x });
   let l = await libro(p);
   console.log("tras mover:", JSON.stringify(l.filter((m) => m.id === "muevelo")));
-  // girar: tecla R + aro
+  // girar: tecla R + aro (build mode keeps its own keyboard: 3 or R rotate — teclas.ts OTROS_MODOS; I is the bag only outside it)
   await p.mouse.move(640, 130); await sleep(300);
   await p.keyboard.press("KeyR"); await sleep(600);
   console.log("modo", await p.evaluate(() => globalThis.__numinia.constructor.estado.modo));

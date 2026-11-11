@@ -60,7 +60,7 @@ import { orbesMax } from "./orbe-ia-forma.ts";
 import { createBurbujas } from "./burbujas.ts"; // ia-llamar S9: the action bubble of every AI (4 shapes; pooled, shared geometry and materials, capped)
 import { burbujasMax } from "./burbujas-politica.ts";
 import { createPompas } from "./pompas.ts"; // condiciones/c5: the bubble over someone who is still reading the norms
-import { elegirMirado, escalaAcotada, nombreVisible, NOMBRE_GRADOS_MAX, type Mirable } from "./carteles.ts";
+import { elegirMirado, escalaAcotada, nombreVisible, NOMBRE_ESCALA, yPlacaSobreCabeza, NOMBRE_GRADOS_MAX, type Mirable } from "./carteles.ts";
 import { apilar, acotarX, levantarSobre, escalaPlacaPx, opacidadPlaca, HUECO_NDC, MARGEN_PANTALLA, type Placa } from "./rotulos-apilar.ts";
 export { NOMBRE_VISIBLE_M, NOMBRES_DIBUJADOS, BOCADILLO_VISIBLE_M } from "./nombres.ts";
 import { crearCenital } from "./cenital.ts";
@@ -576,9 +576,10 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       if (r.plano) { r.s.material.transparent = true; r.s.material.opacity = opaca; }
       const me = camera.matrixWorld.elements, prof = -((r.x - me[12]!) * me[8]! + (r.y - me[13]!) * me[9]! + (r.z - me[14]!) * me[10]!); // depth along the view axis: what the pixels follow
       const e = r.plano ? escalaPlacaPx(ROT_ANCHO * ROT_M, prof > 0.2 ? prof : d, (camera.projectionMatrix.elements[0] ?? 1) * (renderer.domElement.clientWidth || innerWidth) / 2) // mundo-hermes: a flat plate is 90 to 220 px wide on the screen, whatever the distance
-        : escalaAcotada(1, alto, d, NOMBRE_GRADOS_MAX); // whole plate (mark, trade) shrinks with its name line
+        : escalaAcotada(1, alto, d, NOMBRE_GRADOS_MAX) * NOMBRE_ESCALA; // whole plate (mark, trade) shrinks with its name line; names 35 % smaller
       r.s.scale.set(ROT_ANCHO * ROT_M * e, r.s.userData.alto * e, 1);
       if (r.plano) { r.s.position.y = r.y - (ROT_NOMBRE / 2) * ROT_M; planas.push({ k, r, d, e }); }
+      else { const c = cabezaDe(k); if (c !== null) r.s.position.y = yPlacaSobreCabeza(c, r.s.scale.y, r.s.center.y); } // the plate's bottom edge just over the head
     }
     if (planas.length) apilarPlacas(planas); else if (placasUltimas.length) placasUltimas = [];
   }
@@ -1085,8 +1086,23 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   type Rotulo = { s: THREE.Sprite; firma: string; x: number; y: number; z: number; marca: boolean; /** mundo-hermes: a flat plate (white outline on black) that keeps clear of its figure (`tope`, m) and stacks with its neighbours; `siempre` = shown when near without looking at it */ plano?: boolean; tope?: number; siempre?: boolean; /** t_159e18d2: 0 = its pipeline was never asked for, 1 = linking (compileAsync), 2 = linked: a plate is shown only once linked, so no draw ever links one */ listo: 0 | 1 | 2 };
   type DatosRotulo = { text: string; x: number; y: number; z: number; sub?: string; mark?: "!" | "✓" | ""; plano?: boolean; tope?: number; siempre?: boolean };
   const tags = new Map<string, Rotulo>();
+  // A name over a placed model (same key, e.g. `pnj:brainiac`) sits NOMBRE_SOBRE_CABEZA_M over the top of that model, measured once
+  // when it has loaded (relative to its origin, so a walking person keeps it); anything else keeps the height its feature gave.
+  const altoModelo = new Map<string, number>();
+  const cajaNombre = new THREE.Box3();
+  const cabezaDe = (k: string): number | null => {
+    const sl = things.get(k);
+    if (!sl || !sl.loaded || sl.failed) return null;
+    let h = altoModelo.get(k);
+    if (h === undefined) {
+      sl.group.updateWorldMatrix(true, true); cajaNombre.setFromObject(sl.group, true);
+      if (cajaNombre.isEmpty() || cajaNombre.max.y - sl.group.position.y > 4) return null; // nothing yet, or not a person-sized thing
+      h = cajaNombre.max.y - sl.group.position.y; altoModelo.set(k, h);
+    }
+    return sl.group.position.y + h;
+  };
   let tagDibujos = 0;
-  const ROT_ANCHO = 512, ROT_NOMBRE = 96, ROT_SUB = 48, ROT_MARCA = 160, ROT_M = 2.9 / 512; // px (the name line as before); metres per px
+  const ROT_ANCHO = 512, ROT_NOMBRE = 96, ROT_SUB = 48, ROT_MARCA = 110, ROT_M = 2.9 / 512; // px (the name line as before); metres per px
   /** t_159e18d2: a name plate is born hidden and has its own material, so its first draw linked a program (a new plate: 3-50 ms inside the frame). Link it now, keyed as a
    * frame draws it (compileAsync); `listo` flips when done (or after ESPERA_MAX_MS) and updateRotulos shows it. Other plates' programs are reused: this is a cheap call. */
   function enlazarRotulo(r: Rotulo): void {
@@ -1692,6 +1708,14 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       for (const [k, s] of things) if (s.want.kind === "video" && s.loaded && s.medio?.enVivo) r.push({ key: k, x: s.want.x, y: s.want.y, z: s.want.z });
       return r;
     },
+    /** «Watch full screen»: the video screens that show something right now (a share, or a file that is playing), where they stand. */
+    pantallasMostrando(): { key: string; x: number; y: number; z: number }[] {
+      const r: { key: string; x: number; y: number; z: number }[] = [];
+      for (const [k, s] of things) if (s.want.kind === "video" && s.loaded && s.medio?.fuente?.()) r.push({ key: k, x: s.want.x, y: s.want.y, z: s.want.z });
+      return r;
+    },
+    /** «Watch full screen»: the <video> a screen draws from now (its live share, else its file) and whether it is a live share; null when it shows nothing. */
+    pantallaFuente(key: string): { video: HTMLVideoElement; enVivo: boolean } | null { return things.get(key)?.medio?.fuente?.() ?? null; },
     /** M18: show a live MediaStream (your shared screen) on a video screen, on this page only — nothing is sent anywhere;
      * `null` puts the file back. False when there is no loaded video screen with that key. */
     pantallaEnVivo(key: string, stream: MediaStream | null): boolean {

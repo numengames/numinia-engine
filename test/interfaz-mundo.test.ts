@@ -10,6 +10,8 @@ import { INTERFAZ_OCULTABLES, leerInterfaz } from "../packages/server/src/aventu
 import { startServer } from "../packages/server/src/server.ts";
 import { OCULTABLES, accionesVisibles, ocultosDe, rotuloMas } from "../apps/plaza/interfaz-mundo.ts";
 import { entradasDelMenu } from "../packages/client/src/movil.ts";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // these checks read the Spanish second language
 
 const tmp = (p: string) => mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), p));
 const MOTOR = { build: "dev", commit: "0".repeat(40), imagen: "" };

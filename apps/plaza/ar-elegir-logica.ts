@@ -7,11 +7,19 @@ import { nombreDelEnlace as nombreDe } from "../../features/dardos/enlace.ts";
 import type { EnlaceDardos } from "../../features/dardos/enlace.ts";
 import type { EstadoEnlaceDardos } from "./dardos-enlace.ts";
 
-export const TITULO_ELEGIR = "Entrar en AR";
-export const ROTULO_MESA = "El mundo en tu mesa";
-export const AYUDA_MESA = "La plaza en miniatura sobre una mesa o el suelo.";
-export const ROTULO_REINTENTAR = "Reintentar";
-export const ROTULO_CANCELAR = "Cancelar";
+import { tx } from "../../packages/feature/src/idioma.ts";
+
+// Words in the ACTIVE language: call these when the chooser opens. The *_ELEGIR constants are the English defaults kept for old importers.
+export const tituloElegir = (): string => tx("Enter AR", "Entrar en AR");
+export const rotuloMesa = (): string => tx("The world on your table", "El mundo en tu mesa");
+export const ayudaMesa = (): string => tx("The plaza in miniature on a table or the floor.", "La plaza en miniatura sobre una mesa o el suelo.");
+export const rotuloReintentar = (): string => tx("Retry", "Reintentar");
+export const rotuloCancelar = (): string => tx("Cancel", "Cancelar");
+export const TITULO_ELEGIR = "Enter AR";
+export const ROTULO_MESA = "The world on your table";
+export const AYUDA_MESA = "The plaza in miniature on a table or the floor.";
+export const ROTULO_REINTENTAR = "Retry";
+export const ROTULO_CANCELAR = "Cancel";
 
 /** How the linked world is called (features/dardos/enlace.ts `nombreDelEnlace`: the name its server tells, else the setting's `nombre`, else its host). `corto` and `largo` are the same:
  *  the whole name in the button, the sentences and the norms' title. */
@@ -20,17 +28,17 @@ export function nombreDelEnlace(e: Pick<EnlaceDardos, "servidor" | "nombre">, de
   return { corto: n, largo: n };
 }
 
-export const rotuloDardos = (corto: string): string => `Dardos de ${corto} en tu pared`;
+export const rotuloDardos = (corto: string): string => tx(`${corto} darts on your wall`, `Dardos de ${corto} en tu pared`);
 
 /** The link's own `motivo` (written for logs) → one plain sentence for the person. «Reintentar» goes with it. */
 export function motivoParaPersonas(motivo: string, corto: string): string {
   const m = motivo.toLowerCase();
-  if (/lleno/.test(m)) return `${mayuscula(corto)} está llena ahora mismo. Prueba en un rato o entra con la maqueta.`;
-  if (/no te deja entrar/.test(m)) return `${mayuscula(corto)} no te deja entrar ahora.`;
-  if (/no responde/.test(m)) return `${mayuscula(corto)} no responde. Puede que esté parada.`;
-  if (/no se pudo (llegar|abrir)/.test(m)) return `No se puede llegar a ${corto}. Mira tu conexión.`;
-  if (/conexi[oó]n cerrada/.test(m)) return `Se ha cortado la conexión con ${corto}.`;
-  return `Ahora no se puede jugar en ${corto}.`;
+  if (/lleno/.test(m)) return tx(`${mayuscula(corto)} is full right now. Try again in a while or join with the model.`, `${mayuscula(corto)} está llena ahora mismo. Prueba en un rato o entra con la maqueta.`);
+  if (/no te deja entrar/.test(m)) return tx(`${mayuscula(corto)} is not letting you in right now.`, `${mayuscula(corto)} no te deja entrar ahora.`);
+  if (/no responde/.test(m)) return tx(`${mayuscula(corto)} is not answering. It may be down.`, `${mayuscula(corto)} no responde. Puede que esté parada.`);
+  if (/no se pudo (llegar|abrir)/.test(m)) return tx(`Cannot reach ${corto}. Check your connection.`, `No se puede llegar a ${corto}. Mira tu conexión.`);
+  if (/conexi[oó]n cerrada/.test(m)) return tx(`The connection to ${corto} was cut.`, `Se ha cortado la conexión con ${corto}.`);
+  return tx(`Cannot play in ${corto} right now.`, `Ahora no se puede jugar en ${corto}.`);
 }
 const mayuscula = (t: string): string => t.charAt(0).toUpperCase() + t.slice(1);
 
@@ -54,18 +62,18 @@ export type VistaElegir = {
 export function vistaElegir(estado: EstadoEnlaceDardos, motivo: string, enlace: Pick<EnlaceDardos, "servidor" | "nombre">, o: { aceptadas?: boolean; falloAR?: string; /** the name the linked server told in its /status */ nombreServidor?: string | null } = {}): VistaElegir {
   const { corto } = nombreDelEnlace(enlace, o.nombreServidor);
   const texto = rotuloDardos(corto);
-  if (o.falloAR && (estado === "listo" || estado === "jugando")) return { dardos: { texto, ayuda: "Toca otra vez para colgar la diana.", accion: "entrar", apagado: false }, fallo: o.falloAR, reintentar: false };
+  if (o.falloAR && (estado === "listo" || estado === "jugando")) return { dardos: { texto, ayuda: tx("Tap again to hang the dartboard.", "Toca otra vez para colgar la diana."), accion: "entrar", apagado: false }, fallo: o.falloAR, reintentar: false };
   switch (estado) {
     case "cerrado":
     case "conectando":
-      return { dardos: { texto, ayuda: `Conectando con ${corto}…`, accion: "esperar", apagado: true }, fallo: "", reintentar: false };
+      return { dardos: { texto, ayuda: tx(`Connecting to ${corto}…`, `Conectando con ${corto}…`), accion: "esperar", apagado: true }, fallo: "", reintentar: false };
     case "puerta":
-      return { dardos: { texto, ayuda: `Antes tienes que aceptar las normas de ${corto}.`, accion: "normas", apagado: false }, fallo: "", reintentar: false };
+      return { dardos: { texto, ayuda: tx(`First you must accept the rules of ${corto}.`, `Antes tienes que aceptar las normas de ${corto}.`), accion: "normas", apagado: false }, fallo: "", reintentar: false };
     case "listo":
-      return { dardos: { texto, ayuda: o.aceptadas ? "Normas aceptadas. Toca para colgar la diana." : "Lista: toca para colgar la diana en tu pared.", accion: "entrar", apagado: false }, fallo: "", reintentar: false };
+      return { dardos: { texto, ayuda: o.aceptadas ? tx("Rules accepted. Tap to hang the dartboard.", "Normas aceptadas. Toca para colgar la diana.") : tx("Ready: tap to hang the dartboard on your wall.", "Lista: toca para colgar la diana en tu pared."), accion: "entrar", apagado: false }, fallo: "", reintentar: false };
     case "jugando":
-      return { dardos: { texto, ayuda: "Ya estás jugando.", accion: "nada", apagado: true }, fallo: "", reintentar: false };
+      return { dardos: { texto, ayuda: tx("You are already playing.", "Ya estás jugando."), accion: "nada", apagado: true }, fallo: "", reintentar: false };
     case "error":
-      return { dardos: { texto, ayuda: "No disponible ahora.", accion: "reintentar", apagado: true }, fallo: motivoParaPersonas(motivo, corto), reintentar: true };
+      return { dardos: { texto, ayuda: tx("Not available right now.", "No disponible ahora."), accion: "reintentar", apagado: true }, fallo: motivoParaPersonas(motivo, corto), reintentar: true };
   }
 }

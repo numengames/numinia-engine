@@ -14,8 +14,10 @@ import type { Field } from "../../schema/src/index.ts";
 // 13-14 (condiciones/c2, additive): CONDICIONES (server -> page: the world's conditions of entry and where you stand; page -> server,
 // one byte: "send them again") and ACEPTAR (page -> server: what you accept). See the end of this file.
 // 15 (condiciones/c5, additive): LEYENDO, server -> page: who is still reading the norms (the others draw them inside a bubble). Only a world with the gate on sends it.
-export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5, CATALOG: 6, FEATURE: 7, STATE: 8, REPORT: 9, IDENTITY: 10, VOICE: 11, PASE: 12, CONDICIONES: 13, ACEPTAR: 14, LEYENDO: 15, LATIDO: 16 } as const;
+// 17 (M18 trozo 3, additive): PANTALLA, a screen shared onto the world's video screen: encoded frames, relayed to who is within reach of that screen (pantalla.ts).
+export const MSG = { INPUT: 1, SNAPSHOT: 2, PING: 3, PONG: 4, WELCOME: 5, CATALOG: 6, FEATURE: 7, STATE: 8, REPORT: 9, IDENTITY: 10, VOICE: 11, PASE: 12, CONDICIONES: 13, ACEPTAR: 14, LEYENDO: 15, LATIDO: 16, PANTALLA: 17 } as const;
 export * from "./voz.ts";
+export * from "./pantalla.ts"; // M18 trozo 3: a shared screen on the world's video screen, relayed like the voice
 export * from "./enlace.ts"; // dardos enlazados (E1): the «visita de enlace»
 
 /** Wire format version, sent at the end of WELCOME. 1 = everything before J2 (it was never written on the wire);
@@ -391,6 +393,7 @@ export interface Transport {
   send(bytes: Uint8Array, reliable: boolean): void;
   onMessage(cb: (bytes: Uint8Array) => void): void;
   flush?(): void; // only in-memory transports need it
+  buffered?(): number; // bytes accepted by send() that have not left yet (the browser's WebSocket says it); the shared screen drops frames over a limit
   readonly sentBytes: number;
 }
 
@@ -595,6 +598,7 @@ export function webSocketClient(url: string): Transport & { opened: Promise<void
     opened: new Promise<void>((ok, ko) => { ws.addEventListener("open", () => ok()); ws.addEventListener("error", () => ko(new Error(`cannot reach ${url}`))); }),
     closed: new Promise<{ code: number; reason: string }>((ok) => ws.addEventListener("close", (ev) => ok({ code: ev.code, reason: ev.reason }))),
     send(bytes: Uint8Array) { if (ws.readyState === 1) { ws.send(bytes); t.sentBytes += bytes.length; } },
+    buffered: () => ws.bufferedAmount,
     onMessage(f: (b: Uint8Array) => void) { cb = f; for (const b of espera.splice(0)) f(b); },
     close() { ws.close(); },
   };

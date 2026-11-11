@@ -8,8 +8,9 @@
 // moment its source exists. The three skill slots under the HUD (#habilidades) are combate.ts too.
 // Only the name (session.who.nombre) is real today. Redraws once a second, touching the DOM only when something changed; no live region.
 // Rediseño v2 (B): your portrait on the left — the bust render of the avatar you wear (tu-logica.ts; the house silhouette for an
-// upload); the whole card is the button that opens «Tú» (I) (ux2-barra).
+// upload); the whole card is the button that opens «Tú» (C, keymap v1) (ux2-barra).
 import { icono } from "./iconos.ts";
+import { tx, ligar } from "../../packages/feature/src/idioma.ts";
 import { ESCALERA } from "./ficha.ts";
 import { retratoDe } from "./tu-logica.ts";
 
@@ -39,7 +40,7 @@ export function leerHud(f: Fuentes): Vista {
   let aliento: Vista["aliento"] = null;
   const a = f.aliento?.actual?.();
   if (num(a)) aliento = { pct: Math.min(100, Math.max(0, Math.round(a))) };
-  return { nombre: (f.nombre ?? "").trim() || "Tú", estado, carga, aliento };
+  return { nombre: (f.nombre ?? "").trim() || tx("You", "Tú"), estado, carga, aliento };
 }
 /** Colour of an Estado step: unlit above the current one; amber for the first two steps, red for the last two. */
 export const claseDePaso = (k: number, actual: number): string => (k > actual ? "" : k <= 1 ? "w" : "r");
@@ -49,9 +50,9 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", texto = "")
 export function montarHudPersonaje(): void {
   const raiz = document.getElementById("hud-personaje");
   if (!raiz) return;
-  raiz.setAttribute("aria-label", "Tu personaje");
+  ligar(raiz, "aria-label", "Your character", "Tu personaje");
   raiz.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
-  // ux2-barra: the whole card is the button of your sheet (I) — a real <button> laid over it (index.html), kept on every
+  // ux2-barra: the whole card is the button of your sheet (C) — a real <button> laid over it (index.html), kept on every
   // repaint; main.ts hands it to the sheet's dialog, so the card opens and closes it and the focus comes back to it
   const abrir = raiz.querySelector<HTMLButtonElement>("#hud-personaje-abrir");
   if (abrir) abrir.addEventListener("click", (e) => { if (e.detail > 0) abrir.blur(); }); // a mouse click leaves no focus (Space jumps)
@@ -83,7 +84,7 @@ export function montarHudPersonaje(): void {
     // Estado (only when the page receives it)
     const est = el("div", "hp-estado"), tit = el("div", "hp-fila"), nom = el("span", "hp-etq", "Estado");
     tit.append(nom);
-    const ol = el("ol", "hp-pasos"); ol.setAttribute("aria-label", "Escalera del estado");
+    const ol = el("ol", "hp-pasos"); ol.setAttribute("aria-label", tx("Status ladder", "Escalera del estado"));
     ESCALERA.forEach((n, k) => { const li = el("li", v.estado !== null ? claseDePaso(k, v.estado) : ""); li.title = n; li.setAttribute("aria-label", n); if (k === v.estado) li.setAttribute("aria-current", "step"); ol.appendChild(li); });
     if (v.estado !== null) tit.append(el("span", v.estado < 0 ? "hp-val ok" : "hp-val aviso", v.estado < 0 ? "Estable" : ESCALERA[v.estado]));
     est.append(tit, ol);
@@ -98,8 +99,8 @@ export function montarHudPersonaje(): void {
       b.append(fila, tr); return [b];
     };
     cuerpo.replaceChildren(cab, ...(v.estado !== null ? [est] : []),
-      ...barra("carga", "Carga", "lightning", v.carga, v.carga ? `${v.carga.valor} / ${v.carga.max}` : ""),
-      ...barra("aliento", "Aliento del Velo", "moon-stars", v.aliento, v.aliento ? `${v.aliento.pct} %` : ""));
+      ...barra("carga", tx("Charge", "Carga"), "lightning", v.carga, v.carga ? `${v.carga.valor} / ${v.carga.max}` : ""),
+      ...barra("aliento", tx("Breath of the Veil", "Aliento del Velo"), "moon-stars", v.aliento, v.aliento ? `${v.aliento.pct} %` : ""));
     if (raiz.children.length !== (abrir ? 3 : 2) || !raiz.contains(retrato)) raiz.replaceChildren(...(abrir ? [abrir] : []), retrato, cuerpo);
     raiz.hidden = false;
   };

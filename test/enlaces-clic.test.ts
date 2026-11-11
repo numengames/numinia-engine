@@ -6,20 +6,20 @@ import assert from "node:assert/strict";
 import { enlaceAbrible, montarEnlaces, preguntaEnlace } from "../apps/plaza/enlaces.ts";
 import { montarXR } from "../apps/plaza/xr.ts";
 
-function pagina(opts: { enlaces?: Record<string, string>; construyendo?: boolean; dice?: boolean } = {}) {
+function pagina(opts: { enlaces?: Record<string, string>; construyendo?: boolean; dice?: boolean; costePick?: number } = {}) {
   const abiertas: string[] = [], preguntas: string[] = [];
   const oyentes: Record<string, (e: unknown) => void> = {};
   const lienzo = { style: { cursor: "" }, addEventListener: (t: string, f: (e: unknown) => void) => { oyentes[t] = f; } } as unknown as HTMLElement;
-  let encima: string | null = null;
+  let encima: string | null = null, reloj = 0, picks = 0;
   const st = { construyendo: opts.construyendo ?? false };
   const e = montarEnlaces({
     constructor: { objeto: (id) => (id in (opts.enlaces ?? {}) || id === "sin" ? { id, enlace: opts.enlaces?.[id] } : null) },
-    view: { renderer: { domElement: lienzo }, pickThing: () => encima },
+    view: { renderer: { domElement: lienzo }, pickThing: () => { picks++; reloj += opts.costePick ?? 0; return encima; } }, ahora: () => reloj,
     construyendo: () => st.construyendo,
     confirmar: (t) => { preguntas.push(t); return opts.dice ?? true; },
     abrir: (u) => { abiertas.push(u); },
   });
-  return { e, abiertas, preguntas, lienzo, st, mover: (k: string | null) => { encima = k; oyentes.pointermove({ clientX: 1, clientY: 1 }); }, salir: () => oyentes.pointerleave({}) };
+  return { e, abiertas, preguntas, lienzo, st, picks: () => picks, pasar: (ms: number) => { reloj += ms; }, mover: (k: string | null, buttons = 0) => { encima = k; oyentes.pointermove({ clientX: 1, clientY: 1, buttons }); }, salir: () => oyentes.pointerleave({}) };
 }
 
 test("a click on a thing with a link asks first (the whole address) and opens it in a new tab only on «sí»", () => {
@@ -59,6 +59,15 @@ test("the cursor is a hand only over a thing with a link, while playing, and goe
   p.st.construyendo = false; p.mover("cartel"); p.salir(); assert.equal(p.lienzo.style.cursor, "");
 });
 
+test("hover pick (47 ms on the Symposium world): never while a button is held, and spaced by its own cost", () => {
+  const p = pagina({ enlaces: { cartel: "https://numinia.com" }, costePick: 40 });
+  p.mover("cartel", 2); p.mover("cartel", 1); assert.equal(p.picks(), 0, "dragging the camera: no raycast at all");
+  assert.equal(p.lienzo.style.cursor, "");
+  p.mover("cartel"); assert.equal(p.picks(), 1); assert.equal(p.lienzo.style.cursor, "pointer");
+  for (let i = 0; i < 20; i++) p.mover("cartel"); assert.equal(p.picks(), 1, "a pointermove per frame cannot pick per frame: the next waits 8x its cost");
+  p.pasar(8 * 40); p.mover("cartel"); assert.equal(p.picks(), 2, "after the wait it picks again");
+});
+
 // ── VR: the ray points at it, a panel asks, only «Abrir» opens ────────────────────────────────────────────────────
 function vr(enlaces: Record<string, string>) {
   const p = pagina({ enlaces });
@@ -79,7 +88,7 @@ test("VR: the ray can point at a thing with a link and at nothing else plain; th
   assert.equal(v.apuntable("cartel"), true); assert.equal(v.apuntable("sin"), false); assert.equal(v.apuntable("otro"), false);
   v.apuntar("cartel");
   assert.equal(v.paneles.length, 1);
-  assert.match(v.paneles[0]!.texto, /https:\/\/numinia\.com\/mundo/); assert.deepEqual(v.paneles[0]!.opciones, ["Abrir", "Ahora no"]);
+  assert.match(v.paneles[0]!.texto, /https:\/\/numinia\.com\/mundo/); assert.deepEqual(v.paneles[0]!.opciones, ["Open", "Not now"]);
   assert.deepEqual(v.p.abiertas, [], "pointing and pulling the trigger does not open it by itself");
   assert.deepEqual(v.usos, [], "and it is not sent to the server as a use");
 });

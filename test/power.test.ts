@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createPower, checkCost } from "../packages/render/src/power.ts";
+import { createPower, checkCost, isMobileClass } from "../packages/render/src/power.ts";
+import { nivelDe } from "../packages/render/src/calidad.ts";
 
 const phone = { coarsePointer: true, saveData: false, deviceMemoryGB: 4, dpr: 3 };
 const desk = { coarsePointer: false, saveData: false, deviceMemoryGB: 16, dpr: 2 };
@@ -153,4 +154,21 @@ test("B4: quality or battery change restarts the measure; ceiling resets with qu
   assert.equal(correr(p, quieto(3000, 14)).cambios.length, 0, "the window restarted");
   p.setCalidad("alta");
   assert.equal(p.stats.techo, 1);
+});
+
+// QA Simposio 2026-11-11: browsers cap navigator.deviceMemory at 2-4 GB, so memory alone must not make a desktop phone-class
+test("a fine pointer is a desktop whatever deviceMemory says; only a coarse pointer is phone-class", () => {
+  const base = { saveData: false, dpr: 1 };
+  assert.equal(isMobileClass({ ...base, coarsePointer: false, deviceMemoryGB: 2 }), false);
+  assert.equal(isMobileClass({ ...base, coarsePointer: false, deviceMemoryGB: 4 }), false);
+  assert.equal(isMobileClass({ ...base, coarsePointer: true, deviceMemoryGB: 8 }), true);
+  assert.equal(createPower({ ...base, coarsePointer: false, deviceMemoryGB: 2 }).mobile, false);
+});
+
+test("quality tier: a desktop reporting 2 GB is still tier A; a phone with 2 GB is D; save-data is D anywhere", () => {
+  assert.equal(nivelDe({ mobile: false, deviceMemoryGB: 2 }), "A");
+  assert.equal(nivelDe({ mobile: true, deviceMemoryGB: 2 }), "D");
+  assert.equal(nivelDe({ mobile: true, deviceMemoryGB: 6 }), "C");
+  assert.equal(nivelDe({ mobile: false, saveData: true }), "D");
+  assert.equal(nivelDe({ mobile: false, deviceMemoryGB: 2, xr: true }), "B");
 });

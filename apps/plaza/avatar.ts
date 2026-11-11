@@ -30,7 +30,9 @@ export type OpcionesAvatar = {
   billete: () => string | null; // the guest token the page keeps (localStorage numinia.invitado)
 };
 
-const CSS = `
+import { tx, ligar } from "../../packages/feature/src/idioma.ts";
+
+const CSS = ` // i18n-ok: CSS, not text
 #avatar-panel { position: fixed; top: 46px; right: 10px; z-index: 9; background: rgba(20, 24, 30, .92); color: #eef2f6;
   border-radius: 10px; padding: 10px; width: 230px; display: none; }
 #avatar-panel.abierto { display: block; }
@@ -52,7 +54,7 @@ const huella = async (b: Uint8Array): Promise<string> => {
 
 export function montarAvatar(o: OpcionesAvatar) {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
-  const panel = document.createElement("div"); panel.id = "avatar-panel"; panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", "Elegir avatar");
+  const panel = document.createElement("div"); panel.id = "avatar-panel"; panel.setAttribute("role", "dialog"); ligar(panel, "aria-label", "Choose avatar", "Elegir avatar");
   const estado = document.createElement("p"); estado.id = "avatar-estado"; estado.setAttribute("role", "status"); estado.setAttribute("aria-live", "polite");
   const decir = (t: string) => { estado.textContent = t; };
 
@@ -63,7 +65,8 @@ export function montarAvatar(o: OpcionesAvatar) {
   function indiceDe(sha: string, ext: string): number {
     const k = `${sha}.${ext}`;
     let i = subidos.get(k);
-    if (i === undefined) { i = casas.length + subidos.size; subidos.set(k, i); casas.push({ nombre: delMundo.get(k)?.nombre ?? "Avatar subido", url: `${o.origen}/a/${sha}.${ext}` }); }
+    if (i === undefined) { i = casas.length; subidos.set(k, i); // casas already holds every earlier upload: adding subidos.size counted them twice (2nd pick = out of range)
+      casas.push({ nombre: delMundo.get(k)?.nombre ?? tx("Uploaded avatar", "Avatar subido"), url: `${o.origen}/a/${sha}.${ext}` }); }
     return i;
   }
 
@@ -71,7 +74,7 @@ export function montarAvatar(o: OpcionesAvatar) {
     const b = document.createElement("button"); b.type = "button"; b.textContent = m.nombre;
     b.addEventListener("click", () => {
       const r = o.session.features.send("avatar", "elegir", { tipo: "casa", modelo: i, sha: "", ext: "" });
-      decir(r.ok ? `Avatar: ${m.nombre}.` : `No se pudo: ${r.why}`);
+      decir(r.ok ? tx(`Avatar: ${m.nombre}.`, `Avatar: ${m.nombre}.`) : tx(`Could not: ${r.why}`, `No se pudo: ${r.why}`));
     });
     panel.appendChild(b);
   }
@@ -80,7 +83,7 @@ export function montarAvatar(o: OpcionesAvatar) {
   // Choosing one is the same choice as an upload (avatar.elegir tipo «subido», the file is already on this server): no new intent,
   // nothing new in the shared state, and another world's picker never lists them (only this server's /status does).
   if (delMundo.size) {
-    const t = document.createElement("h3"); t.textContent = "De este mundo"; panel.appendChild(t);
+    const t = document.createElement("h3"); ligar(t, "textContent", "From this world", "De este mundo"); panel.appendChild(t);
     for (const a of delMundo.values()) {
       const b = document.createElement("button"); b.type = "button"; b.className = "avatar-mundo";
       if (a.miniatura) { const im = document.createElement("img"); im.src = a.miniatura; im.alt = ""; im.loading = "lazy"; b.appendChild(im); }
@@ -88,7 +91,7 @@ export function montarAvatar(o: OpcionesAvatar) {
       b.addEventListener("click", () => {
         indiceDe(a.sha256, "vrm");
         const r = o.session.features.send("avatar", "elegir", { tipo: "subido", modelo: 0, sha: a.sha256, ext: "vrm" });
-        decir(r.ok ? `Avatar: ${a.nombre}.` : `No se pudo: ${r.why}`);
+        decir(r.ok ? tx(`Avatar: ${a.nombre}.`, `Avatar: ${a.nombre}.`) : tx(`Could not: ${r.why}`, `No se pudo: ${r.why}`));
       });
       const c = document.createElement("p"); c.className = "avatar-credito";
       const lic = a.licencia === "CC0" ? "CC0" : "CC BY 4.0";
@@ -100,8 +103,8 @@ export function montarAvatar(o: OpcionesAvatar) {
 
   const entrada = document.createElement("input");
   entrada.type = "file"; entrada.accept = ".vrm"; entrada.hidden = true;
-  const subirBtn = document.createElement("button"); subirBtn.type = "button"; subirBtn.textContent = "Subir tu .vrm…";
-  subirBtn.title = `CC0 (de ti o libre de derechos) y como mucho 10.000 triángulos.`;
+  const subirBtn = document.createElement("button"); subirBtn.type = "button"; ligar(subirBtn, "textContent", "Upload your .vrm…", "Subir tu .vrm…");
+  ligar(subirBtn, "title", "CC0 (yours or royalty-free) and at most 10,000 triangles.", "CC0 (de ti o libre de derechos) y como mucho 10.000 triángulos.");
   subirBtn.addEventListener("click", () => entrada.click());
   entrada.addEventListener("change", () => {
     const file = entrada.files?.[0]; entrada.value = "";
@@ -110,29 +113,29 @@ export function montarAvatar(o: OpcionesAvatar) {
 
   async function subirVrm(file: File): Promise<void> {
     const billete = o.billete();
-    if (!billete) return decir("Aún no sé quién eres: espera un segundo y vuelve a probar.");
-    decir(`Leyendo «${file.name}»…`);
+    if (!billete) return decir(tx("I don't know who you are yet: wait a second and try again.", "Aún no sé quién eres: espera un segundo y vuelve a probar."));
+    decir(tx(`Reading "${file.name}"…`, `Leyendo «${file.name}»…`));
     const bytes = new Uint8Array(await file.arrayBuffer());
     const valido = comprobarFichero("vrm", bytes);
-    if (!valido.ok) return decir(`No vale: ${valido.issues[0]?.message ?? "fichero roto"}.`);
+    if (!valido.ok) return decir(tx(`Not valid: ${valido.issues[0]?.message ?? "broken file"}.`, `No vale: ${valido.issues[0]?.message ?? "fichero roto"}.`));
     const info = infoVrm(bytes);
-    if (!info.ok) return decir(`No es un VRM: ${info.issues[0]?.message ?? "fichero roto"}.`);
+    if (!info.ok) return decir(tx(`Not a VRM: ${info.issues[0]?.message ?? "broken file"}.`, `No es un VRM: ${info.issues[0]?.message ?? "fichero roto"}.`));
     const problemas = revisarAvatar(info.value);
     if (problemas.length) return decir(problemas[0].message);
     const sha = await huella(bytes), url = `${o.origen}/a/${sha}.vrm`;
-    decir("Comprobando si ya está en el servidor…");
+    decir(tx("Checking whether it is already on the server…", "Comprobando si ya está en el servidor…"));
     const ya = await fetch(url, { method: "HEAD", cache: "no-store" }).then((r) => r.status === 200, () => false);
     if (!ya) {
-      decir(`Subiendo «${file.name}»…`);
+      decir(tx(`Uploading "${file.name}"…`, `Subiendo «${file.name}»…`));
       const r = await fetch(url, { method: "PUT", headers: { authorization: `Bearer ${billete}`, "content-type": "model/gltf-binary" }, body: bytes });
       if (r.status !== 200 && r.status !== 201) {
         let m = ""; try { m = String((await r.json()).error ?? ""); } catch { /* not JSON */ }
-        return decir(`No se pudo subir: ${m || `el servidor dijo ${r.status}`}.`);
+        return decir(tx(`Could not upload: ${m || `the server said ${r.status}`}.`, `No se pudo subir: ${m || `el servidor dijo ${r.status}`}.`));
       }
     }
     indiceDe(sha, "vrm"); // avatares.ts draws it from the same catalogue the house avatars are in
     const r = o.session.features.send("avatar", "elegir", { tipo: "subido", modelo: 0, sha, ext: "vrm" });
-    decir(r.ok ? `Avatar: tu .vrm (${info.value.triangulos} triángulos).` : `No se pudo: ${r.why}`);
+    decir(r.ok ? tx(`Avatar: your .vrm (${info.value.triangulos} triangles).`, `Avatar: tu .vrm (${info.value.triangulos} triángulos).`) : tx(`Could not: ${r.why}`, `No se pudo: ${r.why}`));
   }
   panel.append(subirBtn, entrada, estado);
 

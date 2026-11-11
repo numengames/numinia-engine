@@ -8,6 +8,7 @@
 // c6 (a layer went up a version): whoever had accepted the old one sees ONLY what the server marked in `capa.cambios` (new points, points
 // whose text changed, the removed ones in a line) and nothing else is asked again; the data permissions already given for points that did
 // not change stay given (they are carried in ACEPTAR: `conservados`), the new and the changed ones are offered with their box EMPTY.
+import { tx } from "../../packages/feature/src/idioma.ts";
 import type { CondicionesAceptado, CondicionesCapa, CondicionesMensaje, CondicionesPunto } from "../../packages/net/src/index.ts";
 
 export type Etiqueta = "nuevo" | "cambiado";
@@ -17,19 +18,20 @@ export type PasoCapa = { tipo: "capa"; capa: string; nombre: string; /** the fil
 export type PasoDatos = { tipo: "datos"; permisos: { capa: string; punto: CondicionesPunto; etiqueta?: Etiqueta }[]; /** c6: the person is back and these are the new/changed ones only */ vuelve?: boolean };
 export type Paso = PasoCapa | PasoDatos;
 
-export const TITULO_CAMBIOS = "Han cambiado las normas";
-export const SUBTITULO_CAMBIOS = "Ya aceptaste las anteriores; solo te enseñamos lo que ha cambiado.";
-export const ETIQUETAS: Record<Etiqueta, string> = { nuevo: "NUEVO", cambiado: "CAMBIADO" };
-export const NOTA_DATOS_VUELVE = "Lo que ya permitiste y no ha cambiado sigue como estaba. Ninguna casilla nueva sale marcada.";
+export const tituloCambios = (): string => tx("The rules have changed", "Han cambiado las normas");
+export const subtituloCambios = (): string => tx("You already accepted the earlier ones; we only show what changed.", "Ya aceptaste las anteriores; solo te enseñamos lo que ha cambiado.");
+/** Read when the page is drawn: each label answers in the language of that moment. */
+export const ETIQUETAS: Record<Etiqueta, string> = { get nuevo() { return tx("NEW", "NUEVO"); }, get cambiado() { return tx("CHANGED", "CAMBIADO"); } };
+export const notaDatosVuelve = (): string => tx("What you already allowed and has not changed stays as it was. No new box comes ticked.", "Lo que ya permitiste y no ha cambiado sigue como estaba. Ninguna casilla nueva sale marcada.");
 /** «v1.0 → v1.1» */
 /** dardos enlazados (E2): what the bubble says when it is asked for another world's norms (the link); not accepting only means «no darts there». */
-export const SUBTITULO_ENLAZADA = "Para jugar a sus dardos desde tu pared tienes que aceptarlas. Si no las aceptas no pasa nada: sigues en este mundo.";
-export const flechaVersion = (desde: string, ahora: string): string => `v${desde} → v${ahora}`;
+export const subtituloEnlazada = (): string => tx("To play their darts from your wall you have to accept them. If you don't, nothing happens: you stay in this world.", "Para jugar a sus dardos desde tu pared tienes que aceptarlas. Si no las aceptas no pasa nada: sigues en este mundo.");
+export const flechaVersion = (desde: string, ahora: string): string => `v${desde} → v${ahora}`; // i18n-ok: a version arrow, no words
 /** The box of a returning layer: «Acepto la versión 1.1 de las normas de Numen Games». */
 export const rotuloAcepto = (p: Pick<PasoCapa, "capa" | "propio" | "version">): string =>
-  `Acepto la versión ${p.version} de las normas de ${p.propio ?? (p.capa === "casa" ? "la casa" : "la comunidad")}`;
+  tx(`I accept version ${p.version} of the rules of ${p.propio ?? (p.capa === "casa" ? "the house" : "the community")}`, `Acepto la versión ${p.version} de las normas de ${p.propio ?? (p.capa === "casa" ? "la casa" : "la comunidad")}`);
 /** The line of a removed point: its old title (when the server kept it) and «ya no está». */
-export const lineaQuitado = (q: { id: string; titulo: string | null }): { tachado: string; nota: string } => ({ tachado: q.titulo ?? q.id, nota: "ya no está" });
+export const lineaQuitado = (q: { id: string; titulo: string | null }): { tachado: string; nota: string } => ({ tachado: q.titulo ?? q.id, nota: tx("no longer there", "ya no está") });
 /** Is this plan the one of a person who comes back (some layer carries `cambios`)? */
 export const esVuelta = (pasos: Paso[]): boolean => pasos.some((p) => p.tipo === "capa" && !!p.cambios);
 
@@ -39,7 +41,7 @@ export const pideBurbuja = (m: CondicionesMensaje | null | undefined): boolean =
 /** What a layer is called in the steps: its own `nombre` from condiciones.json, or a plain word («La casa», «La comunidad»: the engine has no brand). */
 export function nombreDeCapa(c: Pick<CondicionesCapa, "capa" | "nombre">): string {
   const n = c.nombre?.trim();
-  return n ? n : c.capa === "casa" ? "La casa" : c.capa === "comunidad" ? "La comunidad" : c.capa;
+  return n ? n : c.capa === "casa" ? tx("The house", "La casa") : c.capa === "comunidad" ? tx("The community", "La comunidad") : c.capa;
 }
 
 /** The steps: one page per layer that has norms (house first, then the community), then «Tus datos» when any layer has data points.
@@ -114,8 +116,8 @@ export function aceptacion(pasos: Paso[], m: Marcas, modo: "marcadas" | "todo" |
 export const todoMarcado = (pasos: Paso[], m: Marcas): boolean => pasos.every((p) => puedeSeguir(p, m));
 
 /** The label of the first of the two buttons: without optional data, unless the person ticked some (then it says what it will do). */
-export const rotuloSinOpcional = (marcadas: number): string => (marcadas > 0 ? "Entrar con lo que he marcado" : "Entrar sin lo opcional");
-export const ROTULO_TODO = "Aceptar todo y entrar";
+export const rotuloSinOpcional = (marcadas: number): string => (marcadas > 0 ? tx("Enter with what I ticked", "Entrar con lo que he marcado") : tx("Enter without the optional", "Entrar sin lo opcional"));
+export const rotuloTodo = (): string => tx("Accept all and enter", "Aceptar todo y entrar");
 
 /** The share of the text read, 0–100, from a scrollable box's geometry. A box that fits whole is read. */
 export function porcentajeLeido(scrollTop: number, clientHeight: number, scrollHeight: number): number {
@@ -129,22 +131,23 @@ export function porcentajeLeido(scrollTop: number, clientHeight: number, scrollH
 
 /** The three texts above a step: the small line, the title and the one-line explanation. `mundo` is the world's name ('' = none). */
 export function textosDePaso(p: Paso, capas: CondicionesCapa[], mundo: string, enlazada = false): { eyebrow: string; titulo: string; subtitulo: string } {
-  const eyebrow = p.tipo === "capa" && p.cambios ? `${p.nombre} · ${flechaVersion(p.cambios.desde, p.version)}` : mundo ? `Antes de entrar · ${mundo}` : "Antes de entrar";
-  if (p.tipo === "capa" && p.cambios) return { eyebrow, titulo: TITULO_CAMBIOS, subtitulo: SUBTITULO_CAMBIOS };
-  if (p.tipo === "datos") return { eyebrow, titulo: "Lo que tú eliges", subtitulo: "Esto es opcional: entras igual digas sí o no. Ninguna casilla sale marcada." };
+  const eyebrow = p.tipo === "capa" && p.cambios ? `${p.nombre} · ${flechaVersion(p.cambios.desde, p.version)}` /* i18n-ok: name and version */ : mundo ? tx(`Before you enter · ${mundo}`, `Antes de entrar · ${mundo}`) : tx("Before you enter", "Antes de entrar");
+  if (p.tipo === "capa" && p.cambios) return { eyebrow, titulo: tituloCambios(), subtitulo: subtituloCambios() };
+  if (p.tipo === "datos") return { eyebrow, titulo: tx("What you choose", "Lo que tú eliges"), subtitulo: tx("This is optional: you get in either way, yes or no. No box comes ticked.", "Esto es opcional: entras igual digas sí o no. Ninguna casilla sale marcada.") };
   if (enlazada) { // dardos enlazados (E2): the norms of ANOTHER world, asked on the flat page before AR; saying no costs nothing here
     const propio = p.capa === "casa" ? null : capas.find((c) => c.capa === p.capa)?.nombre;
-    return { eyebrow, titulo: p.capa === "casa" ? `Las normas de ${mundo || "ese mundo"}` : propio ? `Las normas de ${propio}` : "Las normas de la comunidad", subtitulo: SUBTITULO_ENLAZADA };
+    return { eyebrow, titulo: p.capa === "casa" ? tx(`The rules of ${mundo || "that world"}`, `Las normas de ${mundo || "ese mundo"}`) : propio ? tx(`The rules of ${propio}`, `Las normas de ${propio}`) : tx("The community rules", "Las normas de la comunidad"), subtitulo: subtituloEnlazada() };
   }
-  if (p.capa === "casa") return { eyebrow, titulo: "Las normas de este sitio", subtitulo: "Mientras no aceptes estás en esta burbuja: ves el mundo, pero nadie te oye y no puedes tocar nada." };
+  if (p.capa === "casa") return { eyebrow, titulo: tx("The rules of this place", "Las normas de este sitio"), subtitulo: tx("Until you accept you are in this bubble: you see the world, but no one hears you and you can't touch anything.", "Mientras no aceptes estás en esta burbuja: ves el mundo, pero nadie te oye y no puedes tocar nada.") };
   const propio = capas.find((c) => c.capa === p.capa)?.nombre;
-  return { eyebrow, titulo: propio ? `Las normas de ${propio}` : "Las normas de la comunidad", subtitulo: `${propio ?? "La comunidad"} añade estas normas a las anteriores. No pueden quitar nada de ellas.` };
+  return { eyebrow, titulo: propio ? tx(`The rules of ${propio}`, `Las normas de ${propio}`) : tx("The community rules", "Las normas de la comunidad"), subtitulo: tx(`${propio ?? "The community"} adds these rules to the earlier ones. They cannot remove anything from them.`, `${propio ?? "La comunidad"} añade estas normas a las anteriores. No pueden quitar nada de ellas.`) };
 }
 
 /** The label of the box that accepts a layer's norms («He leído y acepto las normas», or the returning layer's «Acepto la versión 1.1…»). */
 export function rotuloNormas(p: PasoCapa, capas: CondicionesCapa[]): string {
   if (p.cambios) return rotuloAcepto(p);
-  return `He leído y acepto las normas${p.capa === "casa" ? "" : ` de ${capas.find((x) => x.capa === p.capa)?.nombre ?? "la comunidad"}`}`;
+  const de = p.capa === "casa" ? "" : capas.find((x) => x.capa === p.capa)?.nombre ?? tx("the community", "la comunidad");
+  return tx(`I have read and accept the rules${de ? ` of ${de}` : ""}`, `He leído y acepto las normas${de ? ` de ${de}` : ""}`);
 }
 
 export type BotonPie = { id: "atras" | "salir" | "siguiente" | "sin-opcional" | "todo" | "aceptar"; texto: string; /** the filled style (the two decisions share it) */ prim: boolean; decision: boolean; desactivado: boolean };
@@ -155,13 +158,13 @@ export function botonesDePie(pasos: Paso[], i: number, m: Marcas, ocupado = fals
   if (!p) return [];
   const out: BotonPie[] = [];
   const b = (id: BotonPie["id"], texto: string, prim: boolean, decision: boolean, desactivado: boolean): void => { out.push({ id, texto, prim, decision, desactivado: desactivado || ocupado }); };
-  if (i > 0) b("atras", "← Atrás", false, false, false);
-  b("salir", "Salir", false, false, false);
+  if (i > 0) b("atras", tx("← Back", "← Atrás"), false, false, false);
+  b("salir", tx("Leave", "Salir"), false, false, false);
   const vuelta = esVuelta(pasos);
-  if (!esUltimo(pasos, i)) b("siguiente", "Siguiente →", true, false, !puedeSeguir(p, m));
+  if (!esUltimo(pasos, i)) b("siguiente", tx("Next →", "Siguiente →"), true, false, !puedeSeguir(p, m));
   else if (pasos.some((x) => x.tipo === "datos") && p.tipo === "datos") {
     b("sin-opcional", rotuloSinOpcional(m.datos.size), true, true, !todoMarcado(pasos, m));
-    b("todo", ROTULO_TODO, true, true, !todoMarcado(pasos, m));
-  } else b("aceptar", vuelta ? "Acepto y entro" : "Aceptar y entrar", true, false, !puedeSeguir(p, m));
+    b("todo", rotuloTodo(), true, true, !todoMarcado(pasos, m));
+  } else b("aceptar", vuelta ? tx("I accept and enter", "Acepto y entro") : tx("Accept and enter", "Aceptar y entrar"), true, false, !puedeSeguir(p, m));
   return out;
 }

@@ -8,8 +8,9 @@
 //     on the flat panel (the pager only moves through the text: pages never gate anything — the law is in the box).
 // `medir` is the real width of a piece of text (the panel's canvas); here a fake one is enough to test the paging.
 import type { CondicionesCapa } from "../../packages/net/src/index.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 import {
-  botonesDePie, ETIQUETAS, flechaVersion, lineaQuitado, NOTA_DATOS_VUELVE, rotuloNormas, textosDePaso, esVuelta,
+  botonesDePie, ETIQUETAS, flechaVersion, lineaQuitado, notaDatosVuelve, rotuloNormas, textosDePaso, esVuelta,
 } from "./condiciones-logica.ts";
 import type { Marcas, Paso, PasoCapa, PasoDatos } from "./condiciones-logica.ts";
 import {
@@ -61,13 +62,13 @@ function paginasDeCambios(p: PasoCapa, medir: Medir): PaginaVR[] {
   for (const n of p.normas) {
     const etq = cb.etiquetas[n.id] ?? "nuevo", antes = cb.antes[n.id];
     const b = lineasDe(n.titulo, etq === "nuevo" ? "nuevo" : "cambiado", medir, ETIQUETAS[etq]);
-    if (etq === "cambiado" && antes && antes !== n.titulo) b.push(...lineasDe(`Antes: ${antes}`, "antes", medir));
+    if (etq === "cambiado" && antes && antes !== n.titulo) b.push(...lineasDe(tx(`Before: ${antes}`, `Antes: ${antes}`), "antes", medir));
     bloques.push(b);
   }
   for (const q of cb.quitados) { const l = lineaQuitado(q); bloques.push(lineasDe(`${l.tachado} — ${l.nota}`, "quitado", medir)); }
   if (!bloques.length) {
     const otros = Object.keys(cb.etiquetas).length > 0;
-    bloques.push(lineasDe(otros ? "Las normas son las mismas. Lo que cambia son permisos opcionales: están en el paso siguiente." : "Las normas son las mismas: solo ha cambiado el número de versión.", "nota", medir));
+    bloques.push(lineasDe(otros ? tx("The rules are the same. What changes are optional permissions: they are in the next step.", "Las normas son las mismas. Lo que cambia son permisos opcionales: están en el paso siguiente.") : tx("The rules are the same: only the version number has changed.", "Las normas son las mismas: solo ha cambiado el número de versión."), "nota", medir));
   }
   const texto = p.normas.flatMap((n) => paginasDeTexto(n.titulo, n.texto, medir));
   return [...trocearBloques(bloques).map((lineas) => ({ lineas, datos: [] as number[] })), ...texto.map((lineas, k) => ({ lineas, datos: [] as number[], ...(k === 0 ? { textoEntero: true } : {}) }))];
@@ -93,8 +94,9 @@ export function crearPaginador(medir: Medir) {
 
 /** The small line, short enough for one line in big letters (the world's name is on the flat panel; here: «Antes de entrar · 1 de 3 · La Plaza»). */
 export function eyebrow(p: Paso, plano: string, i: number, n: number): string {
-  if (p.tipo === "capa" && p.cambios) return n > 1 ? `${plano} · ${i + 1} de ${n}` : plano; // c6: «La Plaza · v1.0 → v1.1»
-  return ["Antes de entrar", ...(n > 1 ? [`${i + 1} de ${n}`] : []), ...(p.tipo === "capa" ? [p.nombre] : [])].join(" · ");
+  const de = (k: number) => tx(`${k + 1} of ${n}`, `${k + 1} de ${n}`);
+  if (p.tipo === "capa" && p.cambios) return n > 1 ? `${plano} · ${de(i)}` : plano; // c6: «La Plaza · v1.0 → v1.1»
+  return [tx("Before you enter", "Antes de entrar"), ...(n > 1 ? [de(i)] : []), ...(p.tipo === "capa" ? [p.nombre] : [])].join(" · ");
 }
 
 export type EntradaModelo = {
@@ -106,8 +108,8 @@ export type EntradaModelo = {
 export function notaDePaginas(paginas: PaginaVR[], pagina: number): string {
   if (paginas.length <= 1) return "";
   const aparte = paginas.findIndex((x) => x.textoEntero);
-  if (pagina === 0 && aparte > 0) return `Texto entero: ${paginas.length - aparte} página${paginas.length - aparte === 1 ? "" : "s"} más`;
-  return `Página ${pagina + 1} de ${paginas.length}`;
+  if (pagina === 0 && aparte > 0) { const k = paginas.length - aparte; return tx(`Full text: ${k} more page${k === 1 ? "" : "s"}`, `Texto entero: ${k} página${k === 1 ? "" : "s"} más`); }
+  return tx(`Page ${pagina + 1} of ${paginas.length}`, `Página ${pagina + 1} de ${paginas.length}`);
 }
 
 /** Everything the panel draws for step `i`, page `pagina` (clamped), from the same state the flat panel reads. */
@@ -118,14 +120,14 @@ export function modelo(e: EntradaModelo): ModeloVR | null {
   const t = textosDePaso(p, e.capas, e.mundo);
   const casillaNormas: CasillaVR | null = p.tipo === "capa" && p.exige ? { texto: rotuloNormas(p, e.capas), marcada: e.marcas.normas[p.capa] === true, obligatoria: true } : null;
   const casillasDatos: CasillaVR[] = p.tipo === "datos" ? pg.datos.map((k) => { const x = p.permisos[k]; return { texto: x.punto.titulo, detalle: x.punto.texto, marcada: e.marcas.datos.has(x.punto.id), ...(x.etiqueta ? { etiqueta: ETIQUETAS[x.etiqueta] } : {}) }; }) : [];
-  const versiones = e.pasos.filter((x): x is PasoCapa => x.tipo === "capa").map((x) => (x.cambios ? `${x.nombre} · ${flechaVersion(x.cambios.desde, x.version)}` : `${x.nombre} · v${x.version}`)).join("   ");
+  const versiones = e.pasos.filter((x): x is PasoCapa => x.tipo === "capa").map((x) => (x.cambios ? `${x.nombre} · ${flechaVersion(x.cambios.desde, x.version)}` : `${x.nombre} · v${x.version}`)).join("   "); // i18n-ok: version labels, names and a number only
   const ocupado = e.enviando || e.saliendo;
   return {
     eyebrow: eyebrow(p, t.eyebrow, e.i, e.pasos.length), titulo: t.titulo, subtitulo: t.subtitulo,
     lineas: pg.lineas, pagina, paginas: paginas.length, notaPaginas: notaDePaginas(paginas, pagina),
     casillaNormas, casillasDatos,
-    pie: p.tipo === "datos" && p.vuelve ? NOTA_DATOS_VUELVE : versiones,
-    botones: botonesDePie(e.pasos, e.i, e.marcas, ocupado).map((b) => ({ id: b.id, texto: b.id === "salir" && e.salirPide ? "¿Salir? Otra vez" : b.texto, prim: b.prim, desactivado: b.desactivado })),
+    pie: p.tipo === "datos" && p.vuelve ? notaDatosVuelve() : versiones,
+    botones: botonesDePie(e.pasos, e.i, e.marcas, ocupado).map((b) => ({ id: b.id, texto: b.id === "salir" && e.salirPide ? tx("Leave? Again", "¿Salir? Otra vez") : b.texto, prim: b.prim, desactivado: b.desactivado })),
     aviso: e.aviso, enviando: e.enviando,
   };
 }

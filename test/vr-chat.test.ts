@@ -94,6 +94,6 @@ test("panel: a notice and a long message paint without breaking; an empty chat s
 test("a phrase is sent with chat.decir(texto, «cerca»): the page's pace applies, a page that has not started refuses with a reason", () => {
   const reloj = { ms: 0 }, c = crearCliente(() => reloj.ms);
   const r = c.chat.decir(FRASES[0], "cerca");
-  assert.equal(r.ok, false); assert.match((r as { why: string }).why, /aún no ha arrancado/, "nothing sent without the session: the reason is shown as a note");
+  assert.equal(r.ok, false); assert.match((r as { why: string }).why, /has not started yet/, "nothing sent without the session: the reason is shown as a note");
   for (const f of FRASES) assert.ok(new TextEncoder().encode(f).length <= 200, `${f} fits the 200-byte limit`);
 });

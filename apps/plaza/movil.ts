@@ -6,12 +6,13 @@
 // the rules (verbs, glyphs, chat states, long press) are pure and tested: packages/client/src/movil.ts.
 import "./movil.css"; // U24: every rule is scoped to html[data-aparato^="movil"]
 import { icono } from "./iconos.ts";
+import { tx, ligar } from "../../packages/feature/src/idioma.ts";
 import { iconoDe, nombreDe } from "../../packages/render/src/menu-secciones.ts"; // v2 paridad: the same names and icons as the bar and the VR menu
 import { perfil } from "./perfil-aparato.ts";
 import { accionesVisibles, rotuloMas } from "./interfaz-mundo.ts"; // P7: a world may hide the gestures (P15: and Recoger / Soltar)
 import type { Ocultable } from "./interfaz-mundo.ts";
 import { anunciar } from "./paneles.ts";
-import { PULSACION_LARGA_MS, PULSACION_LARGA_TOLERANCIA, ZONA_SEGURA_SIMULADA, elegirAccion, entradasDelMenu, esPulsacionLarga, siguienteChat, ultimaLinea } from "../../packages/client/src/movil.ts";
+import { PULSACION_LARGA_MS, PULSACION_LARGA_TOLERANCIA, ZONA_SEGURA_SIMULADA, elegirAccion, promptVisible, entradasDelMenu, esPulsacionLarga, siguienteChat, ultimaLinea } from "../../packages/client/src/movil.ts";
 import type { Contexto, EstadoChat, Entrada } from "../../packages/client/src/movil.ts";
 
 type Accion = { id: string; label: string; describe?: string; feature?: string; run(): void };
@@ -34,6 +35,8 @@ type Opciones = {
   denunciar?: (l: { quien: string; texto: string }) => boolean;
 };
 
+/** The chat names your own lines «You» / «Tú» (chat.ts); either one is yours. */
+const esTuyo = (t: string): boolean => /^(Tú|You)/.test(t);
 const el = <T extends HTMLElement>(tag: string, o: { id?: string; clase?: string; texto?: string; html?: string; etiqueta?: string } = {}): T => {
   const e = document.createElement(tag) as T;
   if (o.id) e.id = o.id;
@@ -76,7 +79,7 @@ export function montarMovil(o: Opciones): void {
     accion.hidden = !ctx;
     if (!ctx) return;
     accionIc.innerHTML = icono(ctx.icono, 32); accionLbl.textContent = ctx.verbo;
-    accion.setAttribute("aria-label", ctx.tipo === "saltar" ? "Saltar" : `${ctx.verbo}: ${o.interaccion.actual()?.prompt ?? ""}`);
+    accion.setAttribute("aria-label", ctx.tipo === "saltar" ? tx("Jump", "Saltar") : `${ctx.verbo}: ${promptVisible(o.interaccion.actual()?.prompt ?? "")}`);
     accion.dataset.tipo = ctx.tipo;
   };
   // «Saltar» fires on pointerdown: with a finger already on the stick the browser may never send the click (measured:
@@ -108,7 +111,7 @@ export function montarMovil(o: Opciones): void {
       const b = botonDe(id); if (b) f.push({ id, etiqueta: nombreDe(sec), icono: iconoDe(sec), clic: () => b.click() });
     }
     f.push({ id: "ficha", etiqueta: nombreDe("tu"), icono: iconoDe("tu"), clic: () => document.getElementById("hud-personaje-abrir")?.click() }); // ux2-barra: the card's button («Tú»)
-    if (o.nombres) f.push({ id: "nombres", etiqueta: "Nombres", icono: "users", clic: () => o.nombres!.unRato() });
+    if (o.nombres) f.push({ id: "nombres", etiqueta: tx("Names", "Nombres"), icono: "users", clic: () => o.nombres!.unRato() });
     return f;
   };
   const cerrarMenu = () => { menu.hidden = true; ampliado = false; mas.setAttribute("aria-expanded", "false"); clearTimeout(tMenu); };
@@ -129,7 +132,8 @@ export function montarMovil(o: Opciones): void {
       });
       return b;
     });
-    const masB = el<HTMLButtonElement>("button", { id: "mas-mas", clase: "tocable", html: `${icono("dots-three", 24)}<span>${ampliado ? "menos" : "más"}</span>` });
+    const masTxt = ampliado ? tx("less", "menos") : tx("more", "más");
+    const masB = el<HTMLButtonElement>("button", { id: "mas-mas", clase: "tocable", html: `${icono("dots-three", 24)}<span>${masTxt}</span>` });
     masB.setAttribute("role", "menuitem");
     masB.addEventListener("click", () => { ampliado = !ampliado; pintarMenu(); reloj(); });
     const normales = botones.filter((b) => !b.classList.contains("extra"));
@@ -152,17 +156,19 @@ export function montarMovil(o: Opciones): void {
   const chat = porId("chat")!, lista = porId("chat-lista") as HTMLElement, form = porId("chat-form") as HTMLFormElement, texto = porId("chat-texto") as HTMLInputElement;
   const pill = el<HTMLButtonElement>("button", { id: "chat-pill", clase: "tocable" });
   const cab = el("div", { id: "chat-cab" });
-  const plegar = el<HTMLButtonElement>("button", { clase: "tocable", html: icono("caret-down", 22), etiqueta: "Plegar el chat a una línea" });
-  const ocultar = el<HTMLButtonElement>("button", { clase: "tocable", html: icono("x", 22), etiqueta: "Ocultar el chat" });
+  const plegar = el<HTMLButtonElement>("button", { clase: "tocable", html: icono("caret-down", 22) });
+  const ocultar = el<HTMLButtonElement>("button", { clase: "tocable", html: icono("x", 22) });
+  ligar(plegar, "aria-label", "Fold the chat to one line", "Plegar el chat a una línea"); ligar(ocultar, "aria-label", "Hide the chat", "Ocultar el chat");
   cab.append(el("h2", { texto: "Chat" }), plegar, ocultar);
-  const enviar = el<HTMLButtonElement>("button", { id: "chat-enviar", clase: "tocable", html: icono("paper-plane-right", 22), etiqueta: "Enviar" });
+  const enviar = el<HTMLButtonElement>("button", { id: "chat-enviar", clase: "tocable", html: icono("paper-plane-right", 22) });
+  ligar(enviar, "aria-label", "Send", "Enviar");
   form.appendChild(enviar);
   chat.prepend(cab); chat.appendChild(pill);
   porId("chat-boton")?.setAttribute("hidden", ""); // the pill replaces the «Chat» button
-  const ayudaChat = el("p", { id: "chat-ayuda", texto: "Mantén el dedo sobre un mensaje para denunciarlo." });
+  const ayudaChat = ligar(el("p", { id: "chat-ayuda" }), "textContent", "Hold your finger on a message to report it.", "Mantén el dedo sobre un mensaje para denunciarlo.");
   lista.after(ayudaChat);
   let estado: EstadoChat = "linea", sinLeer = 0;
-  const lineasDe = () => [...lista.children].map((li) => { const b = li.querySelector("b"), nombre = b?.textContent ?? "", cuerpo = (li.textContent ?? "").slice(nombre.length).replace(/^:\s*/, ""); return { nombre, texto: cuerpo, tuyo: nombre.startsWith("Tú"), tipo: li.className }; });
+  const lineasDe = () => [...lista.children].map((li) => { const b = li.querySelector("b"), nombre = b?.textContent ?? "", cuerpo = (li.textContent ?? "").slice(nombre.length).replace(/^:\s*/, ""); return { nombre, texto: cuerpo, tuyo: esTuyo(nombre), tipo: li.className }; });
   const pintarChat = () => {
     chat.dataset.estado = estado;
     body.classList.toggle("chat-abierto", estado === "completo");
@@ -175,7 +181,7 @@ export function montarMovil(o: Opciones): void {
       ? `${icono("chat-circle", 24)}${burbuja}`
       : `${icono("chat-circle", 22)}<span class="linea">${u ? `<b></b>` : ""}</span>${burbuja}`;
     if (estado !== "oculto") { const l = pill.querySelector(".linea"); if (l) { if (u) { l.querySelector("b")!.textContent = `${u.quien}: `; l.append(u.texto); } else l.textContent = "Chat"; } }
-    pill.setAttribute("aria-label", estado === "oculto" ? `Chat${sinLeer ? `, ${sinLeer} sin leer` : ""}` : `Chat: ${u ? `${u.quien} dice ${u.texto}` : "sin mensajes"}. Toca para abrirlo entero`);
+    pill.setAttribute("aria-label", estado === "oculto" ? `Chat${sinLeer ? tx(`, ${sinLeer} unread`, `, ${sinLeer} sin leer`) : ""}` : tx(`Chat: ${u ? `${u.quien} says ${u.texto}` : "no messages"}. Tap to open it fully`, `Chat: ${u ? `${u.quien} dice ${u.texto}` : "sin mensajes"}. Toca para abrirlo entero`));
     pill.setAttribute("aria-expanded", String(estado === "completo"));
   };
   const irA = (e: EstadoChat) => { estado = e; pintarChat(); };
@@ -184,7 +190,7 @@ export function montarMovil(o: Opciones): void {
   ocultar.addEventListener("click", () => irA(siguienteChat(estado, "ocultar")));
   enviar.addEventListener("click", () => { texto.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })); });
   new MutationObserver((muts) => {
-    for (const m of muts) for (const n of m.addedNodes) { const c = (n as HTMLElement).className ?? ""; if (estado !== "completo" && c !== "antes" && c !== "aviso" && !(n.textContent ?? "").startsWith("Tú")) sinLeer++; }
+    for (const m of muts) for (const n of m.addedNodes) { const c = (n as HTMLElement).className ?? ""; if (estado !== "completo" && c !== "antes" && c !== "aviso" && !esTuyo(n.textContent ?? "")) sinLeer++; }
     pintarChat();
   }).observe(lista, { childList: true });
   new MutationObserver(() => { if (form.hidden && estado === "completo") irA("linea"); }).observe(form, { attributes: true, attributeFilter: ["hidden"] }); // Escape inside the box
@@ -193,8 +199,10 @@ export function montarMovil(o: Opciones): void {
   // ---- 4b · a long press on a line: the sheet with «Denunciar» ----
   const hoja = el("section", { id: "hoja-msg" }); hoja.setAttribute("role", "menu"); hoja.hidden = true;
   const quien = el("div", { clase: "quien" });
-  const bDen = el<HTMLButtonElement>("button", { id: "denunciar", clase: "tocable peligro", texto: "Denunciar este mensaje" });
-  const bCan = el<HTMLButtonElement>("button", { id: "cancelar-msg", clase: "tocable", texto: "Cancelar" });
+  const bDen = el<HTMLButtonElement>("button", { id: "denunciar", clase: "tocable peligro", });
+  ligar(bDen, "textContent", "Report this message", "Denunciar este mensaje");
+  const bCan = el<HTMLButtonElement>("button", { id: "cancelar-msg", clase: "tocable", });
+  ligar(bCan, "textContent", "Cancel", "Cancelar");
   hoja.append(quien, bDen, bCan); body.appendChild(hoja); noJoystick(hoja);
   let sel: { quien: string; texto: string } | null = null;
   const avisar = (t: string) => { const d = el("div", { clase: "aviso-movil", texto: t }); (porId("avisos-movil") ?? (() => { const c = el("div", { id: "avisos-movil" }); body.appendChild(c); return c; })()).appendChild(d); anunciar(t); setTimeout(() => d.remove(), 2500); while ((porId("avisos-movil")?.childElementCount ?? 0) > 3) porId("avisos-movil")!.firstElementChild!.remove(); };
@@ -202,19 +210,19 @@ export function montarMovil(o: Opciones): void {
   bDen.addEventListener("click", () => {
     hoja.hidden = true;
     if (!sel) return;
-    avisar(o.denunciar?.(sel) ? "Denuncia enviada. Gracias." : "Denunciar todavía no llega a nadie del equipo: avisa a quien cuida el mundo.");
+    avisar(o.denunciar?.(sel) ? tx("Report sent. Thank you.", "Denuncia enviada. Gracias.") : tx("Reporting does not reach anyone on the team yet: tell whoever looks after the world.", "Denunciar todavía no llega a nadie del equipo: avisa a quien cuida el mundo."));
   });
   let largo: { id: number; x: number; y: number; t: number; li: HTMLElement; reloj: number } | null = null;
   const sueltaLargo = () => { if (largo) { clearTimeout(largo.reloj); largo.li.classList.remove("mantener"); largo = null; } };
   lista.addEventListener("pointerdown", (e) => {
     const li = (e.target as Element).closest("li") as HTMLElement | null;
-    if (!li || li.classList.contains("aviso") || (li.querySelector("b")?.textContent ?? "").startsWith("Tú")) return;
+    if (!li || li.classList.contains("aviso") || esTuyo(li.querySelector("b")?.textContent ?? "")) return;
     sueltaLargo();
     li.classList.add("mantener");
     largo = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), li, reloj: window.setTimeout(() => {
       if (!largo) return;
       const nombre = (largo.li.querySelector("b")?.textContent ?? "").replace(/\s*\(.*\)\s*$/, ""), t = (largo.li.textContent ?? "").slice((largo.li.querySelector("b")?.textContent ?? "").length).replace(/^:\s*/, "");
-      sel = { quien: nombre, texto: t }; quien.textContent = `Mensaje de ${nombre}`; hoja.hidden = false; vibrar(20); sueltaLargo();
+      sel = { quien: nombre, texto: t }; quien.textContent = tx(`Message from ${nombre}`, `Mensaje de ${nombre}`); hoja.hidden = false; vibrar(20); sueltaLargo();
     }, PULSACION_LARGA_MS) };
   });
   lista.addEventListener("pointermove", (e) => { if (largo && e.pointerId === largo.id && !esPulsacionLarga({ ms: PULSACION_LARGA_MS, dx: e.clientX - largo.x, dy: e.clientY - largo.y }) && Math.hypot(e.clientX - largo.x, e.clientY - largo.y) > PULSACION_LARGA_TOLERANCIA) sueltaLargo(); });
@@ -227,7 +235,8 @@ export function montarMovil(o: Opciones): void {
     const c = caja(), cabeza = c?.querySelector("header");
     if (!c || !cabeza || cabeza.querySelector(".pestanas")) return;
     const p = el("div", { clase: "pestanas" }); p.setAttribute("role", "tablist");
-    const tMapa = el<HTMLButtonElement>("button", { clase: "tocable", texto: nombreDe("mapa") }), tMis = el<HTMLButtonElement>("button", { clase: "tocable", texto: "Misiones" });
+    const tMapa = el<HTMLButtonElement>("button", { clase: "tocable", texto: nombreDe("mapa") }), tMis = el<HTMLButtonElement>("button", { clase: "tocable", });
+    ligar(tMis, "textContent", "Quests", "Misiones");
     tMapa.setAttribute("role", "tab"); tMapa.setAttribute("aria-selected", "true"); tMis.setAttribute("role", "tab"); tMis.setAttribute("aria-selected", "false");
     tMis.addEventListener("click", () => { o.mapa.cerrar(); porId("misiones")?.click(); });
     p.append(tMapa, tMis);
@@ -253,7 +262,7 @@ export function montarMovil(o: Opciones): void {
   const CLAVE = "numinia.movil.pista";
   let visto = false; try { visto = localStorage.getItem(CLAVE) === "1"; } catch { /* private mode */ }
   if (!visto) {
-    const pista = el("div", { id: "pista-mirar", texto: "Arrastra para mirar" }); pista.setAttribute("aria-hidden", "true");
+    const pista = ligar(el("div", { id: "pista-mirar" }), "textContent", "Drag to look around", "Arrastra para mirar"); pista.setAttribute("aria-hidden", "true");
     body.appendChild(pista);
     setTimeout(() => pista.classList.add("se-va"), 5000); setTimeout(() => pista.remove(), 5600);
     addEventListener("pointerdown", (e) => { if (!(e.target as Element).closest?.("button, dialog, section")) { pista.classList.add("se-va"); try { localStorage.setItem(CLAVE, "1"); } catch { /* */ } } }, { once: true });

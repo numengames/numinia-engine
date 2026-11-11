@@ -13,7 +13,7 @@ import { defineFeature } from "../../packages/feature/src/index.ts";
 
 /** How near you must be to sit (m), and how many seats a world may have. */
 export const COGER_M = 2;
-export const SITIOS_MAX = 24;
+export const SITIOS_MAX = 64; // QA Simposio 2026-11-11: the auditorium has 34 chairs (was 24)
 /** The server waits this many ticks after seating someone before it believes `sentado() === false` (the order is applied at the next step). */
 export const ESPERA_TICKS = 4;
 /** Where you stand when «E» gets you up: this far behind the seat (m), away from where it looks. */

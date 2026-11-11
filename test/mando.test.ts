@@ -1,6 +1,7 @@
 // N5: the gamepad's layout and state machine (packages/client/src/mando.ts) with fake readings, no browser.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
 import { ACCIONES, ayudaMando, botonDe, BOTON, crearMando, DISTRIBUCION, etiquetaAccion, familia, filasMando, nombreBoton } from "../packages/client/src/mando.ts";
 import type { Lectura } from "../packages/client/src/mando.ts";
 
@@ -20,7 +21,7 @@ test("the brand comes from the id string; unknown pads get plain names", () => {
   assert.equal(nombreBoton("xbox", BOTON.abajo), "A");
   assert.equal(nombreBoton("playstation", BOTON.abajo), "✕");
   assert.equal(nombreBoton("nintendo", BOTON.abajo), "B", "the bottom button of a Switch pad is called B: position, not name");
-  assert.equal(nombreBoton("xbox", 99), "Botón 99");
+  assert.equal(nombreBoton("xbox", 99), "Button 99");
 });
 
 test("every action has a button, one button per action, and the keys exist", () => {
@@ -32,8 +33,10 @@ test("every action has a button, one button per action, and the keys exist", () 
   assert.equal(etiquetaAccion("playstation", "usar"), "□");
   const reservados = new Set<number>([BOTON.LB, BOTON.RB, BOTON.L3]); // zoom and sprint are not in the table
   for (const i of Object.keys(DISTRIBUCION)) assert.ok(!reservados.has(Number(i)));
-  assert.ok(filasMando("xbox").some((f) => f.boton === "A" && f.que === "saltar"));
-  assert.match(ayudaMando("xbox"), /^Mando: .*A saltar.*X hablar o coger.*Menú ajustes/);
+  assert.ok(filasMando("xbox").some((f) => f.boton === "A" && f.que === "jump"));
+  assert.match(ayudaMando("xbox"), /^Pad: .*A jump.*X talk or pick up.*Menu settings/);
+  fijarIdioma("es");
+  try { assert.match(ayudaMando("xbox"), /^Mando: .*A saltar.*X hablar o coger.*Menú ajustes/); assert.equal(nombreBoton("generico", BOTON.abajo), "Botón de abajo"); } finally { fijarIdioma("en"); }
 });
 
 test("world: a press is a key down and up on the edge, never repeated while held", () => {

@@ -45,8 +45,8 @@ test("otorgaDeCaptura: each species of the table becomes a stackable object with
   assert.equal(otorgaDeCaptura(1, { id: "x".repeat(50), nombre: "Raro", rareza: "rara" }).clase.length, 32, "a long id never breaks the schema");
   assert.ok(DONANTES.some(([f, ev]) => f === "pesca" && ev === "otorga"), "inventario listens to pesca");
   // the panel reads the rarity from the colour: it must agree with what pesca writes
-  for (const r of ["comun", "rara", "legendaria"] as const) assert.equal(RAREZA_DE_COLOR[COLOR_POR_RAREZA[r]], { comun: "común", rara: "rara", legendaria: "legendaria" }[r]);
-  assert.equal(detalleDeCaptura({ color: "azul" }), "pez · rara");
+  for (const r of ["comun", "rara", "legendaria"] as const) assert.equal(RAREZA_DE_COLOR[COLOR_POR_RAREZA[r]], { comun: "common", rara: "rare", legendaria: "legendary" }[r]);
+  assert.equal(detalleDeCaptura({ color: "azul" }), "fish · rare");
 });
 
 test("reglas: catches stack per species and colour, never carried, kept over a hand-edited file; a full Bolsa takes one more of a species you hold", () => {
@@ -79,11 +79,11 @@ test("reglas: catches stack per species and colour, never carried, kept over a h
 });
 
 test("notaDePescado: «A tu Inventario» when the server kept it (with the count once there are several), the old basket line when not", () => {
-  assert.equal(notaDePescado({ pez: "Carpa", rareza: "comun", guardado: true }, 4, 1), "común · A tu Inventario");
-  assert.equal(notaDePescado({ pez: "Carpa", rareza: "comun", guardado: true }, 4, 3), "común · A tu Inventario (× 3)");
-  assert.equal(notaDePescado({ pez: "Trucha", rareza: "rara", guardado: false }, 4), "rara · En tu cesta: 4");
-  assert.equal(notaDePescado({ pez: "Trucha", rareza: "rara", guardado: false }, 4, 0, { ocupados: 42, huecos: 42 }), "rara · Tu Bolsa está llena (42/42): vuelve al agua", "a full Bolsa: the fish goes back to the water");
-  assert.equal(notaDePescado({ pez: "Carpa", rareza: "comun", guardado: true }, 4, 3, { ocupados: 42, huecos: 42 }), "común · A tu Inventario (× 3)", "a stack that fitted is still «A tu Inventario»");
+  assert.equal(notaDePescado({ pez: "Carpa", rareza: "comun", guardado: true }, 4, 1), "common · To your Inventory");
+  assert.equal(notaDePescado({ pez: "Carpa", rareza: "comun", guardado: true }, 4, 3), "common · To your Inventory (× 3)");
+  assert.equal(notaDePescado({ pez: "Trucha", rareza: "rara", guardado: false }, 4), "rare · In your basket: 4");
+  assert.equal(notaDePescado({ pez: "Trucha", rareza: "rara", guardado: false }, 4, 0, { ocupados: 42, huecos: 42 }), "rare · Your Backpack is full (42/42): it goes back in the water", "a full Bolsa: the fish goes back to the water");
+  assert.equal(notaDePescado({ pez: "Carpa", rareza: "comun", guardado: true }, 4, 3, { ocupados: 42, huecos: 42 }), "common · To your Inventory (× 3)", "a stack that fitted is still «A tu Inventario»");
 });
 
 /** A headless pond with the real pesca and (optionally) the real inventario; each page has both controllers. */
@@ -184,7 +184,7 @@ test("pesca → inventario with a full Bolsa (42/42): the catch still counts in 
   assert.equal(A.i.estado.llena, true);
   assert.equal(A.i.estado.ultimoRechazo, "Tu Bolsa está llena (42/42).");
   const nota = notaDePescado(A.p.estado().ultimo!, A.p.estado().cesta.peces, 0, A.i.estado.llena ? A.i.bolsa() : null);
-  assert.match(nota, /Tu Bolsa está llena \(42\/42\): vuelve al agua$/);
+  assert.match(nota, /Your Backpack is full \(42\/42\): it goes back in the water$/);
   assert.ok(W.log.every((l) => !/en listen|no cumple/.test(l)), W.log.join("\n"));
   // free one slot: the next fish fits (a new species takes the slot)
   A.i.soltar(A.i.lista()[0].id); W.pump(2);
@@ -205,7 +205,7 @@ test("pesca without inventario: the fish still counts in the cesta, `guardado` i
   assert.equal(A.p.estado().ultimo?.guardado, false);
   assert.equal(A.p.estado().cesta.peces, 1);
   assert.deepEqual(A.i.lista(), []);
-  assert.equal(notaDePescado(A.p.estado().ultimo!, A.p.estado().cesta.peces), `${{ comun: "común", rara: "rara", legendaria: "legendaria" }[String(c[0].rareza) as "comun"]} · En tu cesta: 1`);
+  assert.equal(notaDePescado(A.p.estado().ultimo!, A.p.estado().cesta.peces), `${{ comun: "common", rara: "rare", legendaria: "legendary" }[String(c[0].rareza) as "comun"]} · In your basket: 1`);
 });
 
 test("the simulation's fingerprint does not move with pesca → inventario", () => {

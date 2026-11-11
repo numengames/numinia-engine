@@ -41,7 +41,7 @@ import type { ServerApi, ServerPart } from "../../feature/src/index.ts";
 import type { Who } from "../../instance/src/index.ts";
 import { ACCION_PERMISO, ACCION_TEXTO, PERMISOS, acceso, BASE, esBase, noPuedeDar, plano, plantilla, porDebajo, rolPorNombre, tiene, validarRoles } from "./roles.ts";
 import type { Acceso, Accion, Miembro, Permiso, Rol } from "./roles.ts";
-import { FORMAS_BURBUJA, FRASE_MAX, RADIO_DEFECTO_M, RADIO_MAX_M, RADIO_MIN_M, VISIBLES_BURBUJA, verificarPase } from "./pase.ts";
+import { FORMAS_BURBUJA, FORMA_DEFECTO, FRASE_MAX, RADIO_DEFECTO_M, RADIO_MAX_M, RADIO_MIN_M, VISIBLES_BURBUJA, verificarPase } from "./pase.ts";
 import type { ConfigPase, EstadoIA, IABloque, Pase } from "./pase.ts";
 import { AGENTE } from "./aventura.ts";
 import { MARCA_IA, agenteDe, nombreDe } from "../../instance/src/identidad.ts";
@@ -226,7 +226,7 @@ export function crearRoles(o: OpcionesRoles) {
     const p = pasesIA.get(id.slice(3)), r = p?.ia?.responde, h = o.habitante?.(id.slice(3));
     a.emit("ia", { quien: e, estado: p?.state ?? "activa", comunidad: r?.comunidad ?? "", nombre: r?.nombre ?? "", cartera: r?.cartera ?? "", construye: tiene(accesoDe(id), "construir"), cuerpo: p?.ia?.cuerpo?.modelo ?? -1, ...(h ? { escalon: h.escalon, modelo: h.modelo ?? "" } : {}), ...(h?.apariencia ? { cuerpoSha: h.apariencia.modelo, cuerpoEscala: h.apariencia.escala ?? 1 } : {}) }, "server");
     const b = p?.ia?.burbuja; // ia-llamar S8: its bubble (the pass's, or the house one)
-    a.emit("iaBurbuja", { quien: e, forma: b?.forma ?? "esfera", radio: b?.radio ?? RADIO_DEFECTO_M, visible: b?.visible ?? "al-acercarte" }, "server");
+    a.emit("iaBurbuja", { quien: e, forma: b?.forma ?? FORMA_DEFECTO, radio: b?.radio ?? RADIO_DEFECTO_M, visible: b?.visible ?? "al-acercarte" }, "server");
     const l = p?.ia?.llamada; // ia-llamar S10: how it is called (the pass's block, or the house default)
     a.emit("iaLlamada", { quien: e, nombre: l?.nombre ?? true, barra: l?.barra ?? true, boton: l?.boton ?? true, soloDentro: l?.solo_dentro ?? true, frase: l?.frase ?? "" }, "server");
   };

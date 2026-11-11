@@ -5,7 +5,7 @@
 import { createServer } from "node:http";
 import { origenAdmitido } from "./embed-espejo.ts";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { signer } from "./secret.ts";
 import { crearRecibos } from "./recibos.ts"; // N10: digital goods' ownership receipts
@@ -270,7 +270,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const fichaPublica = () => {
     const f = fichaViva.ficha(), [sha, ext] = f?.portada?.split(".") ?? [];
     const portada = sha && activos.buscar(sha, ext) ? `/a/${f!.portada}` : undefined;
-    return f ? { nombre: f.nombre, descripcion: f.descripcion, portada, tema: tema ?? undefined, ...(interfaz ? { interfaz } : {}), avatar: f.avatar, aforo: aforo(), ...(ficha?.audio ? { audio: ficha.audio } : {}) } : { aforo: aforo() };
+    return f ? { nombre: f.nombre, descripcion: f.descripcion, ...(typeof f.idioma === "string" ? { idioma: f.idioma } : {}), portada, tema: tema ?? undefined, ...(interfaz ? { interfaz } : {}), avatar: f.avatar, aforo: aforo(), ...(ficha?.audio ? { audio: ficha.audio } : {}) } : { aforo: aforo() };
   };
   // the world's own loading-screen picture (ficha `carga`): only when the file is in this server; a heavy one is said in the log, not refused
   if (pagina) pagina.carga = () => {
@@ -288,6 +288,26 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   if (recibos) log(`[bienes] los recibos de este mundo los firma ${recibos.emisor}`); else log("[bienes] sin MOTOR_SECRET este mundo no da bienes digitales (no tiene con qué firmar sus recibos)");
   const leerActivo = (h: string, ext: string): Uint8Array | null => { const ruta = activos.buscar(h, ext); if (!ruta) return null; try { return readFileSync(ruta); } catch { return null; } }; // M6 h8: /a/<sha256>.<ext>'s own bytes, for the world's collision mesh
   const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, renovarPase: roles.renovar, activo: (h, ext) => activos.buscar(h, ext) !== null, medidas: (h, ext) => activos.medidas(h, ext), trazoPuntos: (h) => activos.trazoPuntos(h), aventura: lector, agentes, externos: { verificar: puerta.verificar }, recibos: recibos ?? undefined, sinVoz: () => !roles.voz, escenario: (e) => roles.enEscenario(inst.who(e)?.id), oye: (de, a) => roles.oye(inst.who(de), inst.who(a)), aparicion: o.aparicion ?? null, suelo: o.suelo ?? null, vuelo: o.vuelo ?? "nadie", construirMalla: construirMalla(leerActivo), condiciones: puertaCondiciones, hecho: o.libro ? (t, d) => { o.libro!.registrar(t, d); } : undefined }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz); M6 h8: malla things build the world's mesh
+  // QA LOCAL (symposium-2026, no PR): MOTOR_QA_TRAZA=<fichero.jsonl> apunta cada segundo dónde está cada persona y qué función usa
+  if (process.env.MOTOR_QA_TRAZA) {
+    const qa = process.env.MOTOR_QA_TRAZA, ult = new Map<number, number[]>();
+    const apunta = (o: object) => { try { appendFileSync(qa, JSON.stringify({ t: new Date().toISOString(), ...o }) + "\n"); } catch { /* QA: nunca rompe el mundo */ } };
+    const rec = inst.features.receive.bind(inst.features);
+    (inst.features as { receive: typeof rec }).receive = (e: number, b: Uint8Array) => { const ok = rec(e, b); apunta({ ev: "funcion", e, f: inst.features.funcionDe(b), ok, n: b.length }); return ok; };
+    setInterval(() => {
+      const vivos = new Set<number>();
+      for (const c of inst.conns) {
+        if (c.who?.id.startsWith("ia-")) continue;
+        const e = c.entity, tf = (inst as unknown as { sim: { tf: { cols: { x: Int32Array; y: Int32Array; z: Int32Array } } } }).sim.tf.cols;
+        const p = [tf.x[e], tf.y[e], tf.z[e]].map((v) => Math.round(v / 655.36) / 100);
+        vivos.add(e); const a = ult.get(e);
+        if (!a) apunta({ ev: "entra", e, p });
+        if (!a || Math.hypot(p[0] - a[0], p[1] - a[1], p[2] - a[2]) > 0.3) { apunta({ ev: "pos", e, p }); ult.set(e, p); }
+      }
+      for (const e of [...ult.keys()]) if (!vivos.has(e)) { apunta({ ev: "sale", e }); ult.delete(e); }
+    }, 1000).unref();
+    log?.(`[qa] traza en ${qa}`);
+  }
   // condiciones/w4: the community's norms arrive by themselves (copy in aventura/condiciones-comunidad.json, then a download every few minutes); whoever arrives next is offered the newest
   const fuenteCondiciones = iniciarFuente({ dir: o.aventura ?? null, base: condiciones, fuente: fuenteElegida, log, intervaloMs: o.condicionesFuenteMs, poner: (c, motivo) => { puertaCondiciones.poner(c); if (motivo === "nueva") inst.ofrecerCondiciones(); } });
   const primeraFuente = !fuenteCondiciones.activa ? Promise.resolve() : fuenteCondiciones.conCopia ? (void fuenteCondiciones.actualizar(), Promise.resolve()) : fuenteCondiciones.actualizar(ESPERA_ARRANQUE_MS).then(() => {}); // with no copy yet the first listening waits a few seconds for the first answer

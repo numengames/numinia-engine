@@ -4,6 +4,7 @@
 // heard, the panel opens or a person asks for it (`cargar()`); events heard meanwhile wait for it, in order.
 import { clientPart, defineFeature } from "../../packages/feature/src/index.ts";
 import type { ClientApi, Msg } from "../../packages/feature/src/index.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 export const VERSION = 1; // the declaration's (feature.ts); test/frases.test.ts keeps them equal
 type Pagina = typeof import("./pagina.ts");
@@ -21,5 +22,5 @@ export function cargar(): Promise<Pagina> {
 export default clientPart(ligera, (a) => {
   api = a;
   a.on("dicha", (m: Msg) => { void cargar().then((p) => p.dicha(m)); });
-  a.action({ id: "frases", label: "Phrases", key: "Backquote", describe: "Say a fixed phrase", run: () => gancho.abrir?.() });
+  a.action({ id: "frases", get label() { return tx("Phrases", "Frases"); }, key: "Backquote", get describe() { return tx("Say a fixed phrase", "Decir una frase fija"); }, run: () => gancho.abrir?.() });
 });

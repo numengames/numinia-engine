@@ -3,10 +3,12 @@
 // page's own AR button is untouched where no link applies (the chooser draws nothing until it is opened). The real clicks (the chooser, the
 // norms step, `requestSession` inside the click) are tools/e2e-piernas/dardos-enlace.mjs.
 import { test } from "node:test";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // these assertions read the Spanish text; the English side is tested in test/idioma-condiciones.test.ts
 import assert from "node:assert/strict";
-import { motivoParaPersonas, nombreDelEnlace, rotuloDardos, vistaElegir, ROTULO_MESA, ROTULO_REINTENTAR } from "../apps/plaza/ar-elegir-logica.ts";
+import { motivoParaPersonas, nombreDelEnlace, rotuloDardos, vistaElegir, rotuloMesa, rotuloReintentar } from "../apps/plaza/ar-elegir-logica.ts";
 import type { EstadoEnlaceDardos } from "../apps/plaza/dardos-enlace.ts";
-import { planificar, SUBTITULO_ENLAZADA, textosDePaso } from "../apps/plaza/condiciones-logica.ts";
+import { planificar, subtituloEnlazada, textosDePaso } from "../apps/plaza/condiciones-logica.ts";
 import { ENLACE_DARDOS } from "../features/dardos/enlace.ts";
 import type { CondicionesCapa } from "../packages/net/src/index.ts";
 
@@ -26,7 +28,7 @@ test("nombre: the label names the linked WORLD — what its server tells, else t
   assert.equal(vistaElegir("conectando", "", torre).dardos.texto, "Dardos de la Torre de los Alquimistas en tu pared", "the chooser's button");
   assert.equal(vistaElegir("conectando", "", otro).dardos.texto, "Dardos de 127.0.0.1:8913 en tu pared");
   assert.equal(vistaElegir("conectando", "", otro, { nombreServidor: "Mundo de Ana" }).dardos.texto, "Dardos de Mundo de Ana en tu pared", "the name read from /status replaces the host");
-  assert.equal(ROTULO_MESA, "El mundo en tu mesa");
+  assert.equal(rotuloMesa(), "El mundo en tu mesa");
 });
 
 test("chooser: while the link connects the darts button waits (on, focusable, does nothing); the miniature is not part of it", () => {
@@ -52,7 +54,7 @@ test("chooser: an error is plain Spanish with «Reintentar»; the darts button i
   const v = vistaElegir("error", "el mundo enlazado está lleno", torre);
   assert.deepEqual([v.dardos.accion, v.dardos.apagado, v.reintentar], ["reintentar", true, true]);
   assert.equal(v.fallo, "La Torre de los Alquimistas está llena ahora mismo. Prueba en un rato o entra con la maqueta.");
-  assert.equal(ROTULO_REINTENTAR, "Reintentar");
+  assert.equal(rotuloReintentar(), "Reintentar");
 });
 
 test("motivo: every reason the link gives becomes one sentence for people, never a code", () => {
@@ -81,7 +83,7 @@ test("norms of another world: the bubble speaks of THAT world and says that refu
   const casa = textosDePaso(pasos[0], capas, "la Torre de los Alquimistas", true);
   assert.equal(casa.eyebrow, "Antes de entrar · la Torre de los Alquimistas");
   assert.equal(casa.titulo, "Las normas de la Torre de los Alquimistas");
-  assert.equal(casa.subtitulo, SUBTITULO_ENLAZADA);
+  assert.equal(casa.subtitulo, subtituloEnlazada());
   assert.doesNotMatch(casa.subtitulo, /burbuja|nadie te oye/);
   assert.equal(textosDePaso(pasos[1], capas, "la Torre de los Alquimistas", true).titulo, "Las normas de Alquimistas");
   // the data step is the world's own words, unchanged: optional, nothing ticked
@@ -90,4 +92,14 @@ test("norms of another world: the bubble speaks of THAT world and says that refu
   // and without the flag nothing changed for the world's own bubble
   assert.match(textosDePaso(pasos[0], capas, "Mi mundo").subtitulo, /burbuja/);
   assert.equal(textosDePaso(pasos[0], capas, "Mi mundo").titulo, "Las normas de este sitio");
+});
+
+test("chooser words follow the active language (English first)", () => {
+  try {
+    fijarIdioma("en");
+    assert.equal(rotuloMesa(), "The world on your table");
+    assert.equal(rotuloReintentar(), "Retry");
+    fijarIdioma("es");
+    assert.equal(rotuloMesa(), "El mundo en tu mesa");
+  } finally { fijarIdioma("es"); }
 });

@@ -4,6 +4,7 @@
 // `hidden`/`class`/`aria-expanded`), coalesced to one requestAnimationFrame.
 import { objetivoDeFlecha } from "./flecha-logica.ts";
 import "./flecha.css";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 type Opciones = { misiones: { senala(): string; alCambiar(fn: (que: "libro" | "dialogo" | "nota") => void): unknown } };
 
@@ -40,7 +41,7 @@ export function montarFlecha({ misiones }: Opciones): { reponer(): void } {
     flecha.style.left = `${Math.round(x)}px`; flecha.style.top = `${Math.round(Math.max(0, Math.min(innerHeight - TAM, y)))}px`;
     flecha.dataset.lado = abajo ? "abajo" : "arriba";
     flecha.dataset.objetivo = id;
-    const aviso = `Pulsa aquí: ${titulo(b)}`;
+    const aviso = tx(`Press here: ${titulo(b)}`, `Pulsa aquí: ${titulo(b)}`);
     if (flecha.getAttribute("aria-label") !== aviso) flecha.setAttribute("aria-label", aviso);
     flecha.hidden = false;
     vigilar();

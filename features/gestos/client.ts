@@ -7,6 +7,7 @@ import type { ClientApi } from "../../packages/feature/src/index.ts";
 import { gestos } from "./feature.ts";
 import { GRUPOS, MOVIMIENTOS, PARAR, movimiento } from "./movimientos.ts";
 import type { Movimiento } from "./movimientos.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 export const DURACION_MS = 2000; // the label over a capsule
 type Res = { ok: true } | { ok: false; why: string };
@@ -20,12 +21,12 @@ export function crearGestos(reloj: () => number = () => performance.now()) {
   const enCurso = new Map<number, string>(); // who is making which move, as far as this page knows (for checks)
 
   function pedir(a: ClientApi | null, id: string): Res {
-    if (id !== PARAR && !movimiento(id)) return { ok: false, why: `No conozco el movimiento «${id}».` };
+    if (id !== PARAR && !movimiento(id)) return { ok: false, why: tx(`I do not know the move «${id}».`, `No conozco el movimiento «${id}».`) };
     const t = reloj();
     if (antes >= 0) fichas = Math.min(3, fichas + (t - antes) / 1000);
     antes = t;
-    if (fichas < 1) return { ok: false, why: "Espera un momento: un movimiento por segundo." };
-    const r = a?.send("hacer", { gesto: id }) ?? { ok: false as const, why: "la página aún no ha arrancado" };
+    if (fichas < 1) return { ok: false, why: tx("Wait a moment: one move per second.", "Espera un momento: un movimiento por segundo.") };
+    const r = a?.send("hacer", { gesto: id }) ?? { ok: false as const, why: tx("the page has not started yet", "la página aún no ha arrancado") };
     if (r.ok) fichas -= 1;
     return r;
   }
@@ -55,9 +56,9 @@ export function crearGestos(reloj: () => number = () => performance.now()) {
       if (mov && !jugado && mov.viva && mov.modo === "bucle") a.view.bounce(quien, DURACION_MS); // a capsule's dance hops
       for (const fn of oyentes) fn(quien, mov);
     });
-    a.action({ id: "saludar", label: "Saludar", describe: "Saluda a quien esté cerca (G)", run: () => pedir(a, "saludar") });
-    a.action({ id: "bailar", label: "Bailar", key: "KeyH", describe: "Baila hasta que andes", run: () => pedir(a, "bailar") });
-    a.action({ id: "movimientos", label: "Movimientos", describe: "La rueda de movimientos (mantén G)", run: () => pagina.abrirRueda?.() });
+    a.action({ id: "saludar", get label() { return tx("Wave", "Saludar"); }, get describe() { return tx("Wave at whoever is near (G)", "Saluda a quien esté cerca (G)"); }, run: () => pedir(a, "saludar") });
+    a.action({ id: "bailar", get label() { return tx("Dance", "Bailar"); }, key: "KeyH", get describe() { return tx("Dance until you walk", "Baila hasta que andes"); }, run: () => pedir(a, "bailar") });
+    a.action({ id: "movimientos", get label() { return tx("Moves", "Movimientos"); }, get describe() { return tx("The moves wheel (hold G)", "La rueda de movimientos (mantén G)"); }, run: () => pagina.abrirRueda?.() });
   });
   return { part, gestos: pagina };
 }

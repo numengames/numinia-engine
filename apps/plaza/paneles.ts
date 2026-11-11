@@ -4,6 +4,8 @@
 /** Typing never moves you (J3's one rule for every key listener of the page). */
 import { escribiendo } from "./escribiendo.ts";
 import { perfil } from "./perfil-aparato.ts";
+import { teclas, teclaLibre } from "./teclas.ts";
+import { alCambiarIdioma, tx } from "../../packages/feature/src/idioma.ts";
 import { esMovil } from "../../packages/client/src/movil.ts"; // U24: a phone names no key
 export { escribiendo };
 
@@ -24,20 +26,26 @@ const todos: Dialogo[] = [];
 
 /** A modal dialog with a title and a close button; `tecla` (e.g. "KeyM") and `boton` open and close it. Escape closes
  * it (the browser does). Opening one closes the others. */
-export function crearDialogo(o: { id: string; titulo: string; tecla: string; boton: HTMLButtonElement; alAbrir?: () => void; alCerrar?: () => void; noConstruyendo?: boolean }): Dialogo {
+export function crearDialogo(o: { id: string; titulo: string | (() => string); tecla: string; /** keymap v1: the action of teclas.ts that opens it; the key in effect (Yours or Default) wins over `tecla` */ accion?: string; boton: HTMLButtonElement; alAbrir?: () => void; alCerrar?: () => void; noConstruyendo?: boolean }): Dialogo {
   const dialog = document.createElement("dialog");
   dialog.id = o.id; dialog.className = "panel-j5"; dialog.setAttribute("aria-labelledby", `${o.id}-titulo`);
   const cabeza = document.createElement("header");
-  const h2 = document.createElement("h2"); h2.id = `${o.id}-titulo`; h2.textContent = o.titulo;
+  const h2 = document.createElement("h2"); h2.id = `${o.id}-titulo`; const titular = (): void => { h2.textContent = typeof o.titulo === "function" ? o.titulo() : o.titulo; }; titular(); if (typeof o.titulo === "function") alCambiarIdioma(titular);
   const cerrarB = document.createElement("button"); cerrarB.type = "button"; cerrarB.className = "cerrar";
-  const letra = o.tecla.replace(/^Key/, "");
-  cerrarB.textContent = esMovil(perfil().clase) ? "Cerrar" : `Cerrar (${letra})`; cerrarB.setAttribute("aria-keyshortcuts", `${letra} Escape`);
+  const letraDe = (): string => (o.accion ? teclas.etiqueta(o.accion) : o.tecla.replace(/^Key/, ""));
+  const rotular = (): void => {
+    const letra = letraDe();
+    cerrarB.textContent = esMovil(perfil().clase) || !letra ? tx("Close", "Cerrar") : tx(`Close (${letra})`, `Cerrar (${letra})`); cerrarB.setAttribute("aria-keyshortcuts", `${letra} Escape`);
+    o.boton.setAttribute("aria-keyshortcuts", letra);
+  };
+  if (o.accion) teclas.alCambiar(rotular);
+  alCambiarIdioma(rotular); rotular();
   cabeza.append(h2, cerrarB);
   const cuerpo = document.createElement("div"); cuerpo.className = "cuerpo";
   dialog.append(cabeza, cuerpo);
   document.body.appendChild(dialog);
   o.boton.setAttribute("aria-haspopup", "dialog"); o.boton.setAttribute("aria-controls", o.id);
-  o.boton.setAttribute("aria-expanded", "false"); o.boton.setAttribute("aria-keyshortcuts", letra);
+  o.boton.setAttribute("aria-expanded", "false"); rotular();
   let volver: Element | null = null;
   const d: Dialogo = {
     dialog, cuerpo,
@@ -66,7 +74,7 @@ export function crearDialogo(o: { id: string; titulo: string; tecla: string; bot
   cerrarB.addEventListener("click", () => d.cerrar());
   o.boton.addEventListener("click", (e) => { porTeclado = e.detail === 0; d.alternar(); porTeclado = true; });
   addEventListener("keydown", (e) => {
-    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e) || e.code !== o.tecla || (o.noConstruyendo && document.body.classList.contains("construyendo"))) return; // noConstruyendo: the builder owns that letter while building
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e) || !(o.accion ? teclas.es(e, o.accion) && teclaLibre(e) : e.code === o.tecla) || (o.noConstruyendo && document.body.classList.contains("construyendo"))) return; // noConstruyendo: the builder owns that letter while building
     e.preventDefault();
     d.alternar();
   });

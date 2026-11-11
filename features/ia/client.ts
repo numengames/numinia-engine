@@ -2,7 +2,8 @@
 //   iaPagina.de(entity)      → IAPublica | null   (null = not an AI, or not known yet)
 //   iaPagina.es(entity)      → boolean            (is this player an AI?)
 //   iaPagina.lista()         → { quien, ia }[]    (every AI connected now, by entity)
-//   iaPagina.alCambiar(fn)   → unsubscribe        (an entry appeared, changed or went)
+//   iaPagina.alCambiar(fn)   → unsubscribe        (an entry appeared, changed or went; a new listener is first told every AI already
+//                                                  known: the page subscribes after the first state may have arrived)
 // The nameplate mark (S4), the ring on the floor and the map diamond (S5), «Gente» (S6) and the card (S7) read this; the same
 // entries are in `session.features.stateOf("ia")` for agents and tests. Exposed on the page as `__numinia.ia`.
 import { clientPart } from "../../packages/feature/src/index.ts";
@@ -21,7 +22,11 @@ export function crearIAPagina() {
     de: (quien: number): IAPublica | null => { const v = api?.state.get(String(quien)); return v ? publica(v) : null; },
     es: (quien: number): boolean => api?.state.get(String(quien)) !== undefined,
     lista: (): { quien: number; ia: IAPublica }[] => (api?.state.keys() ?? []).flatMap((k) => { const v = api?.state.get(k); return v && /^\d+$/.test(k) ? [{ quien: Number(k), ia: publica(v) }] : []; }).sort((a, b) => a.quien - b.quien),
-    alCambiar: (f: (quien: number, ficha: IAPublica | null) => void): (() => void) => { oyentes.add(f); return () => oyentes.delete(f); },
+    alCambiar: (f: (quien: number, ficha: IAPublica | null) => void): (() => void) => {
+      oyentes.add(f);
+      for (const { quien, ia: ficha } of ctl.lista()) { try { f(quien, ficha); } catch { /* a page's listener must not stop the rest */ } } // what is already here (v9 hands the first state over before the page listens)
+      return () => oyentes.delete(f);
+    },
   };
   const part = clientPart(ia, (a) => {
     api = a;

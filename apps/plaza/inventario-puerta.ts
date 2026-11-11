@@ -1,10 +1,11 @@
 // t_45ef2f70 (third step): the Inventario's façade. inventario.ts (the Bolsa panel: slots, equipment, drag and drop, the
 // item card: ~5 kB gz) is not needed to draw the first frame, so main.ts mounts THIS: the same `{ abrir, cerrar, pintar }`
-// whose calls wait for the real panel and run in order when it lands after the first frame. The bar's button and R
-// (when the builder does not own the letter) bring it right away. The summary line and the pulse on the button stay in
+// whose calls wait for the real panel and run in order when it lands after the first frame. The bar's button and the bag's key
+// (I by default, keymap v1; not while building) bring it right away. The summary line and the pulse on the button stay in
 // the start bundle (inventario-resumen.ts): the sheet, the VR menu and fishing use them.
 import { crearPuerta } from "./puerta.ts";
 import { escribiendo } from "./escribiendo.ts";
+import { teclas } from "./teclas.ts";
 
 type Real = ReturnType<typeof import("./inventario.ts").montarInventario>;
 type Ctl = Parameters<typeof import("./inventario.ts").montarInventario>[0];
@@ -12,10 +13,10 @@ export type InventarioPuerta = Real;
 
 export function montarInventarioPuerta(c: Ctl, boton: HTMLButtonElement): InventarioPuerta {
   boton.setAttribute("aria-haspopup", "dialog"); boton.setAttribute("aria-controls", "inventario");
-  boton.setAttribute("aria-expanded", "false"); boton.setAttribute("aria-keyshortcuts", "R");
+  boton.setAttribute("aria-expanded", "false"); boton.setAttribute("aria-keyshortcuts", teclas.etiqueta("bolsa"));
   const alClic = (): void => ya((r) => r.abrir());
   const alTeclado = (e: KeyboardEvent): void => {
-    if (e.repeat || e.code !== "KeyR" || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e) || document.body.classList.contains("construyendo")) return;
+    if (e.repeat || !teclas.es(e, "bolsa") || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e) || document.body.classList.contains("construyendo")) return;
     e.preventDefault(); e.stopPropagation(); ya((r) => r.abrir());
   };
   const puerta = crearPuerta<Real>(async () => {

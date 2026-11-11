@@ -8,16 +8,52 @@
 // worlds' ones, until the identity holds them (V8). No DOM: the page passes the storage; it runs in Node tests.
 // Nothing here throws. Recipe: docs/extender/anadir-un-ajuste.md.
 import type { Issue, Result } from "../../core/src/index.ts";
-import { faltan, grupoValido, idAjusteValido, resolverDefecto, validarAjuste, validarAjustes, validarDefecto, validarValor, AJUSTES_POR_FUNCION_MAX, NOMBRE_MAX } from "../../feature/src/ajustes.ts";
+import { faltan, grupoValido, idAjusteValido, resolverDefecto, validarAjuste, validarAjustes, validarDefecto, validarValor, AJUSTES_POR_FUNCION_MAX, DESCRIBE_MAX, NOMBRE_MAX } from "../../feature/src/ajustes.ts";
 import type { AjusteDecl, Alcance, Defecto, Opcion, Tipo, Valor } from "../../feature/src/ajustes.ts";
 import type { CapacidadesVivas } from "./capacidades.ts";
 import { GRUPOS_MOTOR } from "./ajustes-motor.ts";
+import { idiomaActivo, IDIOMA_DEFECTO } from "./idioma.ts";
+import type { Idioma } from "./idioma.ts";
 
 export * from "../../feature/src/ajustes.ts";
 export * from "./capacidades.ts";
-export { AJUSTES_MOTOR, GRUPOS_MOTOR } from "./ajustes-motor.ts";
+export { AJUSTES_MOTOR, GRUPOS_MOTOR, AJUSTE_IDIOMA, ID_IDIOMA, enlazarIdioma } from "./ajustes-motor.ts";
 export * from "./densidad.ts"; // U20: the density dial (levels, the table of panels)
 export * from "./reloj.ts"; // U3: the clock beside the minimap (format, modes)
+
+/** i18n 2/5: a text is a plain string (as before) or one text per language. `en` is the official language and the fallback;
+ * a missing `es` (or an empty one) reads the `en` text, never an empty label. */
+export type TextoI18n = string | { en: string; es?: string };
+/** A setting as declared: `nombre` and `describe` may be a plain string or `{ en, es }`. */
+export type AjusteDeclI18n = Omit<AjusteDecl, "nombre" | "describe"> & { nombre: TextoI18n; describe: TextoI18n };
+const vacio = (t: unknown): boolean => typeof t !== "string" || !t.trim();
+/** The text in `idioma` (default: the active one). Missing there → English → "" (the validation refuses a declaration without English). */
+export function resolverTexto(t: TextoI18n | undefined, idioma: Idioma = idiomaActivo()): string {
+  if (typeof t === "string") return t;
+  if (typeof t !== "object" || t === null) return "";
+  const propio = t[idioma];
+  if (!vacio(propio)) return propio as string;
+  return typeof t[IDIOMA_DEFECTO] === "string" ? t[IDIOMA_DEFECTO] : "";
+}
+/** The declaration with its texts in English: what the shared validation (packages/feature) reads. Not objects → untouched. */
+const enIngles = (d: unknown): unknown => {
+  if (typeof d !== "object" || d === null) return d;
+  const x = d as { nombre?: TextoI18n; describe?: TextoI18n };
+  return { ...x, nombre: typeof x.nombre === "object" && x.nombre !== null ? x.nombre.en : x.nombre, describe: typeof x.describe === "object" && x.describe !== null ? x.describe.en : x.describe };
+};
+/** The part of the validation `enIngles` hides: a `{ en, es }` object takes only those keys; `es`, when there, is 1-max characters. */
+function validarTextos(d: unknown, ruta: string): Issue[] {
+  const out: Issue[] = [];
+  if (typeof d !== "object" || d === null) return out;
+  for (const [campo, max] of [["nombre", NOMBRE_MAX], ["describe", DESCRIBE_MAX]] as const) {
+    const t = (d as Record<string, unknown>)[campo];
+    if (typeof t !== "object" || t === null) continue;
+    const o = t as Record<string, unknown>;
+    for (const k of Object.keys(o)) if (k !== "en" && k !== "es") out.push({ path: `${ruta}.${campo}.${k}`, message: "only 'en' and 'es' (English is required, Español is second)" }); // i18n-ok: developer validation message (English)
+    if (o.es !== undefined && (vacio(o.es) || (o.es as string).length > max)) out.push({ path: `${ruta}.${campo}.es`, message: `the Spanish text: 1-${max} characters (or leave it out: the English one shows)` });
+  }
+  return out;
+}
 
 export type Origen = { de: "motor" } | { de: "funcion" | "mundo"; id: string; nombre?: string; describe?: string };
 /** A setting as the menu and agents read it (plain JSON). */
@@ -32,7 +68,7 @@ export type Guardado = { leer(clave: string): string | null; escribir(clave: str
 export type Lectura = { get(id: string): Valor | undefined };
 export type Aplicar = (valor: Valor, ajustes: Lectura) => void;
 /** A world's or adventure's file (apps/<mundo>/mundo.ajustes.json; with M16 the zone manifest carries the same object). */
-export type MundoAjustes = { schema: typeof ESQUEMA_MUNDO; mundo: string; nombre?: string; describe?: string; defectos?: Record<string, Defecto>; ajustes?: AjusteDecl[]; ocultar?: string[] };
+export type MundoAjustes = { schema: typeof ESQUEMA_MUNDO; mundo: string; nombre?: string; describe?: string; defectos?: Record<string, Defecto>; ajustes?: AjusteDeclI18n[]; ocultar?: string[] };
 
 export const ESQUEMA_MUNDO = "numinia-engine/ajustes-mundo@1";
 export const GUARDADOS_MAX = 64;            // values kept per storage key
@@ -41,7 +77,7 @@ export const VERSION_GUARDADO = 1;
 export const CLAVE_GUARDADO = "numinia.ajustes"; // device-wide; per world: "numinia.ajustes.<mundo>"
 const ENGINE_GROUPS = (): string[] => GRUPOS_MOTOR.map((g) => g.id);
 const texto = (t: unknown, max: number, ruta: string, que: string, out: Issue[]) => {
-  if (typeof t !== "string" || !t.trim() || t.length > max) out.push({ path: ruta, message: `${que}: 1-${max} characters` });
+  if (typeof t !== "string" || !t.trim() || t.length > max) out.push({ path: ruta, message: `${que}: 1-${max} characters` }); // i18n-ok: developer validation message (English)
 };
 
 // ---------- what is kept (versioned) ----------
@@ -69,7 +105,7 @@ export function leerTextoGuardado(t: string | null): Result<Record<string, unkno
 export function crearAjustes(opts: { capacidades: CapacidadesVivas; guardado?: Guardado; mundo?: string; registro?: (linea: string) => void }) {
   const caps = opts.capacidades, log = opts.registro ?? (() => {});
   const mundo = grupoValido(opts.mundo) ? opts.mundo : "mundo";
-  type E = { decl: AjusteDecl; id: string; grupo: string; origen: Origen; defecto: Defecto; alcance: Alcance };
+  type E = { decl: AjusteDecl; nombre: TextoI18n; describe: TextoI18n; id: string; grupo: string; origen: Origen; defecto: Defecto; alcance: Alcance };
   const entradas = new Map<string, E>();
   const grupos = new Map<string, Omit<Grupo, "ajustes">>();
   for (const g of GRUPOS_MOTOR) grupos.set(g.id, { ...g, origen: "motor" });
@@ -113,7 +149,7 @@ export function crearAjustes(opts: { capacidades: CapacidadesVivas; guardado?: G
   }
   function aplicar(e: E, v: Valor): void {
     for (const fn of aplicadores.get(e.id) ?? []) {
-      try { fn(v, lectura); } catch (err) { if (!fallidos.has(e.id)) { fallidos.add(e.id); log(`[ajustes] '${e.id}' falló al aplicarse: ${String((err as Error)?.message ?? err)} (el resto sigue)`); } }
+      try { fn(v, lectura); } catch (err) { if (!fallidos.has(e.id)) { fallidos.add(e.id); log(`[ajustes] '${e.id}' falló al aplicarse: ${String((err as Error)?.message ?? err)} (el resto sigue)`); } } // i18n-ok: developer log
     }
   }
   function guardar(): void {
@@ -126,7 +162,7 @@ export function crearAjustes(opts: { capacidades: CapacidadesVivas; guardado?: G
       for (const [id, v] of pendientes[alc]) if (!(id in valores) && n < GUARDADOS_MAX) { valores[id] = v; n++; }
       let t = JSON.stringify({ v: VERSION_GUARDADO, valores });
       if (t.length > GUARDADO_BYTES_MAX) t = propios.length <= GUARDADO_BYTES_MAX ? propios : JSON.stringify({ v: VERSION_GUARDADO, valores: {} });
-      try { opts.guardado.escribir(claves[alc], t); } catch { if (!fallidos.has("guardar")) { fallidos.add("guardar"); log("[ajustes] no puedo guardar (¿modo privado o almacén lleno?): lo elegido dura hasta cerrar"); } }
+      try { opts.guardado.escribir(claves[alc], t); } catch { if (!fallidos.has("guardar")) { fallidos.add("guardar"); log("[ajustes] no puedo guardar (¿modo privado o almacén lleno?): lo elegido dura hasta cerrar"); } } // i18n-ok: developer log
     }
   }
   const noExiste = (id: string): string => {
@@ -138,7 +174,7 @@ export function crearAjustes(opts: { capacidades: CapacidadesVivas; guardado?: G
   const vista = (e: E): Vista => {
     const d = e.decl, falta = faltaDe(e);
     return {
-      id: e.id, grupo: e.grupo, tipo: d.tipo, nombre: d.nombre, describe: d.describe, valor: valorDe(e), defecto: defectoDe(e),
+      id: e.id, grupo: e.grupo, tipo: d.tipo, nombre: resolverTexto(e.nombre), describe: resolverTexto(e.describe), valor: valorDe(e), defecto: defectoDe(e),
       elegido: elegidos.has(e.id), forzado: forzados.has(e.id), visible: falta.length === 0, falta, origen: origenTexto(e.origen), alcance: e.alcance,
       ...(d.tipo === "numero" ? { min: d.min, max: d.max, paso: d.paso, ...(d.unidad ? { unidad: d.unidad } : {}) } : {}),
       ...(d.opciones ? { opciones: d.opciones.map((o) => ({ ...o })) } : {}),
@@ -147,19 +183,22 @@ export function crearAjustes(opts: { capacidades: CapacidadesVivas; guardado?: G
   };
 
   /** Add settings. Engine ones name an engine group; a feature's go to its own group; a world's to its own or an engine one. */
-  function declarar(lista: readonly AjusteDecl[], origen: Origen = { de: "motor" }): Issue[] {
+  function declarar(lista: readonly AjusteDeclI18n[], origen: Origen = { de: "motor" }): Issue[] {
     const issues: Issue[] = [];
     if (origen.de !== "motor") {
       if (!grupoValido(origen.id)) return [{ path: String(origen.id), message: "a feature or world id: lowercase, 2-32 characters" }];
       if (!grupos.has(origen.id)) grupos.set(origen.id, { id: origen.id, nombre: origen.nombre ?? origen.id[0].toUpperCase() + origen.id.slice(1), ...(origen.describe ? { describe: origen.describe } : {}), origen: origenTexto(origen) });
     }
-    if (origen.de === "funcion") issues.push(...validarAjustes(lista, `${origen.id}.ajustes`, origen.id));
+    if (origen.de === "funcion") issues.push(...validarAjustes(Array.isArray(lista) ? lista.map(enIngles) as AjusteDecl[] : lista as never, `${origen.id}.ajustes`, origen.id));
     if (issues.some((x) => x.path === `${origen.de === "motor" ? "motor" : origen.id}.ajustes`)) { log(`[ajustes] ${origenTexto(origen)}: ${issues[0].message}`); return issues; }
     cambiar(() => {
       (Array.isArray(lista) ? lista : []).forEach((d, i) => {
         const nombre = idAjusteValido(d?.id) ? String(d.id) : String(i); // same naming as validarAjustes
         const ruta = origen.de === "motor" ? `motor.${d?.grupo ?? "?"}.${nombre}` : `${origen.id}.ajustes.${nombre}`;
-        const v = origen.de === "funcion" ? issues.filter((x) => x.path === ruta || x.path.startsWith(`${ruta}.`)) : validarAjuste(d, ruta);
+        const textos = validarTextos(d, ruta);
+        const v = origen.de === "funcion" ? issues.filter((x) => x.path === ruta || x.path.startsWith(`${ruta}.`)) : validarAjuste(enIngles(d), ruta);
+        if (origen.de === "funcion") issues.push(...textos);
+        v.push(...textos);
         const grupo = origen.de === "funcion" ? origen.id : (d?.grupo ?? (origen.de === "mundo" ? origen.id : ""));
         if (origen.de === "motor" && !ENGINE_GROUPS().includes(grupo)) v.push({ path: `${ruta}.grupo`, message: `one of the engine's groups: ${ENGINE_GROUPS().join(", ")}` });
         if (origen.de === "mundo" && grupo !== origen.id && !ENGINE_GROUPS().includes(grupo)) v.push({ path: `${ruta}.grupo`, message: `the world's own group ('${origen.id}') or an engine group` });
@@ -167,13 +206,13 @@ export function crearAjustes(opts: { capacidades: CapacidadesVivas; guardado?: G
         if (!v.length && entradas.has(id)) v.push({ path: ruta, message: `'${id}' is already declared (by ${origenTexto(entradas.get(id)!.origen)})` });
         if (v.length) { if (origen.de !== "funcion") issues.push(...v); return; }
         const alcance = d.alcance ?? (origen.de === "motor" ? "aparato" : "mundo");
-        entradas.set(id, { decl: d, id, grupo, origen, defecto: d.defecto, alcance });
+        entradas.set(id, { decl: enIngles(d) as AjusteDecl, nombre: d.nombre, describe: d.describe, id, grupo, origen, defecto: d.defecto, alcance });
         const p = pendientes[alcance];
         if (p.has(id)) {
           const r = validarValor(d, p.get(id), id);
           p.delete(id);
           if (r.ok) elegidos.set(id, r.value);
-          else log(`[ajustes] lo guardado en '${id}' ya no vale (${r.issues[0].message}): vuelve el valor por defecto`);
+          else log(`[ajustes] lo guardado en '${id}' ya no vale (${r.issues[0].message}): vuelve el valor por defecto`); // i18n-ok: developer log
         }
       });
     });
@@ -193,11 +232,11 @@ export function crearAjustes(opts: { capacidades: CapacidadesVivas; guardado?: G
       if (!Array.isArray(m.ajustes) || m.ajustes.length > AJUSTES_POR_FUNCION_MAX) issues.push({ path: "ajustes", message: `a list of at most ${AJUSTES_POR_FUNCION_MAX} settings` });
       else m.ajustes.forEach((d, i) => {
         const ruta = `ajustes.${typeof d?.id === "string" ? d.id : i}`;
-        issues.push(...validarAjuste(d, ruta));
+        issues.push(...validarAjuste(enIngles(d), ruta), ...validarTextos(d, ruta));
         const g = d?.grupo ?? m.mundo, id = `${g}.${d?.id}`;
-        if (g !== m.mundo && !ENGINE_GROUPS().includes(g)) issues.push({ path: `${ruta}.grupo`, message: `the world's own group ('${m.mundo}') or an engine group` });
+        if (g !== m.mundo && !ENGINE_GROUPS().includes(g)) issues.push({ path: `${ruta}.grupo`, message: `the world's own group ('${m.mundo}') or an engine group` }); // i18n-ok: developer validation message (English)
         if (entradas.has(id) || propios.has(id)) issues.push({ path: ruta, message: `'${id}' already exists` });
-        propios.set(id, d);
+        propios.set(id, enIngles(d) as AjusteDecl);
       });
     }
     const conocido = (id: string) => entradas.get(id)?.decl ?? propios.get(id);
@@ -207,7 +246,7 @@ export function crearAjustes(opts: { capacidades: CapacidadesVivas; guardado?: G
       issues.push(...validarDefecto(d, def, `defectos.${id}`));
     }
     if (m.ocultar !== undefined && !(Array.isArray(m.ocultar) && m.ocultar.every((id) => typeof id === "string" && !!conocido(id)))) issues.push({ path: "ocultar", message: "full ids of settings that exist, e.g. ['graficos.agua']" });
-    if (issues.length) { log(`[ajustes] mundo: ${issues.map((x) => `${x.path}: ${x.message}`).join("; ")}`); return { ok: false, issues }; }
+    if (issues.length) { log(`[ajustes] mundo: ${issues.map((x) => `${x.path}: ${x.message}`).join("; ")}`); return { ok: false, issues }; } // i18n-ok: developer log
     if (m.ajustes?.length) declarar(m.ajustes, { de: "mundo", id: m.mundo, nombre: m.nombre, describe: m.describe });
     cambiar(() => {
       for (const [id, def] of Object.entries(m.defectos ?? {})) entradas.get(id)!.defecto = def;
@@ -227,7 +266,7 @@ export function crearAjustes(opts: { capacidades: CapacidadesVivas; guardado?: G
     aplicarMundo,
     /** What a setting does on the page. Several functions may serve one id; one function may serve several ids. */
     alAplicar(id: string, fn: Aplicar): void {
-      if (!entradas.has(id)) log(`[ajustes] alAplicar('${id}'): no está declarado (todavía)`);
+      if (!entradas.has(id)) log(`[ajustes] alAplicar('${id}'): no está declarado (todavía)`); // i18n-ok: developer log
       aplicadores.set(id, [...(aplicadores.get(id) ?? []), fn]);
     },
     /** Apply every visible setting once (the page calls it before the first frame). */

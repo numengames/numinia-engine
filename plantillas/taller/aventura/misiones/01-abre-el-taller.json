@@ -7,7 +7,7 @@
     {
       "id": "abre",
       "tipo": "hace",
-      "texto": "Press Build («Construir») (or the C key)",
+      "texto": "Press Build («Construir») (or the B key)",
       "accion": "abre_construir",
       "senala": "construir"
     }

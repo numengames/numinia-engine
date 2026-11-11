@@ -16,6 +16,7 @@
 //           (STD-052, packages/server/src/roles.ts) — today there is no permission for this (the closest is
 //           `build-in-worlds`), so this is NOT invented here: it waits until (a) is decided.
 import type { ControlVideo } from "../../packages/render/src/index.ts";
+import { tx, ligar } from "../../packages/feature/src/idioma.ts";
 
 type Obj = { id: string; tipo?: string; nombre?: string; x: number; y: number; z: number };
 type Res = { ok: true } | { ok: false; why: string };
@@ -42,12 +43,12 @@ export function montarVideoMandos(o: OpcionesVideoMandos) {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const nombre = document.createElement("span"); nombre.className = "nombre";
   const pausar = document.createElement("button"); pausar.type = "button";
-  const parar = document.createElement("button"); parar.type = "button"; parar.textContent = "Parar";
+  const parar = document.createElement("button"); parar.type = "button"; ligar(parar, "textContent", "Stop", "Parar");
   // S4: mute — the one that was missing (until today the video's mute was automatic by volume and could not be requested).
   // It is MINE, like the rest of the control: it acts on the graph's gain, it is not sent to the server (U14 is still open).
   const silencio = document.createElement("button"); silencio.type = "button";
   const volumen = document.createElement("input"); volumen.type = "range"; volumen.min = "0"; volumen.max = "100"; volumen.step = "1";
-  volumen.setAttribute("aria-label", "Mi volumen de este vídeo");
+  ligar(volumen, "aria-label", "My volume for this video", "Mi volumen de este vídeo");
   o.panel.append(nombre, pausar, parar, silencio, volumen);
 
   let actualId = "";
@@ -56,9 +57,9 @@ export function montarVideoMandos(o: OpcionesVideoMandos) {
     const c = control();
     o.panel.hidden = !c;
     if (!c) return;
-    pausar.textContent = c.pausado() ? "Reanudar" : "Pausar";
+    pausar.textContent = c.pausado() ? tx("Resume", "Reanudar") : tx("Pause", "Pausar");
     const mudo = c.silenciado();
-    silencio.textContent = mudo ? "Oír" : "Silenciar";
+    silencio.textContent = mudo ? tx("Unmute", "Oír") : tx("Mute", "Silenciar");
     silencio.setAttribute("aria-pressed", mudo ? "true" : "false");
     if (document.activeElement !== volumen) volumen.valueAsNumber = Math.round(c.volumen() * 100);
   };
@@ -75,14 +76,14 @@ export function montarVideoMandos(o: OpcionesVideoMandos) {
     .filter(({ d }) => d <= VIDEO_ALCANCE_M)
     .sort((a, b) => a.d - b.d)
     .map(({ v, d }) => ({
-      feature: "medios", key: v.id, intent: "", name: v.nombre ?? "vídeo", distance: d,
-      prompt: o.controlVideo(v.id)?.pausado() ? "reanudar el vídeo" : "pausar el vídeo",
+      feature: "medios", key: v.id, intent: "", name: v.nombre ?? tx("video", "vídeo"), distance: d,
+      prompt: o.controlVideo(v.id)?.pausado() ? tx("resume the video", "reanudar el vídeo") : tx("pause the video", "pausar el vídeo"),
       local: (): Res => {
         actualId = v.id;
         const c = o.controlVideo(v.id);
-        if (!c) return { ok: false, why: "el vídeo aún no se ha cargado" };
+        if (!c) return { ok: false, why: tx("the video has not loaded yet", "el vídeo aún no se ha cargado") };
         c.alternarPausa();
-        nombre.textContent = v.nombre || "Vídeo"; refrescar();
+        nombre.textContent = v.nombre || tx("Video", "Vídeo"); refrescar();
         return { ok: true };
       },
     }));

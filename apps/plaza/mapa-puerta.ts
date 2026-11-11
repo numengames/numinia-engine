@@ -3,6 +3,7 @@
 // `.fuente()`, `.minimapa.girar()`…) whose calls wait for the real map and run in order when it lands after the first
 // frame. Answers that need the real map say «nothing yet» (no markers, no way back, closed) until then; a press that
 // needs it (M, «Ir», «Marcar destino») loads it right away.
+import { teclas } from "./teclas.ts";
 import type { HostMapa } from "./mapa.ts";
 import { crearPuerta } from "./puerta.ts";
 import { escribiendo } from "./escribiendo.ts";
@@ -14,7 +15,7 @@ export type MapaPuerta = Omit<Real, "registro">;
 
 export function montarMapaPuerta(h: HostMapa): MapaPuerta {
   const alTeclado = (e: KeyboardEvent): void => {
-    if (e.code !== "KeyM" || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e)) return;
+    if (!teclas.es(e, "mapa") || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e)) return;
     e.preventDefault(); e.stopPropagation(); ya((r) => r.abrir());
   };
   const puerta = crearPuerta<Real>(async () => {

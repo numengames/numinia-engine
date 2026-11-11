@@ -5,6 +5,7 @@
 // goes up like any other (soltar.ts `rellenar`: checked, at most HUECO_PX_PAGINA px, a JPEG without its EXIF) and the
 // server measures it and fits it whole into the frame (objetos.rellenar). On the selected object's card (ux2-dock), with a
 // picture selected: «Hacer hueco» (its frame = the picture's size now), «Poner obra…» and «Vaciar hueco». Visitors see none of it.
+import { tx, idiomaActivo, ligar } from "../../packages/feature/src/idioma.ts";
 type Res = { ok: true } | { ok: false; why: string };
 type Hueco = { id: string; nombre: string; x: number; y: number; z: number; ancho: number; alto: number; lleno: boolean; fijado: boolean };
 /** What interactuar.ts offers: a thing in reach whose use runs here, on the page (`local`), instead of an intent. */
@@ -32,7 +33,7 @@ export type OpcionesHuecos = {
 export const HUECO_ALCANCE_M = 3, HUECO_ALTURA_M = 3.5;
 const OJOS_M = 1.6;
 const ACEPTA = ".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp";
-const metros = (v: number) => String(Math.round(v * 100) / 100).replace(".", ",");
+const metros = (v: number) => idiomaActivo() === "es" ? String(Math.round(v * 100) / 100).replace(".", ",") : String(Math.round(v * 100) / 100);
 
 export function montarHuecos(o: OpcionesHuecos) {
   const c = o.constructor;
@@ -49,8 +50,8 @@ export function montarHuecos(o: OpcionesHuecos) {
 
   /** Open the file picker for this hole. Call it inside the click or the key press: browsers refuse a picker otherwise. */
   const abrir = (id: string): Res => {
-    if (!c.estado.puede) return { ok: false, why: "no puedes construir aquí" };
-    if (!deId(id)) return { ok: false, why: `«${id}» no es un hueco` };
+    if (!c.estado.puede) return { ok: false, why: tx("you can't build here", "no puedes construir aquí") };
+    if (!deId(id)) return { ok: false, why: tx(`"${id}" is not a hole`, `«${id}» no es un hueco`) };
     if (o.vr?.activo()) { o.vr.elegir(id); return { ok: true }; } // in VR: the pictures already uploaded, not a picker
     destino = id;
     entrada.click();
@@ -61,38 +62,38 @@ export function montarHuecos(o: OpcionesHuecos) {
     .map((h) => ({ h, d: Math.hypot(h.x - x, h.z - z) }))
     .filter(({ h, d }) => d <= HUECO_ALCANCE_M && Math.abs(h.y - (y + OJOS_M)) <= HUECO_ALTURA_M)
     .sort((a, b) => a.d - b.d)
-    .map(({ h, d }) => ({ feature: "objetos", key: h.id, intent: "", prompt: h.lleno ? "cambiar la obra de este hueco" : "poner tu obra en este hueco", name: h.nombre, distance: d, local: () => abrir(h.id) }));
+    .map(({ h, d }) => ({ feature: "objetos", key: h.id, intent: "", prompt: h.lleno ? tx("change the work in this hole", "cambiar la obra de este hueco") : tx("put your work in this hole", "poner tu obra en este hueco"), name: h.nombre, distance: d, local: () => abrir(h.id) }));
   /** A click on a thing while playing: a hole you may fill opens the picker. True = it was a hole. */
   const pinchar = (key: string): boolean => c.estado.puede && !!deId(key) && abrir(key).ok;
 
   // ---- the object's card: what a selected picture can do ----
   const fila = document.createElement("div");
-  fila.className = "fila"; fila.setAttribute("role", "toolbar"); fila.setAttribute("aria-label", "Hueco");
+  fila.className = "fila"; fila.setAttribute("role", "toolbar"); ligar(fila, "aria-label", "Hole", "Hueco");
   const texto = document.createElement("span");
-  const boton = (id: string, t: string, titulo: string, fn: () => void) => {
+  const boton = (id: string, textos: (b: HTMLButtonElement) => void, fn: () => void) => {
     const b = document.createElement("button");
-    b.type = "button"; b.id = id; b.textContent = t; b.title = titulo;
+    b.type = "button"; b.id = id; textos(b);
     b.addEventListener("click", fn);
     return b;
   };
   const sel = () => { const x = c.objeto(c.estado.seleccionado); return x && x.tipo === "imagen" ? x : null; };
-  const responder = (r: Res, bien: string) => o.decir(r.ok ? bien : `No: ${r.why}.`);
-  const hacer = boton("hueco-hacer", "Hacer hueco", "Esta imagen pasa a ser un hueco del tamaño que tiene ahora: quien construye la pincha y pone su obra; vaciarlo la trae de vuelta", () => {
+  const responder = (r: Res, bien: string) => o.decir(r.ok ? bien : tx(`No: ${r.why}.`, `No: ${r.why}.`));
+  const hacer = boton("hueco-hacer", (b) => { ligar(b, "textContent", "Make hole", "Hacer hueco"); ligar(b, "title", "This image becomes a hole of the size it has now: whoever builds clicks it and puts their work in; emptying it brings the image back", "Esta imagen pasa a ser un hueco del tamaño que tiene ahora: quien construye la pincha y pone su obra; vaciarlo la trae de vuelta"); }, () => {
     const x = sel();
-    if (!x) return o.decir("Selecciona primero una imagen.");
+    if (!x) return o.decir(tx("Select an image first.", "Selecciona primero una imagen."));
     const caja = o.view.editor?.cajaPropia?.(x.id), alto = Number(x.sy);
-    if (!caja || !(caja[4] - caja[1] > 0)) return o.decir("Espera a que se vea la imagen y vuelve a probar.");
+    if (!caja || !(caja[4] - caja[1] > 0)) return o.decir(tx("Wait until the image shows and try again.", "Espera a que se vea la imagen y vuelve a probar."));
     const ancho = (alto * (caja[3] - caja[0])) / (caja[4] - caja[1]);
-    responder(c.hueco(x.id, Math.round(ancho * 100) / 100, alto), `Hueco hecho: ${metros(ancho)} × ${metros(alto)} m. Pínchalo jugando, o «Poner obra…».`);
+    responder(c.hueco(x.id, Math.round(ancho * 100) / 100, alto), tx(`Hole made: ${metros(ancho)} × ${metros(alto)} m. Click it while playing, or "Put work…".`, `Hueco hecho: ${metros(ancho)} × ${metros(alto)} m. Pínchalo jugando, o «Poner obra…».`));
   });
-  const poner = boton("hueco-poner", "Poner obra…", "Elige una imagen de tu ordenador (.png, .jpg o .webp): se sube y se encaja entera en el marco", () => {
+  const poner = boton("hueco-poner", (b) => { ligar(b, "textContent", "Put work…", "Poner obra…"); ligar(b, "title", "Pick an image from your computer (.png, .jpg or .webp): it is uploaded and fitted whole into the frame", "Elige una imagen de tu ordenador (.png, .jpg o .webp): se sube y se encaja entera en el marco"); }, () => {
     const x = sel();
-    const r = x ? abrir(x.id) : { ok: false as const, why: "selecciona primero un hueco" };
-    if (!r.ok) o.decir(`No: ${r.why}.`);
+    const r = x ? abrir(x.id) : { ok: false as const, why: tx("select a hole first", "selecciona primero un hueco") };
+    if (!r.ok) o.decir(tx(`No: ${r.why}.`, `No: ${r.why}.`));
   });
-  const vaciar = boton("hueco-vaciar", "Vaciar hueco", "Quitar la obra: vuelve el cartel que tenía", () => {
+  const vaciar = boton("hueco-vaciar", (b) => { ligar(b, "textContent", "Empty hole", "Vaciar hueco"); ligar(b, "title", "Remove the work: the sign it had comes back", "Quitar la obra: vuelve el cartel que tenía"); }, () => {
     const x = sel();
-    if (x) responder(c.vaciar(x.id), "Hueco vacío: vuelve su cartel.");
+    if (x) responder(c.vaciar(x.id), tx("Hole emptied: its sign comes back.", "Hueco vacío: vuelve su cartel."));
   });
   fila.append(texto, hacer, poner, vaciar);
   o.panel?.append(fila);
@@ -100,7 +101,7 @@ export function montarHuecos(o: OpcionesHuecos) {
     const x = c.estado.puede ? sel() : null, h = x ? deId(x.id) : null;
     fila.style.display = x ? "" : "none"; // not `hidden`: the panel's .fila is display:flex
     if (!x) return;
-    texto.textContent = h ? `Hueco de ${metros(h.ancho)} × ${metros(h.alto)} m · ${h.lleno ? "con obra" : "libre"}` : "Imagen: ";
+    texto.textContent = h ? tx(`Hole of ${metros(h.ancho)} × ${metros(h.alto)} m · ${h.lleno ? "with a work" : "free"}`, `Hueco de ${metros(h.ancho)} × ${metros(h.alto)} m · ${h.lleno ? "con obra" : "libre"}`) : tx("Image: ", "Imagen: ");
     hacer.hidden = !!h; poner.hidden = !h; vaciar.hidden = !h || !h.lleno;
   };
   c.escuchar((que) => { if (que === "seleccion" || que === "estado" || que === "permiso") refrescar(); });

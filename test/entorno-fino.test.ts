@@ -47,7 +47,7 @@ test("library: none, the house skies (each a real <sha256>.hdr), and the current
   const subido = opcionesFondo("imagen", sha, CIELOS_CASA);
   assert.equal(subido.length, 2 + CIELOS_CASA.length);
   assert.equal(subido.at(-1)!.valor, sha);
-  assert.match(subido.at(-1)!.texto, /Subido: [0-9a-f]{8}…\.hdr/);
+  assert.match(subido.at(-1)!.texto, /Uploaded: [0-9a-f]{8}…\.hdr/);
 });
 
 test("tiers: the big HDR (light or background) is fetched only on level A; a plain picture passes everywhere", () => {
@@ -60,7 +60,7 @@ test("tiers: the big HDR (light or background) is fetched only on level A; a pla
     assert.equal(ficheroGrandePermitido(n, ""), true, `${n}: nothing to fetch is nothing refused`);
   }
   assert.equal(notaNivel("A"), "");
-  assert.match(notaNivel("C"), /no se carga el HDR grande/);
+  assert.match(notaNivel("C"), /big HDR is not fetched/);
 });
 
 test("flow: A (a builder) changes the sky colour and names an HDR; B receives exactly those fields; a closed world refuses", () => {

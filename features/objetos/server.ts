@@ -10,6 +10,7 @@ import { serverPart, transformarPuntos } from "../../packages/feature/src/index.
 import type { Msg } from "../../packages/feature/src/index.ts";
 import { objetos, PASO, OBJETOS_MAX, DESHACER_MAX, TRAZOS, TIPOS, EXTENSIONES, HUECO_MIN_M, HUECO_PX_MAX, ESCALA_MIN, encajar, colisionDe, motivoEnlace } from "./feature.ts";
 import type { Tipo, Colision } from "./feature.ts";
+import { IDIOMA_OBJETOS, textoObjetos } from "./textos.ts";
 import biblioteca from "./biblioteca.json" with { type: "json" };
 import { alturaEn } from "../../packages/relieve/src/relieve.ts";
 import { alturaBase, SEMILLA_BASE_DEFECTO } from "../../packages/relieve/src/espacio-base.ts";
@@ -67,7 +68,8 @@ export function sueloDe(base: Msg | undefined, nat: Msg | undefined): Suelo {
 /** `modelos` only for tests; the real list is biblioteca.json. `sembrar` (H5, R-1: any world piece may ask for it): things planted ONCE, the first
  * time this world's objects start empty; after that the mark `sembrado` (in the store) says it was done, so a world that already had things of
  * its own, or whose builder deleted the planted one, never gets it back. They are ordinary things (move, delete, undo, rename all work). */
-export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: readonly Sembrado[] = [], alRestaurar: readonly Sembrado[] = []) => serverPart(objetos, (api) => {
+export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: readonly Sembrado[] = [], alRestaurar: readonly Sembrado[] = [], /** the WORLD's language (ficha.json `idioma`); omitted = Spanish */ idioma: string = IDIOMA_OBJETOS) => serverPart(objetos, (api) => {
+  const tx = (clave: string, vars?: Record<string, string | number>) => textoObjetos(idioma, clave, vars);
   const enBiblioteca = new Map(modelos.map((m) => [m.modelo, m]));
   const pilas = new Map<string, Cambio[]>();
   const rehechos = new Map<string, Cambio[]>(); // M22: what each builder undid, ready to redo; a new change of theirs empties it
@@ -87,10 +89,10 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     api.emit("hecho", { id, accion }, { to: from });
     api.emit("hizo", { quien: from, id, accion, mueve: extra.mueve === true, gira: extra.gira === true, escala: extra.escala === true, oculto: extra.oculto === true }, "server");
   };
-  const puede = (from: number) => api.puede(from, "construir") || rechazar(from, "No puedes construir aquí: el mundo está cerrado a construir (lo abre quien lo administra).");
+  const puede = (from: number) => api.puede(from, "construir") || rechazar(from, tx("cerrado"));
   const objeto = (from: number, id: unknown) => {
     const o = api.state.get(String(id));
-    if (!o) rechazar(from, `No hay ningún objeto «${String(id)}».`);
+    if (!o) rechazar(from, tx("no_hay_objeto", { id: String(id) }));
     return o;
   };
   const apuntar = (from: number, item: Item, opts: { mover?: boolean; lote?: string } = {}) => {
@@ -126,7 +128,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     const c = api.store.get(`c:${id}`) as Caja | undefined;
     return o.solido && c ? { ...o, ...cajaEnMundo(o, c) } : o;
   };
-  const caben = (from: number) => api.state.keys().length < OBJETOS_MAX || rechazar(from, `Esta zona ya tiene ${OBJETOS_MAX} objetos: borra alguno antes.`);
+  const caben = (from: number) => api.state.keys().length < OBJETOS_MAX || rechazar(from, tx("zona_llena", { max: OBJETOS_MAX }));
   /** J18b story 6: the brush's caps, decided here (a page that skips its own checks gets nowhere). A stroke costs `points × 16` triangles; one person
    * holds at most TRAZOS.porConstructor live strokes (counted by who signed them, so deleting or undoing one gives the place back), and the whole world
    * at most TRAZOS.triangulosMundo. A stroke whose file is gone counts as a full one. `modelo` is the sha256 of the .trazo being placed or copied. */
@@ -139,11 +141,11 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
       triangulos += (api.trazoPuntos(String(o.modelo)) ?? TRAZOS.puntosMax) * TRAZOS.triangulosPorPunto;
       if (((api.store.get(`a:${k}`) as Autor | undefined)?.autor ?? null) === mio) suyos++;
     }
-    if (suyos >= TRAZOS.porConstructor) return rechazar(from, `Tienes ${TRAZOS.porConstructor} trazos: borra o deshaz alguno.`);
-    if (triangulos > TRAZOS.triangulosMundo) return rechazar(from, "El mundo ya tiene todos los trazos que caben: borra alguno.");
+    if (suyos >= TRAZOS.porConstructor) return rechazar(from, tx("trazos_tuyos", { max: TRAZOS.porConstructor }));
+    if (triangulos > TRAZOS.triangulosMundo) return rechazar(from, tx("trazos_mundo"));
     return true;
   };
-  const sinNombre = (from: number, nombre: string, decorado: boolean) => !decorado && !nombre && !rechazar(from, "Si no es decorado, necesita un nombre: es lo que oye quien usa un lector de pantalla y lo que leen los agentes.");
+  const sinNombre = (from: number, nombre: string, decorado: boolean) => !decorado && !nombre && !rechazar(from, tx("sin_nombre"));
 
   // M6 (objetos v6): a thing saved before `colision` existed reads as `caja` when it was solid; written once so what
   // is saved says it too (the page and the simulation keep reading `solido`).
@@ -190,8 +192,8 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     if (!puede(from) || !caben(from)) return;
     const modelo = String(m.modelo), nombre = String(m.nombre).trim(), decorado = m.decorado === true;
     const tipo = (TIPOS as readonly string[]).includes(String(m.tipo)) ? String(m.tipo) as Tipo : "modelo", ext = String(m.ext || "glb").toLowerCase();
-    if (!EXTENSIONES[tipo].includes(ext)) return void rechazar(from, `Un ${tipo} es un fichero ${EXTENSIONES[tipo].map((e) => `.${e}`).join(", ")}; .${ext} no vale.`);
-    if (!(tipo === "modelo" && enBiblioteca.has(modelo)) && !api.activo(modelo, ext)) return void rechazar(from, tipo === "modelo" ? "Ese modelo no está en la biblioteca ni se ha subido a este servidor." : `Ese fichero .${ext} no se ha subido a este servidor.`);
+    if (!EXTENSIONES[tipo].includes(ext)) return void rechazar(from, tx("extension", { tipo, lista: EXTENSIONES[tipo].map((e) => `.${e}`).join(", "), ext }));
+    if (!(tipo === "modelo" && enBiblioteca.has(modelo)) && !api.activo(modelo, ext)) return void rechazar(from, tipo === "modelo" ? tx("modelo_no") : tx("fichero_no", { ext }));
     if (sinNombre(from, nombre, decorado)) return;
     if (tipo === "trazo" && !trazoCabe(from, api.trazoPuntos(modelo) ?? TRAZOS.puntosMax)) return;
     const id = nuevoId();
@@ -222,7 +224,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     if (!puede(from)) return;
     const o = objeto(from, m.id), id = String(m.id);
     if (!o) return;
-    if (o.fijado) return void rechazar(from, "Está fijado: suéltalo antes de moverlo.");
+    if (o.fijado) return void rechazar(from, tx("fijado_mover"));
     colocarEnSitio(from, id, o, m, m.sy, { mover: true, lote: String(m.lote || "") });
   });
 
@@ -233,10 +235,10 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     if (!puede(from)) return;
     const o = objeto(from, m.id), id = String(m.id), idCon = String(m.con);
     if (!o) return;
-    if (idCon === id) return void rechazar(from, "Una cosa no puede ser su propio compañero.");
+    if (idCon === id) return void rechazar(from, tx("companero_propio"));
     const c = objeto(from, idCon);
     if (!c) return;
-    if (o.fijado || c.fijado) return void rechazar(from, "Está fijado: suéltalo antes de moverlo.");
+    if (o.fijado || c.fijado) return void rechazar(from, tx("fijado_mover"));
     const lote = String(m.lote || "") || `c${id}`.slice(0, 16);
     colocarEnSitio(from, id, o, m, m.sy, { mover: true, lote });
     colocarEnSitio(from, idCon, c, m, m.syCon, { mover: true, lote });
@@ -246,7 +248,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     if (!puede(from)) return;
     const o = objeto(from, m.id), id = String(m.id);
     if (!o) return;
-    if (o.fijado) return void rechazar(from, "Está fijado: suéltalo antes de girarlo.");
+    if (o.fijado) return void rechazar(from, tx("fijado_girar"));
     apuntar(from, { id, antes: o });
     api.state.set(id, conCaja(id, { ...o, ry: girado(Number(o.ry) + Number(m.grados)) }));
     hecho(from, id, "girar", { gira: true });
@@ -291,7 +293,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     if (!puede(from)) return;
     const o = objeto(from, m.id), id = String(m.id);
     if (!o) return;
-    if (o.fijado) return void rechazar(from, "Está fijado: suéltalo antes de borrarlo.");
+    if (o.fijado) return void rechazar(from, tx("fijado_borrar"));
     apuntar(from, { id, antes: o, autor: autorDe(id) }, { lote: String(m.lote || "") });
     api.state.delete(id);
     api.store.delete(`a:${id}`); api.store.delete(`s:${id}`);
@@ -324,15 +326,15 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     if (!o) return;
     const colision: Colision = m.colision === "malla" ? "malla" : m.colision === "caja" || m.solido === true ? "caja" : "ninguna";
     const solido = colision !== "ninguna";
-    if (solido && o.tipo === "sonido") return void rechazar(from, "Una esfera de sonido no puede ser sólida: es una zona por la que se pasa.");
-    if (solido && o.tipo === "trazo") return void rechazar(from, "Un trazo no puede ser sólido: es pintura en el aire, no choca.");
-    if (colision === "malla" && o.tipo !== "modelo") return void rechazar(from, "Solo un modelo 3D (.glb) choca con su malla: una imagen, un vídeo o un sonido pueden ser caja o nada.");
+    if (solido && o.tipo === "sonido") return void rechazar(from, tx("sonido_solido"));
+    if (solido && o.tipo === "trazo") return void rechazar(from, tx("trazo_solido"));
+    if (colision === "malla" && o.tipo !== "modelo") return void rechazar(from, tx("malla_solo_modelo"));
     if (solido) {
       const c: Caja = [m.bx0, m.by0, m.bz0, m.bx1, m.by1, m.bz1].map((v) => q(v, PASO.pos)) as Caja;
       if (c[3] - c[0] > 0.01 && c[4] - c[1] > 0.01 && c[5] - c[2] > 0.01) api.store.set(`c:${id}`, c);
-      else if (!api.store.get(`c:${id}`)) return void rechazar(from, "Para que sea sólido hace falta su caja: espera a que el modelo se vea y vuelve a marcarlo.");
+      else if (!api.store.get(`c:${id}`)) return void rechazar(from, tx("falta_caja"));
     }
-    const enlace = String(m.enlace ?? "").trim(), motivo = motivoEnlace(enlace);
+    const enlace = String(m.enlace ?? "").trim(), motivo = motivoEnlace(enlace, idioma);
     if (motivo) return void rechazar(from, motivo);
     apuntar(from, { id, antes: o });
     const alcance = ["burbuja", "zona", "todos"].includes(String(m.alcance)) ? String(m.alcance) : "burbuja";
@@ -343,12 +345,12 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
   });
 
   // ---- U12: holes ----
-  const noEsHueco = (from: number, o: Msg, id: string) => rechazar(from, `«${String(o.nombre || id)}» no es un hueco: un hueco es la imagen de un marco que espera su obra (la marca quien construye).`);
+  const noEsHueco = (from: number, o: Msg, id: string) => rechazar(from, tx("no_es_hueco", { nombre: String(o.nombre || id) }));
   api.on("hueco", (from, m) => {
     if (!puede(from)) return;
     const o = objeto(from, m.id), id = String(m.id);
     if (!o) return;
-    if (o.fijado) return void rechazar(from, "Está fijado: suéltalo antes de hacerle un hueco.");
+    if (o.fijado) return void rechazar(from, tx("fijado_hueco"));
     const ancho = q(m.ancho, PASO.pos), alto = q(m.alto, PASO.pos);
     if (ancho === 0 && alto === 0) { // no longer a hole: it keeps the picture it shows now
       if (!esHueco(o)) return void noEsHueco(from, o, id);
@@ -357,8 +359,8 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
       api.store.delete(`v:${id}`);
       return void hecho(from, id, "hueco");
     }
-    if (o.tipo !== "imagen") return void rechazar(from, "Un hueco es una imagen (el cartel que espera la obra): coloca una imagen y haz de ella el hueco.");
-    if (ancho < HUECO_MIN_M || alto < HUECO_MIN_M) return void rechazar(from, `Un hueco mide al menos ${String(HUECO_MIN_M).replace(".", ",")} m por lado.`);
+    if (o.tipo !== "imagen") return void rechazar(from, tx("hueco_imagen"));
+    if (ancho < HUECO_MIN_M || alto < HUECO_MIN_M) return void rechazar(from, tx("hueco_minimo", { min: idioma === "en" ? String(HUECO_MIN_M) : String(HUECO_MIN_M).replace(".", ",") }));
     // the picture it shows now is its card, unless it is already a hole (then the card stays the one it had)
     if (!esHueco(o) || !api.store.get(`v:${id}`)) api.store.set(`v:${id}`, { modelo: String(o.modelo), ext: String(o.ext), sx: Number(o.sx), sy: Number(o.sy), sz: Number(o.sz), nombre: String(o.nombre), decorado: o.decorado === true } satisfies Cartel);
     apuntar(from, { id, antes: o });
@@ -369,13 +371,13 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
   /** The one way a work gets into a hole (a builder's `rellenar` and a scene's `mapa` both come here). Returns the new entry, or why not. */
   const llenado = (o: Msg, id: string, modeloIn: unknown, extIn: unknown, nombreIn: unknown): { ok: true; nuevo: Msg } | { ok: false; motivo: string } => {
     const modelo = String(modeloIn), ext = String(extIn).toLowerCase(), nombre = String(nombreIn ?? "").trim();
-    if (!EXTENSIONES.imagen.includes(ext)) return { ok: false, motivo: `En un hueco va una imagen ${EXTENSIONES.imagen.map((e) => `.${e}`).join(", ")}; .${ext} no vale.` };
-    if (!api.activo(modelo, ext)) return { ok: false, motivo: `Esa imagen .${ext} no se ha subido a este servidor.` };
+    if (!EXTENSIONES.imagen.includes(ext)) return { ok: false, motivo: tx("en_hueco", { lista: EXTENSIONES.imagen.map((e) => `.${e}`).join(", "), ext }) };
+    if (!api.activo(modelo, ext)) return { ok: false, motivo: tx("imagen_no_subida", { ext }) };
     const px = api.medidas(modelo, ext);
-    if (!px) return { ok: false, motivo: "No sé leer cuántos píxeles mide esa imagen: vuelve a guardarla como .png o .jpg." };
-    if (px.ancho > HUECO_PX_MAX || px.alto > HUECO_PX_MAX) return { ok: false, motivo: `La imagen mide ${px.ancho} × ${px.alto} px; en un hueco caben hasta ${HUECO_PX_MAX} px por lado.` };
+    if (!px) return { ok: false, motivo: tx("sin_pixeles") };
+    if (px.ancho > HUECO_PX_MAX || px.alto > HUECO_PX_MAX) return { ok: false, motivo: tx("imagen_grande", { ancho: px.ancho, alto: px.alto, max: HUECO_PX_MAX }) };
     const s = encajar(Number(o.huecoAncho), Number(o.huecoAlto), px.ancho, px.alto);
-    if (s < ESCALA_MIN) return { ok: false, motivo: `La imagen (${px.ancho} × ${px.alto} px) es demasiado alargada para este marco: quedaría de menos de ${Math.round(ESCALA_MIN * 100)} cm.` };
+    if (s < ESCALA_MIN) return { ok: false, motivo: tx("imagen_alargada", { ancho: px.ancho, alto: px.alto, cm: Math.round(ESCALA_MIN * 100) }) };
     return { ok: true, nuevo: conCaja(id, { ...o, modelo, ext, sx: s, sy: s, sz: s, huecoLleno: true, ...(nombre ? { nombre, decorado: false } : {}) }) };
   };
   api.on("rellenar", (from, m) => {
@@ -415,7 +417,7 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     if (!o) return;
     const v = api.store.get(`v:${id}`) as Cartel | undefined;
     if (!esHueco(o) || !v) return void noEsHueco(from, o, id);
-    if (o.huecoLleno !== true) return void rechazar(from, "Ese hueco ya está vacío.");
+    if (o.huecoLleno !== true) return void rechazar(from, tx("hueco_vacio"));
     apuntar(from, { id, antes: o });
     api.state.set(id, conCaja(id, { ...o, modelo: v.modelo, ext: v.ext, sx: v.sx, sy: v.sy, sz: v.sz, nombre: v.nombre, decorado: v.decorado, huecoLleno: false }));
     hecho(from, id, "vaciar");
@@ -461,10 +463,10 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
   const volver = (from: number, de: Map<string, Cambio[]>, a: Map<string, Cambio[]>, accion: "deshacer" | "rehacer") => {
     if (!puede(from)) return;
     const k = quien(from), pila = de.get(k), c = pila?.pop();
-    if (!c) return void rechazar(from, `No hay nada tuyo que ${accion}.`);
+    if (!c) return void rechazar(from, tx(accion === "deshacer" ? "nada_tuyo_deshacer" : "nada_tuyo_rehacer"));
     const ahoras = c.items.map((it) => api.state.get(it.id));
     for (let i = 0; i < c.items.length; i++) {
-      if (fijadoImpide(ahoras[i], c.items[i].antes)) { pila!.push(c); return void rechazar(from, `Está fijado: suéltalo antes de ${accion}.`); }
+      if (fijadoImpide(ahoras[i], c.items[i].antes)) { pila!.push(c); return void rechazar(from, tx(accion === "deshacer" ? "fijado_deshacer" : "fijado_rehacer")); }
     }
     const otra = a.get(k) ?? [];
     // M22c: whole group goes back on the other stack as ONE entry too, so redo/undo keeps moving them together

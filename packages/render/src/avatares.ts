@@ -4,7 +4,10 @@
 // The capsules stay as anchors: labels, bounces, the camera and the jump read them; a capsule that has a VRM is only
 // hidden from every camera (layers), never `.visible = false`, so those keep working.
 import * as THREE from "three/webgpu";
-import { FUNDIDO_S, cadenciaAnimacion, clipPara, cupoVRM, distanciaVRM, elegirAvatar, elegirCercanos, empezarMovimiento, estadoPor, metaApoyo, movimientoOcupa, nuevaMarcha, pasoDeMovimiento, seguir, suavizarApoyo } from "./avatares-politica.ts";
+import { FUNDIDO_S, cadenciaAnimacion, clipPara, cupoVRM, distanciaVRM, elegirAvatar, elegirCercanos, empezarMovimiento, estadoPor, girarHacia, metaApoyo, movimientoOcupa, nuevaMarcha, pasoDeMovimiento, seguir, suavizarApoyo } from "./avatares-politica.ts";
+/** Time constant (s) of turning towards a fixed heading: a person (or an AI) turns to you in about half a second, never snaps. */
+export const GIRO_FIJO_S = 0.15;
+const GIRO_LISTO = 0.01; // radians: close enough, stop asking for frames
 import type { Clip, EnCurso, Estado, Marcha, Movimiento } from "./avatares-politica.ts";
 import type { Copia, Plantilla } from "./avatares-vrm.ts";
 import type { VRMAnimation } from "@pixiv/three-vrm-animation";
@@ -31,7 +34,8 @@ type Avatar = {
   clip?: string; tramo?: string; accion?: THREE.AnimationAction; saliente?: THREE.AnimationAction; fundidoHasta: number;
   ancla?: THREE.Object3D; mascara?: number; cerca: boolean;
   cadencia: 0 | 1 | 2; pendienteDt: number; // J14: how often its animation steps (1 = every frame, 2 = every other, 0 = frozen) and the time not yet given to the mixer
-  rumboFijo?: number; // pesca v2: while fishing the body faces the water (only while standing still)
+  rumboFijo?: number; // pesca v2: while fishing the body faces the water (only while standing still); also a seat's heading and an AI facing the person it is with
+  girando?: boolean;  // turning towards rumboFijo (eased, GIRO_FIJO_S): keep drawing until it gets there
   recortado?: boolean; escala?: number; rumboVR?: number; // t_8217ffea (N2): VR body — head and arms collapsed, scaled to your height, facing where the head looks
   apoyo?: number; // t_3f0e5846: metres the body is moved so its feet stand on the floor during a calm posture (sitting, crouching); eases back to 0
 };
@@ -148,7 +152,13 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
     if (a.ancla !== ancla) { if (a.ancla && a.mascara !== undefined) a.ancla.layers.mask = a.mascara; a.ancla = ancla; a.mascara = undefined; }
     if (a.mascara === undefined) { a.mascara = ancla.layers.mask; ancla.layers.mask = 0; }
     c.raiz.position.set(pos.x, altura, pos.z);
-    c.raiz.rotation.y = a.rumboFijo !== undefined && a.estado === "quieto" ? a.rumboFijo : a.marcha.rumbo;
+    // a fixed heading (seat, fishing, an AI facing you) is turned to, eased, and it is where the next walk starts from (no jump back)
+    if (a.rumboFijo !== undefined && a.estado === "quieto") {
+      a.marcha.rumbo = girarHacia(a.marcha.rumbo, a.rumboFijo, dt, GIRO_FIJO_S);
+      const d = a.rumboFijo - a.marcha.rumbo;
+      a.girando = Math.abs(Math.atan2(Math.sin(d), Math.cos(d))) > GIRO_LISTO;
+    } else a.girando = false;
+    c.raiz.rotation.y = a.marcha.rumbo;
     c.raiz.visible = !oculto;
     // t_8217ffea (N2): in VR your body stands under your head (colocarVR, every frame): the head and the arms are collapsed, and back on the flat page nothing stays changed
     if (a.clave === "yo") {
@@ -225,7 +235,7 @@ export function createAvatares(o: { world: THREE.Object3D; mobile: boolean; xr: 
         actualizar(a, ancla, false, desde, ahora, dt, modulo);
       }
       for (const [k, a] of avatares) if (!quien.has(k)) { desvestir(a); avatares.delete(k); if (typeof k === "number") nivelesVoz.delete(k); }
-      ocupado = cargando > 0 || [...avatares.values()].some((a) => a.copia && a.cerca && (a.estado !== "quieto" || ahora < a.fundidoHasta || (movs.has(a.clave) && movimientoOcupa(movs.get(a.clave)!, ahora, durDe))));
+      ocupado = cargando > 0 || [...avatares.values()].some((a) => a.copia && a.cerca && (a.estado !== "quieto" || a.girando || ahora < a.fundidoHasta || (movs.has(a.clave) && movimientoOcupa(movs.get(a.clave)!, ahora, durDe))));
     },
     /** t_3f0e5846: ask for these clips ahead (the move the wheel is pointing at), so the first time a move is made it does not wait for its files.
      * Nothing is fetched at world entry (the page weight): only what the person is about to choose. Asking twice costs nothing. */

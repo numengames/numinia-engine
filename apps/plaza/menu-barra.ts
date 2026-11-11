@@ -6,6 +6,7 @@
 // gives focus back, Tab or a press outside closes. One menu open at a time. A menu with every entry hidden hides its
 // button (the `hidden` attribute, never a CSS display), so the bar never shows a dead button.
 import { escribiendo } from "./escribiendo.ts";
+import { teclas } from "./teclas.ts";
 import { botonVisible, cabeEnPantalla, derechaDelMenu, entradasVisibles, siguienteEntrada } from "./menu-logica.ts";
 /** P8: the least space (CSS px) a drop-down leaves between itself and the screen's edge. */
 const MARGEN_PANTALLA = 8;
@@ -20,9 +21,11 @@ const todos: MenuBarra[] = [];
 export function montarMenuBarra(o: {
   id: string; barra: HTMLElement; boton: HTMLButtonElement; etiqueta: string; entradas: HTMLButtonElement[];
   tecla?: string;                          // e.g. "KeyP": opens and closes it (not while typing)
+  accion?: string;                         // keymap v1: the action of teclas.ts; the key in effect wins over `tecla`
   puedeTecla?: (e: KeyboardEvent) => boolean; // the key waits when something else owns it (building, a dialog, a dartboard)
 }): MenuBarra {
   const { boton, barra, entradas } = o;
+  const esTecla = (e: KeyboardEvent): boolean => (o.accion ? teclas.es(e, o.accion) : !!o.tecla && e.code === o.tecla);
   const menu = document.createElement("div");
   menu.id = o.id; menu.className = "menu-barra"; menu.hidden = true;
   menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", o.etiqueta);
@@ -92,7 +95,7 @@ export function montarMenuBarra(o: {
     const actual = entradas.indexOf(document.activeElement as HTMLButtonElement);
     const sig = siguienteEntrada(visibles(), actual, e.key);
     if (sig !== null) { e.preventDefault(); entradas[sig]?.focus({ preventScroll: true }); }
-    else if (e.key === "Escape" || (o.tecla && e.code === o.tecla && !e.repeat)) { e.preventDefault(); m.cerrar(true); }
+    else if (e.key === "Escape" || (esTecla(e) && !e.repeat)) { e.preventDefault(); m.cerrar(true); }
     else if (e.key === "Tab") m.cerrar(false);
     e.stopPropagation(); // keys typed in the menu never walk, jump or open something else
   });
@@ -103,7 +106,7 @@ export function montarMenuBarra(o: {
     m.cerrar(false);
   }, { capture: true });
   if (o.tecla) addEventListener("keydown", (e) => {
-    if (e.code !== o.tecla || e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || escribiendo(e)) return;
+    if (!esTecla(e) || e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || escribiendo(e)) return;
     if (menu.contains(e.target as Node)) return; // handled above
     if (!m.abierto && o.puedeTecla && !o.puedeTecla(e)) return;
     e.preventDefault();

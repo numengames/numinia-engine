@@ -6,6 +6,8 @@ import assert from "node:assert/strict";
 import { crearSoltar, pideConfirmar, preguntaSoltar } from "../apps/plaza/bolsa-soltar.ts";
 import type { Objeto } from "../apps/plaza/bolsa-rejilla.ts";
 import { dar, leerInventario, nuevoInventario, quitar } from "../features/inventario/reglas.ts";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // these checks read the Spanish second language
 
 const obj = (o: Partial<Objeto> & { id: string }): Objeto => ({ tipo: "reliquia", clase: "r", nombre: o.id, icono: "", color: "", valor: 0, n: 1, portado: false, ...o });
 function montar() {
@@ -104,4 +106,11 @@ test("the panel goes through the guard: its only soltar call is the guard's, and
   assert.equal((f.match(/\bc\.soltar\(/g) ?? []).length, 1, "the controller's soltar( is called once: inside the guard");
   assert.match(f, /crearSoltar\(\(id, n\) => c\.soltar\(id, n\)/, "the controller's soltar is wired only inside crearSoltar");
   assert.doesNotMatch(f, /\bconfirm\(/);
+});
+
+
+test("the drop question speaks English by default", () => {
+  fijarIdioma("en");
+  assert.equal(preguntaSoltar({ nombre: "Sword" }), "Drop Sword? It will be lost.");
+  fijarIdioma("es");
 });

@@ -18,8 +18,10 @@ test("auto: the old rule — touch controls exactly when the pointer is coarse; 
   assert.equal(claseReal({ ...telefono, ancho: 844, alto: 390 }), "movil-horizontal");
   // a touch laptop with a mouse keeps the desktop HUD, as before (pointer: fine)
   assert.equal(decidirAparato({ real: { ...pc, tactil: true } }).tactil, false);
-  // power class follows render/power.ts isMobileClass: ≤ 4 GB is phone-class even with a mouse
-  assert.equal(decidirAparato({ real: { ...pc, memoriaGB: 4 } }).movil, true);
+  // power class follows render/power.ts isMobileClass: memory alone never makes a desktop phone-class (browsers report 2-4 GB
+  // to hide the real figure; a PC got the phone's renderer, no antialias and capped shadows — QA Simposio 2026-11-11)
+  assert.equal(decidirAparato({ real: { ...pc, memoriaGB: 4 } }).movil, false);
+  assert.equal(decidirAparato({ real: { ...telefono, memoriaGB: 4 } }).movil, true);
   assert.equal(decidirAparato({ real: { ...pc, memoriaGB: 0 } }).movil, false, "0 = the browser does not say");
 });
 

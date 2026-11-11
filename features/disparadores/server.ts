@@ -9,6 +9,7 @@ import type { Accion, Tipo } from "./feature.ts";
 import { SISTEMA, herramientaDe, leerSalida, referenciasMalas, turnoDeUsuario } from "./cable-decir.ts";
 import type { LineaCable, MundoCable, OpcionesDecir } from "./cable-decir.ts";
 import { fraseDeCable, idiomaDe } from "./cable-frase.ts";
+import { IDIOMA_DISPARADORES, textoDisparadores } from "./textos.ts";
 export type { OpcionesDecir, PensarCable } from "./cable-decir.ts";
 
 export type Receptor =
@@ -34,33 +35,34 @@ export const cortar = (t: string, max: number): string => {
 const entre = (v: unknown, min: number, max: number, def: number) => { const n = Number(v); return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : def; };
 
 /** One receiver's line, checked (or why it is left out). Only the six actions of the ficha; anything else is a new piece. */
-export function leerReceptor(r: unknown): Receptor | string {
+export function leerReceptor(r: unknown, idioma: string = IDIOMA_DISPARADORES): Receptor | string {
+  const tx = (clave: string, vars?: Record<string, string | number>) => textoDisparadores(idioma, clave, vars);
   const o = (r ?? {}) as Record<string, unknown>;
   const accion = String(o.accion ?? "");
-  if (!(ACCIONES as readonly string[]).includes(accion)) return `accion «${accion.slice(0, 24)}»: una de ${ACCIONES.join(", ")}`;
+  if (!(ACCIONES as readonly string[]).includes(accion)) return tx("accion_mala", { accion: accion.slice(0, 24), lista: ACCIONES.join(", ") });
   switch (accion as Accion) {
     case "muestra": case "oculta": {
       const objeto = cortar(String(o.objeto ?? ""), 60);
-      return objeto ? { accion, objeto } : `${accion}: falta «objeto» (el id o el nombre del objeto)`;
+      return objeto ? { accion, objeto } : tx("falta_objeto", { accion });
     }
     case "mueve": {
       const objeto = cortar(String(o.objeto ?? ""), 60);
-      return objeto ? { accion, objeto } : "mueve: falta «objeto» (el id del movedor)";
+      return objeto ? { accion, objeto } : tx("falta_movedor");
     }
     case "teletransporta":
-      if (!Number.isFinite(Number(o.x)) || !Number.isFinite(Number(o.z))) return "teletransporta: x y z en metros";
+      if (!Number.isFinite(Number(o.x)) || !Number.isFinite(Number(o.z))) return tx("tele_xyz");
       return { accion, x: entre(o.x, -2000, 2000, 0), y: entre(o.y, -100, 500, 0), z: entre(o.z, -2000, 2000, 0) };
     case "da_paso":
-      if (!MISION_RE.test(String(o.mision))) return "da_paso: «mision» debe ser el id de una misión (minúsculas, cifras, guiones)";
+      if (!MISION_RE.test(String(o.mision))) return tx("paso_mision");
       return { accion, mision: String(o.mision), paso: Math.round(entre(o.paso, 0, 999, 0)) };
     case "abre_enlace": {
       const enlace = String(o.enlace ?? "");
-      if (!/^https:\/\/[^\s]{1,190}$/.test(enlace)) return "abre_enlace: «enlace» debe empezar por https:// (hasta 200 caracteres)";
+      if (!/^https:\/\/[^\s]{1,190}$/.test(enlace)) return tx("enlace_https");
       return { accion, enlace };
     }
     case "suena": {
       const sonido = String(o.sonido ?? "");
-      if (!/^[a-z0-9_-]{1,32}$/.test(sonido)) return "suena: «sonido» es un nombre corto (minúsculas, cifras, guiones)";
+      if (!/^[a-z0-9_-]{1,32}$/.test(sonido)) return tx("sonido_nombre");
       return { accion, sonido };
     }
     case "vuelve_a_seguro":
@@ -70,32 +72,33 @@ export function leerReceptor(r: unknown): Receptor | string {
 
 /** A trigger's line as read from the world's file, checked (or why it is left out). A bad receiver drops the whole
  * trigger: half a cable is worse than none, and the log says which line. */
-export function leerDisparador(d: unknown): Disparador | string {
+export function leerDisparador(d: unknown, idioma: string = IDIOMA_DISPARADORES): Disparador | string {
+  const tx = (clave: string, vars?: Record<string, string | number>) => textoDisparadores(idioma, clave, vars);
   const o = (d ?? {}) as Record<string, unknown>;
-  if (!ID_RE.test(String(o.id))) return `id «${String(o.id).slice(0, 16)}»: minúsculas, cifras y guiones, hasta 16`;
+  if (!ID_RE.test(String(o.id))) return tx("id_malo", { id: String(o.id).slice(0, 16) });
   const tipo = String(o.tipo ?? "");
-  if (!(TIPOS as readonly string[]).includes(tipo)) return `«${o.id}»: tipo debe ser ${TIPOS.map((t) => `«${t}»`).join(", ")}`;
+  if (!(TIPOS as readonly string[]).includes(tipo)) return tx("tipo_malo", { id: String(o.id), tipos: TIPOS.map((t) => `«${t}»`).join(", ") });
   let senal = "";
   if (tipo === "senal") {
     senal = String(o.senal ?? "");
-    if (!SENAL_RE.test(senal)) return `«${o.id}»: senal debe ser un nombre de 1 a 32 letras minúsculas, cifras o guiones (lo que oye de una cerradura o un movedor)`;
+    if (!SENAL_RE.test(senal)) return tx("senal_mala", { id: String(o.id) });
   } else {
-    if (!Number.isFinite(Number(o.x)) || !Number.isFinite(Number(o.z))) return `«${o.id}»: x y z en metros`;
+    if (!Number.isFinite(Number(o.x)) || !Number.isFinite(Number(o.z))) return tx("xyz", { id: String(o.id) });
   }
-  if (!Array.isArray(o.receptores) || o.receptores.length === 0) return `«${o.id}»: necesita una lista «receptores» con al menos uno`;
-  if (o.receptores.length > RECEPTORES_MAX) return `«${o.id}»: más de ${RECEPTORES_MAX} receptores`;
+  if (!Array.isArray(o.receptores) || o.receptores.length === 0) return tx("sin_receptores", { id: String(o.id) });
+  if (o.receptores.length > RECEPTORES_MAX) return tx("mas_receptores", { id: String(o.id), max: RECEPTORES_MAX });
   const receptores: Receptor[] = [];
   for (const [i, r] of o.receptores.entries()) {
-    const leido = leerReceptor(r);
-    if (typeof leido === "string") return `«${o.id}»: receptor ${i + 1}: ${leido}`;
+    const leido = leerReceptor(r, idioma);
+    if (typeof leido === "string") return tx("receptor_n", { id: String(o.id), n: i + 1, motivo: leido });
     receptores.push(leido);
   }
-  const nombre = cortar(String(o.nombre || (tipo === "zona" ? "Zona" : tipo === "boton" ? "Botón" : "Señal")), 60) || "Disparador";
+  const nombre = cortar(String(o.nombre || tx(tipo === "zona" ? "nombre_zona" : tipo === "boton" ? "nombre_boton" : "nombre_senal")), 60) || tx("nombre_defecto");
   return {
     id: String(o.id), nombre, tipo: tipo as Tipo, x: entre(o.x, -2000, 2000, 0), z: entre(o.z, -2000, 2000, 0), y: entre(o.y, -100, 500, 0),
     radio: tipo === "zona" ? entre(o.radio, 0.5, 64, 3) : 0.5,
     alcance: tipo === "boton" ? entre(o.radio, 1, 16, 2) : 0,
-    frase: tipo === "boton" ? cortar(String(o.frase || `pulsar ${nombre}`), 60) || `pulsar ${nombre}` : "",
+    frase: tipo === "boton" ? cortar(String(o.frase || tx("frase_pulsar", { nombre })), 60) || tx("frase_pulsar", { nombre }) : "",
     senal,
     cooldown: Math.round(entre(o.cooldown, 0, COOLDOWN_MAX_S, 0)),
     unSoloUso: o.un_solo_uso === true,
@@ -104,16 +107,17 @@ export function leerDisparador(d: unknown): Disparador | string {
 }
 
 /** The whole file (numinia-engine/disparadores@1: `{ "disparadores": [...] }`): what stays and why each line left. */
-export function leerDisparadores(crudo: unknown): { disparadores: Disparador[]; problemas: string[] } {
+export function leerDisparadores(crudo: unknown, idioma: string = IDIOMA_DISPARADORES): { disparadores: Disparador[]; problemas: string[] } {
+  const tx = (clave: string, vars?: Record<string, string | number>) => textoDisparadores(idioma, clave, vars);
   const problemas: string[] = [], out: Disparador[] = [];
   const lista = (crudo as { disparadores?: unknown } | null | undefined)?.disparadores;
-  if (!Array.isArray(lista)) return { disparadores: [], problemas: [`disparadores.json no tiene una lista "disparadores" (no pongo ninguno): ${JSON.stringify(crudo).slice(0, 160)}`] };
+  if (!Array.isArray(lista)) return { disparadores: [], problemas: [tx("sin_lista", { crudo: JSON.stringify(crudo).slice(0, 160) })] };
   const vistos = new Set<string>();
   for (const l of lista) {
-    const d = leerDisparador(l);
-    if (typeof d === "string") { problemas.push(`${d}: no se pone`); continue; }
-    if (vistos.has(d.id)) { problemas.push(`«${d.id}»: id repetido: no se pone`); continue; }
-    if (out.length >= DISPARADORES_MAX) { problemas.push(`«${d.id}»: más de ${DISPARADORES_MAX} disparadores: no se pone`); continue; }
+    const d = leerDisparador(l, idioma);
+    if (typeof d === "string") { problemas.push(tx("no_se_pone", { motivo: d })); continue; }
+    if (vistos.has(d.id)) { problemas.push(tx("id_repetido", { id: d.id })); continue; }
+    if (out.length >= DISPARADORES_MAX) { problemas.push(tx("mas_disparadores", { id: d.id, max: DISPARADORES_MAX })); continue; }
     vistos.add(d.id); out.push(d);
   }
   return { disparadores: out, problemas };
@@ -134,12 +138,14 @@ export function serializarDisparador(d: Disparador): Record<string, unknown> {
 export const serializarDisparadores = (ds: Disparador[]) => ({ disparadores: ds.map(serializarDisparador) });
 
 /** Why «Decirlo» is not there when the world has no AI plugged in (shown in place of the text box). */
-export const MOTIVO_SIN_IA = "Este mundo no tiene una IA conectada. Pide al dueño que la añada.";
-const MOTIVO_CAIDA = "La IA no contesta ahora mismo. Inténtalo dentro de un minuto o monta el cable con los desplegables.";
+export const MOTIVO_SIN_IA = textoDisparadores("es", "sin_ia");
 const CAIDA_MS = 60_000;
-const MOTIVO_NO_CONSTRUYE = "No puedes construir aquí: decirle un cable al mundo es cosa de quien tiene permiso de construir.";
 
-export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?: (disparadores: Disparador[]) => void; decir?: OpcionesDecir } = {}) => serverPart(disparadores, (api: ServerApi) => {
+export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?: (disparadores: Disparador[]) => void; decir?: OpcionesDecir; /** the WORLD's language (ficha.json `idioma`); omitted = Spanish */ idioma?: string } = {}) => serverPart(disparadores, (api: ServerApi) => {
+  const lang = opts.idioma ?? IDIOMA_DISPARADORES;
+  const tx = (clave: string, vars?: Record<string, string | number>) => textoDisparadores(lang, clave, vars);
+  const MOTIVO_CAIDA = tx("caida"), MOTIVO_NO_CONSTRUYE = tx("no_construye_decir");
+  const MOTIVO_SIN_IA_MUNDO = tx("sin_ia");
   const lista = new Map<string, Disparador>();
   const listos = new Map<string, number>();        // trigger → tick at which its cooldown ends
   const dentro = new Map<string, Set<number>>();   // zone → who is inside now
@@ -156,7 +162,7 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
   };
   for (const d of opts.disparadores ?? []) if (!montar(d)) api.log(`disparadores: «${d.id}» no cabe en el esquema y no se pone`);
   if (lista.size) api.log(`disparadores: ${lista.size} disparador(es)`);
-  const nombreDe = (e: number) => cortar(api.who(e)?.nombre ?? `Persona ${e}`, 40) || `Persona ${e}`;
+  const nombreDe = (e: number) => cortar(api.who(e)?.nombre ?? tx("persona_n", { n: e }), 40) || tx("persona_n", { n: e });
   const rechazar = (e: number, motivo: string) => { api.emit("rechazado", { motivo: cortar(motivo, 160) }, { to: e }); };
   const poner = (d: Disparador, cambio: Msg) => { const v = api.state.get(d.id); if (v) api.state.set(d.id, { ...v, ...cambio }, { at: { x: d.x, z: d.z } }); };
 
@@ -164,15 +170,15 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
   const disparar = (d: Disparador, quien: number | null): boolean => {
     const v = api.state.get(d.id);
     if (!v) return false;
-    if (agotados.has(d.id)) { if (quien !== null && d.tipo === "boton") rechazar(quien, `${d.nombre} ya se usó.`); return false; }
+    if (agotados.has(d.id)) { if (quien !== null && d.tipo === "boton") rechazar(quien, tx("ya_usado", { nombre: d.nombre })); return false; }
     const listo = listos.get(d.id);
-    if (listo !== undefined && api.tick() < listo) { if (quien !== null && d.tipo === "boton") rechazar(quien, `Todavía no: ${d.nombre} espera ${Math.ceil((listo - api.tick()) / TICK_HZ)} s.`); return false; }
+    if (listo !== undefined && api.tick() < listo) { if (quien !== null && d.tipo === "boton") rechazar(quien, tx("todavia_no", { nombre: d.nombre, s: Math.ceil((listo - api.tick()) / TICK_HZ) })); return false; }
     const n = Number(v.usos) + 1;
     const agotado = d.unSoloUso;
     if (agotado) agotados.add(d.id);
     if (d.cooldown > 0 && !agotado) listos.set(d.id, api.tick() + d.cooldown * TICK_HZ);
     poner(d, { usos: n, enEspera: d.cooldown > 0 && !agotado, agotado, alcance: agotado ? 0 : d.alcance });
-    const texto = cortar(quien !== null ? `${nombreDe(quien)} ${d.tipo === "zona" ? "entra en" : "pulsa"} ${d.nombre}` : `${d.nombre} salta`, 120);
+    const texto = cortar(quien !== null ? tx(d.tipo === "zona" ? "entra_en" : "pulsa", { quien: nombreDe(quien), nombre: d.nombre }) : tx("salta", { nombre: d.nombre }), 120);
     const q = quien ?? 0;
     api.emit("disparado", { quien: q, disparador: d.id, nombre: d.nombre, n, texto }, { near: { x: d.x, z: d.z }, radius: CERCA_M });
     api.emit("senal", { quien: q, disparador: d.id, nombre: d.nombre, tipo: d.tipo, persona: quien !== null }, "server");
@@ -187,8 +193,8 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
 
   api.on("pulsar", (e, m) => {
     const id = String(m.disparador ?? ""), d = lista.get(id);
-    if (!d || d.tipo !== "boton") return rechazar(e, `No hay ningún botón «${cortar(id, 16)}».`);
-    if (!api.within(e, id)) return rechazar(e, `Acércate a ${d.nombre} para pulsarlo.`);
+    if (!d || d.tipo !== "boton") return rechazar(e, tx("no_hay_boton", { id: cortar(id, 16) }));
+    if (!api.within(e, id)) return rechazar(e, tx("acercate", { nombre: d.nombre }));
     disparar(d, e);
   });
 
@@ -197,22 +203,22 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
   // cambio aceptado actualiza el estado (lo ve todo el mundo, igual que la lista de la vista de constructor) y, si
   // el mundo trae un escritor de ficheros, reescribe disparadores.json para que sobreviva a un reinicio.
   api.on("editarReceptores", (e, m) => {
-    if (!api.puede(e, "construir")) return rechazar(e, "No puedes construir aquí: editar el cable es cosa de quien tiene permiso de construir.");
+    if (!api.puede(e, "construir")) return rechazar(e, tx("no_construye_editar_receptores"));
     const id = String(m.disparador ?? ""), d = lista.get(id);
-    if (!d) return rechazar(e, `No hay ningún disparador «${cortar(id, 16)}» que editar.`);
+    if (!d) return rechazar(e, tx("no_hay_editar", { id: cortar(id, 16) }));
     let crudo: unknown;
     try { crudo = JSON.parse(String(m.receptores ?? "")); }
-    catch { return rechazar(e, "receptores: no es JSON válido."); }
-    if (!Array.isArray(crudo) || crudo.length === 0) return rechazar(e, "receptores: necesita una lista con al menos uno.");
-    if (crudo.length > RECEPTORES_MAX) return rechazar(e, `receptores: más de ${RECEPTORES_MAX}.`);
+    catch { return rechazar(e, tx("receptores_json")); }
+    if (!Array.isArray(crudo) || crudo.length === 0) return rechazar(e, tx("receptores_lista"));
+    if (crudo.length > RECEPTORES_MAX) return rechazar(e, tx("receptores_mas", { max: RECEPTORES_MAX }));
     const receptores: Receptor[] = [];
     for (const [i, r] of crudo.entries()) {
-      const leido = leerReceptor(r);
-      if (typeof leido === "string") return rechazar(e, `receptor ${i + 1}: ${leido}`);
+      const leido = leerReceptor(r, lang);
+      if (typeof leido === "string") return rechazar(e, tx("receptor_n_corto", { n: i + 1, motivo: leido }));
       receptores.push(leido);
     }
     const codificado = JSON.stringify(receptores);
-    if (new TextEncoder().encode(codificado).length > RECEPTORES_JSON_MAX_BYTES) return rechazar(e, `receptores: demasiado grande (más de ${RECEPTORES_JSON_MAX_BYTES} bytes codificados): acórtalo.`);
+    if (new TextEncoder().encode(codificado).length > RECEPTORES_JSON_MAX_BYTES) return rechazar(e, tx("receptores_grande", { max: RECEPTORES_JSON_MAX_BYTES }));
     d.receptores = receptores;
     poner(d, { receptores: codificado });
     api.emit("editado", { disparador: d.id }, { to: e }); api.emit("hizo", { quien: e, disparador: d.id, accion: "editado" }, "server");
@@ -231,19 +237,19 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
   // servidor decide: la línea nueva pasa por el MISMO lector que lee disparadores.json (leerDisparador), así que
   // vale exactamente lo que valdría escrito a mano; aquí solo se añaden los topes del mundo (64, id único).
   api.on("crearDisparador", (e, m) => {
-    if (!api.puede(e, "construir")) return rechazar(e, "No puedes construir aquí: crear un cable es cosa de quien tiene permiso de construir.");
+    if (!api.puede(e, "construir")) return rechazar(e, tx("no_construye_crear"));
     const id = String(m.disparador ?? "");
-    if (!ID_RE.test(id)) return rechazar(e, `id «${cortar(id, 16)}»: usa minúsculas, cifras y guiones (hasta 16), por ejemplo «luz-1».`);
-    if (lista.has(id)) return rechazar(e, `Ya hay un cable «${id}»: elige otro id o bórralo antes.`);
-    if (lista.size >= DISPARADORES_MAX) return rechazar(e, `Este mundo ya tiene ${DISPARADORES_MAX} cables, que es el máximo: borra alguno antes de crear otro.`);
+    if (!ID_RE.test(id)) return rechazar(e, tx("id_uso", { id: cortar(id, 16) }));
+    if (lista.has(id)) return rechazar(e, tx("cable_ya", { id }));
+    if (lista.size >= DISPARADORES_MAX) return rechazar(e, tx("cables_tope", { max: DISPARADORES_MAX }));
     let crudo: unknown;
     try { crudo = JSON.parse(String(m.receptores ?? "")); }
-    catch { return rechazar(e, "receptores: no es JSON válido."); }
-    if (Array.isArray(crudo) && crudo.length > RECEPTORES_MAX) return rechazar(e, `receptores: un cable lleva como mucho ${RECEPTORES_MAX}; quita alguno.`);
-    const leido = leerDisparador({ id, nombre: m.nombre, tipo: m.tipo, x: m.x, y: m.y, z: m.z, radio: m.radio, frase: m.frase, senal: m.senal, cooldown: m.cooldown, un_solo_uso: m.unSoloUso === true, receptores: crudo });
+    catch { return rechazar(e, tx("receptores_json")); }
+    if (Array.isArray(crudo) && crudo.length > RECEPTORES_MAX) return rechazar(e, tx("receptores_tope", { max: RECEPTORES_MAX }));
+    const leido = leerDisparador({ id, nombre: m.nombre, tipo: m.tipo, x: m.x, y: m.y, z: m.z, radio: m.radio, frase: m.frase, senal: m.senal, cooldown: m.cooldown, un_solo_uso: m.unSoloUso === true, receptores: crudo }, lang);
     if (typeof leido === "string") return rechazar(e, leido);
-    if (new TextEncoder().encode(JSON.stringify(leido.receptores)).length > RECEPTORES_JSON_MAX_BYTES) return rechazar(e, `receptores: demasiado grande (más de ${RECEPTORES_JSON_MAX_BYTES} bytes codificados): acórtalo.`);
-    if (!montar(leido)) return rechazar(e, `No pude poner el cable «${id}» en el mundo (no cabe en el esquema): revisa sus números.`);
+    if (new TextEncoder().encode(JSON.stringify(leido.receptores)).length > RECEPTORES_JSON_MAX_BYTES) return rechazar(e, tx("receptores_grande", { max: RECEPTORES_JSON_MAX_BYTES }));
+    if (!montar(leido)) return rechazar(e, tx("no_pude_crear", { id }));
     api.emit("creado", { disparador: id }, { to: e }); api.emit("hizo", { quien: e, disparador: id, accion: "creado" }, "server");
     api.log(`«${id}»: ${nombreDe(e)} crea un cable en vivo (${lista.size}/${DISPARADORES_MAX})`);
     guardar(id);
@@ -256,9 +262,9 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
   };
 
   api.on("borrarDisparador", (e, m) => {
-    if (!api.puede(e, "construir")) return rechazar(e, "No puedes construir aquí: borrar un cable es cosa de quien tiene permiso de construir.");
+    if (!api.puede(e, "construir")) return rechazar(e, tx("no_construye_borrar"));
     const id = String(m.disparador ?? ""), d = lista.get(id);
-    if (!d) return rechazar(e, `No hay ningún cable «${cortar(id, 16)}» que borrar.`);
+    if (!d) return rechazar(e, tx("no_hay_cable_borrar", { id: cortar(id, 16) }));
     desmontar(d);
     api.state.delete(id);
     api.emit("borrado", { disparador: id }, { to: e }); api.emit("hizo", { quien: e, disparador: id, accion: "borrado" }, "server");
@@ -270,12 +276,12 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
   // The merged line goes through the same reader as the file (leerDisparador): the page holds no rules. The id, and
   // where the cable stands (unless `mover`), stay; the count of uses stays; cooldown/spent start fresh.
   api.on("editarDisparador", (e, m) => {
-    if (!api.puede(e, "construir")) return rechazar(e, "No puedes construir aquí: editar un cable es cosa de quien tiene permiso de construir.");
+    if (!api.puede(e, "construir")) return rechazar(e, tx("no_construye_editar"));
     const id = String(m.disparador ?? ""), d = lista.get(id);
-    if (!d) return rechazar(e, `No hay ningún cable «${cortar(id, 16)}» que editar.`);
+    if (!d) return rechazar(e, tx("no_hay_cable_editar", { id: cortar(id, 16) }));
     let crudo: unknown;
     try { crudo = JSON.parse(String(m.receptores ?? "")); }
-    catch { return rechazar(e, "receptores: no es JSON válido."); }
+    catch { return rechazar(e, tx("receptores_json")); }
     if (Array.isArray(crudo) && crudo.length > RECEPTORES_MAX) return rechazar(e, `receptores: un cable lleva como mucho ${RECEPTORES_MAX}; quita alguno.`);
     const tipo = String(m.tipo ?? "");
     const mover = m.mover === true;
@@ -283,12 +289,12 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
     const leido = leerDisparador({
       id, nombre: m.nombre, tipo, x: mover ? m.x : d.x, y: mover ? m.y : d.y, z: mover ? m.z : d.z, radio,
       frase: d.frase, senal: m.senal, cooldown: m.cooldown, un_solo_uso: m.unSoloUso === true, receptores: crudo,
-    });
+    }, lang);
     if (typeof leido === "string") return rechazar(e, leido);
-    if (new TextEncoder().encode(JSON.stringify(leido.receptores)).length > RECEPTORES_JSON_MAX_BYTES) return rechazar(e, `receptores: demasiado grande (más de ${RECEPTORES_JSON_MAX_BYTES} bytes codificados): acórtalo.`);
+    if (new TextEncoder().encode(JSON.stringify(leido.receptores)).length > RECEPTORES_JSON_MAX_BYTES) return rechazar(e, tx("receptores_grande", { max: RECEPTORES_JSON_MAX_BYTES }));
     const usos = Number(api.state.get(id)?.usos ?? 0);
     desmontar(d);
-    if (!montar(leido)) { montar(d); return rechazar(e, `No pude cambiar el cable «${id}» (no cabe en el esquema): revisa sus números.`); }
+    if (!montar(leido)) { montar(d); return rechazar(e, tx("no_pude_cambiar", { id })); }
     if (usos > 0) poner(leido, { usos });
     api.emit("cableEditado", { disparador: id }, { to: e }); api.emit("hizo", { quien: e, disparador: id, accion: "editado" }, "server"); // T4: the sentence's «Guardar» is an edit too (a mission step `edita_cable` listens to `hizo`)
     api.log(`«${id}»: ${nombreDe(e)} edita el cable en vivo`);
@@ -314,8 +320,8 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
   const hoyUTC = () => { const d = new Date(reloj()).toISOString().slice(0, 10); if (d !== diaDe) { diaDe = d; hoy = 0; } return hoy; };
   /** "" = this person can say a cable now; else the Spanish reason (also what the page shows in place of the box). */
   const motivoNoDecir = (): string => {
-    if (!D?.pensar) return MOTIVO_SIN_IA;
-    if (hoyUTC() >= topeDia) return `Hoy este mundo ya ha usado sus ${topeDia} peticiones a la IA. Vuelve mañana o monta el cable con los desplegables.`;
+    if (!D?.pensar) return MOTIVO_SIN_IA_MUNDO;
+    if (hoyUTC() >= topeDia) return tx("tope_dia", { tope: topeDia });
     if (reloj() < caidaHasta) return MOTIVO_CAIDA;
     return "";
   };
@@ -353,29 +359,29 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
     const leido = leerDisparador({
       id: idLibre(), nombre: linea.nombre, tipo, x: tipo === "senal" ? 0 : lugar.x, y: tipo === "senal" ? 0 : lugar.y, z: tipo === "senal" ? 0 : lugar.z,
       radio: tipo === "zona" ? 3 : 2, frase: "E: pulsar", senal: linea.senal, cooldown: linea.cooldown, un_solo_uso: linea.un_solo_uso, receptores: linea.receptores,
-    });
-    if (typeof leido === "string") return { motivo: `La IA ha propuesto algo que el mundo no acepta: ${leido}` };
-    if (new TextEncoder().encode(JSON.stringify(leido.receptores)).length > RECEPTORES_JSON_MAX_BYTES) return { motivo: `La propuesta es demasiado grande (más de ${RECEPTORES_JSON_MAX_BYTES} bytes): pídela más corta.` };
-    const mala = referenciasMalas(leido.receptores as { accion: string; objeto?: string; mision?: string; sonido?: string }[], mundoDe(e).k);
-    if (mala) return { motivo: `La IA ha propuesto algo que no existe aquí. ${mala}` };
+    }, lang);
+    if (typeof leido === "string") return { motivo: tx("ia_no_acepta", { motivo: leido }) };
+    if (new TextEncoder().encode(JSON.stringify(leido.receptores)).length > RECEPTORES_JSON_MAX_BYTES) return { motivo: tx("propuesta_grande", { max: RECEPTORES_JSON_MAX_BYTES }) };
+    const mala = referenciasMalas(leido.receptores as { accion: string; objeto?: string; mision?: string; sonido?: string }[], mundoDe(e).k, lang);
+    if (mala) return { motivo: tx("ia_no_existe", { motivo: mala }) };
     return { d: leido };
   };
 
   api.on("decirCable", (e, m) => {
     if (!api.puede(e, "construir")) return noDecir(e, MOTIVO_NO_CONSTRUYE);
-    if (!D?.pensar) { avisarPuede(e); return noDecir(e, MOTIVO_SIN_IA); }
+    if (!D?.pensar) { avisarPuede(e); return noDecir(e, MOTIVO_SIN_IA_MUNDO); }
     const texto = String(m.texto ?? "").replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, " ").replace(/\s+/g, " ").trim();
-    if (!texto) return noDecir(e, "Escribe primero qué quieres que pase, por ejemplo «que al entrar en el círculo suene la campana».");
+    if (!texto) return noDecir(e, tx("escribe_primero"));
     const largo = Array.from(texto).length;
-    if (largo > DECIR_TEXTO_MAX) return noDecir(e, `Es demasiado largo: ${DECIR_TEXTO_MAX} caracteres como mucho (son ${largo}). Dilo más corto.`);
-    if (lista.size >= DISPARADORES_MAX) return noDecir(e, `Este mundo ya tiene ${DISPARADORES_MAX} cables, que es el máximo: borra alguno antes de crear otro.`);
-    if (enVuelo.has(e)) return noDecir(e, "Espera: todavía estoy pensando en tu frase anterior.");
-    if (enVuelo.size >= 4) return noDecir(e, "La IA está ocupada con otras peticiones. Prueba otra vez en unos segundos.");
+    if (largo > DECIR_TEXTO_MAX) return noDecir(e, tx("demasiado_largo", { max: DECIR_TEXTO_MAX, largo }));
+    if (lista.size >= DISPARADORES_MAX) return noDecir(e, tx("cables_tope", { max: DISPARADORES_MAX }));
+    if (enVuelo.has(e)) return noDecir(e, tx("ya_pensando"));
+    if (enVuelo.size >= 4) return noDecir(e, tx("ia_ocupada"));
     const razon = motivoNoDecir();
     if (razon) { avisarPuede(e); return noDecir(e, razon); }
     const quien = quienEs(e), ahora = reloj();
     const v = (ventanas.get(quien) ?? []).filter((t) => ahora - t < 60_000);
-    if (v.length >= topeMinuto) { ventanas.set(quien, v); return noDecir(e, `Vas muy deprisa: ${topeMinuto} peticiones por minuto como mucho. Espera un poco.`); }
+    if (v.length >= topeMinuto) { ventanas.set(quien, v); return noDecir(e, tx("muy_deprisa", { tope: topeMinuto })); }
     v.push(ahora); ventanas.set(quien, v); hoy++;
     const idioma = idiomaDe(m.idioma);
     const { m: mundo } = mundoDe(e);
@@ -385,7 +391,7 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
       try {
         const salida = await D.pensar!({ sistema: SISTEMA, usuario: turnoDeUsuario(mundo, texto), herramienta: herramientaDe(mundo) }, AbortSignal.timeout(D.esperaMs ?? 20_000));
         if (quienEs(e) !== quien || !api.puede(e, "construir")) return;   // the person left, or the seat changed hands
-        const l = leerSalida(salida);
+        const l = leerSalida(salida, lang);
         if (!l.ok) return noDecir(e, l.motivo);
         const r = leerLinea(e, l.linea, lugar);
         if ("motivo" in r) return noDecir(e, r.motivo);
@@ -399,7 +405,7 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
         // never the provider's text: it may echo what we sent. The cause (timeout, HTTP code…) goes to the log only.
         caidaHasta = reloj() + CAIDA_MS;
         api.log(`la IA no ha podido con «Decirlo»: ${cortar((err as Error)?.message ?? "error", 120)}`);
-        if (quienEs(e) === quien) { noDecir(e, "La IA no ha contestado. Prueba otra vez en un minuto o monta el cable con los desplegables."); avisarPuede(e); }
+        if (quienEs(e) === quien) { noDecir(e, tx("ia_no_contesta")); avisarPuede(e); }
         const volver = setTimeout(() => { for (const p of api.players()) avisarPuede(p); }, CAIDA_MS + 50);
         (volver as { unref?: () => void }).unref?.();
       } finally { enVuelo.delete(e); }
@@ -409,13 +415,13 @@ export const crearDisparadores = (opts: { disparadores?: Disparador[]; escribir?
   api.on("confirmarCable", (e, m) => {
     if (!api.puede(e, "construir")) return noDecir(e, MOTIVO_NO_CONSTRUYE);
     const id = String(m.propuesta ?? ""), p = propuestas.get(id);
-    if (!p) return noDecir(e, "Esa propuesta ya no existe. Dilo otra vez.");
-    if (p.quien !== quienEs(e)) return noDecir(e, "Esa propuesta es de otra persona: solo quien la pidió puede aplicarla.");
-    if (reloj() > p.vence) { propuestas.delete(id); return noDecir(e, `La propuesta ha caducado (pasaron más de ${PROPUESTA_VIDA_S / 60} minutos). Dilo otra vez.`); }
-    if (lista.size >= DISPARADORES_MAX) return noDecir(e, `Este mundo ya tiene ${DISPARADORES_MAX} cables, que es el máximo: borra alguno antes de crear otro.`);
+    if (!p) return noDecir(e, tx("propuesta_no_existe"));
+    if (p.quien !== quienEs(e)) return noDecir(e, tx("propuesta_ajena"));
+    if (reloj() > p.vence) { propuestas.delete(id); return noDecir(e, tx("propuesta_caducada", { min: PROPUESTA_VIDA_S / 60 })); }
+    if (lista.size >= DISPARADORES_MAX) return noDecir(e, tx("cables_tope", { max: DISPARADORES_MAX }));
     const r = leerLinea(e, p.linea, { x: p.x, y: p.y, z: p.z });
     if ("motivo" in r) { propuestas.delete(id); return noDecir(e, r.motivo); }
-    if (!montar(r.d)) return noDecir(e, `No pude poner el cable «${r.d.id}» en el mundo (no cabe en el esquema): dilo de otra manera.`);
+    if (!montar(r.d)) return noDecir(e, tx("no_pude_dicho", { id: r.d.id }));
     propuestas.delete(id);
     api.emit("creado", { disparador: r.d.id }, { to: e }); api.emit("hizo", { quien: e, disparador: r.d.id, accion: "creado" }, "server");
     api.log(`«${r.d.id}»: ${nombreDe(e)} aplica un cable dicho en palabras (${lista.size}/${DISPARADORES_MAX})`);

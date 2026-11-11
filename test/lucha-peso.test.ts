@@ -14,6 +14,7 @@ import { crearCliente, FLASH_MS } from "../features/lucha/client.ts";
 import { crearPeso, PAUSA_MIN, PAUSA_MAX, PAUSA_FOTOGRAMAS, DESTELLO_MS, DESTELLOS_POR_S_MAX, SONIDO_GOLPE, AJUSTE_REDUCIR_MOVIMIENTO } from "../features/lucha/peso.ts";
 import catalogo from "../features/sonido/catalogo.json" with { type: "json" };
 import { AJUSTES_MOTOR } from "../packages/client/src/ajustes-motor.ts";
+import { resolverTexto } from "../packages/client/src/ajustes.ts";
 
 const KEY = "c:guardian-1";
 const G = { id: "guardian-1", especie: "guardian-crisalida", x: 10, z: 0, y: 0, fija: true };
@@ -126,8 +127,11 @@ test("lucha peso: the engine's switch is the existing «accesibilidad.menosMovim
   assert.ok(d, "the setting exists");
   if (!d) return;
   assert.deepEqual((d.defecto as { si?: unknown }).si, [{ requiere: ["menosMovimiento"], valor: true }], "the default follows prefers-reduced-motion");
-  assert.match(d.describe, /pausas, sacudidas y destellos/);
-  assert.ok(d.nombre.length <= 40 && d.describe.length <= 160);
+  for (const idioma of ["en", "es"] as const) {
+    const nombre = resolverTexto(d.nombre, idioma), describe = resolverTexto(d.describe, idioma);
+    assert.ok(nombre.length <= 40 && describe.length <= 160, idioma);
+  }
+  assert.match(resolverTexto(d.describe, "es"), /pausas, sacudidas y destellos/);
 });
 
 test("lucha peso: the declaration is still valid and the golpe event keeps its announcement (text + sound)", () => {

@@ -47,7 +47,7 @@ export function montarVozPnj(m: ConversacionPnj, sonar: (id: string, o?: Opcione
     const p = m.personaDe(pnj);
     if (!p) return; // this page does not draw it (it is gone): there is nowhere to get the voice from
     const donde = { x: p.x, y: p.y + BOCA_M * (p.escala || 1), z: p.z };
-    sonar(`pnj-${que}-${vozPnj(pnj, m.vozDe(pnj))}`, { donde, gain: GAIN_VOZ_PNJ }, MS_VOZ_PNJ);
+    sonar(`pnj-${que}-${vozPnj(pnj, m.vozDe(pnj))}`, { donde, gain: GAIN_VOZ_PNJ }, MS_VOZ_PNJ); // i18n-ok: sound id, not text
   };
   const quitar = m.alCambiar((que) => {
     if (que !== "dialogo") return;

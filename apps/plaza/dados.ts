@@ -3,6 +3,7 @@
 // asks features/dados: the server rolls. The announcement line (and the screen reader) already says the roll in words,
 // so the card is aria-hidden. In VR the HTML is not drawn: the label over the roller's head and /tirar in the chat are.
 import type { Tirada, Torre } from "../../features/dados/client.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 type Dados = {
   ultima(): Tirada | null;
@@ -78,12 +79,13 @@ export function montarDados(o: { dados: Dados; yo: () => { x: number; z: number 
     actual = t;
     if (!t) { barra.replaceChildren(); barra.hidden = true; return; }
     barra.hidden = false;
-    barra.setAttribute("aria-label", `${t.nombre}: elige los dados`);
+    barra.setAttribute("aria-label", tx(`${t.nombre}: pick your dice`, `${t.nombre}: elige los dados`));
+    const ultima: string = t.ultima ? tx(`Last: ${t.ultima}`, `Última: ${t.ultima}`) : tx("Nobody has rolled yet.", "Aún no ha tirado nadie.");
     barra.replaceChildren(
       el("p", { className: "titulo", textContent: t.nombre }),
       el("div", { className: "botones" }, ...BOTONES.map((b) => { const x = el("button", { type: "button", textContent: b }); x.addEventListener("click", () => dados.tirar(b, t.id, secreto.checked)); return x; })),
-      el("label", { className: "secreto" }, secreto, " en secreto"),
-      el("p", { className: "ultima", textContent: t.ultima ? `Última: ${t.ultima}` : "Aún no ha tirado nadie." }),
+      el("label", { className: "secreto" }, secreto, tx(" in secret", " en secreto")),
+      el("p", { className: "ultima", textContent: ultima }),
     );
   };
   barra.hidden = true;

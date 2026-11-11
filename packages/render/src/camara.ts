@@ -22,7 +22,7 @@ const PALANCA = { giro: 2.6, inclina: 1.6, zoom: 2.2 }; // gamepad: rad/s, rad/s
 const FOTO_MS = 3;              // N13: photo mode, the pivot's walking pace (m/s) with the left stick
 // Keys (free ones: see the reserved list in docs/JUGADOR.md). Turn and tilt act while held; zoom per press/repeat.
 export const TECLAS_CAMARA = {
-  izquierda: "Comma", derecha: "Period", arriba: "PageUp", abajo: "PageDown", reiniciar: "Home", vista: "KeyV",
+  izquierda: "Comma", derecha: "Period", arriba: "PageUp", abajo: "PageDown", reiniciar: "Home", // keymap v1: V is the microphone; 1st/3rd person = zoom fully in or out (wheel or +), no key of its own
   acercar: ["+", "=", "NumpadAdd"], alejar: ["-", "_", "NumpadSubtract"],
 } as const;
 
@@ -147,7 +147,6 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
     if ((T.alejar as readonly string[]).includes(e.key) || e.code === "NumpadSubtract") { o.acercar(-1); return; }
     if (e.repeat) return;
     if (e.code === T.reiniciar) orbita.reiniciar();
-    else if (e.code === T.vista) orbita.alternarVista();
   });
   addEventListener("keyup", (e) => { sujetas.delete(e.code); });
   addEventListener("blur", () => { sujetas.clear(); soltar(); dedos.clear(); pinza = null; });

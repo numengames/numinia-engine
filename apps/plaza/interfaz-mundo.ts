@@ -1,3 +1,4 @@
+import { tx } from "../../packages/feature/src/idioma.ts";
 // interfaz-mundo — which buttons a world takes off the page (ficha@1 `interfaz.ocultar`, served by GET /status).
 // A training simulator has no use for «Saludar», «Bailar» and «Movimientos»: the world says `"interfaz": { "ocultar": ["gestos"] }`
 // and those buttons are not drawn (bottom bar, the phone's «…» menu, the touch «Movimientos» button). The server checked the
@@ -37,5 +38,5 @@ export function accionesVisibles<A extends Accion>(acciones: readonly A[], ocult
 
 /** P15 c: the screen-reader name of the phone's «…» button. It names only what the menu offers: «saludar, bailar» are left out when the world hid the gestures. */
 export function rotuloMas(ocultos: ReadonlySet<Ocultable>): string {
-  return `Más acciones: ${ocultos.has("gestos") ? "saltar" : "saltar, saludar, bailar"}…`;
+  return ocultos.has("gestos") ? tx("More actions: jump…", "Más acciones: saltar…") : tx("More actions: jump, wave, dance…", "Más acciones: saltar, saludar, bailar…");
 }

@@ -5,6 +5,7 @@
 // darts view in its lobby (apps/plaza/dardos.ts: «Jugar desde aquí» / «En tu pared (AR)»). The server still decides who may join.
 // Pure part first (tests: test/dardos-unirse.test.ts), the little DOM piece after it.
 
+import { tx, ligar, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
 export type SitioU = { id: string; nombre: string; x: number; z: number; radio: number; ocupado: boolean; duelo?: boolean; remoto?: boolean; espera?: boolean; jugadores?: number; equipos?: number };
 export type Entrada = {
   id: string; nombre: string;
@@ -16,16 +17,16 @@ export type Entrada = {
 
 /** You are «at» a board (its E prompt works) within its throwing radius plus this many metres: no chip then. */
 export const CERCA_EXTRA_M = 1.5;
-export const tituloEntrada = (nombre: string): string => `Dardos: jugar en ${nombre || "la diana"}`;
+export const tituloEntrada = (nombre: string): string => tx(`Darts: play at ${nombre || "the board"}`, `Dardos: jugar en ${nombre || "la diana"}`);
 
 /** What a remote board offers right now, from its shared state. Pure. */
 export function estadoEntrada(s: Pick<SitioU, "ocupado" | "duelo" | "espera" | "jugadores" | "equipos">): { texto: string; libre: boolean } {
   const n = s.jugadores ?? 0, max = s.equipos ?? 2;
-  if (!s.duelo) return s.ocupado ? { texto: "Alguien está tirando", libre: false } : { texto: "Libre", libre: true };
-  if (s.espera && n >= max) return { texto: "Completa · va a empezar", libre: false };
-  if (s.espera) return { texto: n <= 1 && max === 2 ? "Esperando rival · 1/2" : `Esperando jugadores · ${n}/${max}`, libre: true };
-  if (s.ocupado) return { texto: "Partida en marcha", libre: false };
-  return { texto: max > 2 ? `Libre · hasta ${max} jugadores` : "Libre · sé el primero", libre: true };
+  if (!s.duelo) return s.ocupado ? { texto: tx("Someone is throwing", "Alguien está tirando"), libre: false } : { texto: tx("Free", "Libre"), libre: true };
+  if (s.espera && n >= max) return { texto: tx("Full · about to start", "Completa · va a empezar"), libre: false };
+  if (s.espera) return { texto: n <= 1 && max === 2 ? tx("Waiting for a rival · 1/2", "Esperando rival · 1/2") : tx(`Waiting for players · ${n}/${max}`, `Esperando jugadores · ${n}/${max}`), libre: true };
+  if (s.ocupado) return { texto: tx("Match under way", "Partida en marcha"), libre: false };
+  return { texto: max > 2 ? tx(`Free · up to ${max} players`, `Libre · hasta ${max} jugadores`) : tx("Free · be the first", "Libre · sé el primero"), libre: true };
 }
 
 /** The remote boards to offer to somebody standing at `yo` (null = unknown): the ones with somebody waiting first, then the free
@@ -58,7 +59,7 @@ export type Ctl = { sitios(): SitioU[]; alCambiar(fn: (que: string) => void): ()
  *  `abrir(id)`: the click (opens the lobby of that board). `yo()`: where the player stands. */
 export function montarEntrada(o: { dardos: Ctl; yo: () => { x: number; z: number } | null; ocupado: () => boolean; abrir: (id: string) => void }) {
   if (!document.getElementById("dardos-unirse-css")) { const st = document.createElement("style"); st.id = "dardos-unirse-css"; st.textContent = CSS; document.head.appendChild(st); }
-  const caja = document.createElement("section"); caja.id = "dardos-unirse"; caja.hidden = true; caja.setAttribute("aria-label", "Dardos: jugar desde lejos");
+  const caja = document.createElement("section"); caja.id = "dardos-unirse"; caja.hidden = true; ligar(caja, "aria-label", "Darts: play from afar", "Dardos: jugar desde lejos");
   caja.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch, nor a camera drag
   document.body.appendChild(caja);
   let firma = "";

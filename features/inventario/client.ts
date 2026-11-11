@@ -6,6 +6,7 @@ import type { ClientApi, ClientPart } from "../../packages/feature/src/index.ts"
 import { inventario } from "./feature.ts";
 import { BOLSA_HUECOS, grabosoLibre } from "./reglas.ts";
 import type { Color, Tipo } from "./reglas.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 export type ObjetoVista = { id: string; tipo: Tipo; clase: string; nombre: string; icono: string; color: Color; valor: number; n: number; portado: boolean; modelo: string; competencia: string; riesgo: string };
 type Res = { ok: true } | { ok: false; why: string };
@@ -33,9 +34,9 @@ export function crearCliente() {
     grabosoLibre: (): boolean => grabosoLibre(estado.graboso, objetos),
     /** For the player sheet. */
     resumen: () => ({ objetos: objetos.length, portados: objetos.filter((o) => o.portado).length, prestigio: objetos.filter((o) => o.clase === "semilla").reduce((s, o) => s + o.valor * o.n, 0) }),
-    equipar: (id: string): Res => A?.send("equipar", { id }) ?? sin("la página aún no ha arrancado"),
-    desequipar: (id: string): Res => A?.send("desequipar", { id }) ?? sin("la página aún no ha arrancado"),
-    soltar: (id: string, n = 0): Res => A?.send("soltar", { id, n }) ?? sin("la página aún no ha arrancado"),
+    equipar: (id: string): Res => A?.send("equipar", { id }) ?? sin(tx("the page has not started yet", "la página aún no ha arrancado")),
+    desequipar: (id: string): Res => A?.send("desequipar", { id }) ?? sin(tx("the page has not started yet", "la página aún no ha arrancado")),
+    soltar: (id: string, n = 0): Res => A?.send("soltar", { id, n }) ?? sin(tx("the page has not started yet", "la página aún no ha arrancado")),
     alCambiar: (f: () => void) => { oyentes.add(f); return () => { oyentes.delete(f); }; },
   };
 

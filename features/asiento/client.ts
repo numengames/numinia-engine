@@ -8,6 +8,7 @@ import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg, PlacedObject } from "../../packages/feature/src/index.ts";
 import { movimiento } from "../gestos/movimientos.ts";
 import { asiento as decl, LIBRE } from "./feature.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 /** The house block (features/objetos/biblioteca.json «bloque», CC0): the stool. */
 export const MODELO_BANQUETA = "32fce59977a24c3c15eb40084c700c1537e59853747f92ce1d01c6fd65958588";
@@ -16,7 +17,7 @@ export const BANQUETA = { ancho: 0.42, alto: 0.42, atras: 0.12 } as const;
 const HASTA_S = 86400;
 export type Asiento = { id: string; nombre: string; x: number; y: number; z: number; mira: number; radio: number; ocupante: number; quien: string; dibujo: boolean };
 type Res = { ok: true } | { ok: false; why: string };
-const SIN: Res = { ok: false, why: "la función asiento no está en este servidor" };
+const sinFuncion = (): Res => ({ ok: false, why: tx("the asiento feature is not on this server", "la función asiento no está en este servidor") });
 
 /** The stool under a seat (it sits a little behind the hips, along the seat's facing). Pure. */
 export const banqueta = (v: Pick<Asiento, "x" | "y" | "z" | "mira">): PlacedObject => {
@@ -40,8 +41,8 @@ export function crearCliente() {
     mio: (): string | null => (A ? lista().find((c) => Number(c.ocupante) === A!.self() && A!.self() >= 0)?.id ?? null : null),
     /** Who sits where (entity → seat id) as the page knows it. */
     ocupa: (quien: number): string | null => lista().find((c) => Number(c.ocupante) === quien && quien >= 0)?.id ?? null,
-    sentar: (id: string): Res => (A ? A.send("sentar", { cosa: id }) : SIN),
-    levantar: (a = ""): Res => (A ? A.send("levantar", { a }) : SIN),
+    sentar: (id: string): Res => (A ? A.send("sentar", { cosa: id }) : sinFuncion()),
+    levantar: (a = ""): Res => (A ? A.send("levantar", { a }) : sinFuncion()),
     /** «E: levantarte», offered to the seated person by the page's interaction (apps/plaza/interactuar.ts `locales`). */
     cerca: (): { feature: string; key: string; intent: string; prompt: string; name: string; distance: number; local: () => Res }[] => {
       const k = asiento.mio(), v = k ? lista().find((c) => c.id === k) : undefined;
@@ -51,14 +52,14 @@ export function crearCliente() {
     interruptor: {
       estado,
       activa: (): boolean => (A ? A.state.keys().length > 0 : false),
-      poner: (activa: boolean): Res => (A ? A.send("encender", { activa }) : SIN),
+      poner: (activa: boolean): Res => (A ? A.send("encender", { activa }) : sinFuncion()),
     },
     alCambiar: (fn: (id: string) => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
   const sentarlo = (quien: number, rumbo: number): boolean => {
     if (!A) return false;
     A.view.orientar?.(quien, rumbo);
-    return A.view.movimiento?.(quien, pose ? { ...pose, hastaS: HASTA_S } : null) ?? false;
+    return A.view.movimiento?.(quien, pose ? { ...pose, hastaS: HASTA_S, sujeto: true } : null) ?? false;
   };
   // an avatar whose VRM was not dressed yet cannot play the pose: try again once a second, up to 30 times, then give up
   let reloj: ReturnType<typeof setTimeout> | null = null;
@@ -83,12 +84,14 @@ export function crearCliente() {
       }
       const s = v as unknown as Asiento | undefined;
       api.view.place?.(`asiento:${key}`, s && s.dibujo ? banqueta(s) : null);
-      api.view.tag?.(`asiento:${key}`, s && ocupante >= 0 ? { text: rotulo(s), x: Number(s.x), y: Number(s.y) + 1.75, z: Number(s.z) } : null);
+      // QA Simposio 2026-11-11 («Invitado TKPT · Chair: este texto no aporta nada»): a seat on the world's own furniture
+      // (dibujo false) shows no sign over the person (their name is already over their head); a seat the motor draws keeps it.
+      api.view.tag?.(`asiento:${key}`, s && s.dibujo && ocupante >= 0 ? { text: rotulo(s), x: Number(s.x), y: Number(s.y) + 1.75, z: Number(s.z) } : null);
       for (const fn of oyentes) fn(key);
     });
     api.on("permiso", (m) => { estado.puede = m.encender === true; });
     api.on("rechazado", (m) => { estado.ultimoRechazo = String(m.motivo); });
-    api.action({ id: "levantar", label: "Levantarte", describe: "Levantarte del asiento (también /levantar, o andar)", run: () => { if (asiento.mio()) asiento.levantar(); }, disponible: () => asiento.mio() !== null });
+    api.action({ id: "levantar", get label() { return tx("Stand up", "Levantarte"); }, get describe() { return tx("Stand up from the seat (also /levantar, or just walk)", "Levantarte del asiento (también /levantar, o andar)"); }, run: () => { if (asiento.mio()) asiento.levantar(); }, disponible: () => asiento.mio() !== null });
   });
   return { parts: [parte], asiento };
 }

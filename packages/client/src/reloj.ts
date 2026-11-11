@@ -1,6 +1,7 @@
 // reloj (U3): the clock beside the minimap — what it says and when it changes. Pure: no DOM, tested in Node (test/marcos.test.ts).
 // It shows HH:MM of the device's clock, local or UTC by the setting `interfaz.hora`; it redraws once a minute (a timer to the next
 // minute, nothing per frame). The server's clock is not shown yet: the page has no server time to read (see work/ux/b6-u3/LEEME.md).
+import { tx } from "./idioma.ts";
 
 export type ModoHora = "local" | "utc";
 export const MODOS_HORA: readonly ModoHora[] = ["local", "utc"];
@@ -14,7 +15,7 @@ export function formatoHora(ms: number, modo: ModoHora): string {
   return modo === "utc" ? `${dos(d.getUTCHours())}:${dos(d.getUTCMinutes())} UTC` : `${dos(d.getHours())}:${dos(d.getMinutes())}`;
 }
 /** What the clock says to a screen reader or on hover. */
-export const etiquetaHora = (modo: ModoHora): string => (modo === "utc" ? "Hora UTC" : "Hora local de tu aparato");
+export const etiquetaHora = (modo: ModoHora): string => (modo === "utc" ? tx("UTC time", "Hora UTC") : tx("Your device's local time", "Hora local de tu aparato"));
 /** The clock line of the VR watch and menu (the headset does not draw the HTML #reloj): the same HH:MM, local or UTC, as the setting
  * `interfaz.hora` says. `modo` is the setting's raw value (anything else = local). */
 export const horaVR = (ms: number, modo: unknown): string => formatoHora(ms, modoHora(modo));

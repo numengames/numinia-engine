@@ -13,6 +13,8 @@ export type Movimiento = {
   clips: readonly string[]; modo: Modo; hastaS: number; viva: boolean;
   /** what a capsule shows over its head when there is no VRM to play the move */
   etiqueta: string;
+  /** held by its owner (a seat): moving does not end it, only its owner does (QA Simposio 2026-11-11: the slide onto the seat stood the body up) */
+  sujeto?: boolean;
   /** a word over the head even when the VRM plays it (the wave says «¡Hola!») */
   dice?: string;
   /** a posture with the feet on the floor (sitting, crouching): the page plants them whatever the avatar's leg proportions (avatares-politica apoyoDePies) */

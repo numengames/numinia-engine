@@ -137,6 +137,34 @@ export function triNormal(b: Bvh, tri: number): { nx: number; ny: number; nz: nu
   return { nx: Math.trunc((nx * FX_ONE) / len) | 0, ny: Math.trunc((ny * FX_ONE) / len) | 0, nz: Math.trunc((nz * FX_ONE) / len) | 0 };
 }
 
+/** Does triangle `tri` really cross the box [x0,y0,z0]-[x1,y1,z1] (Q16.16 metres)? Separating-axis test (Akenine-Möller:
+ * the box's 3 axes, the triangle's normal, the 9 edge × axis crosses), not just the triangle's own AABB: a long slanted
+ * triangle (a tent's cloth from the floor up to 25 m) has an AABB metres thick that is mostly air, and walking into that
+ * air was a wall (QA Simposio 2026-11-11: the island entrance). In 1/64 m units, float64: products stay far under 2^53
+ * for any edge the world allows, and IEEE arithmetic is identical on every JS engine, so the answer is deterministic. */
+export function triCrossesBox(b: Bvh, tri: number, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): boolean {
+  const q = tri * TRI_STRIDE, t = b.tris, u = BVH_UNIT;
+  const cx = (x0 + x1) / 2 / u, cy = (y0 + y1) / 2 / u, cz = (z0 + z1) / 2 / u;
+  const hx = (x1 - x0) / 2 / u, hy = (y1 - y0) / 2 / u, hz = (z1 - z0) / 2 / u;
+  const ax = t[q] - cx, ay = t[q + 1] - cy, az = t[q + 2] - cz;
+  const bx = t[q + 3] - cx, by = t[q + 4] - cy, bz = t[q + 5] - cz;
+  const qx = t[q + 6] - cx, qy = t[q + 7] - cy, qz = t[q + 8] - cz;
+  const e = [[bx - ax, by - ay, bz - az], [qx - bx, qy - by, qz - bz], [ax - qx, ay - qy, az - qz]];
+  const sep = (lx: number, ly: number, lz: number): boolean => {
+    const pa = ax * lx + ay * ly + az * lz, pb = bx * lx + by * ly + bz * lz, pc = qx * lx + qy * ly + qz * lz;
+    const r = hx * Math.abs(lx) + hy * Math.abs(ly) + hz * Math.abs(lz);
+    return Math.min(pa, pb, pc) > r || Math.max(pa, pb, pc) < -r;
+  };
+  for (const [ex, ey, ez] of e) { // edge × box axes (x, y, z)
+    if (sep(0, -ez, ey) || sep(ez, 0, -ex) || sep(-ey, ex, 0)) return false;
+  }
+  if (Math.min(ax, bx, qx) > hx || Math.max(ax, bx, qx) < -hx) return false; // the box's own axes
+  if (Math.min(ay, by, qy) > hy || Math.max(ay, by, qy) < -hy) return false;
+  if (Math.min(az, bz, qz) > hz || Math.max(az, bz, qz) < -hz) return false;
+  const [e0, e1] = e; // the triangle's plane
+  return !sep(e0[1] * e1[2] - e0[2] * e1[1], e0[2] * e1[0] - e0[0] * e1[2], e0[0] * e1[1] - e0[1] * e1[0]);
+}
+
 const BOX_STACK = new Int32Array(2 * BVH_MAX_DEPTH + 4);
 /** Triangles (indices) whose own AABB overlaps the box [x0,y0,z0]-[x1,y1,z1] (Q16.16 metres). Exact per triangle,
  * not just the node's box: a candidate node is only a hint. M6 h5: the body-vs-mesh query (box-triangle). */

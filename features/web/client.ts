@@ -4,6 +4,7 @@
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi } from "../../packages/feature/src/index.ts";
 import { web } from "./feature.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 export type Pantalla = { id: string; url: string; titulo: string; texto: string; x: number; y: number; z: number; ry: number; ancho: number; alto: number; marco: string; fichero: boolean; inicio: number };
 export type Cambio = "pantallas" | "permiso" | "hecho" | "rechazado" | "dominioHecho";
@@ -18,7 +19,7 @@ export function crearCliente() {
   const estado = { puede: false, ultimoRechazo: "", ultimoHecho: "", ultimoDominio: "" };
   const oyentes = new Set<(que: Cambio) => void>();
   const avisar = (q: Cambio) => { for (const f of oyentes) { try { f(q); } catch { /* a page's listener must not stop the rest */ } } };
-  const enviar = (intent: string, msg: Record<string, unknown>) => api?.send(intent, msg as never) ?? { ok: false as const, why: "la página aún no ha arrancado" };
+  const enviar = (intent: string, msg: Record<string, unknown>) => api?.send(intent, msg as never) ?? { ok: false as const, why: tx("the page has not started yet", "la página aún no ha arrancado") };
   const ctl = {
     estado,
     /** Every screen of the world, as the server last said. */

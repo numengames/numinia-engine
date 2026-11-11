@@ -8,7 +8,7 @@
 // the domains added this way live in api.store (S4, server-only) and are merged with the file's at every check.
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg } from "../../packages/feature/src/index.ts";
-import { web, motivoUrl, videoDe, resumirMarco, normalizarDominio, PANTALLAS_MAX, DOMINIOS_MAX, TITULO_MAX, TEXTO_MAX, ANCHO_M, ALTO_M } from "./feature.ts";
+import { web, motivoUrl, textoWeb, IDIOMA_WEB, videoDe, resumirMarco, normalizarDominio, PANTALLAS_MAX, DOMINIOS_MAX, TITULO_MAX, TEXTO_MAX, ANCHO_M, ALTO_M } from "./feature.ts";
 import type { WebMundo } from "./feature.ts";
 
 /** What a site answers about framing: its two headers (null = not sent), or null when it could not be reached. */
@@ -61,15 +61,17 @@ const giro = (g: unknown) => q(((((Number(g) || 0) + 180) % 360) + 360) % 360 - 
 const PREFIJO_DOMINIO = "d:";
 const claveDominio = (api: { sign(t: string): string }, d: string) => PREFIJO_DOMINIO + api.sign(d);
 
-export function crearWeb(o: Partial<WebMundo> & { probar?: Probar; reloj?: () => number } = {}) {
+export function crearWeb(o: Partial<WebMundo> & { probar?: Probar; reloj?: () => number; /** the WORLD's language (ficha.json `idioma`); omitted = Spanish */ idioma?: string } = {}) {
   const ahoraS = () => Math.floor((o.reloj ? o.reloj() : Date.now()) / 1000);
   const dominiosArchivo = o.dominios ?? [], deFichero = o.pantallas ?? [];
   const extra: string[] = []; // N17 corte 2: dominios añadidos en caliente desde el mundo (api.store, no el fichero)
   const dominios = (): readonly string[] => dominiosArchivo.length || extra.length ? [...dominiosArchivo, ...extra] : dominiosArchivo;
   const probar = o.probar ?? probarConFetch(dominios);
   return serverPart(web, (api) => {
+    const idioma = o.idioma ?? IDIOMA_WEB;
+    const tx = (clave: string, vars?: Record<string, string | number>) => textoWeb(idioma, clave, vars);
     const puede = (e: number) => api.puede(e, "dirigir");
-    const NO_PUEDES = "Poner o quitar pantallas web es cosa de los dueños del mundo y de quien dirige (permiso «Gestionar rituales»).";
+    const NO_PUEDES = tx("no_puedes");
     const rechazar = (e: number, motivo: string, porChat: boolean) => {
       if (porChat) api.emit("aviso", { quien: e, texto: limpiar(motivo, 300) }, "server");
       else api.emit("rechazado", { motivo: limpiar(motivo, 200) }, { to: e });
@@ -128,15 +130,15 @@ export function crearWeb(o: Partial<WebMundo> & { probar?: Probar; reloj?: () =>
     };
     const poner = (from: number, m: Msg, porChat: boolean): string | null => {
       if (!puede(from)) { rechazar(from, NO_PUEDES, porChat); return null; }
-      const url = String(m.url ?? "").trim(), motivo = motivoUrl(url, dominios());
+      const url = String(m.url ?? "").trim(), motivo = motivoUrl(url, dominios(), idioma);
       if (motivo) { rechazar(from, motivo, porChat); return null; }
       const titulo = limpiar(String(m.titulo ?? ""), TITULO_MAX) || limpiar(new URL(url).host, TITULO_MAX);
       let id = String(m.id ?? "").trim();
       const antes = id ? api.state.get(id) : undefined;
-      if (id && !antes) { rechazar(from, `No hay ninguna pantalla «${limpiar(id, 16)}».`, porChat); return null; }
-      if (antes?.fichero === true) { rechazar(from, "Esa pantalla viene de entorno/web.json: se cambia en el fichero.", porChat); return null; }
+      if (id && !antes) { rechazar(from, tx("no_pantalla", { id: limpiar(id, 16) }), porChat); return null; }
+      if (antes?.fichero === true) { rechazar(from, tx("de_fichero_cambiar"), porChat); return null; }
       if (!id) {
-        if (api.state.keys().length >= PANTALLAS_MAX) { rechazar(from, `Este mundo ya tiene ${PANTALLAS_MAX} pantallas web: quita alguna antes.`, porChat); return null; }
+        if (api.state.keys().length >= PANTALLAS_MAX) { rechazar(from, tx("max_pantallas", { max: PANTALLAS_MAX }), porChat); return null; }
         id = nuevoId();
       }
       api.state.set(id, {
@@ -154,8 +156,8 @@ export function crearWeb(o: Partial<WebMundo> & { probar?: Probar; reloj?: () =>
     const quitar = (from: number, id: string, porChat: boolean): boolean => {
       if (!puede(from)) { rechazar(from, NO_PUEDES, porChat); return false; }
       const p = api.state.get(id);
-      if (!p) { rechazar(from, `No hay ninguna pantalla «${limpiar(id, 16)}».`, porChat); return false; }
-      if (p.fichero === true) { rechazar(from, "Esa pantalla viene de entorno/web.json: se quita del fichero.", porChat); return false; }
+      if (!p) { rechazar(from, tx("no_pantalla", { id: limpiar(id, 16) }), porChat); return false; }
+      if (p.fichero === true) { rechazar(from, tx("de_fichero_quitar"), porChat); return false; }
       api.state.delete(id);
       api.emit("hecho", { id, accion: "quitar" }, { to: from });
       return true;
@@ -167,9 +169,9 @@ export function crearWeb(o: Partial<WebMundo> & { probar?: Probar; reloj?: () =>
     const dominioPoner = (from: number, crudo: string, porChat: boolean): string | null => {
       if (!puede(from)) { rechazar(from, NO_PUEDES, porChat); return null; }
       const d = normalizarDominio(crudo);
-      if (!d) { rechazar(from, `«${limpiar(crudo, 60)}» no es un dominio (así: numinia.org, o 127.0.0.1:8123 para pruebas).`, porChat); return null; }
-      if (dominiosArchivo.includes(d) || extra.includes(d)) { rechazar(from, `${d} ya está en la lista de sitios de este mundo.`, porChat); return null; }
-      if (dominiosArchivo.length + extra.length >= DOMINIOS_MAX) { rechazar(from, `Este mundo ya tiene ${DOMINIOS_MAX} dominios permitidos (el máximo): quita alguno antes.`, porChat); return null; }
+      if (!d) { rechazar(from, tx("no_dominio", { crudo: limpiar(crudo, 60) }), porChat); return null; }
+      if (dominiosArchivo.includes(d) || extra.includes(d)) { rechazar(from, tx("dominio_ya", { d }), porChat); return null; }
+      if (dominiosArchivo.length + extra.length >= DOMINIOS_MAX) { rechazar(from, tx("max_dominios", { max: DOMINIOS_MAX }), porChat); return null; }
       extra.push(d);
       api.store.set(claveDominio(api, d), d);
       api.log(`[web] ${api.who(from)?.nombre ?? `e${from}`} añade el dominio ${d} a la lista de sitios`);
@@ -179,8 +181,8 @@ export function crearWeb(o: Partial<WebMundo> & { probar?: Probar; reloj?: () =>
     const dominioQuitar = (from: number, crudo: string, porChat: boolean): boolean => {
       if (!puede(from)) { rechazar(from, NO_PUEDES, porChat); return false; }
       const d = normalizarDominio(crudo);
-      if (d && dominiosArchivo.includes(d)) { rechazar(from, `${d} viene de entorno/web.json: se quita del fichero.`, porChat); return false; }
-      if (!d || !extra.includes(d)) { rechazar(from, `«${limpiar(crudo, 60)}» no está en la lista de dominios añadidos desde el mundo.`, porChat); return false; }
+      if (d && dominiosArchivo.includes(d)) { rechazar(from, tx("dominio_fichero", { d }), porChat); return false; }
+      if (!d || !extra.includes(d)) { rechazar(from, tx("dominio_no_esta", { crudo: limpiar(crudo, 60) }), porChat); return false; }
       extra.splice(extra.indexOf(d), 1);
       api.store.delete(claveDominio(api, d));
       api.log(`[web] ${api.who(from)?.nombre ?? `e${from}`} quita el dominio ${d} de la lista de sitios`);
@@ -198,32 +200,32 @@ export function crearWeb(o: Partial<WebMundo> & { probar?: Probar; reloj?: () =>
       if (partes[0]?.toLowerCase() === "video") {
         const p = api.position(from);
         const aviso = (t: string) => api.emit("aviso", { quien: from, texto: limpiar(t, 300) }, "server");
-        if (!partes[1]) { aviso("Pon un vídeo de YouTube con /video <dirección> [título]. Se quita con /web quitar <id>."); return true; }
-        if (!videoDe(partes[1])) { aviso("Eso no parece un vídeo de YouTube (watch?v=…, youtu.be/…)."); return true; }
+        if (!partes[1]) { aviso(tx("video_uso")); return true; }
+        if (!videoDe(partes[1])) { aviso(tx("video_no")); return true; }
         if (!p) return true;
         const id = poner(from, { url: partes[1], titulo: partes.slice(2).join(" "), texto: "", x: p.x, y: p.y + 1.6, z: p.z - 3, ry: 0, ancho: 4.8, alto: 2.7 }, true);
-        if (id) aviso(`Vídeo ${id} puesto delante (al norte). Empieza sin sonido: toca el reproductor para activarlo. Quítalo con /web quitar ${id}.`);
+        if (id) aviso(tx("video_puesto", { id }));
         return true;
       }
       if (partes[0]?.toLowerCase() !== "web") return false;
       const aviso = (t: string) => api.emit("aviso", { quien: from, texto: limpiar(t, 300) }, "server");
       if (partes.length === 1) {
         const lista = api.state.keys().map((k) => `${k}: ${String(api.state.get(k)!.titulo)} (${new URL(String(api.state.get(k)!.url)).host})`);
-        aviso(lista.length ? `Pantallas web: ${lista.join(" · ")}.` : `No hay pantallas web.${dominios().length ? ` Sitios permitidos: ${dominios().join(", ")}.` : ""} Pon una con /web <dirección> [título].`);
+        aviso(lista.length ? tx("lista_pantallas", { lista: lista.join(" · ") }) : tx("sin_pantallas", { sitios: dominios().length ? tx("sitios_permitidos", { dominios: dominios().join(", ") }) : "" }));
         return true;
       }
       if (partes[1].toLowerCase() === "dominio") {
-        if (partes[2]?.toLowerCase() === "quitar") { if (dominioQuitar(from, partes[3] ?? "", true)) aviso(`Dominio ${partes[3]} quitado de la lista.`); return true; }
-        if (!partes[2]) { aviso(dominios().length ? `Dominios permitidos: ${dominios().join(", ")}.` : "Este mundo no tiene dominios permitidos. Añade uno con /web dominio <dominio>."); return true; }
+        if (partes[2]?.toLowerCase() === "quitar") { if (dominioQuitar(from, partes[3] ?? "", true)) aviso(tx("dominio_quitado", { d: partes[3] })); return true; }
+        if (!partes[2]) { aviso(dominios().length ? tx("dominios_permitidos", { dominios: dominios().join(", ") }) : tx("sin_dominios")); return true; }
         const d = dominioPoner(from, partes[2], true);
-        if (d) aviso(`Dominio ${d} añadido a la lista de sitios. Pon una pantalla con /web <dirección> [título].`);
+        if (d) aviso(tx("dominio_anadido", { d }));
         return true;
       }
-      if (partes[1].toLowerCase() === "quitar") { if (quitar(from, partes[2] ?? "", true)) aviso(`Pantalla ${partes[2]} quitada.`); return true; }
+      if (partes[1].toLowerCase() === "quitar") { if (quitar(from, partes[2] ?? "", true)) aviso(tx("pantalla_quitada", { id: partes[2] })); return true; }
       const p = api.position(from);
       if (!p) return true;
       const id = poner(from, { url: partes[1], titulo: partes.slice(2).join(" "), texto: "", x: p.x, y: p.y + 1.6, z: p.z - 3, ry: 0, ancho: ANCHO_M.defecto, alto: ALTO_M.defecto }, true);
-      if (id) aviso(`Pantalla ${id} puesta delante (al norte). Quítala con /web quitar ${id}.`);
+      if (id) aviso(tx("pantalla_puesta", { id }));
       return true;
     });
   });

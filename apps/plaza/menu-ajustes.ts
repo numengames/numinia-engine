@@ -6,7 +6,9 @@
 // loop only starts drawing on the next animation frame), so stored choices and the system's preferences are on screen
 // from the start (V7). Not named «ajustes.ts»: dev:lan proxies every path that starts with /a to the server.
 import { acciones } from "./acciones-informe.ts"; // session log: VR body and speed changes
-import { crearAjustes, crearCapacidades, leerNavegador, AJUSTES_MOTOR, CONSULTAS, NIVELES, hayMando } from "../../packages/client/src/ajustes.ts";
+import { crearAjustes, crearCapacidades, leerNavegador, AJUSTES_MOTOR, CONSULTAS, NIVELES, hayMando, AJUSTE_IDIOMA, ID_IDIOMA, ESQUEMA_MUNDO, enlazarIdioma } from "../../packages/client/src/ajustes.ts";
+import { detectarIdioma, idiomaActivo, IDIOMA_DEFECTO } from "../../packages/feature/src/idioma.ts"; // i18n 2/5: English first, Español second
+import { traducirDocumento, traducirGrupo, traducirVista } from "../../packages/client/src/ajustes-motor.ts"; // i18n 3/5: the menu and index.html in both languages
 import type { Ajustes, Grupo, Lectura, Nivel, Valor, Vista } from "../../packages/client/src/ajustes.ts";
 import type { ClientSession } from "../../packages/client/src/index.ts";
 import type { ClientPart } from "../../packages/feature/src/index.ts";
@@ -42,7 +44,9 @@ import { montarMarcos } from "./marcos.ts"; // U20 + U3: the density dial, the f
 import { crearPuerta } from "./puerta.ts"; // t_45ef2f70: the window itself (menu-ajustes-ui.ts) waits for the first frame
 export { escribiendo };
 
-export function montarAjustes(o: { view: View; session: ClientSession; params: URLSearchParams; funciones: readonly ClientPart[]; numinia: Record<string, unknown> }) {
+/** A /status that answers late: the world's language becomes the default (stored choice still wins). Set by montarAjustes. */
+export let ponerIdiomaMundo: (idioma: unknown) => void = () => {};
+export function montarAjustes(o: { idiomaMundo?: unknown; view: View; session: ClientSession; params: URLSearchParams; funciones: readonly ClientPart[]; numinia: Record<string, unknown> }) {
   const { view, session, params } = o;
   const extra = view as unknown as Contratos;
 
@@ -77,7 +81,22 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
     escribir: (k: string, t: string) => { localStorage.setItem(k, t); },
   };
   const a = crearAjustes({ capacidades: caps, guardado, mundo: mundoPlaza.mundo, registro: (l) => console.warn(l) });
+  // i18n 3/5: the registry resolves the {en, es} names and descriptions itself; the group names, the options' names and the notes
+  // are plain strings in the shared format (packages/feature), so what the menu and agents read goes through the engine's Spanish
+  // table (ajustes-motor.ts) in the active language. English (the declaration) is what a missing Spanish text reads.
+  const listaDe = a.lista.bind(a), gruposDe = a.grupos.bind(a);
+  a.lista = () => listaDe().map((v) => traducirVista(v));
+  a.grupos = () => gruposDe().map((g) => traducirGrupo(g));
   a.declarar(AJUSTES_MOTOR);
+  // i18n 2/5: «Language / Idioma» (interfaz). What the person chose wins; else the browser's language; else English. The
+  // browser's pick is the setting's default (so «Restablecer» returns to it). Its applier makes the language active and sets
+  // <html lang> BEFORE the registry tells its listeners, so the menu hears a change already in the new language.
+  a.declarar([AJUSTE_IDIOMA]);
+  enlazarIdioma(a, document);
+  const idiomaPorDefecto = (mundo?: unknown) => detectarIdioma({ guardado: guardado, navegador: navigator, mundo }); // stored > world > browser > English
+  const aplicarIdiomaDefecto = (mundo?: unknown) => { const i = idiomaPorDefecto(mundo); if (i !== IDIOMA_DEFECTO || mundo !== undefined) a.aplicarMundo({ schema: ESQUEMA_MUNDO, mundo: mundoPlaza.mundo, defectos: { [ID_IDIOMA]: i } }); };
+  aplicarIdiomaDefecto(o.idiomaMundo);
+  ponerIdiomaMundo = (m) => aplicarIdiomaDefecto(m); // a late /status
   for (const p of o.funciones) {
     if (p.feature.ajustes?.length && !p.feature.issues.length) a.declarar(p.feature.ajustes, { de: "funcion", id: p.feature.id, describe: p.feature.describe });
   }
@@ -161,11 +180,6 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
     }
     return r;
   };
-  // B (main.ts) toggles battery mode on the power policy directly: afterwards, keep that choice like any other
-  addEventListener("keydown", (e) => {
-    if (e.code !== "KeyB" || escribiendo(e)) return;
-    setTimeout(() => { if (view.power.battery !== a.get("graficos.bateria")) a.set("graficos.bateria", view.power.battery); }, 0);
-  });
   // S1: the four «Sonido» sliders ARE the VCAs of the audio graph (packages/render/src/audio/nucleo.ts). This does
   // not build the graph by itself: it only remembers the volumes, which the core applies when something first sounds.
   const sonido = () => audio().aplicarAjustes((id) => a.get(id));
@@ -195,7 +209,17 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   };
   boton?.addEventListener("click", alBoton);
   Object.assign(o.numinia, { ajustes: api, capacidades: caps.valores });
+  // i18n 3/5: the fixed text of index.html (data-en / data-es pairs) follows the language, now and at every change. The help line
+  // also carries a menu hint on desktop: take it off before the swap (the swap only touches a text that is still its own), put it back after.
   const help = $("help");
-  if (help && !caps.valores.punteroGrueso) help.textContent += " · O menú (ajustes, pantalla completa) · U densidad";
+  const AYUDA_EXTRA = { en: " · O menu (settings, full screen) · U density", es: " · O menú (ajustes, pantalla completa) · U densidad" }; // i18n-ok: the es half of an {en, es} pair swapped by the page wiring
+  const pagina = (): void => {
+    const extra = !caps.valores.punteroGrueso;
+    if (help && extra) for (const x of Object.values(AYUDA_EXTRA)) if (help.textContent?.endsWith(x)) help.textContent = help.textContent.slice(0, -x.length);
+    traducirDocumento(document);
+    if (help && extra && help.textContent === help.getAttribute(idiomaActivo() === "es" ? "data-es" : "data-en")) help.textContent += AYUDA_EXTRA[idiomaActivo()];
+  };
+  pagina();
+  a.alCambiar((id) => { if (id === ID_IDIOMA) pagina(); });
   return api;
 }

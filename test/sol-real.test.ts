@@ -94,7 +94,7 @@ test("consent flow: accepted → the zone (rounded) gives a sun, kept only in me
 
 test("consent flow: declined or no geolocation → the setting goes back off, a short note, the world's own sun stays", () => {
   const no = montaje({ acepta: true, ofrece: true, geo: "niega" });
-  assert.equal(no.aj.get("graficos.solReal"), false); assert.equal(no.avisos.length, 1); assert.match(no.avisos[0], /sol sigue siendo el del mundo/);
+  assert.equal(no.aj.get("graficos.solReal"), false); assert.equal(no.avisos.length, 1); assert.match(no.avisos[0], /sun stays the world/);
   assert.equal(no.llamadas.filter(Boolean).length, 0); assert.equal(no.m.estado().zona, null); no.m.parar();
   const sin = montaje({ acepta: true, ofrece: true, geo: "sin" });
   assert.equal(sin.aj.get("graficos.solReal"), false); assert.equal(sin.avisos.length, 1); sin.m.parar();

@@ -8,6 +8,7 @@ import type { Efectos } from "./calidad.ts";
 import { CALIDAD_POR_NIVEL, SOMBRA_PX, CIELO_LUZ_PX, nivelDe, capacidades, acotarCalidad, ficheroGrandePermitido, acotarEfectos, efectosPermitidos, EFECTOS_APAGADOS, RADIO_SOMBRA } from "./calidad.ts";
 import type { Calidad, Nivel } from "./calidad.ts";
 import { horizonteAtmosfera } from "./cielo-horizonte.ts";
+import { ocultarSuelo } from "./suelo-compartido.ts";
 
 /** The environment as features/entorno sends it (flat fields) plus the ground's files resolved by its client part. */
 export type EntornoDatos = Record<string, unknown>;
@@ -99,7 +100,9 @@ export function crearEntorno(h: EntornoHooks) {
   // N2: what the stylised water reads (agua-estilo.ts): the horizon colour (the fog's, else the gradient's), the sun's colour and direction
   const aguaLuz = { cielo: uniform(new THREE.Color(0xc9d8e4)), sol: solColorU, solDir: uniform(new THREE.Vector3().copy(solDir)) };
   const domoMat = new THREE.MeshBasicNodeMaterial({ side: THREE.BackSide, depthWrite: false, fog: false });
-  domoMat.colorNode = mix(horizonteU, arribaU, smoothstep(-0.02, 0.55, normalize(positionLocal).y));
+  // `suelo: "ninguno"` (a world with no ground): the gradient is the same below the horizon as above it (mirrored), so looking down shows sky, not a cut
+  const espejoU = uniform(0);
+  domoMat.colorNode = mix(horizonteU, arribaU, smoothstep(-0.02, 0.55, mix(normalize(positionLocal).y, normalize(positionLocal).y.abs(), espejoU)));
   const domo = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12), domoMat);
   domo.scale.setScalar(300); domo.frustumCulled = false; domo.renderOrder = -10; domo.userData.sinSombra = true; domo.name = "cielo-degradado";
   let modoCielo: "vivo" | "horneado" | "degradado" | "color" | "imagen" | "cargando" = "cargando";
@@ -262,6 +265,16 @@ export function crearEntorno(h: EntornoHooks) {
   // ---- ground: a texture set tiled over the plane, or a flat colour ----
   const sueloMat = ground.material as THREE.MeshStandardMaterial;
   let sueloPuesto = "";
+  // `suelo: "ninguno"`: no ground plane and no grid, sky all around. The plane is hidden through the counted holder the nature and the espacio base
+  // share (suelo-compartido.ts), so they never bring it back while this world says there is none, nor leave it hidden when it does.
+  let soltarSuelo: (() => void) | null = null;
+  function sinSuelo(v: EntornoDatos): boolean {
+    const sin = v.suelo === "ninguno";
+    if (sin && !soltarSuelo) soltarSuelo = ocultarSuelo(ground);
+    else if (!sin && soltarSuelo) { soltarSuelo(); soltarSuelo = null; }
+    espejoU.value = sin ? 1 : 0;
+    return sin;
+  }
   function suelo(v: EntornoDatos): void {
     const mapa = String(v.sueloMapa ?? ""), normal = h.aparato.mobile ? "" : String(v.sueloNormal ?? ""); // phones: no normal map (bytes, fragment cost)
     const reps = 1000 / Math.max(0.1, n(v.sueloMetros, 4));
@@ -354,7 +367,7 @@ export function crearEntorno(h: EntornoHooks) {
     direccion(0, n(v.vientoRumbo, 0), viento).multiplyScalar(n(v.vientoFuerza, 0));
     // landmarks and the grid
     for (const p of h.hitos) p.visible = v.hitos !== false;
-    grid.visible = v.rejilla === true;
+    grid.visible = v.rejilla === true && !sinSuelo(v);
     suelo(v);
     // sky
     arribaU.value.setHex(n(v.cieloArriba, 0x5d8fc9)); horizonteU.value.setHex(n(v.cieloHorizonte, 0xc9d8e4));
@@ -472,7 +485,7 @@ export function crearEntorno(h: EntornoHooks) {
         sol: { altura: n(solLocal && d?.solReal === true ? solLocal.altura : d?.solAltura), rumbo: n(solLocal && d?.solReal === true ? solLocal.rumbo : d?.solRumbo), intensidad: Math.round(sun.intensity * 100) / 100, color: hex(sun.color), sombras: sun.castShadow && sun.shadow.intensity > 0, mapa: sun.castShadow && sun.shadow.intensity > 0 ? sun.shadow.mapSize.x : 0 },
         ambiente: Math.round(hemi.intensity * 100) / 100,
         luzEntorno: !scene.environment ? "no" : hdrDe(d) && hdrTex.rt && scene.environment === hdrTex.rt.texture ? "fichero" : "cielo",
-        suelo: { tipo: String(d?.suelo ?? ""), textura: !!sueloMat.map, relieve: !!sueloMat.normalMap, metros: n(d?.sueloMetros) },
+        suelo: { tipo: String(d?.suelo ?? ""), plano: ground.visible, textura: !!sueloMat.map, relieve: !!sueloMat.normalMap, metros: n(d?.sueloMetros) },
         tono: String(d?.tono ?? ""), exposicion: renderer.toneMappingExposure,
         /** R7.1: a piece's atmosphere is on (the nature): the tone actually applied, and whether the fog is the gradient node. */
         atmosfera: atm ? { tono: atm.tono, nieblaNodo: scene.fogNode !== null && scene.fogNode !== undefined, horizonte: hex(atmU.horizonte.value), cielo: atm.cielo ? "analitico" : "4-paradas" } : null,

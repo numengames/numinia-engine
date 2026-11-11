@@ -11,6 +11,7 @@
 // Nothing is completed here: the dart flies to where the server says it landed. Sound: taking the dart is mine
 // (`coger-soltar`, local, soft); the throw and the hit are shared, so the SERVER sounds them for everyone.
 import { sonar } from "./sonar.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { DARDOS_TURNO } from "../../features/dardos/client.ts";
 import { lanzamiento, velocidadDe, duracionVuelo, FIN_PELLIZCO_MS, V_MIN } from "../../features/dardos/lanzamiento.ts";
 import type { Cara, Muestra, V3 } from "../../features/dardos/lanzamiento.ts";
@@ -50,11 +51,11 @@ export const CIERRA = 0.6, ABRE = 0.3;
 /** Samples kept per hand (ms): the gesture's window (backswing + swing, gesto.ts) plus the pinch lead. */
 const GUARDA_MS = VENTANA_GESTO_MS + 100;
 /** v14: what to tell a thrower whose gesture is far from a professional's (the lowest part of the score) and what to tell one who nailed it. */
-const CONSEJOS: Record<keyof Partes, string> = {
-  recta: "Lanza recto hacia la diana, sin abrir la mano a los lados",
-  aceleracion: "Suelta cuando la mano aún va acelerando, no después de frenar",
-  velocidad: "Un lanzamiento de dardos es rápido pero no un latigazo: ni flojo ni a toda fuerza",
-  retroceso: "Lleva el dardo atrás, hacia la cara, antes de lanzar",
+const CONSEJOS: Record<keyof Partes, () => string> = {
+  recta: () => tx("Throw straight at the board, without opening your hand to the sides", "Lanza recto hacia la diana, sin abrir la mano a los lados"),
+  aceleracion: () => tx("Release while your hand is still accelerating, not after it slows down", "Suelta cuando la mano aún va acelerando, no después de frenar"),
+  velocidad: () => tx("A dart throw is quick but not a whip: neither limp nor full force", "Un lanzamiento de dardos es rápido pero no un latigazo: ni flojo ni a toda fuerza"),
+  retroceso: () => tx("Bring the dart back towards your face before throwing", "Lleva el dardo atrás, hacia la cara, antes de lanzar"),
 };
 /** A pending throw is forgotten after this long without an answer (ms). */
 const PENDIENTE_MS = 4000;
@@ -117,10 +118,10 @@ export async function montarDardosVR(o: { dardos: Controlador; view: Vista; yo: 
   // nothing else; the only thing the free hand may be given is this very dart.
   let sinSoltar: Lado | null = null;
   view.manos.llevable?.("dardos", {
-    que: "el dardo", lado: () => sosteniendo?.lado ?? null, ocupante: "dardos", puede: () => true,
+    get que() { return tx("the dart", "el dardo"); }, lado: () => sosteniendo?.lado ?? null, ocupante: "dardos", puede: () => true,
     // N3: let the dart go without throwing it: it leaves the hand (it was never thrown, so it still counts as yours to throw);
     // the grip/pinch that is still closed must open before the hand can take another
-    soltar: () => { const s = sosteniendo; if (!s) return "No llevas ningún dardo"; sosteniendo = null; vrd.enMano(null); antes[s.lado] = { gatillo: true, agarre: true }; sinSoltar = null; return true; },
+    soltar: () => { const s = sosteniendo; if (!s) return tx("You are not carrying a dart", "No llevas ningún dardo"); sosteniendo = null; vrd.enMano(null); antes[s.lado] = { gatillo: true, agarre: true }; sinSoltar = null; return true; },
     pasar: (a) => {
       const de = sosteniendo; if (!de || de.lado === a) return;
       const en = view.manos.entrada(a); if (!en) return;
@@ -175,12 +176,12 @@ export async function montarDardosVR(o: { dardos: Controlador; view: Vista; yo: 
         const vuelo = vrd.volar(p, destino, duracionVuelo(tiro.distancia, tiro.velocidad));
         pend.push({ numero, sitio, vuelo, cuando: ahora, resuelto: false });
         view.manos.vibrar(lado, 0.5 + 0.3 * tiro.ayuda / 0.6, 50); // a stronger buzz the closer to a pro throw (felt, not read)
-        if (gesto) { const c = consejo(gesto); if (c) view.vr.nota?.(CONSEJOS[c]); else if (gesto.puntos >= 0.8) view.vr.nota?.("¡Gesto de profesional!"); }
+        if (gesto) { const c = consejo(gesto); if (c) view.vr.nota?.(CONSEJOS[c]()); else if (gesto.puntos >= 0.8) view.vr.nota?.(tx("Pro-level throw!", "¡Gesto de profesional!")); }
         return;
       }
       view.vr.nota?.(r.why);
-    } else if (tiro.tipo === "suelta" && tiro.motivo === "lento") view.vr.nota?.("Más fuerte: lanza con un movimiento rápido hacia la diana");
-    else if (tiro.tipo === "suelta" && tiro.motivo === "atras") view.vr.nota?.("Lánzalo hacia la diana");
+    } else if (tiro.tipo === "suelta" && tiro.motivo === "lento") view.vr.nota?.(tx("Harder: throw with a quick motion towards the board", "Más fuerte: lanza con un movimiento rápido hacia la diana"));
+    else if (tiro.tipo === "suelta" && tiro.motivo === "atras") view.vr.nota?.(tx("Throw it towards the board", "Lánzalo hacia la diana"));
     // not a throw (too slow, backwards, rejected): the dart falls from the hand and goes away
     vrd.enMano(null);
     if (pos) vrd.soltar(pos, [(v?.[0] ?? 0) * 0.3, Math.min(0, (v?.[1] ?? 0) * 0.3), (v?.[2] ?? 0) * 0.3]);
@@ -192,7 +193,7 @@ export async function montarDardosVR(o: { dardos: Controlador; view: Vista; yo: 
     pintarMarcador();
     const sitio = turno();
     if (sitio !== turnoVisto) {
-      if (sitio) view.vr.nota?.("Dardos: agarre coge un dardo · atrás y recto, como un profesional: más ayuda");
+      if (sitio) view.vr.nota?.(tx("Darts: grip takes a dart · back and straight, like a pro: more aim help", "Dardos: agarre coge un dardo · atrás y recto, como un profesional: más ayuda"));
       turnoVisto = sitio;
     }
     for (const l of ["izq", "der"] as Lado[]) {

@@ -1,6 +1,7 @@
 // dados — client part (v1). Keeps the rolls this page heard (the last few, anyone's) and the dice towers near you; asks
 // for a roll and never decides one. One small controller for the page (apps/plaza/dados.ts: the dice card everyone
 // sees, the dice buttons beside a tower) and for agents.
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg } from "../../packages/feature/src/index.ts";
 import { dados as decl, CARAS, DADOS_MAX } from "./feature.ts";
@@ -10,7 +11,7 @@ export type Tirada = { quien: number; sitio: string; n: number; dados: string; v
 export type Torre = { id: string; nombre: string; x: number; y: number; z: number; radio: number; dados: string; ultima: string; bandejaDx?: number; bandejaDz?: number; bandejaAlto?: number; bandejaAncho?: number; bandejaFondo?: number };
 export type Que = "tirada" | "torres" | "aviso";
 type Res = { ok: true } | { ok: false; why: string };
-const SIN: Res = { ok: false, why: "la función dados no está en este servidor" };
+const SIN: Res = { ok: false, get why() { return tx("the dice feature is not on this server", "la función dados no está en este servidor"); } }; // a getter: read in the language of that moment
 const ahora = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 /** Rolls a page remembers (the dice card shows the last; the rest is for agents and tests). */
 export const RECUERDA = 12;

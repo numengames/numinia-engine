@@ -88,7 +88,7 @@ export function montarSonidos(p: Pagina, puerta: Puerta = crearPuerta({ nucleo: 
   const sonarLocal = (id: string, o: Opciones = {}, ms = 60): boolean => {
     if (COMPARTIDOS.includes(id)) {
       // it is nobody's fault: it is the split. It is said once so it does not go unnoticed in a future change.
-      if (!dichos.has(id)) { dichos.add(id); console.warn(`[sonidos] «${id}» lo manda el servidor (D-048): la página no lo toca`); }
+      if (!dichos.has(id)) { dichos.add(id); console.warn(`[sonidos] «${id}» lo manda el servidor (D-048): la página no lo toca`); } // i18n-ok: developer log
       return false;
     }
     const t = performance.now();

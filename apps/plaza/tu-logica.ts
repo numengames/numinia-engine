@@ -2,6 +2,7 @@
 // avatar you wear, where its pre-rendered portrait lives, your badges (earned and still to earn) and how long you have been
 // here. No DOM: test/tu-logica.test.ts reads it. The portraits are real renders of each house VRM (tools/retratos.mjs →
 // apps/plaza/public/retratos/<id>-busto|cuerpo|espalda.webp); an avatar with none (an upload) gets the house silhouette.
+import { tx } from "../../packages/feature/src/idioma.ts";
 import catalogo from "../../activos/avatares/catalogo.json" with { type: "json" };
 import { recompensasDe } from "./misiones.ts";
 import { elegirAvatar } from "../../packages/render/src/avatares-politica.ts";
@@ -46,15 +47,15 @@ export function insigniasDelLibro(libro: readonly { titulo: string; estado: stri
 export function desdeHace(ms: number): string {
   if (!(ms > 0)) return "";
   const min = Math.floor(ms / 60_000);
-  if (min < 1) return "acabas de llegar";
-  if (min < 60) return `aquí desde hace ${min} min`;
+  if (min < 1) return tx("you just arrived", "acabas de llegar");
+  if (min < 60) return tx(`here for ${min} min`, `aquí desde hace ${min} min`);
   const h = Math.floor(min / 60), r = min % 60;
-  return `aquí desde hace ${h} h${r ? ` ${r} min` : ""}`;
+  return tx(`here for ${h} h${r ? ` ${r} min` : ""}`, `aquí desde hace ${h} h${r ? ` ${r} min` : ""}`);
 }
 
 /** The line under your name: «Polybot · en la Plaza · aquí desde hace 12 min», leaving out what the page does not know. */
 export function lineaDeTu(o: { avatar?: string | null; mundo?: string | null; ms: number }): string {
-  return [o.avatar?.trim(), o.mundo?.trim() ? `en ${o.mundo.trim()}` : "", desdeHace(o.ms)].filter(Boolean).join(" · ");
+  return [o.avatar?.trim(), o.mundo?.trim() ? tx(`in ${o.mundo.trim()}`, `en ${o.mundo.trim()}`) : "", desdeHace(o.ms)].filter(Boolean).join(" · ");
 }
 
 /** What you carry (MIS-257): the one weapon and up to three relics that are `portado` in the Bolsa, in the order the equipment row

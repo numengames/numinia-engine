@@ -1,6 +1,7 @@
 // director — client part (N6, corte 1): what a page needs to direct (the scene list, whether it may) and what every
 // player sees (the narrator's line, a summons with «Ir / Ahora no»). It only asks: the server decides. The panel and
 // the cards are the page's (apps/plaza/director.ts); agents and tests use the controller below.
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, Msg } from "../../packages/feature/src/index.ts";
 import { director, ACTUAL } from "./feature.ts";
@@ -20,7 +21,7 @@ export function crearCliente() {
   };
   const oyentes = new Set<(que: Cambio) => void>();
   const avisar = (q: Cambio) => { for (const f of oyentes) { try { f(q); } catch { /* a page's listener must not stop the rest */ } } };
-  const enviar = (intent: string, msg: Msg) => api?.send(intent, msg) ?? { ok: false as const, why: "la página aún no ha arrancado" };
+  const enviar = (intent: string, msg: Msg) => api?.send(intent, msg) ?? { ok: false as const, why: tx("the page has not started yet", "la página aún no ha arrancado") };
   const ctl = {
     estado,
     /** The scene on now (or null). */
