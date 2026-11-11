@@ -1,6 +1,6 @@
 // espejo on the page (mundo-hermes, v0): the card of a mirrored thing and the buttons to ask for its verbs. Loaded by main.ts the first time the server
 // answers a `usar` (nothing of it is in the start bundle). Pure black and white, big real buttons (touch and keyboard), Spanish «usted».
-//   E (or the prompt) on a thing → the server answers me alone → this card: what it is, how it is, and ONE BUTTON PER VERB it offers.
+//   E (or the prompt) on a thing → (Q or Escape closes it again) → the server answers me alone → this card: what it is, how it is, and ONE BUTTON PER VERB it offers.
 //   A verb button asks twice («Pausar» → «¿Seguro? Confirmar»): what changes outside the world always needs a person's yes. Only the second press sends `pedir`.
 //   The card then says «Esperando a Hermes…» and, when the answer arrives (or after 30 s, «Hermes no ha respondido»), what happened.
 // Everything that comes from outside goes in with `textContent`, never as markup. The server decides who may ask; this only offers.
@@ -8,7 +8,26 @@ import type { espejo as Controlador } from "../../features/espejo/client.ts";
 import { siguienteZona, zonaDe } from "../../features/espejo/guia.ts";
 import { detalleDe, textoEstadoDe, textoFuncion, textoIrA, TEXTO_VERBO } from "../../features/espejo/client.ts";
 
+import { escribiendo } from "./escribiendo.ts";
+import { esMovil } from "../../packages/client/src/movil.ts";
+import { perfil } from "./perfil-aparato.ts";
+
 type Ctl = typeof Controlador;
+
+/** E opens a thing, Q closes it (the same pair as talking to a person). Pure: does this key press close the open card? */
+export const cierraConQ = (e: { code: string; repeat?: boolean; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean }, abierta: boolean): boolean =>
+  abierta && e.code === "KeyQ" && !e.ctrlKey && !e.metaKey && !e.altKey;
+
+/** Q closes the card while it is open. It listens in the CAPTURE phase and swallows the key, so the microphone toggle on Q (voz.ts) never
+ *  sees it: closing a card must never open the microphone (privacy, QA ronda 6). With the card closed the key goes on untouched. */
+export function cerrarConQ(d: Pick<Document, "addEventListener">, abierta: () => boolean, cerrar: () => void, escribe: (e: KeyboardEvent) => boolean = escribiendo): void {
+  d.addEventListener("keydown", (ev) => {
+    const e = ev as KeyboardEvent;
+    if (!cierraConQ(e, abierta()) || escribe(e)) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (!e.repeat) cerrar();
+  }, true);
+}
 
 const CSS = `
 #espejo-ficha { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 6; box-sizing: border-box; width: min(94vw, 420px); max-height: calc(100vh - 84px - 64px); max-height: calc(100dvh - 84px - 64px); display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; background: #000; color: #fff; border: 2px solid #fff; font: 14px/1.4 "DejaVu Sans Mono", "Courier New", monospace; }
@@ -37,7 +56,7 @@ export function montarEspejo(o: { espejo: Ctl; doc?: Document; /** the teleport 
   const caja = d.createElement("section"); caja.id = "espejo-ficha"; caja.hidden = true; caja.setAttribute("role", "dialog"); caja.setAttribute("aria-label", "Cosa del espejo");
   const titulo = d.createElement("h2"), estado = d.createElement("p"), detalle = d.createElement("p"), cuerpo = d.createElement("div"), pie = d.createElement("div"), dicho = d.createElement("p");
   estado.className = "estado"; detalle.className = "detalle"; cuerpo.className = "cuerpo"; pie.className = "pie"; dicho.className = "dicho"; dicho.hidden = true; dicho.setAttribute("role", "status"); dicho.setAttribute("aria-live", "polite");
-  const cerrar = d.createElement("button"); cerrar.type = "button"; cerrar.textContent = "Cerrar"; cerrar.dataset.verbo = "cerrar"; cerrar.addEventListener("click", () => ocultar());
+  const cerrar = d.createElement("button"); cerrar.type = "button"; cerrar.textContent = esMovil(perfil().clase) ? "Cerrar" : "Cerrar (Q)"; cerrar.setAttribute("aria-keyshortcuts", "Q Escape"); cerrar.dataset.verbo = "cerrar"; cerrar.addEventListener("click", () => ocultar());
   caja.append(titulo, estado, detalle, cuerpo, dicho, pie); d.body.appendChild(caja);
 
   /** Sit the card just above the page's action bar (`#acciones`, when it is shown) and never taller than the room left under the top bar: it scrolls inside, it never covers the bar nor leaves the screen. */
@@ -143,5 +162,6 @@ export function montarEspejo(o: { espejo: Ctl; doc?: Document; /** the teleport 
   });
   abrir(); // the answer that made main.ts load this file arrived before the card existed: show it now
   d.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !caja.hidden) ocultar(); });
+  cerrarConQ(d, () => !caja.hidden, ocultar);
   return { caja, ocultar, estaAbierta: () => !caja.hidden, quitar, visorAbierto: () => !!visor?.estaAbierto() };
 }
