@@ -13,11 +13,11 @@ import type { ServerApi } from "../packages/feature/src/index.ts";
 import { encodePase } from "../packages/net/src/index.ts";
 import { signer } from "../packages/server/src/secret.ts";
 import { crearRoles } from "../packages/server/src/roles-mundo.ts";
-import { leerClave } from "../packages/server/src/pase.ts";
+import { FORMA_DEFECTO, RADIO_DEFECTO_M, leerClave } from "../packages/server/src/pase.ts";
 import chatServer from "../features/chat/server.ts";
 import iaServer from "../features/ia/server.ts";
 import { crearBurbuja, AVISO_RESPIRO_TICKS, EVENTOS_POR_BARRIDO } from "../features/burbuja/server.ts";
-import { ALTO_M, CADA_TICKS, DEFECTO, FORMAS, RADIO_MAX_M, RADIO_MIN_M, SUELO_TOL_M, burbuja, dentro, leerBurbuja } from "../features/burbuja/feature.ts";
+import { ALTO_M, CADA_TICKS, DEFECTO, FORMAS, NADIE, RADIO_MAX_M, RADIO_MIN_M, SUELO_TOL_M, burbuja, dentro, leerBurbuja } from "../features/burbuja/feature.ts";
 import type { Forma } from "../features/burbuja/feature.ts";
 import featuresServidor from "../features/servidor.ts";
 
@@ -101,7 +101,7 @@ test("burbuja: declaration loads, is accessible, is on the server's list (R-1: n
   assert.deepEqual(burbuja.issues, []);
   assert.ok(featuresServidor.some((p) => p.feature.id === "burbuja"));
   assert.deepEqual(FORMAS, ["esfera", "cupula", "cilindro", "caja"]);
-  assert.deepEqual([RADIO_MIN_M, RADIO_MAX_M, DEFECTO.radio, DEFECTO.forma, DEFECTO.visible], [2, 12, 4, "esfera", "al-acercarte"]);
+  assert.deepEqual([RADIO_MIN_M, RADIO_MAX_M, DEFECTO.radio, DEFECTO.forma, DEFECTO.visible], [2, 12, 4, "cupula", "al-acercarte"]);
 });
 
 test("burbuja: sphere — centred 1 m over the feet, edge inclusive; it follows an AI floating in the air; round, not square", () => {
@@ -165,13 +165,13 @@ test("burbuja: an unknown shape holds nobody; leerBurbuja falls back to the hous
 
 // ---------- in a world ----------
 
-test("burbuja: an AI whose pass has no bubble gets the house one (sphere, 4 m, al-acercarte), published for the pages to draw; a person gets none", () => {
+test("burbuja: an AI whose pass has no bubble gets the house one (dome, 4 m, al-acercarte; Pablo 2026-11-11), published for the pages to draw; a person gets none", () => {
   const W = mundo();
   const p = W.persona(0, 50);
   const ada = W.ia(paseIA(T0));
   assert.deepEqual(W.b.burbujaDe(ada.e), DEFECTO);
   assert.deepEqual([...W.estado().keys()], [String(ada.e)]);
-  assert.deepEqual(W.estado().get(String(ada.e)), { forma: "esfera", radio: 4, visible: "al-acercarte" });
+  assert.deepEqual(W.estado().get(String(ada.e)), { forma: "cupula", radio: 4, visible: "al-acercarte", mira: -1 });
   assert.equal(W.b.burbujaDe(p.e), null);
   assert.deepEqual(W.b.dentroDeBurbuja(p.e), []);
 });
@@ -180,19 +180,19 @@ test("burbuja: the pass's bubble is the AI's bubble; a fresh pass in mid-session
   const W = mundo();
   const ana = W.persona(0, 3);
   const ada = W.ia(paseIA(T0, { ia: { responde: RESP, burbuja: { forma: "caja", radio: 7, visible: "siempre" } } }));
-  assert.deepEqual(W.estado().get(String(ada.e)), { forma: "caja", radio: 7, visible: "siempre" });
+  assert.deepEqual(W.estado().get(String(ada.e)), { forma: "caja", radio: 7, visible: "siempre", mira: NADIE });
   W.pump();
   assert.deepEqual(W.b.dentroDeBurbuja(ada.e), [ana.e]);
   W.reloj(T0 + 60_000);
   W.enviarPase(ada.t, paseIA(T0 + 60_000, { ia: { responde: RESP, burbuja: { forma: "esfera", radio: 2, visible: "nunca" } } }));
-  assert.deepEqual(W.estado().get(String(ada.e)), { forma: "esfera", radio: 2, visible: "nunca" });
+  assert.deepEqual(W.estado().get(String(ada.e)), { forma: "esfera", radio: 2, visible: "nunca", mira: NADIE }, "the pass's two ticks include a review: Ana, 3 m away, is already out of the 2 m sphere");
   assert.deepEqual(W.b.burbujaDe(ada.e), { forma: "esfera", radio: 2, visible: "nunca" });
   W.pump();
   assert.deepEqual(W.b.dentroDeBurbuja(ada.e), [], "3 m is outside the new 2 m sphere");
   assert.equal(W.de("saleDeBurbuja", ana.e).length, 1);
   W.reloj(T0 + 120_000);
   W.enviarPase(ada.t, paseIA(T0 + 120_000));
-  assert.deepEqual(W.estado().get(String(ada.e)), { forma: "esfera", radio: 4, visible: "al-acercarte" }, "a pass that drops its bubble goes back to the house one");
+  assert.deepEqual(W.estado().get(String(ada.e)), { forma: "cupula", radio: 4, visible: "al-acercarte", mira: NADIE }, "a pass that drops its bubble goes back to the house one");
 });
 
 test("burbuja: entering sends «entraEnBurbuja» to the AI and the listeners, and the notice only to who entered; staying says nothing more", () => {
@@ -358,4 +358,53 @@ test("burbuja: the AI's own page receives the entry and the exit (its mailbox fo
   W.poner(ana.e, 9, 0); W.pump();
   assert.deepEqual(suyos().filter((x) => x.startsWith("burbuja.")), ["burbuja.entraEnBurbuja", "burbuja.saleDeBurbuja"]);
   assert.deepEqual(ana.s.features.log.filter((x) => x.feature === "burbuja").map((x) => x.event), ["entras", "sales"]);
+});
+
+// ---------- presence (Pablo, 2026-11-11: «que te mire, que note tu presencia, que esté presente contigo») ----------
+
+test("burbuja presence: the AI is with the first person who came in while they stay, then the nearest still inside, then nobody", () => {
+  const W = mundo();
+  const ana = W.persona(0, 30), luis = W.persona(0, 40);
+  const ada = W.ia(paseIA(T0), 0, 0);
+  W.pump();
+  assert.equal(W.b.miraDe(ada.e), NADIE, "nobody inside");
+  W.poner(ana.e, 3, 0); W.pump();
+  assert.equal(W.b.miraDe(ada.e), ana.e);
+  assert.equal(W.estado().get(String(ada.e))?.mira, ana.e, "published for every page");
+  W.poner(luis.e, 1, 0); W.pump(30);
+  assert.equal(W.b.miraDe(ada.e), ana.e, "someone nearer arriving does not take it away from Ana");
+  W.poner(ana.e, 9, 0); W.pump();
+  assert.equal(W.b.miraDe(ada.e), luis.e, "Ana left: it turns to Luis, still inside");
+  W.poner(luis.e, 9, 3); W.pump();
+  assert.equal(W.b.miraDe(ada.e), NADIE);
+  assert.equal(W.estado().get(String(ada.e))?.mira, NADIE);
+});
+
+test("burbuja presence: of several people coming in together it takes the nearest; another AI is never the one it is with", () => {
+  const W = mundo();
+  const ana = W.persona(0, 30), luis = W.persona(0, 40);
+  const ada = W.ia(paseIA(T0), 0, 0);
+  const bea = W.ia(paseIA(T0, { sub: sub("cd"), name: "Bea" }), 0, 1); // an AI 1 m away, inside Ada's dome
+  W.pump();
+  assert.equal(W.b.miraDe(ada.e), NADIE, "an AI inside does not count");
+  assert.equal(W.b.miraDe(bea.e), NADIE);
+  W.poner(ana.e, 3, 0); W.poner(luis.e, 2, 0); W.pump();
+  assert.equal(W.b.miraDe(ada.e), luis.e, "both came in at once: the nearest");
+});
+
+test("burbuja presence: the person it is with disconnecting lets go at once, and the next review turns it to whoever is left", () => {
+  const W = mundo();
+  const ana = W.persona(1, 0), luis = W.persona(0, 3);
+  const ada = W.ia(paseIA(T0), 0, 0);
+  W.pump();
+  assert.equal(W.b.miraDe(ada.e), ana.e);
+  W.inst.disconnect(ana.e); W.pump(2);
+  assert.notEqual(W.b.miraDe(ada.e), ana.e);
+  W.pump(CADA_TICKS);
+  assert.equal(W.b.miraDe(ada.e), luis.e);
+});
+
+test("burbuja: the house shape is the same in the feature and in the server's pass rules (a packages file cannot import features/)", () => {
+  assert.equal(DEFECTO.forma, FORMA_DEFECTO);
+  assert.equal(DEFECTO.radio, RADIO_DEFECTO_M);
 });

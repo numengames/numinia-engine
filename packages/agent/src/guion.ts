@@ -2,7 +2,8 @@
 // STD-050 AGW-006/012/013): it walks its route; greets whoever comes near (once per person per `saludo.cada`);
 // answers only when called by its name; short orders («sígueme», «quieta», «pasea», «saluda», «baila») are decided
 // here; it never answers another AI (loops between agents were the first failures of others: note 08 §3.9) and never
-// speaks more than once every 2 s. A brain (P5a, mente.ts) plugs in through `pensar`: it gets only what this skeleton
+// speaks more than once every 2 s. Presence (Pablo, 2026-11-11): while a person is in its bubble (the server's `mira`) it leaves its
+// walk and stays with them, facing them; alone again, it waits PRESENCIA_RESPIRO_TICKS and walks on. A brain (P5a, mente.ts) plugs in through `pensar`: it gets only what this skeleton
 // lets through (called by name, not a short order, not an AI) and, when it cannot think, the script answers.
 import { Cuerpo, esIA } from "./index.ts";
 import type { Oido } from "./index.ts";
@@ -16,6 +17,7 @@ export const MIRAR_CADA_TICKS = HZ / 2;        // who is near is reviewed twice 
 export const SEGUIR_MAX_TICKS = 3 * 60 * HZ;   // it follows someone 3 min at most, then goes back to its walk
 export const PERDIDO_TICKS = 5 * HZ;           // the one it follows out of sight for 5 s: back to its walk
 export const ORDEN_MAX_PALABRAS = 6;           // a short order (AGW-013); longer is conversation
+export const PRESENCIA_RESPIRO_TICKS = 3 * HZ;  // alone again: it waits 3 s before going back to its walk (someone stepping out and back in)
 
 export type Modo = "pasear" | "seguir" | "quieta";
 
@@ -41,6 +43,8 @@ export class Guion {
   private saludoEn = -1e9;
   private frase = 0;
   private siguiendo = { entidad: -1, desde: 0, vistoEn: 0 };
+  private presente = -1;     // the person it stays with (presence), -1 = walking
+  private soloDesde = 0;     // tick it was last with someone
   private readonly saludados = new Map<string, number>(); // name -> tick greeted (names are what stays the same)
   private readonly llamada: string;
   readonly diario: string[] = [];                          // what it did and why (tests, and the service's log)
@@ -66,6 +70,7 @@ export class Guion {
   }
 
   private pasear(t: number): void {
+    if (this.acompanada(t)) return;
     if (!this.c.llegado() || t < this.esperaHasta) return;
     const r = this.h.ruta, p = r[this.punto % r.length], me = this.c.posicion();
     if (Math.hypot(p.x - me.x, p.z - me.z) <= 0.8) { // here: wait, then the next point
@@ -75,6 +80,20 @@ export class Guion {
       return;
     }
     this.c.irA(p.x, p.z);
+  }
+
+  /** Presence: with someone in its bubble it stops and stays (true = no walking this tick). Alone, it waits a moment, then walks on. */
+  private acompanada(t: number): boolean {
+    const con = this.c.conQuien();
+    if (con >= 0) {
+      if (this.presente !== con) { this.presente = con; this.c.parar(); this.diario.push(`${t} se queda con ${con} (en su burbuja)`); }
+      this.soloDesde = t;
+      return true;
+    }
+    if (this.presente < 0) return false;
+    if (t - this.soloDesde < PRESENCIA_RESPIRO_TICKS) return true;
+    this.presente = -1; this.diario.push(`${t} vuelve a su paseo (se ha quedado sola)`);
+    return false;
   }
 
   private vigilarSeguir(t: number): void {

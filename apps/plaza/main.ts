@@ -83,6 +83,7 @@ import { llamarPagina } from "../../features/llamar/client.ts"; // ia-llamar S11
 import { montarLlamarIA } from "./llamar-ia.ts"; // ia-llamar S11: the notice and the box of «Hablar con ella», and the prompt «E: hablar con…»
 import { burbujaPagina } from "../../features/burbuja/client.ts"; // ia-llamar S9: the shape of each AI's action bubble and the «entras» that flashes it
 import { ojosDe } from "../../features/ia/ojos.ts"; // t_5096d6f4: the eyes of an AI by the size of its model
+import { montarPresencia } from "./ia-presencia.ts"; // an AI faces the person it is with (features/burbuja `mira`)
 import { iaPagina } from "../../features/ia/client.ts"; // ia-visible S3: the public card of each AI (state, who answers, what it may do)
 import { asiento, interruptor as interruptorAsiento } from "../../features/asiento/client.ts"; // asiento v1: sitting down for real
 import { burbujas, interruptor as interruptorBurbujas } from "../../features/burbujas/client.ts"; // burbujas v1: voice bubbles
@@ -279,6 +280,9 @@ iaPagina.alCambiar((quien, ficha) => view.pensando(quien === session.entity ? "s
 // «entras» (YOU crossed its edge) makes it flash for a moment. Who is inside is the server's: the page only draws.
 burbujaPagina.alCambiar((quien, b) => view.burbuja(quien === session.entity ? "self" : quien, b, iaPagina.de(quien)?.estado === "dormida"));
 burbujaPagina.alEntrar((ia) => view.burbujaDestello(ia === session.entity ? "self" : ia));
+// presence (Pablo, 2026-11-11): an AI faces the person it is with (the server's `mira`) while it stands still
+const presencia = montarPresencia({ burbujas: burbujaPagina, yo: () => session.entity, miPosicion: () => (session.entity >= 0 ? session.selfPosition(1) : null), otros: () => session.remotePositions(),
+  orientar: (q, r) => view.orientar(q === session.entity ? "self" : q, r) });
 
 // condiciones/c3: with the world's gate on, the server sends its conditions after you join and you stand in a bubble until you accept;
 // with it off it sends nothing and this does nothing. The gate itself is the server's; here the walking input is also held still.
@@ -896,6 +900,7 @@ view.loop((now) => {
   if (probe.done && informe.primerCuadroMs && !informe.entrada) void enviarEntrada();
   // power policy (P2): skip the draw when hidden or when nothing changes; the 20 Hz ticks above never skip
   condicionesXR?.tick(); // condiciones/c4: the bubble inside the headset (nothing to do unless the bubble is up and VR is presenting)
+  presencia.cuadro(now);
   const guiaMueve = guiaPagina?.cuadro(dt) ?? false; // M6: the guide's step (false and free when she is off)
   const enSecuencia = misiones.cuadro() || guiaMueve; // U14 (5): a sequence only this player sees moves its people (no work when none plays)
   const sig = lastSig; lastSig = signature();
@@ -959,7 +964,7 @@ function drawHud() {
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { pintar, gemelos, ajustesMundo, session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones, medidorVivo: medidorUI, espejo: espejoCtl, pantallaRed };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { pintar, gemelos, ajustesMundo, session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, presencia, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones, medidorVivo: medidorUI, espejo: espejoCtl, pantallaRed };
 
 // ---- t_5cff4f06: back to the city — hidden unless this world's mundo.ajustes.json sets ciudadUrl; ux2-barra: an entry
 // of the bar's «Menú» (O), no longer a corner button ----

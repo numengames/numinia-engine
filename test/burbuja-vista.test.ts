@@ -271,16 +271,32 @@ test("page accessor: reads the public state (odd values read as the house defaul
   estado.set("6", { forma: "rara", radio: 99 }); cambio("6", estado.get("6"));
   cambio("clave-no-numerica", { forma: "caja" });
   assert.deepEqual(pagina.de(5), { forma: "cilindro", radio: 7, visible: "siempre" });
-  assert.deepEqual(pagina.de(6), { forma: "esfera", radio: 4, visible: "al-acercarte" });
+  assert.deepEqual(pagina.de(6), { forma: "cupula", radio: 4, visible: "al-acercarte" });
   assert.equal(pagina.de(9), null);
   assert.deepEqual(pagina.lista().map((l) => l.quien), [5, 6]);
   estado.delete("5"); cambio("5", undefined);
-  assert.deepEqual(vistos.map(([q, b]) => [q, b === null ? null : (b as { forma: string }).forma]), [[5, "cilindro"], [6, "esfera"], [5, null]]);
+  assert.deepEqual(vistos.map(([q, b]) => [q, b === null ? null : (b as { forma: string }).forma]), [[5, "cilindro"], [6, "cupula"], [5, null]]);
   eventos.get("entras")!({ ia: 5, nombre: "Ada" }); eventos.get("entras")!({ ia: "x" }); eventos.get("entras")!({ ia: 6 });
   assert.deepEqual(entradas, [[5, "Ada"], [6, ""]]);
   off(); cambio("6", undefined); assert.equal(vistos.length, 3, "unsubscribed");
   pagina.alEntrar(() => { throw new Error("a page's listener must not stop the rest"); });
   eventos.get("entras")!({ ia: 7, nombre: "x" });
+});
+
+test("page accessor: a listener that comes late is first told every bubble already there (v9 hands the first state over before the page listens); mira() reads presence", () => {
+  const pagina = crearBurbujaPagina();
+  const estado = new Map<string, Record<string, unknown>>([["4", { forma: "cupula", radio: 4, visible: "al-acercarte", mira: 9 }], ["8", { forma: "caja", radio: 3, visible: "siempre", mira: -1 }]]);
+  pagina.part.setup({
+    id: "burbuja", on: () => {}, send: () => ({ ok: true }), action: () => {}, self: () => 0, view: {} as never,
+    state: { get: (k: string) => estado.get(k) as never, keys: () => [...estado.keys()], onChange: () => {} },
+  } as never);
+  const vistos: [number, string | null][] = [];
+  pagina.alCambiar((q, b) => vistos.push([q, b ? b.forma : null]));
+  assert.deepEqual(vistos, [[4, "cupula"], [8, "caja"]], "told at once, without waiting for a change");
+  assert.equal(pagina.mira(4), 9);
+  assert.equal(pagina.mira(8), -1);
+  assert.equal(pagina.mira(5), -1, "no bubble: nobody");
+  pagina.alCambiar(() => { throw new Error("a listener that throws does not stop the replay"); });
 });
 
 test("the page loads the part: burbuja is on the client's list (R-1, nothing to switch on)", () => {

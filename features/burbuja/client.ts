@@ -2,13 +2,15 @@
 // decides who is inside (features/burbuja/server.ts); the page only draws the shape (packages/render/src/burbujas.ts).
 //   burbujaPagina.de(entity)      → Burbuja | null      (null = that entity has no bubble, or it is not known yet)
 //   burbujaPagina.lista()         → { quien, burbuja }[] (every bubble now, by entity)
-//   burbujaPagina.alCambiar(fn)   → unsubscribe          (a bubble appeared, changed its shape/radius/visibility, or went)
+//   burbujaPagina.mira(entity)    → number              (presence: the person that AI is with now, -1 = nobody)
+//   burbujaPagina.alCambiar(fn)   → unsubscribe          (a bubble appeared, changed its shape/radius/visibility/mira, or went; a new listener
+//                                                         is first told every bubble already known: the page subscribes after the first state may have arrived)
 //   burbujaPagina.alEntrar(fn)    → unsubscribe          (`entras`: YOU have just entered the bubble of AI `ia`; the page flashes it)
 //   burbujaPagina.alSalir(fn)     → unsubscribe          (`sales`: YOU have left the bubble of AI `ia` whose entry told you; the «E: hablar con…» prompt goes)
 // The same entries are in `session.features.stateOf("burbuja")` for agents and tests. Exposed on the page as `__numinia.burbuja`.
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi } from "../../packages/feature/src/index.ts";
-import { burbuja, leerBurbuja } from "./feature.ts";
+import { NADIE, burbuja, leerBurbuja } from "./feature.ts";
 import type { Burbuja } from "./feature.ts";
 
 export type { Burbuja } from "./feature.ts";
@@ -24,7 +26,13 @@ export function crearBurbujaPagina() {
     /** The bubble of this player if it is an AI, else null. Anything odd in the state reads as the house default. */
     de: (quien: number): Burbuja | null => { const v = api?.state.get(String(quien)); return v ? leerBurbuja(v) : null; },
     lista: (): { quien: number; burbuja: Burbuja }[] => (api?.state.keys() ?? []).flatMap((k) => { const v = api?.state.get(k); return v && claveIA(k) ? [{ quien: Number(k), burbuja: leerBurbuja(v) }] : []; }).sort((a, b) => a.quien - b.quien),
-    alCambiar: (f: (quien: number, b: Burbuja | null) => void): (() => void) => { cambios.add(f); return () => cambios.delete(f); },
+    /** Presence: the entity of the person this AI is with now (the server decides), or -1. */
+    mira: (quien: number): number => { const m = Number(api?.state.get(String(quien))?.mira); return Number.isInteger(m) && m >= 0 ? m : NADIE; },
+    alCambiar: (f: (quien: number, b: Burbuja | null) => void): (() => void) => {
+      cambios.add(f);
+      for (const { quien, burbuja: b } of ctl.lista()) { try { f(quien, b); } catch { /* a page's listener must not stop the rest */ } } // what is already here (v9 hands the first state over before the page listens)
+      return () => cambios.delete(f);
+    },
     alEntrar: (f: (ia: number, nombre: string) => void): (() => void) => { entradas.add(f); return () => entradas.delete(f); },
     alSalir: (f: (ia: number, nombre: string) => void): (() => void) => { salidas.add(f); return () => salidas.delete(f); },
   };
