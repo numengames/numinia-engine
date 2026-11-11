@@ -65,7 +65,8 @@ export function montarAvatar(o: OpcionesAvatar) {
   function indiceDe(sha: string, ext: string): number {
     const k = `${sha}.${ext}`;
     let i = subidos.get(k);
-    if (i === undefined) { i = casas.length + subidos.size; subidos.set(k, i); casas.push({ nombre: delMundo.get(k)?.nombre ?? tx("Uploaded avatar", "Avatar subido"), url: `${o.origen}/a/${sha}.${ext}` }); }
+    if (i === undefined) { i = casas.length; subidos.set(k, i); // casas already holds every earlier upload: adding subidos.size counted them twice (2nd pick = out of range)
+      casas.push({ nombre: delMundo.get(k)?.nombre ?? tx("Uploaded avatar", "Avatar subido"), url: `${o.origen}/a/${sha}.${ext}` }); }
     return i;
   }
 
