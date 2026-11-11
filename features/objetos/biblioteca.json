@@ -118,6 +118,15 @@
       "licencia": "CC0-1.0",
       "autor": "Numen Games (obra propia, CC0 1.0 declarado dentro del propio .glb): el moñoni del Ayuntamiento de Alchemist Towers",
       "fuente": "work/ayuntamiento/bolita.mjs (boca aparte, mismo origen que el cuerpo; 2 materiales, sin texturas)"
+    },
+    {
+      "id": "bolita-bn",
+      "nombre": "Moñoni B/N",
+      "modelo": "ddc3df9a3c8d9e5d0b4241a77bb925b820713a7bcc34478f71725d071c9de02a",
+      "fichero": "activos/bolitas/bolita-bn.glb",
+      "licencia": "CC0-1.0",
+      "autor": "Numen Games (obra propia, CC0 1.0 declarado dentro del propio .glb): el moñoni en blanco y negro (variante de bolita.mjs)",
+      "fuente": "hermes-mundo/mononi/hacer-bn.mjs (combinado cuerpo + sonrisa; 1.410 triángulos, 3 materiales, sin texturas)"
     }
   ]
 }
