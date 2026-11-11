@@ -1708,6 +1708,14 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       for (const [k, s] of things) if (s.want.kind === "video" && s.loaded && s.medio?.enVivo) r.push({ key: k, x: s.want.x, y: s.want.y, z: s.want.z });
       return r;
     },
+    /** «Watch full screen»: the video screens that show something right now (a share, or a file that is playing), where they stand. */
+    pantallasMostrando(): { key: string; x: number; y: number; z: number }[] {
+      const r: { key: string; x: number; y: number; z: number }[] = [];
+      for (const [k, s] of things) if (s.want.kind === "video" && s.loaded && s.medio?.fuente?.()) r.push({ key: k, x: s.want.x, y: s.want.y, z: s.want.z });
+      return r;
+    },
+    /** «Watch full screen»: the <video> a screen draws from now (its live share, else its file) and whether it is a live share; null when it shows nothing. */
+    pantallaFuente(key: string): { video: HTMLVideoElement; enVivo: boolean } | null { return things.get(key)?.medio?.fuente?.() ?? null; },
     /** M18: show a live MediaStream (your shared screen) on a video screen, on this page only — nothing is sent anywhere;
      * `null` puts the file back. False when there is no loaded video screen with that key. */
     pantallaEnVivo(key: string, stream: MediaStream | null): boolean {

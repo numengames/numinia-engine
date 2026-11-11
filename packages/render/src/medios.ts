@@ -41,7 +41,7 @@ export type ControlVideo = { pausado(): boolean; alternarPausa(): void; parar():
  * `oyente` = de dónde oyes, ya resuelto por `audio/oyente.ts` (NUNCA la posición de red: eso era el fallo que S4 quita).
  * `enVivo` (M18, video only): show a live MediaStream on the screen instead of the file (this page only; nothing is sent),
  * `null` puts the file back. */
-export type Medio = { obj: THREE.Object3D; actualizar(grupo: THREE.Object3D, oyente: Punto | null, o: Opciones): void; soltar(): void; sonando(): boolean; controlVideo?: ControlVideo; enVivo?(stream: MediaStream | null): void };
+export type Medio = { obj: THREE.Object3D; actualizar(grupo: THREE.Object3D, oyente: Punto | null, o: Opciones): void; soltar(): void; sonando(): boolean; controlVideo?: ControlVideo; enVivo?(stream: MediaStream | null): void; fuente?(): { video: HTMLVideoElement; enVivo: boolean } | null };
 
 const VIDEO_PAUSA_M = 40;      // farther than this (plus its bubble) a bubble video stands still: no decoding
 const BORDE = 0.8;             // full volume up to 80 % of the radius, then fades to the edge (camino viejo)
@@ -312,6 +312,8 @@ export async function cargarVideo(url: string, verOcultos: () => boolean = () =>
     obj,
     controlVideo,
     sonando: () => !v.paused || !!vivo,
+    // what the screen shows now, for «Watch full screen» (apps/plaza/pantalla-completa.ts): the live share, else the file while it plays
+    fuente: () => (vivo ? { video: vivo.v, enVivo: true } : !v.paused && !v.ended ? { video: v, enVivo: false } : null),
     enVivo(stream) {
       quitarVivo();
       if (!stream) return;
