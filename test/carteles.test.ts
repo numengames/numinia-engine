@@ -1,7 +1,7 @@
 // U22: who shows a name, and how big a plate may get (packages/render/src/carteles.ts).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { escalaAcotada, grados, tamanoMaxM, elegirMirado, nombreVisible, anguloAlSegmento, NOMBRE_GRADOS_MAX, DIALOGO_GRADOS_MAX, MIRADA_GRADOS } from "../packages/render/src/carteles.ts";
+import { escalaAcotada, grados, tamanoMaxM, elegirMirado, nombreVisible, anguloAlSegmento, NOMBRE_GRADOS_MAX, DIALOGO_GRADOS_MAX, MIRADA_GRADOS, NOMBRE_ESCALA, NOMBRE_SOBRE_CABEZA_M, yPlacaSobreCabeza } from "../packages/render/src/carteles.ts";
 
 const ojo = { x: 0, y: 1.6, z: 0 }, norte = { x: 0, y: 0, z: -1 }; // looking along -z
 const persona = (clave: string, x: number, z: number) => ({ clave, x, z, pies: 0, cabeza: 1.8 });
@@ -61,4 +61,13 @@ test("who shows a name: looked at, speaking, or everybody (Alt); otherwise nobod
   assert.equal(nombreVisible({ ...base, habla: true }), true);
   assert.equal(nombreVisible({ ...base, marca: true }), true); // a quest mark keeps the plate on (Pablo, 2026-10-18)
   assert.equal(nombreVisible({ ...base, todos: true }), true);
+});
+
+test("a name plate sits just over the head, by its bottom edge", () => {
+  assert.equal(NOMBRE_ESCALA, 0.65);
+  // anchored at the bottom (centre.y 0): the sprite position is the bottom edge
+  assert.equal(yPlacaSobreCabeza(1.8, 0.5, 0), 1.8 + NOMBRE_SOBRE_CABEZA_M);
+  // anchored at the middle: the centre rises by half the height so the bottom edge stays put
+  assert.ok(Math.abs(yPlacaSobreCabeza(1.8, 0.5, 0.5) - 0.25 - (1.8 + NOMBRE_SOBRE_CABEZA_M)) < 1e-9);
+  assert.ok(NOMBRE_SOBRE_CABEZA_M > 0 && NOMBRE_SOBRE_CABEZA_M < 0.2);
 });
