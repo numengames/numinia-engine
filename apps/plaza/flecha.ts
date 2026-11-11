@@ -8,9 +8,10 @@ import { tx } from "../../packages/feature/src/idioma.ts";
 
 type Opciones = { misiones: { senala(): string; alCambiar(fn: (que: "libro" | "dialogo" | "nota") => void): unknown } };
 
-const SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2 L22 16 H15 V22 H9 V16 H2 Z"/></svg>';
-const HUECO = 4; // px between the arrow and the button
-const TAM = 30;
+// Pablo 11-11: no arrow with a shaft («el palo»): the button itself glows (data-guia, flecha.css) and a slim chevron sits by it.
+const SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 15 L12 8 L19 15" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const HUECO = 6; // px between the chevron and the button
+const TAM = 20;
 
 export function montarFlecha({ misiones }: Opciones): { reponer(): void } {
   const flecha = document.createElement("div");
@@ -40,6 +41,7 @@ export function montarFlecha({ misiones }: Opciones): { reponer(): void } {
     const y = abajo ? r.bottom + HUECO : r.top - HUECO - TAM;
     flecha.style.left = `${Math.round(x)}px`; flecha.style.top = `${Math.round(Math.max(0, Math.min(innerHeight - TAM, y)))}px`;
     flecha.dataset.lado = abajo ? "abajo" : "arriba";
+    if (flecha.dataset.objetivo !== id) { marcar(null); marcar(b); }
     flecha.dataset.objetivo = id;
     const aviso = tx(`Press here: ${titulo(b)}`, `Pulsa aquí: ${titulo(b)}`);
     if (flecha.getAttribute("aria-label") !== aviso) flecha.setAttribute("aria-label", aviso);
@@ -52,7 +54,12 @@ export function montarFlecha({ misiones }: Opciones): { reponer(): void } {
     observador.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["hidden", "class", "aria-expanded", "data-oculto", "style"] });
     addEventListener("resize", reponer);
   }
-  function esconder(): void { flecha.hidden = true; delete flecha.dataset.objetivo; flecha.removeAttribute("aria-label"); }
+  let marcado: HTMLElement | null = null;
+  function marcar(b: HTMLElement | null): void { // the glow on the button the step asks for (only one at a time)
+    if (!b) { marcado?.removeAttribute("data-guia"); marcado = null; return; }
+    b.setAttribute("data-guia", ""); marcado = b;
+  }
+  function esconder(): void { flecha.hidden = true; delete flecha.dataset.objetivo; flecha.removeAttribute("aria-label"); marcar(null); }
   function apagar(): void { // no step asks for anything: nothing to watch (nothing runs while there is no arrow)
     esconder();
     if (observador) { observador.disconnect(); observador = null; removeEventListener("resize", reponer); }

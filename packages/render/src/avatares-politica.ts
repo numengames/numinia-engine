@@ -68,10 +68,11 @@ export function distanciaVRM(c: { mobile: boolean; xr: boolean }): number {
   return c.xr ? VRM_HASTA_M.visor : c.mobile ? VRM_HASTA_M.movil : VRM_HASTA_M.escritorio;
 }
 
-/** Which of the `n` house avatars a player gets: fixed by its entity id until players can choose (row H10). */
-export function elegirAvatar(id: number, n: number): number {
-  if (n <= 0) return -1;
-  return ((id % n) + n) % n;
+/** Which of the `n` house avatars a player who has not chosen one wears: the house default, the first of the catalogue
+ * (Pablo, 2026-11-11: everyone arrives as the Nomad; tools/avatares-catalogo.ts puts it first). It was one per entity id
+ * (id mod n) until then; `id` stays in the signature so every caller keeps asking per player. -1 = no catalogue. */
+export function elegirAvatar(_id: number, n: number): number {
+  return n > 0 ? 0 : -1;
 }
 
 export function estadoPor(velocidad: number, altura: number): Estado {

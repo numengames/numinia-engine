@@ -30,10 +30,10 @@ test("an avatar with no portrait (an upload, an unknown id) gets none: the page 
   assert.equal(retratoDe("subido-por-ana", "busto"), null);
   assert.equal(retratoDe("../../etc", "busto"), null);
 });
-test("the avatar you wear: your choice, else the renderer's per-entity default", () => {
+test("the avatar you wear: your choice, else the house default the renderer draws (the first)", () => {
   const ms = [{ id: "a" }, { id: "b" }, { id: "c" }];
   assert.equal(avatarQueLlevas(ms, 2, 0)?.id, "c");
-  assert.equal(avatarQueLlevas(ms, undefined, 4)?.id, "b", "elegirAvatar: entity mod n");
+  assert.equal(avatarQueLlevas(ms, undefined, 4)?.id, "a", "elegirAvatar: the house default");
   assert.equal(avatarQueLlevas(ms, undefined, -1)?.id, "a", "before the welcome: entity 0, as avatares.ts");
   assert.equal(avatarQueLlevas([], 0, 0), null);
   assert.equal(avatarQueLlevas(undefined, undefined, 0), null);

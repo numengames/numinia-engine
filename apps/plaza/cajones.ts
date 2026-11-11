@@ -40,13 +40,13 @@ export const ACCIONES_DOCK = {
 export const alternarCajon = (abierto: Cajon | "", pedido: Cajon): Cajon | "" => (abierto === pedido ? "" : pedido);
 
 /** What Escape undoes first, from the most transient to the least: the library piece following the pointer, the thing
- * in grab mode, the open drawer, the selection. "" = nothing to undo. */
-export function queCierraEscape(s: { fantasma: boolean; agarre: boolean; cajon: Cajon | ""; seleccion: string }): "fantasma" | "agarre" | "cajon" | "seleccion" | "" {
+ * in grab mode, the open drawer, the selection. "salir" = nothing to undo: Escape leaves build mode. */
+export function queCierraEscape(s: { fantasma: boolean; agarre: boolean; cajon: Cajon | ""; seleccion: string }): "fantasma" | "agarre" | "cajon" | "seleccion" | "salir" {
   if (s.fantasma) return "fantasma";
   if (s.agarre) return "agarre";
   if (s.cajon) return "cajon";
   if (s.seleccion) return "seleccion";
-  return "";
+  return "salir";
 }
 
 const llano = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();

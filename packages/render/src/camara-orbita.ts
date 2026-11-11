@@ -18,7 +18,7 @@ export const CAMARA = {
   // N13: photo mode — a free camera on a short leash: its pivot stays within `alcance` m of your avatar's eye (you
   // frame the shot around where you are, you do not fly across the world), close-ups down to 0.3 m, never first person
   foto: { cerca: 0.3, lejos: 14, inclinacion: [-85 * G, 89 * G], alcance: 12 },
-  inicio: { yaw: 0, pitch: 30 * G, dist: 10.4 },                // ≈ the old fixed camera: 5.2 m over the eye, 9 m back
+  inicio: { yaw: 0, pitch: 30 * G, dist: 6 },                   // QA Pablo 11-11: closer, the avatar reads bigger (was 10.4)
   distConstruir: 8,                                             // entering build mode closer than this → this
   suelo: 0.25,                                                  // the camera never goes under this height
   rapidez: { giro: 22, mover: 11 },                             // smoothing (1/s): angles; distance and pivot

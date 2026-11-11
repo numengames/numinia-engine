@@ -4,8 +4,7 @@
   "nombre": "Lumen",
   "descripcion": "La guardiana del taller: te enseña a construir de noche, un botón cada vez.",
   "apariencia": {
-    "modelo": "047f5e5fb3bb6d378bd1df16ca6137f2a596c99b3a1b5690b4020c05aaf6f319",
-    "escala": 0.5
+    "escala": 1.0
   },
   "posicion": {
     "x": 2.5,
@@ -144,7 +143,7 @@
         ]
       },
       "pista-1": {
-        "texto": "Sigue con lo tuyo: Pulsa el botón Construir: el mundo tiene un modo construir y un modo jugar.",
+        "texto": "Pulsa el botón Construir: el mundo tiene un modo construir y un modo jugar.",
         "opciones": [
           {
             "texto": "Vale.",
@@ -173,7 +172,7 @@
         ]
       },
       "pista-2": {
-        "texto": "Sigue con lo tuyo: Abre Añadir y coloca un farolillo en la plaza.",
+        "texto": "Arrastra un Farolillo desde Añadir hasta el suelo.",
         "opciones": [
           {
             "texto": "Vale.",
@@ -184,7 +183,7 @@
         ]
       },
       "da-3": {
-        "texto": "Muévelo con las flechas de colores (X roja, Y verde, Z azul) y gíralo. Si te equivocas, deshaz.",
+        "texto": "Muévelo con Mover (tecla 2): las flechas de colores son X roja, Y verde, Z azul. Después gíralo con Girar (tecla 3). Si te equivocas, deshaz.",
         "opciones": [
           {
             "texto": "Vale, vamos.",
@@ -202,7 +201,7 @@
         ]
       },
       "pista-3": {
-        "texto": "Sigue con lo tuyo: Mueve el farolillo con las flechas de colores y gíralo.",
+        "texto": "Mueve el farolillo con Mover (tecla 2) y gíralo con Girar (tecla 3).",
         "opciones": [
           {
             "texto": "Vale.",
@@ -213,7 +212,7 @@
         ]
       },
       "da-4": {
-        "texto": "Ahora apágalo: en su ficha, márcalo oculto al jugar. Tú lo sigues viendo; quien juega, no.",
+        "texto": "Ahora apágalo: en el Inspector, desmarca «se ve al jugar». Tú lo sigues viendo; quien juega, no.",
         "opciones": [
           {
             "texto": "Vale, vamos.",
@@ -231,7 +230,7 @@
         ]
       },
       "pista-4": {
-        "texto": "Sigue con lo tuyo: En la ficha del farolillo, márcalo para que no se vea al jugar.",
+        "texto": "En el Inspector, desmarca «se ve al jugar».",
         "opciones": [
           {
             "texto": "Vale.",
@@ -260,7 +259,7 @@
         ]
       },
       "pista-5": {
-        "texto": "Sigue con lo tuyo: Abre el panel Cable, lee el cable de muestra y pulsa el Botón rojo.",
+        "texto": "Abre el panel Cable, lee el cable de muestra y pulsa el Botón rojo.",
         "opciones": [
           {
             "texto": "Vale.",
@@ -289,7 +288,7 @@
         ]
       },
       "pista-6": {
-        "texto": "Sigue con lo tuyo: Crea tu primer cable con «+ Nuevo cable».",
+        "texto": "Crea tu primer cable con «+ Nuevo cable».",
         "opciones": [
           {
             "texto": "Vale.",
@@ -318,7 +317,7 @@
         ]
       },
       "pista-7": {
-        "texto": "Sigue con lo tuyo: Cambia el botón por una zona: «entrar en este círculo».",
+        "texto": "Cambia el botón por una zona: «entrar en este círculo».",
         "opciones": [
           {
             "texto": "Vale.",
@@ -347,7 +346,7 @@
         ]
       },
       "pista-8": {
-        "texto": "Sigue con lo tuyo: Pon una espera de unos segundos y marca «un solo uso».",
+        "texto": "Pon una espera de unos segundos y marca «un solo uso».",
         "opciones": [
           {
             "texto": "Vale.",
@@ -376,7 +375,7 @@
         ]
       },
       "pista-9": {
-        "texto": "Sigue con lo tuyo: Añade a tu cable otra acción: suena, teletransporta, abre un enlace o da paso de misión.",
+        "texto": "Añade a tu cable otra acción: suena, teletransporta, abre un enlace o da paso de misión.",
         "opciones": [
           {
             "texto": "Vale.",
@@ -405,7 +404,7 @@
         ]
       },
       "pista-10": {
-        "texto": "Sigue con lo tuyo: Haz que un cable arranque cuando otra pieza avise (una señal).",
+        "texto": "Haz que un cable arranque cuando otra pieza avise (una señal).",
         "opciones": [
           {
             "texto": "Vale.",
@@ -434,7 +433,7 @@
         ]
       },
       "pista-11": {
-        "texto": "Sigue con lo tuyo: Escribe una misión de 2 pasos con tu cable como segundo paso y enséñasela a Lumen.",
+        "texto": "Escribe una misión de 2 pasos con tu cable como segundo paso y enséñasela a Lumen.",
         "opciones": [
           {
             "texto": "Aquí está mi mini-misión.",
@@ -475,5 +474,5 @@
       }
     }
   },
-  "notas": "Cerca de la aparición (0,0). Da cada misión al hablarle al acabar la anterior; en la 11 revisa el reto (sin IA)."
+  "notas": "Cerca de la aparición (0,0). Da cada misión al hablarle al acabar la anterior; en la 11 revisa el reto (sin IA). Lumen es el robot de la casa SIN `modelo`: con un hash propio el motor no aplica el factor 0,4 y el cartel (2,25 × escala) queda a media altura del cuerpo (el GLB mide 4,46 m a escala 1). Escala 1 ≈ 1,8 m (Pablo 2026-11-11: un 20 % más pequeña que la 1,25 de antes)."
 }

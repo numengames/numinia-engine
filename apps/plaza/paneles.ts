@@ -7,6 +7,7 @@ import { perfil } from "./perfil-aparato.ts";
 import { teclas, teclaLibre } from "./teclas.ts";
 import { alCambiarIdioma, tx } from "../../packages/feature/src/idioma.ts";
 import { esMovil } from "../../packages/client/src/movil.ts"; // U24: a phone names no key
+import { pintarCerrar } from "./cerrar.ts";
 export { escribiendo };
 
 /** Say something politely to screen readers (the page's aria-live region, as the features' announcements do). */
@@ -35,9 +36,10 @@ export function crearDialogo(o: { id: string; titulo: string | (() => string); t
   const letraDe = (): string => (o.accion ? teclas.etiqueta(o.accion) : o.tecla.replace(/^Key/, ""));
   const rotular = (): void => {
     const letra = letraDe();
-    cerrarB.textContent = esMovil(perfil().clase) || !letra ? tx("Close", "Cerrar") : tx(`Close (${letra})`, `Cerrar (${letra})`); cerrarB.setAttribute("aria-keyshortcuts", `${letra} Escape`);
+    cerrarB.setAttribute("aria-keyshortcuts", letra ? `${letra} Escape` : "Escape"); // the look and the words: cerrar.ts (X + «Close» + Esc, the same everywhere)
     o.boton.setAttribute("aria-keyshortcuts", letra);
   };
+  pintarCerrar(cerrarB, { tecla: letraDe });
   if (o.accion) teclas.alCambiar(rotular);
   alCambiarIdioma(rotular); rotular();
   cabeza.append(h2, cerrarB);

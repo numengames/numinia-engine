@@ -30,7 +30,7 @@ test("Escape undoes the most transient thing first: the piece in hand, grab mode
   assert.equal(queCierraEscape({ ...s, fantasma: false }), "agarre");
   assert.equal(queCierraEscape({ ...s, fantasma: false, agarre: false }), "cajon");
   assert.equal(queCierraEscape({ fantasma: false, agarre: false, cajon: "", seleccion: "o1" }), "seleccion");
-  assert.equal(queCierraEscape({ fantasma: false, agarre: false, cajon: "", seleccion: "" }), "");
+  assert.equal(queCierraEscape({ fantasma: false, agarre: false, cajon: "", seleccion: "" }), "salir", "nothing to undo: Escape leaves build mode");
 });
 
 test("the library search: name or id, no accents, no case; empty = everything", () => {

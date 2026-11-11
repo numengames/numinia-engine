@@ -20,6 +20,7 @@ import { esTactil, perfil } from "./perfil-aparato.ts"; // U25: touch controls o
 import { cercaDeAlguien } from "../../packages/client/src/movil.ts"; // U24: no «pulsa E» on a phone
 import { audio } from "../../packages/render/src/audio/nucleo.ts"; // S1: one audio graph for the whole engine
 import type { Evaluacion } from "./evaluacion-tarjeta.ts"; // P13: the end card of a completed quest that has `evaluacion` (features/misiones/client.ts EvaluacionVista); the card itself is a lazy chunk
+import { pintarCerrar } from "./cerrar.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 type Paso = { n: number; texto: string; hecho: boolean; donde: string; tipo?: string; espera?: number; listoEn?: number };
@@ -54,9 +55,14 @@ export const ESTADOS: Record<EstadoPaso, { dice: string; icono: string; vr: stri
 export const ahorasDe = (obs: readonly { mision: string; paso: number }[]): Set<string> => new Set(obs.map((x) => `${x.mision}:${x.paso}`));
 /** Done (or the quest is complete: all its steps are done); to do now; otherwise locked: still to do, after the current
  * block (it opens when the block before it is done) or, U14 (5), in it but still waiting (`espera`: it opens by itself). */
-export function estadoPaso(m: { id: string; estado: string }, s: { n: number; hecho: boolean }, ahoras: ReadonlySet<string>): EstadoPaso {
+export function estadoPaso(m: { id: string; estado: string; paso?: number }, s: { n: number; hecho: boolean }, ahoras: ReadonlySet<string>): EstadoPaso {
   if (s.hecho || m.estado === "hecha") return "hecho";
-  return ahoras.has(`${m.id}:${s.n}`) ? "ahora" : "bloqueado";
+  if (ahoras.has(`${m.id}:${s.n}`)) return "ahora";
+  // H3: a step that is done by doing something (`hace`: open Construir, move, tick a box…) has no place in the world, so the
+  // controller's objetivos() never lists it. When the quest has NO step to do «now» there, the current step is the one the
+  // server says (`paso`): without this every step of such a quest read «Bloqueado» in the book, even the one you must do.
+  const conLugar = [...ahoras].some((k) => k.startsWith(`${m.id}:`));
+  return !conLugar && m.paso !== undefined && s.n === m.paso ? "ahora" : "bloqueado";
 }
 
 /** When the book opens by itself (the spec: «aparece automáticamente al terminar el primer diálogo»): after a quest is
@@ -255,15 +261,18 @@ export function montarLibro(c: Ctl, o: {
   banner?: HTMLElement;
   /** P13: the end evaluation card (hidden until a quest with `evaluacion` is completed or «Ver evaluación» is pressed in the book). */
   evaluacion?: HTMLElement;
+  /** H3 (Lumen redesign): the followed quest as a small card, shown only while building (tema.css), when the book and the
+   * top line are hidden: what to do now, where, and how far along. The book is still the complete view. */
+  ahora?: HTMLElement;
 }) {
   const senalados = () => (c.senalados ?? c.objetivos)();
   const balizar = (ob: Objetivo | undefined) => { if (ob) o.view.beacon(ob.x, ob.z, ob.nombre, BALIZA_MS); };
   const tactil = esTactil();
   // the head stays (its close button keeps its focus across repaints); the body is drawn again on every change
-  const titulo = ligar(el("h2"), "textContent", "Quests", "Misiones"), cerrar = ligar(el("button", "", "cerrar"), "textContent", tactil ? "Close" : "Close (J)", tactil ? "Cerrar" : "Cerrar (J)"), cuerpo = el("div", "", "cuerpo");
+  const titulo = ligar(el("h2"), "textContent", "Quests", "Misiones"), cerrar = pintarCerrar(el("button", "", "cerrar"), { tecla: "J" }), cuerpo = el("div", "", "cuerpo");
   const cabeza = el("header", "", "cabeza");
   titulo.tabIndex = -1;
-  cerrar.type = "button"; cerrar.setAttribute("aria-keyshortcuts", "J");
+  cerrar.type = "button";
   cabeza.append(titulo, cerrar);
   o.panel.replaceChildren(cabeza, cuerpo);
   const pintar = () => {
@@ -318,6 +327,8 @@ export function montarLibro(c: Ctl, o: {
   cerrar.addEventListener("click", () => abrir(false));
   for (const x of [o.boton, o.panel]) x.addEventListener("pointerdown", (ev) => ev.stopPropagation()); // not a joystick touch
   addEventListener("keydown", (e) => {
+    // Escape closes the open book, unless a modal dialog sits on top (that one takes this Escape; the book waits for the next)
+    if (e.code === "Escape" && !o.panel.hidden && !e.repeat && !escribiendo(e) && !document.querySelector("dialog[open]")) { e.preventDefault(); abrir(false); return; }
     if (!teclas.es(e, "misiones") || e.repeat || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e)) return;
     abrir(o.panel.hidden);
   });
@@ -336,6 +347,28 @@ export function montarLibro(c: Ctl, o: {
   const revisarBaliza = () => {
     const ob = senalados().find((x) => x.seguida), firma = ob ? `${ob.mision}:${ob.paso}` : "";
     if (firma && firma !== marcado) { balizar(ob); marcado = firma; }
+  };
+  // H3: the card of the followed quest (a quest still active; else the first one). Repainted only when what it says changes.
+  let firmaTarjeta = "";
+  const pintarAhora = () => {
+    const t = o.ahora;
+    if (!t) return;
+    const libro = c.libro(), m = libro.find((x) => x.seguida && x.estado === "activa") ?? libro.find((x) => x.estado === "activa");
+    if (!m) { if (!t.hidden) { t.hidden = true; t.replaceChildren(); firmaTarjeta = ""; } return; }
+    const ahoras = ahorasDe(c.objetivos());
+    const estados = m.lista.map((s) => estadoPaso(m, s, ahoras));
+    const firma = JSON.stringify([m.id, m.titulo, m.lista.map((s, i) => [s.texto, estados[i], s.donde, estados[i] === "bloqueado" ? segundosDe(s) : 0])]);
+    if (firma === firmaTarjeta && !t.hidden) return;
+    firmaTarjeta = firma;
+    const hechos = estados.filter((e) => e === "hecho").length;
+    const ahora = Math.min(hechos + 1, m.pasos), cab = el("p", tx(`Current quest · step ${ahora} of ${m.pasos}`, `Misión en curso · paso ${ahora} de ${m.pasos}`), "cab");
+    const barra = el("div", "", "barra");
+    barra.setAttribute("aria-hidden", "true");
+    for (const e of estados) { const i = el("i"); i.className = e; barra.append(i); }
+    const ol = el("ol", "", "pasos");
+    m.lista.forEach((s, i) => ol.append(filaPaso(s, estados[i])));
+    t.replaceChildren(cab, el("h2", m.titulo), barra, ol);
+    t.hidden = false;
   };
   let notaHasta = 0;
   /** The short note in the middle of the screen; when you got a thing, with the item icon in place of the «✓». */
@@ -372,6 +405,7 @@ export function montarLibro(c: Ctl, o: {
     }
     if (o.linea.textContent !== t) o.linea.textContent = t;
     o.linea.hidden = !t;
+    pintarAhora();
   };
   c.alCambiar((que) => {
     if (que === "libro") { pintar(); revisarBaliza(); linea(); tarjetaCargada?.pintar(); }

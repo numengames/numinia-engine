@@ -194,11 +194,12 @@ export function montarCable(o: OpcionesCable) {
     const li = document.createElement("li");
     const texto = document.createElement("span");
     const arriba = document.createElement("div"); arriba.className = "cable-linea";
+    let probar: HTMLButtonElement | null = null;
     if (d.tipo === "boton") {
       const p = document.createElement("button");
       p.type = "button"; p.textContent = tx("Test", "Probar"); p.className = "cable-probar"; p.id = `cable-probar-${id}`; // the guide arrow (a mission step's `senala`) can point at one cable's «Probar»
       p.title = tx(`Fire «${d.nombre}» as if you pressed it, to check its wiring`, `Disparar «${d.nombre}» como si lo pulsaras, para comprobar su cableado`);
-      p.addEventListener("click", () => { const r = o.disparadores.pulsar(id); if (!r.ok) o.decir(`No: ${r.why}.`); });
+      probar = p;
       arriba.append(p);
     }
     const grupo = document.createElement("div");
@@ -206,6 +207,12 @@ export function montarCable(o: OpcionesCable) {
     const errId = `cable-error-${id}`;
     const err = document.createElement("p"); err.id = errId; err.className = "cable-error"; err.setAttribute("role", "alert");
     const nota = document.createElement("p"); nota.className = "cable-nota"; nota.setAttribute("role", "status");
+    // H5 (Lumen redesign): «Probar» used to answer nothing when it worked; now its row says so in its own status line.
+    if (probar) probar.addEventListener("click", () => {
+      const r = o.disparadores.pulsar(id);
+      if (!r.ok) { o.decir(`No: ${r.why}.`); return; }
+      nota.textContent = tx(`Tested: you pressed «${d.nombre}». See what changed in the world.`, `Probado: has pulsado «${d.nombre}». Mira qué ha cambiado en el mundo.`);
+    });
     const guardar = document.createElement("button");
     guardar.type = "button"; guardar.className = "cable-guardar-frase"; guardar.textContent = T("boton.guardar");
     guardar.title = tx(`Save the changes to «${d.nombre}»`, `Guardar los cambios de «${d.nombre}»`);

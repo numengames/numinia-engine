@@ -13,7 +13,8 @@
       "id": "oculta",
       "tipo": "hace",
       "texto": "Open its card and mark it as hidden while playing",
-      "accion": "oculta"
+      "accion": "oculta",
+      "senala": "inspector-visible"
     }
   ],
   "recompensas": [],

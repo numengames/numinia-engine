@@ -12,6 +12,7 @@ import { detalleDe, textoEstadoDe, textoFuncion, textoIrA, TEXTO_VERBO } from ".
 import { escribiendo } from "./escribiendo.ts";
 import { esMovil } from "../../packages/client/src/movil.ts";
 import { perfil } from "./perfil-aparato.ts";
+import { pintarCerrar } from "./cerrar.ts";
 
 type Ctl = typeof Controlador;
 
@@ -57,7 +58,7 @@ export function montarEspejo(o: { espejo: Ctl; doc?: Document; /** the teleport 
   const caja = d.createElement("section"); caja.id = "espejo-ficha"; caja.hidden = true; caja.setAttribute("role", "dialog"); ligar(caja, "aria-label", "Mirror item", "Cosa del espejo");
   const titulo = d.createElement("h2"), estado = d.createElement("p"), detalle = d.createElement("p"), cuerpo = d.createElement("div"), pie = d.createElement("div"), dicho = d.createElement("p");
   estado.className = "estado"; detalle.className = "detalle"; cuerpo.className = "cuerpo"; pie.className = "pie"; dicho.className = "dicho"; dicho.hidden = true; dicho.setAttribute("role", "status"); dicho.setAttribute("aria-live", "polite");
-  const cerrar = d.createElement("button"); cerrar.type = "button"; { const mv = esMovil(perfil().clase); ligar(cerrar, "textContent", mv ? "Close" : "Close (Q)", mv ? "Cerrar" : "Cerrar (Q)"); } cerrar.setAttribute("aria-keyshortcuts", "Q Escape"); cerrar.dataset.verbo = "cerrar"; cerrar.addEventListener("click", () => ocultar());
+  const cerrar = d.createElement("button"); cerrar.type = "button"; pintarCerrar(cerrar, { tecla: "Q" }); cerrar.setAttribute("aria-keyshortcuts", "Q Escape"); cerrar.dataset.verbo = "cerrar"; cerrar.addEventListener("click", () => ocultar());
   caja.append(titulo, estado, detalle, cuerpo, dicho, pie); d.body.appendChild(caja);
 
   /** Sit the card just above the page's action bar (`#acciones`, when it is shown) and never taller than the room left under the top bar: it scrolls inside, it never covers the bar nor leaves the screen. */

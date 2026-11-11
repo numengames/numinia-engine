@@ -35,6 +35,7 @@ git de cada uno coincide con el del árbol de `PolygonalMind/100Avatars` en el c
 | `100Avatars_027_Astrodisco.vrm` | Astrodisco (nº 27, ronda 1) | `3b48bbbbfa5c49183e924e78c21acc10dff286cea973993c42d04a768d8c847a` | 189.080 | 2.724 | <https://github.com/PolygonalMind/100Avatars/blob/ff07c2ad0017819c4e5366656ee1e5bcc4029bd4/100Avatars_027/100Avatars_027_Astrodisco.vrm> |
 | `100Avatars_029_Skelly.vrm` | Skelly (nº 29, ronda 1) | `9839eebf009b3eb7bfb76b2a167255bd95c84a2aa3d67c38e1da238dc45896ae` | 250.228 | 2.880 | <https://github.com/PolygonalMind/100Avatars/blob/ff07c2ad0017819c4e5366656ee1e5bcc4029bd4/100Avatars_029/100Avatars_029_Skelly.vrm> |
 | `100Avatars_051_Polybot.vrm` | Polybot (nº 51, ronda 1) | `bb6f0f1bad0ad504684c185e377fd3909d45b61d28bb0545c94a49fedfe70675` | 235.824 | 2.130 | <https://github.com/PolygonalMind/100Avatars/blob/ff07c2ad0017819c4e5366656ee1e5bcc4029bd4/100Avatars_051/100Avatars_051_Polybot.vrm> |
+| `Nomad_for_The_Oracles.vrm` | Nomad for The Oracles (avatar por defecto de la casa) | `6619067b8d910d84424b98f78f05ac8cd6beae8390a7af7afdf4777ba09a05d8` | 205.228 | 5.064 | <https://github.com/numengames/numinia-assets/blob/7ac28c6833cdabd5a6ffb69b59306265423f5e2d/content/avatars/nomad_for_the_oracles.vrm> (original; esta es la copia para el motor) |
 
 Los tres: VRM 0.x (exportador de Blender de saturday06 2.4.8), una malla, un material MToon, una textura,
 16 formas (visemas y parpadeo), 52 huesos humanoides (Polybot 31: sin dedos).
@@ -54,3 +55,19 @@ que no diga CC0 dentro o pase de 10.000 triángulos); `test/avatares.test.ts` lo
 `apps/plaza/public/retratos/<id>-busto|cuerpo|espalda.webp` son renders de estos mismos tres VRM (`tools/retratos.mjs`):
 obra derivada de modelos CC0, que no pide atribución ni impide derivar. Se publican igual, **CC0**; el autor de los
 modelos sigue siendo Polygonal Mind (100Avatars) y se apunta aquí por cortesía, no por obligación.
+
+## Nomad for The Oracles (avatar por defecto de la casa, Pablo 2026-11-11)
+`Nomad_for_The_Oracles.vrm` es la **copia para el motor** de `nomad_for_the_oracles.vrm`, que Pablo Fernández entregó a
+Galatea el 2026-11-11 como avatar por defecto. Obra propia de la casa.
+- **Dentro del fichero** (VRM 0.x, `extensions.VRM.meta`): `title: "Nomad for The Oracles"`, `author: "PabloFM /
+  0x42e62e421bedf2469826879ec1a0574d7d3cca26"`, `licenseName: "CC0"`, `commercialUssageName: "Allow"`,
+  `allowedUserName: "Everyone"`, `violentUssageName: "Disallow"`, `sexualUssageName: "Disallow"`,
+  `contactInformation: "support@vipe.io"`, `otherPermissionUrl: ipfs://QmbeYPZbT6x92EbFbhMxLBiu9y5KJJXvvJr3sjJQuEfknU`.
+- **Qué se cambió** (script determinista de Galatea, `nomada-motor.py`, y después `tools/aligerar-activos.ts`): escala ×0.4558 (el
+  original mide 3,95 m; la copia, 1,80 m), y solo queda la textura de color, a 1024 px en WebP (el motor dibuja los
+  avatares en Lambert y tiraba el mapa de normales y el de rugosidad), con meshopt. 3,19 MB → 205 kB; 5.064 triángulos, 1 material, 65 huesos, sin cambios.
+- **El original publicado** (bytes sin tocar, con su nota de licencia): numinia-assets,
+  `content/avatars/nomad_for_the_oracles.vrm` (https://github.com/numengames/numinia-assets/blob/7ac28c6833cdabd5a6ffb69b59306265423f5e2d/content/avatars/nomad_for_the_oracles.vrm).
+  Pablo: encargo pagado por Numen Games, «súbelo tal cual».
+- **Pendiente para el registro canónico (SYS-005):** el esqueleto lleva nombres `mixamorig:` (auto-rigger de Mixamo
+  sobre la malla propia), el mismo caso que 100Avatars de arriba.

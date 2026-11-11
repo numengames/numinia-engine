@@ -20,3 +20,8 @@ html.alto-contraste #interactuar kbd { background: #fff; color: #000; border-col
 #interactuar:focus-visible { outline: 3px solid var(--n-texto); outline-offset: 3px; }
 @media (prefers-reduced-motion: no-preference) { #interactuar:not([hidden]) { animation: interactuar-entra .16s ease-out; } }
 @keyframes interactuar-entra { from { opacity: 0; translate: 0 8px; } }
+/* Pablo 11-11: no solid amber slab — the prompt is the house glass with light letters; the key cap keeps the amber, the one thing
+   to notice. High contrast keeps its own rule above. */
+html:not(.alto-contraste) #interactuar { background: rgba(20, 17, 15, .62) !important; color: var(--n-texto) !important; border: 1px solid rgba(166, 218, 213, .25);
+  -webkit-backdrop-filter: blur(12px) saturate(120%); backdrop-filter: blur(12px) saturate(120%); }
+html:not(.alto-contraste) #interactuar kbd { background: var(--n-ambar); color: var(--n-fondo); border-color: var(--n-ambar); }

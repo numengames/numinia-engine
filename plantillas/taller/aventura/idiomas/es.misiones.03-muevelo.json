@@ -2,7 +2,7 @@
   "formato": "mision@1",
   "id": "muevelo",
   "titulo": "Muévelo y gíralo",
-  "descripcion": "Mueve el farolillo con las flechas de colores y gíralo.",
+  "descripcion": "Mueve el farolillo con Mover (tecla 2) y gíralo con Girar (tecla 3).",
   "requisitos": {
     "misiones": [
       "pon-un-farolillo"
@@ -12,19 +12,21 @@
     {
       "id": "mueve",
       "tipo": "hace",
-      "texto": "Elige el farolillo y muévelo con las flechas de colores",
-      "accion": "mueve"
+      "texto": "Elige el farolillo, pulsa Mover (tecla 2) y arrastra una flecha de color",
+      "accion": "mueve",
+      "senala": "herr-mover"
     },
     {
       "id": "gira",
       "tipo": "hace",
-      "texto": "Gíralo con la herramienta de girar",
-      "accion": "gira"
+      "texto": "Pulsa Girar (tecla 3) y gira el farolillo",
+      "accion": "gira",
+      "senala": "herr-girar"
     }
   ],
   "recompensas": [],
   "textos": {
-    "aceptada": "Las flechas: X roja, Y verde, Z azul. Si te equivocas, deshaz.",
+    "aceptada": "Las flechas de colores: X roja, Y verde, Z azul. Si te equivocas, deshaz.",
     "completada": "Tienes las tres manos: mover, girar y escalar. Deshacer siempre está."
   },
   "repetible": false

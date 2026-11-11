@@ -161,7 +161,7 @@ test("P1 arrival: «primera» starts level in first person, «tercera» with a g
   assert.equal(p.dentro, true); near(p.y, CAMARA.ojo, 1e-6); near(p.fx, 1, 1e-9);
   const b = crearOrbita(); b.mundo({ inicio: "tercera", max: 0, giro: 180 }); b.llegar();
   const q = b.pose(pies, pose());
-  near(Math.hypot(q.x, q.z), 9.007, 0.01); near(q.y, CAMARA.ojo + 5.2, 1e-3);
+  near(Math.hypot(q.x, q.z), CAMARA.inicio.dist * Math.sqrt(3) / 2, 0.01); near(q.y, CAMARA.ojo + CAMARA.inicio.dist / 2, 1e-3);
   assert.ok(q.fz < -0.8 && Math.abs(q.fx) < 1e-9, "looks to −z");
   const c = crearOrbita(), antes = JSON.stringify(c.pose(pies, pose()));
   c.llegar(); c.mundo(null); c.llegar();
