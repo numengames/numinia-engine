@@ -45,7 +45,13 @@ export function montarDialogo(c: Ctl, caja: HTMLElement, view: Vista): void {
     texto.textContent = d.texto;
     opciones.replaceChildren(...d.opciones.map((t, i) => {
       const b = document.createElement("button");
-      b.type = "button"; b.textContent = esMovil(perfil().clase) ? t : `${i === 0 ? "E" : i + 1}. ${t}`; b.dataset.n = String(i + 1); // QA Simposio 2026-11-11: the key you talk with (E) also answers the first option
+      b.type = "button"; b.dataset.n = String(i + 1);
+      // The first option is E (the key you talk with), the last one (with two or more) is Q, the ones between keep their number; the key is
+      // drawn in a box like the bottom bar's badges, and a phone shows no keys.
+      const tecla = esMovil(perfil().clase) ? "" : teclaDeOpcion(i, d.opciones.length);
+      if (tecla) { const k = document.createElement("kbd"); k.textContent = tecla; k.style.cssText = KBD; b.append(k); }
+      b.append(t);
+      b.style.display = "flex"; b.style.alignItems = "center";
       b.addEventListener("click", () => c.elegir(i + 1));
       return b;
     }));
@@ -61,4 +67,19 @@ export function montarDialogo(c: Ctl, caja: HTMLElement, view: Vista): void {
     const n = /^(?:Digit|Numpad)([1-4])$/.exec(e.code);
     if (n) { e.preventDefault(); c.elegir(Number(n[1])); }
   });
+  montarTeclaQ(c, caja, view);
 }
+// Q = the last option (reject / no). Caught first (capture) and stopped while a conversation is open: Q also opens the microphone
+// (voz.ts) and drops what you hold, and neither may fire while you answer.
+export function montarTeclaQ(c: Pick<Ctl, "dialogo" | "elegir">, caja: HTMLElement, view: Vista): void {
+  addEventListener("keydown", (e) => {
+    if (e.code !== "KeyQ" || caja.hidden || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e) || construyendo(view)) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    const n = c.dialogo()?.opciones.length ?? 0;
+    if (!e.repeat && n >= 2) c.elegir(n);
+  }, true);
+}
+
+/** The key drawn on option i of n: E the first, Q the last (n >= 2), the number for the ones between. */
+export const teclaDeOpcion = (i: number, n: number): string => (i === 0 ? "E" : n >= 2 && i === n - 1 ? "Q" : String(i + 1));
+const KBD = "display:inline-flex;align-items:center;justify-content:center;min-width:1.6em;height:1.6em;margin-right:.6em;padding:0 .35em;border:1px solid currentColor;border-radius:5px;font:600 12px/1 'Geist Mono',ui-monospace,monospace;opacity:.9;flex:none";

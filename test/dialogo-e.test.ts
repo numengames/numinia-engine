@@ -12,7 +12,7 @@ import { lectorAventura } from "../packages/server/src/aventura.ts";
 import { crearMisiones } from "../features/misiones/server.ts";
 import { crearCliente } from "../features/misiones/client.ts";
 import { montarInteraccion } from "../apps/plaza/interactuar.ts";
-import { montarDialogo } from "../apps/plaza/dialogo.ts";
+import { montarDialogo, teclaDeOpcion } from "../apps/plaza/dialogo.ts";
 
 const leer = lectorAventura(new URL("../aventuras/ejemplo", import.meta.url).pathname);
 const EJEMPLO = { misiones: leer("misiones"), pnj: leer("pnj"), cosas: leer("cosas") };
@@ -38,9 +38,10 @@ async function pagina() {
   inst.sim.tf.cols.x[s.entity] = fx(2); inst.sim.tf.cols.z[s.entity] = fx(-2); pump(12); // next to Alma
   const m = cli.misiones, elegidas: number[] = [], usos: string[] = [];
   const g = globalThis as Record<string, unknown>, viejo = { document: g.document, addEventListener: g.addEventListener, setInterval: g.setInterval };
-  const oyentes: ((e: unknown) => void)[] = [];
+  const oyentes: ((e: unknown) => void)[] = [], captura: ((e: unknown) => void)[] = [], otros: string[] = [];
   g.document = { createElement: nodo, getElementById: () => null, activeElement: null };
-  g.addEventListener = (t: string, f: (e: unknown) => void) => { if (t === "keydown") oyentes.push(f); };
+  g.addEventListener = (t: string, f: (e: unknown) => void, c?: boolean) => { if (t === "keydown") (c ? captura : oyentes).push(f); };
+  oyentes.push((e) => { if ((e as { code: string }).code === "KeyQ") otros.push("q"); }); // a stand-in for voz.ts / the drop key: any later listener
   g.setInterval = () => 0;
   const boton = Object.assign(nodo(), { hidden: true, classList: { add() {}, remove() {} }, style: { setProperty() {}, removeProperty() {}, cssText: "" } });
   const caja = nodo(); caja.hidden = true;
@@ -49,10 +50,14 @@ async function pagina() {
   const ctl = { dialogo: () => m.dialogo(), elegir: (n: number) => { elegidas.push(n); return m.elegir(n); }, adios: () => m.adios(), estado: m.estado, alCambiar: m.alCambiar };
   montarDialogo(ctl as never, caja as unknown as HTMLElement, { renderer: { domElement: caja as unknown as HTMLElement } });
   m.alCambiar(() => i.mirar());
-  i.mirar(); await new Promise((ok) => setTimeout(ok, 60)); i.mirar(); // the first look fetches the page piece for the prompt
-  const tecla = (code: string, repeat = false) => { for (const f of oyentes) f({ code, repeat, ctrlKey: false, metaKey: false, altKey: false, target: null, preventDefault() {} }); };
+  i.mirar(); for (let k = 0; k < 50 && !i.actual(); k++) { await new Promise((ok) => setTimeout(ok, 40)); i.mirar(); } // the first look fetches the page piece for the prompt
+  const tecla = (code: string, repeat = false) => { // capture listeners first; stopImmediatePropagation ends the dispatch
+    let parar = false;
+    const ev = { code, repeat, ctrlKey: false, metaKey: false, altKey: false, target: null, preventDefault() {}, stopImmediatePropagation() { parar = true; } };
+    for (const f of [...captura, ...oyentes]) { if (parar) break; f(ev); }
+  };
   const restaurar = () => { g.document = viejo.document; g.addEventListener = viejo.addEventListener; g.setInterval = viejo.setInterval; };
-  return { m, caja, opciones: () => caja.children[2].children, tecla, pump, elegidas, usos, restaurar, actual: () => i.actual() };
+  return { m, caja, otros, opciones: () => caja.children[2].children, tecla, pump, elegidas, usos, restaurar, actual: () => i.actual() };
 }
 
 test("E next to a person opens the conversation and does NOT also answer option 1; a second, separate E does", async () => {
@@ -69,8 +74,9 @@ test("E next to a person opens the conversation and does NOT also answer option 
     assert.deepEqual(P.elegidas, [], "still nothing picked after the box opened");
     assert.match(P.m.dialogo()?.texto ?? "", /./);
     const primera = P.m.dialogo()!.texto;
-    assert.equal(P.opciones()[0].textContent.startsWith("E. "), true, `the first answer names its key: «${P.opciones()[0].textContent}»`);
-    assert.equal(P.opciones()[1].textContent.startsWith("2. "), true);
+    const kbd = (i: number) => P.opciones()[i].children[0] as unknown as { textContent: string } | undefined;
+    assert.equal(kbd(0)?.textContent, "E", "the first answer names its key in a box");
+    assert.equal(kbd(1)?.textContent, P.opciones().length === 2 ? "Q" : "2");
     P.tecla("KeyE", true);                             // the key held down: auto-repeat never answers
     assert.deepEqual(P.elegidas, []);
     P.tecla("KeyE");                                   // a new press: option 1
@@ -91,5 +97,28 @@ test("the digits and Esc still work, and E with no box open only talks", async (
     P.tecla("Digit1"); assert.deepEqual(P.elegidas, [1]); P.pump(2);
     P.tecla("Escape"); assert.equal(P.m.dialogo(), null, "Esc says goodbye");
     assert.equal(P.caja.hidden, true);
+  } finally { P.restaurar(); }
+});
+
+test("teclaDeOpcion: E first, Q last (two or more), numbers between, E alone for a single option", () => {
+  assert.deepEqual([0, 1, 2].map((i) => teclaDeOpcion(i, 3)), ["E", "2", "Q"]);
+  assert.deepEqual([0, 1].map((i) => teclaDeOpcion(i, 2)), ["E", "Q"]);
+  assert.equal(teclaDeOpcion(0, 1), "E");
+  assert.deepEqual([0, 1, 2, 3].map((i) => teclaDeOpcion(i, 4)), ["E", "2", "3", "Q"]);
+});
+
+test("Q in an open conversation picks the last option and never reaches the other listeners; without a box it passes through", async () => {
+  const P = await pagina();
+  try {
+    P.tecla("KeyQ");
+    assert.deepEqual(P.otros, ["q"], "no box: Q reaches the mic / drop listeners");
+    P.tecla("KeyE"); P.pump(2);
+    assert.equal(P.caja.hidden, false);
+    const n = P.m.dialogo()!.opciones.length;
+    P.tecla("KeyQ", true);
+    assert.deepEqual(P.elegidas, [], "auto-repeat answers nothing");
+    P.tecla("KeyQ");
+    assert.deepEqual(P.otros, ["q"], "with the box open Q never reached the other listeners");
+    assert.deepEqual(P.elegidas, n >= 2 ? [n] : []);
   } finally { P.restaurar(); }
 });
