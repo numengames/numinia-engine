@@ -58,7 +58,7 @@ export function crearCliente() {
   const sentarlo = (quien: number, rumbo: number): boolean => {
     if (!A) return false;
     A.view.orientar?.(quien, rumbo);
-    return A.view.movimiento?.(quien, pose ? { ...pose, hastaS: HASTA_S } : null) ?? false;
+    return A.view.movimiento?.(quien, pose ? { ...pose, hastaS: HASTA_S, sujeto: true } : null) ?? false;
   };
   // an avatar whose VRM was not dressed yet cannot play the pose: try again once a second, up to 30 times, then give up
   let reloj: ReturnType<typeof setTimeout> | null = null;
@@ -83,7 +83,9 @@ export function crearCliente() {
       }
       const s = v as unknown as Asiento | undefined;
       api.view.place?.(`asiento:${key}`, s && s.dibujo ? banqueta(s) : null);
-      api.view.tag?.(`asiento:${key}`, s && ocupante >= 0 ? { text: rotulo(s), x: Number(s.x), y: Number(s.y) + 1.75, z: Number(s.z) } : null);
+      // QA Simposio 2026-11-11 («Invitado TKPT · Chair: este texto no aporta nada»): a seat on the world's own furniture
+      // (dibujo false) shows no sign over the person (their name is already over their head); a seat the motor draws keeps it.
+      api.view.tag?.(`asiento:${key}`, s && s.dibujo && ocupante >= 0 ? { text: rotulo(s), x: Number(s.x), y: Number(s.y) + 1.75, z: Number(s.z) } : null);
       for (const fn of oyentes) fn(key);
     });
     api.on("permiso", (m) => { estado.puede = m.encender === true; });
