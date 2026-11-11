@@ -100,7 +100,7 @@ export type Aparato = { mobile: boolean; deviceMemoryGB?: number; saveData?: boo
 /** The tier of this device right now (inside an XR session it is B: stereo at 72 Hz). */
 export function nivelDe(a: Aparato): Nivel {
   if (a.xr) return "B";
-  if (a.saveData || (a.deviceMemoryGB ?? 8) <= 2) return "D";
+  if (a.saveData || (a.mobile && (a.deviceMemoryGB ?? 8) <= 2)) return "D";
   if (a.mobile) return "C";
   return "A";
 }

@@ -16,7 +16,8 @@ export function readCaps(): Caps {
   };
 }
 
-export const isMobileClass = (c: Caps): boolean => c.coarsePointer || c.deviceMemoryGB <= 4;
+// QA Simposio 2026-11-11: a desktop (fine pointer) is never phone-class because of navigator.deviceMemory (Brave and others report 2-4 GB to hide the real figure)
+export const isMobileClass = (c: Caps): boolean => c.coarsePointer;
 /** U25: the capabilities with the device class a forced profile declares (true phone, false desktop, undefined = as read). */
 export function conClase(c: Caps, movil: boolean | undefined): Caps {
   if (movil === undefined) return c;
