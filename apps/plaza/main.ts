@@ -582,7 +582,7 @@ const fuentesLucha = fuentesDeLucha(lucha); // the character HUD's Estado and Ca
 const botonFicha = document.getElementById("hud-personaje-abrir") as HTMLButtonElement;
 { // keymap v1: its name says the key in effect (Yours or Default), in both languages, so the language switch keeps it
   const rotularTu = (): void => {
-    const k = teclas.etiqueta("ficha"), en = k ? `You (${k})` : "You", es = k ? `Tú (${k})` : "Tú", ahora = document.documentElement.lang === "es" ? es : en;
+    const k = teclas.etiqueta("ficha"), en = k ? `You (${k})` : "You", es = k ? `Tú (${k})` : "Tú", ahora = document.documentElement.lang === "es" ? es : en; // i18n-ok: both languages are stored side by side (data-en/data-es) so the language switch keeps the key
     for (const a of ["title", "aria-label"]) { botonFicha.setAttribute(`data-en-${a}`, en); botonFicha.setAttribute(`data-es-${a}`, es); botonFicha.setAttribute(a, ahora); }
   };
   rotularTu(); teclas.alCambiar(rotularTu);
