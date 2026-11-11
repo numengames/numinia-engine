@@ -162,10 +162,10 @@ test("the chest gives a good: «Es tuyo», one valid receipt in its owner's inve
   assert.equal(a3.b.lista()[0]?.recibo, bien.recibo, "the same receipt, byte for byte");
   // checking receipts in the page (WebCrypto): A's own → yours; B checks A's → real, this world's, not theirs; tampered → no
   assert.equal(a3.b.emisor(), crearRecibos(SECRETO, "x")!.emisor, "the page knows the key its world signs with");
-  assert.deepEqual(await a3.b.comprobar(ficheroRecibo(bien).texto), { ok: true, nombre: "Brújula del Artífice", mundo: "mundo.test", nuestro: true, tuyo: true, motivo: "Auténtico: «Brújula del Artífice» es tuyo, firmado por este mundo." });
+  assert.deepEqual(await a3.b.comprobar(ficheroRecibo(bien).texto), { ok: true, nombre: "Brújula del Artífice", mundo: "mundo.test", nuestro: true, tuyo: true, motivo: "Genuine: «Brújula del Artífice» is yours, signed by this world." });
   const deB = await b.b.comprobar(bien.recibo);
   assert.ok(deB.ok && deB.nuestro && !deB.tuyo, JSON.stringify(deB));
-  assert.match(deB.motivo, /no está en tu inventario/);
+  assert.match(deB.motivo, /not in your inventory/);
   const roto = bien.recibo.slice(0, 40) + (bien.recibo[40] === "A" ? "B" : "A") + bien.recibo.slice(41);
   const r0 = await b.b.comprobar(roto);
   assert.equal(r0.ok, false); assert.match(r0.motivo, /no vale/);
@@ -173,7 +173,7 @@ test("the chest gives a good: «Es tuyo», one valid receipt in its owner's inve
   // a receipt from another world: real, only checked, not added
   const ajeno = crearRecibos(OTRO, "otro.mundo")!.firmar(datos());
   const ra = await b.b.comprobar(ajeno);
-  assert.ok(ra.ok && !ra.nuestro && !ra.tuyo); assert.match(ra.motivo, /otro\.mundo.*no que sea tuyo/);
+  assert.ok(ra.ok && !ra.nuestro && !ra.tuyo); assert.match(ra.motivo, /otro\.mundo.*not that it is yours/);
   assert.deepEqual(b.b.lista(), [], "checking never adds");
   // the route for tools and other worlds: the bare receipt or the file; says what, never who
   const http = (body: string) => W.inst.features.http("POST", "/bienes/comprobar", {}, body) as { status?: number; body: Record<string, unknown> };
@@ -338,7 +338,7 @@ test("N18 receipts from another world: checked always; an untrusted signer = «d
   const [b] = x.b.lista();
   assert.equal(b?.nombre, "Brújula de fuera"); assert.equal(b.ajeno, true); assert.equal(b.mundo, "otro.mundo"); assert.equal(b.recibo, ajeno, "the same receipt, signed there");
   assert.deepEqual(x.b.otros(), [], "not «just seen»: it is yours");
-  assert.match((await x.b.comprobar(ajeno)).motivo, /confía en quien lo firmó y aquí es tuyo/);
+  assert.match((await x.b.comprobar(ajeno)).motivo, /trusts whoever signed it and here it is yours/);
   x.b.llevar(b.id, "cabeza"); W2.pump(3);
   assert.equal(y.lleva.get(x.s.entity), "cabeza:bbbb", "worn and seen like any good");
   const r3 = await espera(W2, x.b.traer(ajeno)) as Awaited<ReturnType<typeof x.b.traer>>;

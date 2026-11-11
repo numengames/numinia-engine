@@ -4,6 +4,7 @@
 // Interruptor (H8): a small controller (`interruptor`) the builder's «Entorno» section (apps/plaza/entorno.ts) and agents use to ask the
 // server to turn the espacio base on or off, or to put the file back as a new world's. It only asks: the server checks who, writes the file,
 // and every page applies the new state through the same `onChange` as on arrival.
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi } from "../../packages/feature/src/index.ts";
 import { espacioBase, MUNDO } from "./feature.ts";
@@ -12,7 +13,7 @@ import { espacioBase, MUNDO } from "./feature.ts";
 export function crearCliente() {
   let api: ClientApi | null = null;
   const estado = { ultimoRechazo: "", cambios: 0 };
-  const enviar = (intent: string, msg: Record<string, unknown>) => api?.send(intent, msg) ?? { ok: false as const, why: "la página aún no ha arrancado" };
+  const enviar = (intent: string, msg: Record<string, unknown>) => api?.send(intent, msg) ?? { ok: false as const, why: tx("the page has not started yet", "la página aún no ha arrancado") };
   const interruptor = {
     estado,
     /** Is the world's espacio base on, as the server last said (no state = a world without it = off). */

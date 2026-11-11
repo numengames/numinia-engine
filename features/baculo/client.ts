@@ -3,6 +3,7 @@
 // pedestal itself. «E» beside a free staff takes it (the card's `interact`); «Soltar el báculo» and «Pasar el báculo» ask the
 // server (/baculo soltar, /baculo pasar <nombre> in the chat do too). Nothing is decided here: the page only draws what the
 // server says and offers `lleva(quien)` to the panels («Gente» shows a staff badge next to who holds one).
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg, PlacedObject } from "../../packages/feature/src/index.ts";
 import { baculo as decl, LIBRE } from "./feature.ts";
@@ -14,7 +15,7 @@ export const PEDESTAL = { ancho: 0.5, alto: 0.9 } as const;
 export const FLOTA_M = 0.35;
 export type Baculo = { id: string; nombre: string; x: number; y: number; z: number; hx: number; hy: number; hz: number; modelo: string; radio: number; portador: number };
 type Res = { ok: true } | { ok: false; why: string };
-const SIN: Res = { ok: false, why: "la función baculo no está en este servidor" };
+const SIN: Res = { ok: false, get why() { return tx("the staff feature is not on this server", "la función baculo no está en este servidor"); } }; // a getter: read in the language of that moment
 
 /** The pedestal where the staff lives (always there, even when someone holds the staff). Pure. */
 export const pedestal = (v: Pick<Baculo, "hx" | "hy" | "hz">): PlacedObject =>
@@ -65,8 +66,8 @@ export function crearCliente() {
     api.on("permiso", (m) => { estado.puede = m.encender === true; });
     api.on("rechazado", (m) => { estado.ultimoRechazo = String(m.motivo); });
     api.on("cambio", (m) => { api.view.bounce(Number(m.quien), 300); if (Number(m.a) >= 0) api.view.bounce(Number(m.a), 300); });
-    api.action({ id: "soltar", label: "Soltar el báculo", describe: "Soltar el báculo que llevas: vuelve a su sitio", run: () => { if (baculo.mias().length) baculo.soltar(); }, disponible: () => baculo.mias().length > 0 });
-    api.action({ id: "pasar", label: "Pasar el báculo", describe: "Pasar el báculo a quien tengas más cerca (a 6 m o menos): pasa a dirigir esa persona", run: () => { if (baculo.mias().length) baculo.pasar(); }, disponible: () => baculo.mias().length > 0 });
+    api.action({ id: "soltar", get label() { return tx("Drop the staff", "Soltar el báculo"); }, get describe() { return tx("Drop the staff you carry: it returns to its place", "Soltar el báculo que llevas: vuelve a su sitio"); }, run: () => { if (baculo.mias().length) baculo.soltar(); }, disponible: () => baculo.mias().length > 0 });
+    api.action({ id: "pasar", get label() { return tx("Pass the staff", "Pasar el báculo"); }, get describe() { return tx("Pass the staff to whoever is closest (6 m or less): that person takes over directing", "Pasar el báculo a quien tengas más cerca (a 6 m o menos): pasa a dirigir esa persona"); }, run: () => { if (baculo.mias().length) baculo.pasar(); }, disponible: () => baculo.mias().length > 0 });
   });
   return { parts: [parte], baculo };
 }

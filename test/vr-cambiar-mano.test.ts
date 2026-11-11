@@ -150,7 +150,7 @@ test("la caña: en la pelea no se pasa; esperando sí", () => {
   f.poner(f.IZQ, -0.6); f.poner(f.DER, 0); f.cuadro(); f.agarre(f.DER, 1); c.marco(); f.agarre(f.DER, 0); c.marco(); c.quitarCerca();
   c.est.fase = "pelea";
   f.poner(f.IZQ, -0.08); c.marco(); f.agarre(f.IZQ, 1); c.marco();
-  assert.equal(c.pagina.sujeta(), "der"); assert.match(f.avisos.at(-1) ?? "", /Ahora no/);
+  assert.equal(c.pagina.sujeta(), "der"); assert.match(f.avisos.at(-1) ?? "", /Not now/);
   f.agarre(f.IZQ, 0); c.marco(); c.est.fase = "espera"; f.agarre(f.IZQ, 1); c.marco();
   assert.equal(c.pagina.sujeta(), "izq");
 });
@@ -232,7 +232,7 @@ test("el dardo: el botón pasa el dardo; con el reloj en la otra mano o sin dard
   const e = await dardosFalsos(); const g = e.f;
   try {
     g.poner(g.IZQ, -2); g.poner(g.DER, 0); e.cuadro(); g.agarre(g.DER, 1); e.cuadro(); g.agarre(g.DER, 0);
-    const r = g.m.cambiarMano(); assert.deepEqual(r, { ok: true, que: "el dardo", a: "izq" });
+    const r = g.m.cambiarMano(); assert.deepEqual(r, { ok: true, que: "the dart", a: "izq" });
     assert.equal(e.api.sosteniendo(), "izq"); assert.equal(e.enMano(), "izq");
     // today's rule stays: a hand with a dart receives nothing else (it takes no second dart with the other hand)
     g.agarre(g.DER, 1); e.cuadro(); assert.equal(e.api.sosteniendo(), "izq");
@@ -298,7 +298,7 @@ test("N3 la caña: soltar() la devuelve a su soporte (también con un pez en la 
   f.agarre(f.DER, 1); c.marco(); f.agarre(f.DER, 0); c.marco(); c.quitarCerca();
   assert.equal(c.pagina.sujeta(), "der");
   c.est.fase = "pelea";
-  const r = f.m.soltar("der"); assert.deepEqual(r, { ok: true, que: "la caña", lado: "der" });
+  const r = f.m.soltar("der"); assert.deepEqual(r, { ok: true, que: "the rod", lado: "der" });
   assert.equal(c.pagina.sujeta(), null); assert.equal(c.sujeciones.at(-1), null);
   assert.ok(c.llamadas.includes("soltar"), "the fish is let go too (as the grip does)");
   assert.deepEqual(f.m.llevando(), []);
@@ -311,7 +311,7 @@ test("N3 el dardo: soltar() lo quita de la mano sin lanzarlo, y el mismo agarre 
     f.poner(f.IZQ, -0.6); f.poner(f.DER, 0); d.cuadro();
     f.agarre(f.DER, 1); d.cuadro();
     assert.equal(d.api.sosteniendo(), "der"); assert.equal(d.enMano(), "der");
-    const r = f.m.soltar("der"); assert.deepEqual(r, { ok: true, que: "el dardo", lado: "der" });
+    const r = f.m.soltar("der"); assert.deepEqual(r, { ok: true, que: "the dart", lado: "der" });
     assert.equal(d.api.sosteniendo(), null); assert.equal(d.enMano(), null); assert.equal(d.lanzados.length, 0, "it was not thrown");
     d.cuadro(); d.cuadro(); assert.equal(d.api.sosteniendo(), null, "the grip is still closed: it does not take another");
     f.agarre(f.DER, 0); d.cuadro(); f.agarre(f.DER, 1); d.cuadro();
@@ -330,7 +330,7 @@ test("N3 un objeto de misión: soltarlo libera la mano, no lo redibuja el siguie
     llevar: (k: string, d: string | null) => { lleva[k] = d; }, llevando: () => ({}) };
   const xr = montarXR({ session: { features: { use: () => ({ ok: true as const }) } }, view: view as never, misiones: misiones as never, interaccion: { actual: () => null, usar: () => ({ ok: true as const }), mirar() {}, mantener: { empezar() {}, soltar() {} } } } as never);
   assert.deepEqual(xr.enMano(), { semillas: "der" });
-  const r = f.m.soltar("der"); assert.deepEqual(r, { ok: true, que: "lo que llevas", lado: "der" });
+  const r = f.m.soltar("der"); assert.deepEqual(r, { ok: true, que: "what you carry", lado: "der" });
   assert.deepEqual(xr.enMano(), {}); assert.equal(lleva["misiones:semillas"], null, "the hand is drawn empty");
   assert.deepEqual(f.m.llevando(), []);
   for (const fn of oyentes) fn("libro");                                  // the book changes (a note, another step): not redrawn

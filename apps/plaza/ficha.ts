@@ -13,6 +13,7 @@ import { retratoDe, insigniasDelLibro, lineaDeTu, equipoDeLaLista, aventurasEnCu
 import { ICONO_TIPO, SILUETA, colorDe, nombreConCuenta } from "./bolsa-rejilla.ts";
 import type { Objeto } from "./bolsa-rejilla.ts";
 import type { Insignia } from "./tu-logica.ts";
+import { tx, ligar } from "../../packages/feature/src/idioma.ts";
 
 export type HostFicha = {
   session: { entity: number; who: { id: string; nombre: string } | null; stats: { rttMs: number; visible: number } };
@@ -30,17 +31,21 @@ export type HostFicha = {
 };
 /** A section of the sheet: `pintar` fills its box (called on opening and once a second while open if `vivo`).
  * `sinTitulo`: its heading is for screen readers only (the section draws its own). */
-export type Seccion = { titulo: string; orden: number; vivo?: boolean; pestana?: string; sinTitulo?: boolean; pintar(caja: HTMLElement): void };
+export type Seccion = { titulo: string | (() => string); orden: number; vivo?: boolean; pestana?: string; sinTitulo?: boolean; pintar(caja: HTMLElement): void };
 /** The tabs, in order. A section with no (or an unknown) `pestana` goes to Personaje. */
 export const PESTANAS = [
-  { id: "personaje", titulo: "Personaje" },
-  { id: "reserva", titulo: "Reserva" },
-  { id: "insignias", titulo: "Insignias" },
+  { id: "personaje", titulo: "Personaje" }, // i18n-ok: data key of the tab; shown through tituloPestana()
+  { id: "reserva", titulo: "Reserva" }, // i18n-ok: data key of the tab; shown through tituloPestana()
+  { id: "insignias", titulo: "Insignias" }, // i18n-ok: data key of the tab; shown through tituloPestana()
 ] as const;
+/** The tab's name in the active language. */
+export const tituloPestana = (id: string): string => id === "personaje" ? tx("Character", "Personaje") : id === "reserva" ? tx("Backpack", "Reserva") : id === "insignias" ? tx("Badges", "Insignias") : id;
 /** Where the built-in and the known sections live (a section can also say its own `pestana`). */
 const PESTANA_DE: Record<string, string> = { insignias: "insignias", inventario: "reserva", reserva: "reserva" };
 /** The ladder of states a person goes through (canon: hoja-de-personaje). The client shows it only when the server tells it. */
-export const ESCALERA = ["Desestabilizado", "Confundido", "Colapsado", "Aletargado"] as const;
+export const ESCALERA = ["Desestabilizado", "Confundido", "Colapsado", "Aletargado"] as const; // i18n-ok: the state ids the server speaks; shown through estadoVisible()
+/** A state (or «Estable») in the active language. */
+export const estadoVisible = (e: string): string => e === "Estable" ? tx("Stable", "Estable") : e === "Desestabilizado" ? tx("Destabilised", "Desestabilizado") : e === "Confundido" ? tx("Confused", "Confundido") : e === "Colapsado" ? tx("Collapsed", "Colapsado") : e === "Aletargado" ? tx("Lethargic", "Aletargado") : e;
 
 /** Fill a box with pairs (a definition list), touching the DOM only when something changed. */
 export function pares(caja: HTMLElement, filas: [string, string][]): void {
@@ -57,17 +62,18 @@ const conIcono = <E extends HTMLElement>(b: E, nombre: string, texto: string): E
 /** One badge tile: earned = its medal in colour, still to earn = a lock; the name and the quest in the tooltip and the label. */
 function ficheroInsignia(x: Insignia, grande = false): HTMLElement {
   const li = el("li", `insignia${x.conseguida ? " si" : " no"}`);
-  const t = x.conseguida ? `${x.nombre} (de «${x.mision}»)` : `${x.nombre}: por conseguir, termina «${x.mision}»`;
+  const t = x.conseguida ? tx(`${x.nombre} (from "${x.mision}")`, `${x.nombre} (de «${x.mision}»)`) : tx(`${x.nombre}: still to earn, finish "${x.mision}"`, `${x.nombre}: por conseguir, termina «${x.mision}»`);
   li.title = t; li.setAttribute("aria-label", t);
   li.innerHTML = icono(x.conseguida ? "medal" : "lock-key", grande ? 26 : 24);
-  if (grande) li.append(el("span", "nombre", x.nombre), el("span", "mision", x.conseguida ? `De «${x.mision}»` : `Termina «${x.mision}»`));
+  if (grande) li.append(el("span", "nombre", x.nombre), el("span", "mision", x.conseguida ? tx(`From "${x.mision}"`, `De «${x.mision}»`) : tx(`Finish "${x.mision}"`, `Termina «${x.mision}»`)));
   return li;
 }
 
 export function montarFicha(h: HostFicha, boton: HTMLButtonElement) {
   const secciones = new Map<string, Seccion>();
   const cajas = new Map<string, HTMLElement>();
-  const panel = crearDialogo({ id: "ficha", titulo: "Tú", tecla: "KeyI", boton, alAbrir: () => construir() });
+  const panel = crearDialogo({ id: "ficha", titulo: () => tx("You", "Tú"), tecla: "KeyC", accion: "ficha", boton, alAbrir: () => construir() });
+  const h2 = panel.dialog.querySelector("h2"); if (h2) ligar(h2, "textContent", "You", "Tú");
   const tecla = el("kbd", "tecla", "I"); tecla.setAttribute("aria-hidden", "true");
   panel.dialog.querySelector("h2")?.after(tecla);
 
@@ -76,9 +82,9 @@ export function montarFicha(h: HostFicha, boton: HTMLButtonElement) {
   const libro = (): { titulo: string; estado: string; recompensa: string }[] => { try { const l = h.otros().misiones?.libro?.(); return Array.isArray(l) ? l : []; } catch { return []; } };
   function construir(): void {
     cajas.clear();
-    const nav = el("div", "pestanas"); nav.setAttribute("role", "tablist"); nav.setAttribute("aria-label", "Partes de Tú");
+    const nav = el("div", "pestanas"); nav.setAttribute("role", "tablist"); nav.setAttribute("aria-label", tx("Parts of You", "Partes de Tú"));
     for (const t of PESTANAS) {
-      const b = el("button", "", t.titulo); b.type = "button"; b.id = `ficha-pestana-${t.id}`; b.dataset.pestana = t.id;
+      const b = el("button", "", tituloPestana(t.id)); b.type = "button"; b.id = `ficha-pestana-${t.id}`; b.dataset.pestana = t.id;
       b.setAttribute("role", "tab"); b.setAttribute("aria-selected", String(t.id === activa)); b.setAttribute("aria-controls", "ficha-hoja"); b.tabIndex = t.id === activa ? 0 : -1;
       b.addEventListener("click", () => { activa = t.id; construir(); (document.getElementById(b.id) as HTMLElement | null)?.focus(); });
       nav.appendChild(b);
@@ -92,10 +98,10 @@ export function montarFicha(h: HostFicha, boton: HTMLButtonElement) {
     const hoja = el("div", "hoja"); hoja.id = "ficha-hoja"; hoja.dataset.pestana = activa; hoja.setAttribute("role", "tabpanel"); hoja.setAttribute("aria-labelledby", `ficha-pestana-${activa}`);
     for (const [id, s] of [...secciones].sort((a, b) => a[1].orden - b[1].orden)) {
       if (pestanaDe(id, s) !== activa) continue;
-      const sec = el("section"), t = el("h3", s.sinTitulo ? "solo-lector" : "", s.titulo), caja = el("div");
+      const sec = el("section"), t = el("h3", s.sinTitulo ? "solo-lector" : "", typeof s.titulo === "function" ? s.titulo() : s.titulo), caja = el("div");
       t.id = `ficha-${id}`; sec.setAttribute("aria-labelledby", t.id); sec.dataset.seccion = id;
       sec.append(t, caja); hoja.appendChild(sec); cajas.set(id, caja);
-      try { s.pintar(caja); } catch (e) { caja.replaceChildren(el("p", "nota", `(esta parte falló: ${String((e as Error)?.message ?? e).slice(0, 80)})`)); }
+      try { s.pintar(caja); } catch (e) { caja.replaceChildren(el("p", "nota", tx(`(this part failed: ${String((e as Error)?.message ?? e).slice(0, 80)})`, `(esta parte falló: ${String((e as Error)?.message ?? e).slice(0, 80)})`))); }
     }
     panel.cuerpo.replaceChildren(nav, hoja);
   }
@@ -117,7 +123,7 @@ export function montarFicha(h: HostFicha, boton: HTMLButtonElement) {
 
   // ---------- Personaje: your avatar on the left, who you are on the right ----------
   api.seccion("personaje", {
-    titulo: "Personaje", orden: 10, vivo: true, sinTitulo: true,
+    titulo: () => tx("Character", "Personaje"), orden: 10, vivo: true, sinTitulo: true,
     pintar: (c) => {
       let r = c.firstElementChild as HTMLElement | null;
       if (!r || !r.classList.contains("tu-personaje")) { r = construirPersonaje(); c.replaceChildren(r); }
@@ -130,8 +136,9 @@ export function montarFicha(h: HostFicha, boton: HTMLButtonElement) {
     const fig = el("figure", "tu-figura"), marco = el("div", "tu-marco"), pie = el("div", "tu-acciones");
     fig.append(marco, pie);
     if (h.cambiarAvatar) {
-      const b = conIcono(el("button", "tu-cambiar"), "user", "Cambiar avatar"); b.type = "button";
-      b.title = "Elegir otro avatar de la casa o subir tu .vrm";
+      const b = conIcono(el("button", "tu-cambiar"), "user", ""); b.type = "button";
+      ligar(b.lastElementChild as HTMLElement, "textContent", "Change avatar", "Cambiar avatar");
+      ligar(b, "title", "Pick another house avatar or upload your .vrm", "Elegir otro avatar de la casa o subir tu .vrm");
       b.addEventListener("click", () => { panel.cerrar(); h.cambiarAvatar!(); });
       pie.append(b);
     }
@@ -139,16 +146,16 @@ export function montarFicha(h: HostFicha, boton: HTMLButtonElement) {
     girar.addEventListener("click", () => { deEspalda = !deEspalda; refrescarPersonaje(r); });
     pie.append(girar);
     const datos = el("div", "tu-datos");
-    const cab = el("div", "tu-cabeza"); cab.append(el("p", "tu-nombre"), el("span", "chip tu-chip"));
-    const est = el("div", "tu-bloque tu-estado"), ol = el("ol", "escalera"); ol.setAttribute("aria-label", "Escalera del estado");
-    for (const n of ["Estable", ...ESCALERA]) ol.appendChild(el("li", "chip", n));
-    est.append(el("h4", "", "Estado"), ol); ol.title = "Si te debilitan, bajas por esta escalera.";
-    const reserva = el("div", "tu-bloque tu-reserva"); reserva.append(el("h4", "", "Llevas contigo"), el("div", "tu-equipo"), el("p", "nota tu-reserva-texto"));
-    const aventuras = el("div", "tu-bloque tu-aventuras"); aventuras.append(el("h4", "", "Aventuras en curso"), el("ul", "tu-lista-aventuras"), el("p", "nota"));
-    const carga = el("div", "tu-bloque tu-carga"), fila = el("div", "tu-barra-fila"), barra = el("div", "tu-barra");
-    barra.append(el("i")); barra.setAttribute("role", "meter"); barra.setAttribute("aria-label", "Carga"); barra.setAttribute("aria-valuemin", "0");
-    fila.append(barra, el("span", "tu-num")); carga.append(el("h4", "", "Carga"), fila);
-    const ins = el("div", "tu-bloque tu-insignias"); ins.append(el("h4"), el("ul", "insignias"), el("p", "nota"));
+    const cab = el("div", "tu-cabeza"); cab.append(el("p", "tu-nombre"), el("span", "chip tu-chip")); // i18n-ok: CSS class names / selectors, not text
+    const est = el("div", "tu-bloque tu-estado"), ol = el("ol", "escalera"); ol.setAttribute("aria-label", tx("State ladder", "Escalera del estado")); // i18n-ok: CSS class names / selectors, not text
+    for (const n of ["Estable", ...ESCALERA]) ol.appendChild(el("li", "chip", estadoVisible(n)));
+    est.append(el("h4", "", tx("State", "Estado")), ol); ol.title = tx("If you get weakened, you go down this ladder.", "Si te debilitan, bajas por esta escalera.");
+    const reserva = el("div", "tu-bloque tu-reserva"); reserva.append(el("h4", "", tx("You carry", "Llevas contigo")), el("div", "tu-equipo"), el("p", "nota tu-reserva-texto")); // i18n-ok: CSS class names / selectors, not text
+    const aventuras = el("div", "tu-bloque tu-aventuras"); aventuras.append(el("h4", "", tx("Adventures under way", "Aventuras en curso")), el("ul", "tu-lista-aventuras"), el("p", "nota")); // i18n-ok: CSS class names / selectors, not text
+    const carga = el("div", "tu-bloque tu-carga"), fila = el("div", "tu-barra-fila"), barra = el("div", "tu-barra"); // i18n-ok: CSS class names / selectors, not text
+    barra.append(el("i")); barra.setAttribute("role", "meter"); barra.setAttribute("aria-label", tx("Load", "Carga")); barra.setAttribute("aria-valuemin", "0");
+    fila.append(barra, el("span", "tu-num")); carga.append(el("h4", "", tx("Load", "Carga")), fila);
+    const ins = el("div", "tu-bloque tu-insignias"); ins.append(el("h4"), el("ul", "insignias"), el("p", "nota")); // i18n-ok: CSS class names / selectors, not text
     datos.append(cab, el("p", "tu-linea"), reserva, aventuras, carga, est, ins);
     r.append(fig, datos);
     return r;
@@ -158,17 +165,17 @@ export function montarFicha(h: HostFicha, boton: HTMLButtonElement) {
     const { arma, reliquias } = equipoDeLaLista(lista), firma = JSON.stringify([arma, reliquias, rs]);
     if (caja.dataset.firma === firma) return; caja.dataset.firma = firma;
     const hueco = (o: Objeto | null, forma: "arma" | "reliquia"): HTMLElement => {
-      const li = el("div", `tu-hueco${o ? "" : " vacio"}`); li.setAttribute("role", "group");
+      const li = el("div", `tu-hueco${o ? "" : " vacio"}`); li.setAttribute("role", "group"); // i18n-ok: CSS class names / selectors, not text
       const ic = el("span", "ic"); ic.innerHTML = icono(o ? (o.icono || ICONO_TIPO[o.tipo]) : SILUETA[forma], 26);
-      const t = o ? nombreConCuenta(o) : forma === "arma" ? "Sin arma" : "Sin reliquia";
-      li.setAttribute("aria-label", o ? `${forma === "arma" ? "Arma" : "Reliquia"}: ${t}` : t);
+      const t = o ? nombreConCuenta(o) : forma === "arma" ? tx("No weapon", "Sin arma") : tx("No relic", "Sin reliquia");
+      li.setAttribute("aria-label", o ? `${forma === "arma" ? tx("Weapon", "Arma") : tx("Relic", "Reliquia")}: ${t}` : t);
       if (o) li.style.setProperty("--c", colorDe(o));
       li.append(ic, el("span", "nom", t)); li.title = li.getAttribute("aria-label")!;
       return li;
     };
-    caja.setAttribute("role", "group"); caja.setAttribute("aria-label", "Un arma y hasta tres reliquias");
+    caja.setAttribute("role", "group"); caja.setAttribute("aria-label", tx("One weapon and up to three relics", "Un arma y hasta tres reliquias"));
     caja.replaceChildren(hueco(arma, "arma"), ...[0, 1, 2].map((i) => hueco(reliquias[i] ?? null, "reliquia")));
-    nota.textContent = rs.objetos > rs.portados ? `${resumenTexto(rs)} · el resto, en la Bolsa (R)` : resumenTexto(rs);
+    nota.textContent = rs.objetos > rs.portados ? tx(`${resumenTexto(rs)} · the rest, in the Backpack (R)`, `${resumenTexto(rs)} · el resto, en la Bolsa (R)`) : resumenTexto(rs);
   }
   /** Up to three adventures under way: title, «paso 2 de 5», the step you are on; the one you follow first. */
   function pintarAventuras(r: HTMLElement, libro: unknown): void {
@@ -176,17 +183,17 @@ export function montarFicha(h: HostFicha, boton: HTMLButtonElement) {
     if (r.dataset.aventuras === firma) return; r.dataset.aventuras = firma;
     const caja = r.querySelector(".tu-aventuras") as HTMLElement, ul = caja.querySelector("ul") as HTMLElement, nota = caja.querySelector(".nota") as HTMLElement;
     ul.replaceChildren(...todas.slice(0, 3).map((a, i) => {
-      const li = el("li", `tu-aventura${a.seguida ? " seguida" : ""}`), cab = el("div", "cab");
-      cab.append(el("span", "titulo", a.titulo), el("span", "paso", a.pasos ? `paso ${Math.min(a.pasos, a.paso + 1)} de ${a.pasos}` : ""));
+      const li = el("li", `tu-aventura${a.seguida ? " seguida" : ""}`), cab = el("div", "cab"); // i18n-ok: CSS class names / selectors, not text
+      cab.append(el("span", "titulo", a.titulo), el("span", "paso", a.pasos ? tx(`step ${Math.min(a.pasos, a.paso + 1)} of ${a.pasos}`, `paso ${Math.min(a.pasos, a.paso + 1)} de ${a.pasos}`) : ""));
       const barra = el("div", "tu-barra"); barra.append(el("i")); (barra.firstElementChild as HTMLElement).style.width = a.pasos ? `${Math.min(100, (a.paso / a.pasos) * 100)}%` : "0%";
       li.append(cab, barra); if (a.siguiente && i === 0) li.append(el("p", "sig", a.siguiente));
       return li;
     }));
     nota.replaceChildren();
-    if (!todas.length) nota.textContent = "Ninguna aventura en curso. Habla con la gente de la plaza para empezar una.";
+    if (!todas.length) nota.textContent = tx("No adventure under way. Talk to people in the plaza to start one.", "Ninguna aventura en curso. Habla con la gente de la plaza para empezar una.");
     else {
-      if (todas.length > 3) nota.append(`Y ${todas.length - 3} más. `);
-      const b = el("button", "tu-libro", "Abrir el libro de misiones (J)"); b.type = "button"; b.setAttribute("aria-keyshortcuts", "J");
+      if (todas.length > 3) nota.append(tx(`And ${todas.length - 3} more. `, `Y ${todas.length - 3} más. `));
+      const b = el("button", "tu-libro", tx("Open the quest journal (J)", "Abrir el libro de misiones (J)")); b.type = "button"; b.setAttribute("aria-keyshortcuts", "J");
       b.addEventListener("click", () => { panel.cerrar(); const m = document.getElementById("misiones"); if (m && document.getElementById("libro")?.hidden) m.click(); });
       nota.append(b);
     }
@@ -199,14 +206,14 @@ export function montarFicha(h: HostFicha, boton: HTMLButtonElement) {
     if (!retratoDe(av?.id, "espalda")) deEspalda = false;
     const url = retratoDe(av?.id, deEspalda ? "espalda" : "cuerpo"), girar = q<HTMLButtonElement>(".tu-girar");
     girar.hidden = !retratoDe(av?.id, "espalda");
-    const tGirar = deEspalda ? "Girar: verlo de frente" : "Girar: verlo de espalda"; girar.title = tGirar; girar.setAttribute("aria-label", tGirar);
+    const tGirar = deEspalda ? tx("Turn: see it from the front", "Girar: verlo de frente") : tx("Turn: see it from the back", "Girar: verlo de espalda"); girar.title = tGirar; girar.setAttribute("aria-label", tGirar);
     const ff = `${url}|${av?.nombre ?? ""}`;
     if (r.dataset.figura !== ff) {
       r.dataset.figura = ff;
       const marco = q(".tu-marco");
-      const silueta = () => { const s = el("div", "tu-silueta"); s.innerHTML = icono("user", 160); s.setAttribute("role", "img"); s.setAttribute("aria-label", av ? `${av.nombre}, sin retrato` : "Sin avatar"); return s; };
+      const silueta = () => { const s = el("div", "tu-silueta"); s.innerHTML = icono("user", 160); s.setAttribute("role", "img"); s.setAttribute("aria-label", av ? tx(`${av.nombre}, no portrait`, `${av.nombre}, sin retrato`) : tx("No avatar", "Sin avatar")); return s; };
       if (url) {
-        const img = el("img"); img.alt = `${av!.nombre}, ${deEspalda ? "de espalda" : "de frente"}`; img.decoding = "async";
+        const img = el("img"); img.alt = `${av!.nombre}, ${deEspalda ? tx("back view", "de espalda") : tx("front view", "de frente")}`; img.decoding = "async";
         img.addEventListener("error", () => img.replaceWith(silueta()), { once: true });
         img.src = url; marco.replaceChildren(img);
       } else marco.replaceChildren(silueta());
@@ -214,9 +221,9 @@ export function montarFicha(h: HostFicha, boton: HTMLButtonElement) {
     // name, Estado chip, the line under the name
     const otros = h.otros();
     const e = otros.estado?.actual?.() as string | undefined, i = e ? ESCALERA.indexOf(e as (typeof ESCALERA)[number]) : -1;
-    set(q(".tu-nombre"), h.session.who?.nombre ?? "Invitado");
+    set(q(".tu-nombre"), h.session.who?.nombre ?? tx("Guest", "Invitado"));
     const chip = q(".tu-chip");
-    set(chip, i >= 0 ? ESCALERA[i] : "Estable"); chip.classList.toggle("ok", i < 0); chip.classList.toggle("aviso", i === 0 || i === 1); chip.classList.toggle("mal", i >= 2);
+    set(chip, estadoVisible(i >= 0 ? ESCALERA[i] : "Estable")); chip.classList.toggle("ok", i < 0); chip.classList.toggle("aviso", i === 0 || i === 1); chip.classList.toggle("mal", i >= 2);
     const t0 = h.desde();
     set(q(".tu-linea"), lineaDeTu({ avatar: av?.nombre, mundo: h.mundo?.() ?? "", ms: t0 > 0 ? performance.now() - t0 : 0 }));
     q(".escalera").querySelectorAll("li").forEach((li, k) => {
@@ -234,47 +241,47 @@ export function montarFicha(h: HostFicha, boton: HTMLButtonElement) {
     const hayCarga = !!cg && Number.isFinite(cg.valor) && Number.isFinite(cg.max) && cg.max > 0;
     q(".tu-carga").hidden = !hayCarga;
     if (hayCarga) {
-      const m = Math.round(cg!.max), v = Math.min(m, Math.max(0, Math.round(cg!.valor))), b = q(".tu-carga .tu-barra");
+      const m = Math.round(cg!.max), v = Math.min(m, Math.max(0, Math.round(cg!.valor))), b = q(".tu-carga .tu-barra"); // i18n-ok: CSS class names / selectors, not text
       (b.firstElementChild as HTMLElement).style.width = `${(v / m) * 100}%`; set(q(".tu-num"), `${v} / ${m}`);
-      b.setAttribute("aria-valuemax", String(m)); b.setAttribute("aria-valuenow", String(v)); b.setAttribute("aria-valuetext", `${v} de ${m}`);
+      b.setAttribute("aria-valuemax", String(m)); b.setAttribute("aria-valuenow", String(v)); b.setAttribute("aria-valuetext", tx(`${v} of ${m}`, `${v} de ${m}`));
     }
     // badges: earned first, then the locked ones still to earn (six here; the Insignias tab has them all)
     const todas = insigniasDelLibro(libro()), fi = JSON.stringify(todas);
     if (r.dataset.insignias !== fi) {
       r.dataset.insignias = fi;
       const si = todas.filter((x) => x.conseguida).length;
-      set(q(".tu-insignias h4"), todas.length ? `Insignias · ${si} de ${todas.length}` : "Insignias");
-      q(".tu-insignias ul").replaceChildren(...todas.slice(0, 6).map((x) => ficheroInsignia(x)));
-      const v = q(".tu-insignias .nota");
-      v.textContent = !todas.length ? "Aún no tienes insignias: se ganan terminando misiones (J)." : todas.length > 6 ? `Y ${todas.length - 6} más en la pestaña Insignias.` : "";
+      set(q(".tu-insignias h4"), todas.length ? tx(`Badges · ${si} of ${todas.length}`, `Insignias · ${si} de ${todas.length}`) : tx("Badges", "Insignias")); // i18n-ok: CSS class names / selectors, not text
+      q(".tu-insignias ul").replaceChildren(...todas.slice(0, 6).map((x) => ficheroInsignia(x))); // i18n-ok: CSS class names / selectors, not text
+      const v = q(".tu-insignias .nota"); // i18n-ok: CSS class names / selectors, not text
+      v.textContent = !todas.length ? tx("You have no badges yet: you earn them by finishing quests (J).", "Aún no tienes insignias: se ganan terminando misiones (J).") : todas.length > 6 ? tx(`And ${todas.length - 6} more in the Badges tab.`, `Y ${todas.length - 6} más en la pestaña Insignias.`) : "";
       v.hidden = !v.textContent;
     }
   }
 
   // ---------- Insignias: every badge you have or are on the way to, with its quest ----------
   api.seccion("insignias", {
-    titulo: "Insignias", orden: 50, vivo: true,
+    titulo: () => tx("Badges", "Insignias"), orden: 50, vivo: true,
     pintar: (c) => {
       const todas = insigniasDelLibro(libro()), firma = JSON.stringify(todas);
       if (c.dataset.firma === firma) return; c.dataset.firma = firma;
-      if (!todas.length) return void c.replaceChildren(el("p", "nota", "Aún no tienes insignias. Se ganan terminando misiones (J): las de las misiones que lleves en curso salen aquí con candado hasta que las termines."));
+      if (!todas.length) return void c.replaceChildren(el("p", "nota", tx("You have no badges yet. You earn them by finishing quests (J): those of the quests under way show here with a lock until you finish them.", "Aún no tienes insignias. Se ganan terminando misiones (J): las de las misiones que lleves en curso salen aquí con candado hasta que las termines.")));
       const si = todas.filter((x) => x.conseguida).length;
       const ul = el("ul", "insignias grandes"); ul.append(...todas.map((x) => ficheroInsignia(x, true)));
-      c.replaceChildren(el("p", "tu-cuenta", `${si} de ${todas.length} conseguidas`), ul);
+      c.replaceChildren(el("p", "tu-cuenta", tx(`${si} of ${todas.length} earned`, `${si} de ${todas.length} conseguidas`)), ul);
     },
   });
   // ---------- Reserva: the Y1 inventario contract; the whole Reserva (carry / keep) is the R panel, one click away ----------
-  api.seccion("inventario", { titulo: "Inventario", orden: 70, pintar: (c) => { c.replaceChildren(el("p", "nota", "Este mundo no tiene la función bienes: aquí no se guardan objetos tuyos.")); } }); // N10: apps/plaza/bienes.ts replaces it
+  api.seccion("inventario", { titulo: () => tx("Inventory", "Inventario"), orden: 70, pintar: (c) => { c.replaceChildren(el("p", "nota", tx("This world has no goods feature: your items are not kept here.", "Este mundo no tiene la función bienes: aquí no se guardan objetos tuyos."))); } }); // N10: apps/plaza/bienes.ts replaces it
   api.seccion("reserva", {
-    titulo: "Reserva", orden: 71, vivo: true,
+    titulo: () => tx("Backpack", "Reserva"), orden: 71, vivo: true,
     pintar: (c) => {
       const i = h.otros().inventario, r = typeof i?.resumen === "function" ? i.resumen() : null;
       const firma = JSON.stringify([r, typeof i?.lista === "function" ? i.lista().map((o: { nombre: string; n: number; portado: boolean }) => [o.nombre, o.n, o.portado]) : null]);
       if (c.dataset.firma === firma) return; c.dataset.firma = firma;
-      if (!r) return void c.replaceChildren(el("p", "nota", "Este servidor no lleva inventario."));
+      if (!r) return void c.replaceChildren(el("p", "nota", tx("This server has no inventory.", "Este servidor no lleva inventario.")));
       const ul = el("ul");
-      for (const o of i.lista() as { nombre: string; n: number; portado: boolean }[]) ul.appendChild(el("li", "", `${o.n > 1 ? `${o.nombre} × ${o.n}` : o.nombre}${o.portado ? " (contigo)" : ""}`));
-      const b = el("button", "", "Abrir la Reserva (R)"); b.type = "button"; b.setAttribute("aria-keyshortcuts", "R");
+      for (const o of i.lista() as { nombre: string; n: number; portado: boolean }[]) ul.appendChild(el("li", "", `${o.n > 1 ? `${o.nombre} × ${o.n}` : o.nombre}${o.portado ? tx(" (with you)", " (contigo)") : ""}`));
+      const b = el("button", "", tx("Open the Backpack (R)", "Abrir la Reserva (R)")); b.type = "button"; b.setAttribute("aria-keyshortcuts", "R");
       b.addEventListener("click", () => { panel.cerrar(); i.abrir(); });
       c.replaceChildren(el("p", "", resumenTexto(r)), ...(r.objetos ? [ul] : []), b);
     },

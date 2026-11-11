@@ -6,6 +6,8 @@ import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg, PlacedObject, Vida } from "../../packages/feature/src/index.ts";
 import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
 import { ACCIONES_PAGINA } from "./formato.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
+const NO_ARRANCADA = (): string => tx("the page has not started yet", "la página aún no ha arrancado");
 import biblioteca from "../objetos/biblioteca.json" with { type: "json" };
 import type { Escenario, Pose, SecuenciaVista, SucesoSecuencia } from "./secuencia.ts"; // U14 (5): a moment only you see (loaded when one comes)
 import type { crearRondas } from "./ronda-pagina.ts"; // P16: the round a person walks: loaded (with its maths, the same as the server's) when the first one comes
@@ -161,7 +163,8 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     cargando ??= import("./secuencia.ts").then((x) => {
       piezas = x.montador(); rep = x.crearReproductor(escenario);
       for (const [e, msg] of esperan.splice(0)) recibirSec(e, msg);
-    }).catch((e) => { cargando = null; esperan.length = 0; console.warn(`[misiones] no se pudo cargar la secuencia: ${(e as Error)?.message ?? e}`); });
+    }).catch((e) => { cargando = null; esperan.length = 0; console.warn(`[misiones] no se pudo cargar la secuencia: ${(e as Error)?.message ?? e}`); // i18n-ok: developer log
+ });
   };
 
   // U14 (4): the marks the server decided for THIS player. `marcas` is a new frozen object only when they change (a map
@@ -260,26 +263,26 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
     },
     /** The conversation open right now (null = none). */
     dialogo: () => dialogo,
-    hablar: (pnj: string): Res => P?.send("hablar", { pnj }) ?? sin("la página aún no ha arrancado"),
+    hablar: (pnj: string): Res => P?.send("hablar", { pnj }) ?? sin(NO_ARRANCADA()),
     /** Choose answer n (1-4) of the open conversation. */
-    elegir: (n: number): Res => (dialogo && P ? (n >= 1 && n <= dialogo.opciones.length ? P.send("elegir", { pnj: dialogo.pnj, opcion: n }) : sin(`no hay respuesta ${n}`)) : sin("no hay ninguna conversación abierta")),
-    adios: (): Res => { if (!dialogo || !P) return sin("no hay ninguna conversación abierta"); const r = P.send("adios", { pnj: dialogo.pnj }); dialogo = null; avisar("dialogo"); atiende(P, ""); return r; },
-    aceptar: (mision: string): Res => M?.send("aceptar", { mision }) ?? sin("la página aún no ha arrancado"),
-    abandonar: (mision: string): Res => M?.send("abandonar", { mision }) ?? sin("la página aún no ha arrancado"),
-    seguir: (mision: string): Res => M?.send("seguir", { mision }) ?? sin("la página aún no ha arrancado"),
+    elegir: (n: number): Res => (dialogo && P ? (n >= 1 && n <= dialogo.opciones.length ? P.send("elegir", { pnj: dialogo.pnj, opcion: n }) : sin(tx(`there is no answer ${n}`, `no hay respuesta ${n}`))) : sin(tx("no conversation is open", "no hay ninguna conversación abierta"))),
+    adios: (): Res => { if (!dialogo || !P) return sin(tx("no conversation is open", "no hay ninguna conversación abierta")); const r = P.send("adios", { pnj: dialogo.pnj }); dialogo = null; avisar("dialogo"); atiende(P, ""); return r; },
+    aceptar: (mision: string): Res => M?.send("aceptar", { mision }) ?? sin(NO_ARRANCADA()),
+    abandonar: (mision: string): Res => M?.send("abandonar", { mision }) ?? sin(NO_ARRANCADA()),
+    seguir: (mision: string): Res => M?.send("seguir", { mision }) ?? sin(NO_ARRANCADA()),
     /** T1: tell the server the page opened a panel (`abre_construir`, `abre_biblioteca`, `abre_cable`) — the only `hace`
      * actions the server cannot see. Sent only while a step to do now asks for exactly that (no noise otherwise). */
     hace: (accion: string): Res => {
-      if (!(ACCIONES_PAGINA as readonly string[]).includes(accion)) return sin(`«${accion}» lo ve el servidor solo; aquí solo: ${ACCIONES_PAGINA.join(", ")}`);
-      if (![...libro.values()].some((m) => porHacer(m).some((s) => s.tipo === "hace" && s.accion === accion))) return sin("ningún paso de tus misiones pide eso ahora");
-      return M?.send("hace", { accion }) ?? sin("la página aún no ha arrancado");
+      if (!(ACCIONES_PAGINA as readonly string[]).includes(accion)) return sin(tx(`the server sees «${accion}» by itself; here only: ${ACCIONES_PAGINA.join(", ")}`, `«${accion}» lo ve el servidor solo; aquí solo: ${ACCIONES_PAGINA.join(", ")}`));
+      if (![...libro.values()].some((m) => porHacer(m).some((s) => s.tipo === "hace" && s.accion === accion))) return sin(tx("no step of your quests asks for that now", "ningún paso de tus misiones pide eso ahora"));
+      return M?.send("hace", { accion }) ?? sin(NO_ARRANCADA());
     },
     /** T1: the id of the page button the arrow should point at for the step to do now of the followed quest (or the first active one with `senala`); "" = none. */
     senala: (): string => { const todas = [...libro.values()].filter((m) => m.pistas !== false).sort((a, b) => Number(b.seguida) - Number(a.seguida)); for (const m of todas) for (const s of ahoraDe(m)) if (s.senala) return s.senala; return ""; },
     /** P10: tell the server a photo was just taken, from this camera pose; it decides whether a corner is in the shot (nothing comes back
      * for a miss: the quest only counts it). The page asks `pideFoto(libro())` (features/misiones/foto.ts) first, in the photo chunk. */
-    foto: (pose: PoseDeFoto): Res => M?.send("foto", pose) ?? sin("la página aún no ha arrancado"),
-    usar: (cosa: string): Res => M?.send("usar", { cosa }) ?? sin("la página aún no ha arrancado"),
+    foto: (pose: PoseDeFoto): Res => M?.send("foto", pose) ?? sin(NO_ARRANCADA()),
+    usar: (cosa: string): Res => M?.send("usar", { cosa }) ?? sin(NO_ARRANCADA()),
     /** Whether the page should offer «E: …» for a thing: quest things only while a step to do now needs them (U14 (5):
      * also while that step still waits — trying it says how long is left). */
     ofrece: (feature: string, key: string): boolean => feature === "pnj" ? !callan.has(key) // P3: a person with nothing to say to you now offers no «E»
@@ -360,7 +363,8 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
         esperaRonda.clear();
       };
       if (codigoRonda) montar(codigoRonda); // another page of this process loaded it already
-      else cargaRonda ??= import("./ronda-pagina.ts").then((x) => montar((codigoRonda = x))).catch((e) => { cargaRonda = null; esperaRonda.clear(); console.warn(`[misiones] no se pudo cargar la ronda: ${(e as Error)?.message ?? e}`); });
+      else cargaRonda ??= import("./ronda-pagina.ts").then((x) => montar((codigoRonda = x))).catch((e) => { cargaRonda = null; esperaRonda.clear(); console.warn(`[misiones] no se pudo cargar la ronda: ${(e as Error)?.message ?? e}`); // i18n-ok: developer log
+ });
     });
     a.on("dialogo", (m) => {
       dialogo = { pnj: String(m.pnj), nombre: String(m.nombre), oficio: String(a.state.get(String(m.pnj))?.oficio ?? ""), texto: String(m.texto), opciones: [m.o1, m.o2, m.o3, m.o4].map(String).filter(Boolean) };
@@ -408,9 +412,9 @@ export function crearCliente(o: { reloj?: () => number } = {}) {
       ev.filas[Number(m.n)] = { tipo: m.tipo as FilaEvaluacion["tipo"], clave: String(m.clave), etiqueta: String(m.etiqueta), texto: String(m.texto), valor: Number(m.valor), resta: Number(m.resta) };
       avisar("libro");
     });
-    a.on("aceptada", (m) => nota(`Misión nueva: ${String(m.titulo)}`));
+    a.on("aceptada", (m) => nota(tx(`New quest: ${String(m.titulo)}`, `Misión nueva: ${String(m.titulo)}`)));
     a.on("avance", (m) => nota(`✓ ${String(m.texto)}`));
-    a.on("completada", (m) => nota(`¡Misión completada! ${String(m.titulo)}${m.recompensa ? ` · ${String(m.recompensa)}` : ""}`));
+    a.on("completada", (m) => nota(tx(`Quest complete! ${String(m.titulo)}${m.recompensa ? ` · ${String(m.recompensa)}` : ""}`, `¡Misión completada! ${String(m.titulo)}${m.recompensa ? ` · ${String(m.recompensa)}` : ""}`)));
     a.on("aviso", (m) => { estado.ultimoAviso = String(m.texto); nota(String(m.texto)); });
     a.on("rechazado", (m) => { estado.ultimoRechazo = String(m.motivo); nota(String(m.motivo)); });
     a.on("marcas", recibirMarcas); // U14 (4)

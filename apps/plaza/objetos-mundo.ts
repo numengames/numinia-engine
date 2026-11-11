@@ -1,6 +1,7 @@
 // MIS-241: «Objetos del mundo» — the builder's list of everything placed in the world (name, kind, whether it carries a
 // piece of the cable/locks/counters), a press on a row goes next to the object and leaves it selected, ready to move,
 // edit or wire. Pure rules here (tested in test/objetos-mundo.test.ts); the DOM lives in constructor.ts.
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { datosFicha, logicaDeObjeto } from "./ficha-objeto.ts";
 import type { PiezasMundo } from "./ficha-objeto.ts";
 
@@ -67,9 +68,9 @@ export const firmaDeLista = (filas: readonly FilaObjeto[], texto: string, soloCo
 
 /** The line over the list: how many things, and what the search left. */
 export function resumenLista(total: number, mostradas: number, buscando: boolean): string {
-  if (total === 0) return "Este mundo no tiene objetos todavía: ponlos desde «Añadir».";
-  if (!buscando) return total === 1 ? "1 objeto en el mundo." : `${total} objetos en el mundo.`;
-  return mostradas === 0 ? "Ningún objeto coincide." : `${mostradas} de ${total} objetos.`;
+  if (total === 0) return tx("This world has no objects yet: place them from «Add».", "Este mundo no tiene objetos todavía: ponlos desde «Añadir».");
+  if (!buscando) return total === 1 ? tx("1 object in the world.", "1 objeto en el mundo.") : tx(`${total} objects in the world.`, `${total} objetos en el mundo.`);
+  return mostradas === 0 ? tx("No object matches.", "Ningún objeto coincide.") : tx(`${mostradas} of ${total} objects.`, `${mostradas} de ${total} objetos.`);
 }
 
 const JUNTO_MIN_M = 2.5;
@@ -94,10 +95,10 @@ export function yaJunto(o: ObjetoMundo, yo: { x: number; z: number } | null): bo
 /** What to say after pressing a row: where it went and what is left to do. */
 export function frase(nombre: string, camino: "viaja" | "cerca" | "apagado" | "sin-viaje"): string {
   switch (camino) {
-    case "viaja": return `${nombre}: te llevo junto a él; ya está seleccionado.`;
-    case "cerca": return `${nombre}: ya estás junto a él; seleccionado y a la vista.`;
-    case "apagado": return `${nombre}: seleccionado y a la vista. Ir de golpe está apagado en este mundo; la cámara te lo enseña.`;
-    case "sin-viaje": return `${nombre}: seleccionado y a la vista.`;
+    case "viaja": return tx(`${nombre}: taking you next to it; it is already selected.`, `${nombre}: te llevo junto a él; ya está seleccionado.`);
+    case "cerca": return tx(`${nombre}: you are already next to it; selected and in view.`, `${nombre}: ya estás junto a él; seleccionado y a la vista.`);
+    case "apagado": return tx(`${nombre}: selected and in view. Jumping straight there is off in this world; the camera shows it to you.`, `${nombre}: seleccionado y a la vista. Ir de golpe está apagado en este mundo; la cámara te lo enseña.`);
+    case "sin-viaje": return tx(`${nombre}: selected and in view.`, `${nombre}: seleccionado y a la vista.`);
   }
 }
 

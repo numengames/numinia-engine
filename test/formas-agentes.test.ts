@@ -16,6 +16,8 @@ import funciones from "../features/servidor.ts";
 import { conEspejo } from "../features/espejo/server.ts";
 import type { EnlaceEspejo } from "../features/espejo/server.ts";
 import { ESQUEMA, leerEspejo, vistaPublica } from "../features/espejo/esquema.ts";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // these checks read the Spanish second language
 
 /** Draw one shape alone and read what was made: [meshes in the world, triangles, white triangles, any colour other than 0 or 1, a firma of the geometry]. */
 function dibujar(f: Partial<Omit<FormaPlana, "forma">> & { forma: string }) {
@@ -158,4 +160,13 @@ test("the page draws `perfil` and `uso` as their own shapes with Spanish labels;
   const rara = enlace.alta(perfil("a-x", "algo-raro")); assert.equal(rara.ok, false);
   if (!rara.ok) assert.match(rara.motivo, /estado/);
   assert.equal(formas.has("espejo:perfil/a-x"), false);
+});
+
+
+test("the card words speak English by default and Spanish on request", () => {
+  fijarIdioma("en");
+  assert.equal(textoEstadoDe("cron", "pausado"), "paused");
+  assert.equal(textoEstadoDe("perfil", "activo"), "working");
+  fijarIdioma("es");
+  assert.equal(textoEstadoDe("cron", "pausado"), "en pausa");
 });

@@ -22,6 +22,8 @@ import { conEspejo } from "../features/espejo/server.ts";
 import type { EnlaceEspejo, Peticion } from "../features/espejo/server.ts";
 import { leerEspejo, vistaPublica } from "../features/espejo/esquema.ts";
 import { crearCliente, estadoDeForma, manoDe, TEXTO_ESTADO } from "../features/espejo/client.ts";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // these checks read the Spanish second language
 
 const sign = signer("una-clave-de-prueba-larga");
 const ADMIN = "codigo-de-administracion-largo";

@@ -4,13 +4,14 @@
 // (inventario.ts) draws `pendiente` as an inline choice in the detail card — the engine's own style (cf. entorno.ts «Restaurar el
 // mundo»), so it also reads in a headset panel and never needs `window.confirm`, which does not exist inside VR.
 import type { Objeto } from "./bolsa-rejilla.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 
 /** Only weapons and relics are asked about. */
 export const pideConfirmar = (o: Pick<Objeto, "tipo">): boolean => o.tipo === "arma" || o.tipo === "reliquia";
 /** The question, one sentence. */
-export const preguntaSoltar = (o: Pick<Objeto, "nombre">): string => `¿Soltar ${o.nombre}? Se perderá.`;
+export const preguntaSoltar = (o: Pick<Objeto, "nombre">): string => tx(`Drop ${o.nombre}? It will be lost.`, `¿Soltar ${o.nombre}? Se perderá.`);
 
 export type Soltar = {
   /** The object whose confirmation is open now (null = none). */

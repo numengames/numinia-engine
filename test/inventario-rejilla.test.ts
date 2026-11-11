@@ -55,25 +55,25 @@ test("colours, type lines, names and values: the rarity is never the colour alon
   assert.deepEqual([colorDe(carpa), colorDe({ tipo: "captura", color: "azul" }), colorDe({ tipo: "captura", color: "dorada" })], ["#c3ceda", "#5aa2ff", "#ffc247"]);
   assert.notEqual(colorDe({ tipo: "arma", color: "" }), colorDe({ tipo: "reliquia", color: "" }));
   assert.equal(colorDe({ tipo: "token", color: "roja" }), "#ff6b64");
-  assert.deepEqual([lineaTipo(carpa), lineaTipo({ ...carpa, color: "azul" }), lineaTipo({ ...carpa, color: "dorada" })], ["pez · común", "pez · rara", "pez · legendaria"]);
-  assert.equal(lineaTipo(obj({ id: "a", tipo: "arma" })), "arma");
+  assert.deepEqual([lineaTipo(carpa), lineaTipo({ ...carpa, color: "azul" }), lineaTipo({ ...carpa, color: "dorada" })], ["fish · common", "fish · rare", "fish · legendary"]);
+  assert.equal(lineaTipo(obj({ id: "a", tipo: "arma" })), "weapon");
   assert.equal(lineaTipo(obj({ id: "s", tipo: "token", clase: "semilla", color: "verde" })), "semilla · verde");
   assert.equal(nombreConCuenta(carpa), "Carpa × 3");
   assert.equal(nombreConCuenta({ ...carpa, n: 1 }), "Carpa × 1", "a fish always shows its count");
   assert.equal(nombreConCuenta(obj({ id: "x", nombre: "Hoja" })), "Hoja");
-  assert.equal(lineaValor(carpa), "Valor 1 cada uno · 3 en total");
-  assert.equal(lineaValor(obj({ id: "s", tipo: "token", clase: "semilla", valor: 2, n: 2 })), "4 puntos de Prestigio");
-  assert.equal(lineaValor(obj({ id: "a", tipo: "arma", portado: true })), "Lo llevas contigo");
-  assert.equal(etiquetaHueco(carpa, 0, "bolsa"), "Carpa × 3, pez · común");
-  assert.equal(etiquetaHueco(null, 4, "bolsa"), "Hueco 5 de la Bolsa: vacío");
-  assert.equal(etiquetaHueco(null, 0, "equipo"), "Arma: vacío");
-  assert.equal(etiquetaHueco(null, 2, "equipo"), "Reliquia 2: vacío");
-  assert.equal(etiquetaHueco(obj({ id: "a", nombre: "Hoja", tipo: "arma", portado: true }), 0, "equipo"), "Hoja, arma, contigo");
+  assert.equal(lineaValor(carpa), "Value 1 each · 3 in total");
+  assert.equal(lineaValor(obj({ id: "s", tipo: "token", clase: "semilla", valor: 2, n: 2 })), "4 Prestige points");
+  assert.equal(lineaValor(obj({ id: "a", tipo: "arma", portado: true })), "You are carrying it");
+  assert.equal(etiquetaHueco(carpa, 0, "bolsa"), "Carpa × 3, fish · common");
+  assert.equal(etiquetaHueco(null, 4, "bolsa"), "Backpack slot 5: empty");
+  assert.equal(etiquetaHueco(null, 0, "equipo"), "Weapon: empty");
+  assert.equal(etiquetaHueco(null, 2, "equipo"), "Relic 2: empty");
+  assert.equal(etiquetaHueco(obj({ id: "a", nombre: "Hoja", tipo: "arma", portado: true }), 0, "equipo"), "Hoja, weapon, carried");
 });
 
 test("buttons and drag targets: only weapons and relics move, only between the bag and the equipment", () => {
   const arma = obj({ id: "a", tipo: "arma" }), llevada = obj({ id: "b", tipo: "reliquia", portado: true });
-  assert.deepEqual([accionDe(arma), accionDe(llevada), accionDe(carpa)], ["Llevar", "Guardar", null]);
+  assert.deepEqual([accionDe(arma), accionDe(llevada), accionDe(carpa)], ["Equip", "Stow", null]);
   assert.equal(destinoDeSoltar(arma, "equipo"), "equipar");
   assert.equal(destinoDeSoltar(llevada, "bolsa"), "desequipar");
   assert.equal(destinoDeSoltar(arma, "bolsa"), null, "already in the bag");

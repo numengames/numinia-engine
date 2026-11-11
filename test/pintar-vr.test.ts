@@ -111,7 +111,7 @@ test("a tracked hand paints with its pinch at the neutral width", () => {
 });
 
 test("the menu row: two states, Empezar / Dejar de pintar", () => {
-  assert.equal(vistaPintarVR(false).boton, "Empezar"); assert.equal(vistaPintarVR(true).boton, "Dejar de pintar");
+  assert.equal(vistaPintarVR(false).boton, "Start"); assert.equal(vistaPintarVR(true).boton, "Stop painting");
   assert.notEqual(vistaPintarVR(true).titulo, vistaPintarVR(false).titulo);
 });
 

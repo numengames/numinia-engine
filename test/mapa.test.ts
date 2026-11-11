@@ -1,8 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // these assertions read the Spanish text; the English is checked at the end
 import {
   proyectar, desproyectar, anguloFlecha, anguloBorde, yawDePaso, alBorde, rumbo, distancia, enPalabras, lado, duracion,
-  crearLimitador, crearRegistro, reunir, contar, cercanos, firma, RUMBOS,
+  crearLimitador, crearRegistro, reunir, contar, cercanos, firma, RUMBOS, TIPOS_BASE,
 } from "../packages/client/src/mapa.ts";
 import type { Vista, Marcador } from "../packages/client/src/mapa.ts";
 
@@ -151,4 +153,19 @@ test("signature: same picture same text; a 1 px move, a moving centre or a turn 
   const obj: Marcador[] = [{ id: "c", tipo: "objetivo", nombre: "C", x: 500, z: 20 }];
   const pin = (t: string) => t === "objetivo";
   assert.notEqual(firma(v, obj, pin), firma(v, [{ ...obj[0], z: 400 }], pin));  // pinned to the edge: direction counts
+});
+
+test("the words come in both languages, English first by default", () => {
+  fijarIdioma("en");
+  try {
+    assert.equal(distancia(23.4), "23 m away");
+    assert.equal(enPalabras(16, -16), "northeast, 23 m away");
+    assert.equal(enPalabras(0.5, 0.5), "right here");
+    assert.equal(duracion(0), "under 1 min");
+    assert.equal(lado(0, -5, 0), "ahead");
+    assert.equal(TIPOS_BASE.persona.nombre, "Person");
+    fijarIdioma("es");
+    assert.equal(TIPOS_BASE.persona.nombre, "Persona");
+    assert.equal(lado(0, -5, 0), "delante");
+  } finally { fijarIdioma("es"); }
 });

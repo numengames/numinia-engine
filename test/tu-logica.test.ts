@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import catalogo from "../activos/avatares/catalogo.json" with { type: "json" };
 import { retratoDe, avatarQueLlevas, insigniasDelLibro, desdeHace, lineaDeTu, CON_RETRATO } from "../apps/plaza/tu-logica.ts";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
 import { filasAparato, filasIdentidad } from "../apps/plaza/info-aparato.ts";
 
 const raiz = new URL("../", import.meta.url);
@@ -52,14 +53,16 @@ test("badges: a done quest's badges (not its objects) are earned, an active ques
   assert.deepEqual(insigniasDelLibro([]), []);
 });
 test("the line under your name leaves out what the page does not know", () => {
-  assert.equal(desdeHace(0), ""); assert.equal(desdeHace(30_000), "acabas de llegar");
-  assert.equal(desdeHace(12 * 60_000 + 5), "aquí desde hace 12 min");
-  assert.equal(desdeHace(60 * 60_000), "aquí desde hace 1 h"); assert.equal(desdeHace(75 * 60_000), "aquí desde hace 1 h 15 min");
-  assert.equal(lineaDeTu({ avatar: "Polybot", mundo: "la Plaza", ms: 12 * 60_000 }), "Polybot · en la Plaza · aquí desde hace 12 min");
+  assert.equal(desdeHace(0), ""); assert.equal(desdeHace(30_000), "you just arrived");
+  assert.equal(desdeHace(12 * 60_000 + 5), "here for 12 min");
+  assert.equal(desdeHace(60 * 60_000), "here for 1 h"); assert.equal(desdeHace(75 * 60_000), "here for 1 h 15 min");
+  assert.equal(lineaDeTu({ avatar: "Polybot", mundo: "la Plaza", ms: 12 * 60_000 }), "Polybot · in la Plaza · here for 12 min");
   assert.equal(lineaDeTu({ avatar: null, mundo: " ", ms: 0 }), "");
   assert.equal(lineaDeTu({ avatar: "Skelly", ms: 0 }), "Skelly");
 });
-test("the facts that left the sheet are all in Ajustes: device, visit and identity", () => {
+test("the facts that left the sheet are all in Ajustes: device, visit and identity (Spanish)", () => {
+  fijarIdioma("es");
+  try {
   const f = {
     view: { backend: "WebGL2", power: { mobile: false, battery: false, scale: 0.8, targetFps: (a: boolean) => (a ? 60 : 30) }, vr: { active: false }, ar: { state: "off" } },
     session: { entity: 7, who: { id: "abcdef123456", nombre: "Invitado QZ3Y" }, stats: { rttMs: 42, visible: 3 } },
@@ -72,6 +75,14 @@ test("the facts that left the sheet are all in Ajustes: device, visit and identi
   const i = Object.fromEntries(filasIdentidad(f));
   assert.equal(i["Nombre"], "Invitado QZ3Y"); assert.match(i["Identificador de invitado"], /^abcdef…/); assert.equal(i["Tu número en esta zona"], "7");
   assert.equal(Object.fromEntries(filasIdentidad({ session: { ...f.session, who: null, entity: -1 } }))["Tu número en esta zona"], "—");
+  } finally { fijarIdioma("en"); }
+});
+test("the device and identity rows speak English first", () => {
+  const f = { view: { backend: "WebGL2", power: { mobile: true, battery: true, scale: 0.8, targetFps: (a: boolean) => (a ? 60 : 30) }, vr: { active: false }, ar: { state: "off" } }, session: { entity: 7, who: null, stats: { rttMs: 42, visible: 3 } }, desde: () => 0, ahora: () => 0 };
+  const a = Object.fromEntries(filasAparato(f)), i = Object.fromEntries(filasIdentidad(f));
+  assert.deepEqual(Object.keys(a).slice(0, 3), ["Graphics", "Class", "Frames per second"]);
+  assert.equal(a["Resolution"], "80 % (lowered to stay cool)"); assert.equal(a["Viewing on"], "screen");
+  assert.equal(i["Name"], "Guest (waiting for the server…)");
 });
 test("«Tú» keeps three tabs and no «Próximamente»; the sheet no longer carries the device's numbers", () => {
   const src = readFileSync(new URL("apps/plaza/ficha.ts", raiz), "utf8");
@@ -103,4 +114,10 @@ test("aventurasEnCurso: active ones only, the followed one first, with the text 
   assert.equal(a[0].siguiente, "Lleva la carta"); assert.equal(a[1].siguiente, "Habla con Ana");
   assert.equal(a[0].pasos, 2);
   assert.deepEqual(aventurasEnCurso(null), []); assert.deepEqual(aventurasEnCurso([null, { estado: "activa" }]), []);
+});
+
+test("desdeHace speaks both languages", async () => {
+  const { fijarIdioma } = await import("../packages/client/src/idioma.ts");
+  try { fijarIdioma("es"); assert.equal(desdeHace(12 * 60_000), "aquí desde hace 12 min"); } finally { fijarIdioma("en"); }
+  assert.equal(desdeHace(12 * 60_000), "here for 12 min");
 });

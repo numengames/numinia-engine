@@ -70,14 +70,17 @@ export function seccion(id: string): SeccionMundo {
   if (!s) throw new Error(`menu-secciones: no hay sección «${id}»`);
   return s;
 }
-/** The name of a section in a language (unknown language → es). */
-export const nombreDe = (id: string, idioma: Idioma = "es"): string => { const s = seccion(id); return idioma === "en" ? s.en : s.es; };
+/** The page tells which language is in effect (packages/feature/src/idioma.ts; render may not import it); without it, Spanish as before. */
+let idiomaEfectivo: () => Idioma = () => "es";
+export const fijarIdiomaEfectivo = (f: () => Idioma): void => { idiomaEfectivo = f; };
+/** The name of a section in a language (no language given → the one in effect; unknown language → es). */
+export const nombreDe = (id: string, idioma: Idioma = idiomaEfectivo()): string => { const s = seccion(id); return idioma === "en" ? s.en : s.es; };
 export const iconoDe = (id: string): string => seccion(id).icono;
 /** «Nombre (L)» as the computer's tooltips write it; no key → just the name. */
 /** Keymap v1: the page tells which key is in effect for a section (Yours or Default, apps/plaza/teclas.ts); without it the written letter. */
 let teclaEfectiva: (id: string) => string | undefined = () => undefined;
 export const fijarTeclaEfectiva = (f: (id: string) => string | undefined): void => { teclaEfectiva = f; };
-export const tituloDe = (id: string, idioma: Idioma = "es"): string => { const s = seccion(id), t = teclaEfectiva(id) ?? s.tecla; return t ? `${nombreDe(id, idioma)} (${t})` : nombreDe(id, idioma); };
+export const tituloDe = (id: string, idioma: Idioma = idiomaEfectivo()): string => { const s = seccion(id), t = teclaEfectiva(id) ?? s.tecla; return t ? `${nombreDe(id, idioma)} (${t})` : nombreDe(id, idioma); };
 /** The sections that exist on a device, in order. */
 export const seccionesEn = (aparato: Aparato): SeccionMundo[] => SECCIONES_MUNDO.filter((s) => s.aparatos.includes(aparato)).sort((a, b) => a.orden - b.orden);
 /** The ids of the sections that are rows of the VR menu panel, in order. */

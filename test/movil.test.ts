@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import { GLIFOS, ayudaDe, conGlifo, cercaDeAlguien, contextoDe, elegirAccion, siguienteChat, esPulsacionLarga, tamanoOk, entradasDelMenu, enZonaAndar, ZONA_ANDAR_MOVIL, ZONA_ANDAR_ANTES, esMovil, ultimaLinea, SALTAR, ZONA_SEGURA_SIMULADA } from "../packages/client/src/movil.ts";
 import { APARATOS } from "../packages/client/src/aparato.ts";
 import { readFileSync } from "node:fs";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // these checks read the Spanish second language
 
 const CLASES = APARATOS.filter((a) => a !== "auto");
 
@@ -117,4 +119,14 @@ test("phone «…» menu: its buttons are wide enough for «Movimientos» (75 px
   const css = readFileSync(new URL("../apps/plaza/movil.css", import.meta.url), "utf8");
   assert.match(css, /#mas-menu \{[^}]*grid-template-columns: repeat\(3, 80px\)/, "portrait: 3 columns of 80 px");
   assert.match(css, /movil-horizontal"\] #mas-menu \{[^}]*grid-template-columns: repeat\(5, 80px\)/, "landscape: 5 columns of 80 px");
+});
+
+
+test("the big button speaks English by default and Spanish on request", () => {
+  fijarIdioma("en");
+  assert.equal(contextoDe("hablar con Alma").verbo, "Talk");
+  assert.equal(SALTAR.verbo, "Jump");
+  fijarIdioma("es");
+  assert.equal(contextoDe("hablar con Alma").verbo, "Hablar");
+  assert.equal(SALTAR.verbo, "Saltar");
 });

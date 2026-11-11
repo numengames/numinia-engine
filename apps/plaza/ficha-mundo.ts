@@ -3,6 +3,7 @@
 // the administrator or an owner). It only asks (`ajustes.guardar`); the server checks who, validates, writes aventura/ficha.json and every
 // page — this one too — gets the new state, so the title in the tab changes for everybody at once (`ponerTitulo`). No Three.js here.
 import type { Ajustes } from "../../features/ficha-mundo/client.ts";
+import { tx, ligar, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 export type ControlAjustes = {
@@ -20,7 +21,7 @@ export type OpcionesFichaMundo = {
   imagenes?: () => string[];
 };
 
-const CSS = `
+const CSS = `/* i18n-ok: CSS, not text */
 #ficha-mundo { font: 13px/1.45 "Geist", system-ui, sans-serif; margin-top: 12px; }
 #ficha-mundo[hidden] { display: none; }
 #ficha-mundo h3 { margin: 12px 0 4px; font-size: 14px; }
@@ -39,21 +40,22 @@ export function montarFichaMundo(o: OpcionesFichaMundo): { raiz: HTMLElement; re
   if (!document.getElementById("ficha-mundo-css")) { const st = document.createElement("style"); st.id = "ficha-mundo-css"; st.textContent = CSS; document.head.append(st); }
   const raiz = document.createElement("section");
   raiz.id = "ficha-mundo"; raiz.hidden = true; raiz.setAttribute("aria-labelledby", "ficha-mundo-h");
-  const h = document.createElement("h3"); h.id = "ficha-mundo-h"; h.textContent = "Ajustes del mundo"; raiz.append(h);
-  const campo = <T extends HTMLElement>(etiqueta: string, el: T, pista = ""): T => {
-    const l = document.createElement("label"); l.append(document.createTextNode(etiqueta), el);
-    if (pista) { const p = document.createElement("span"); p.className = "pista"; p.textContent = pista; l.append(p); }
+  const h = document.createElement("h3"); h.id = "ficha-mundo-h"; ligar(h, "textContent", "World settings", "Ajustes del mundo"); raiz.append(h);
+  const campo = <T extends HTMLElement>(etiqueta: () => string, el: T, pista: (() => string) | null = null): T => {
+    const l = document.createElement("label"), et = document.createTextNode(""); l.append(et, el);
+    alCambiarIdioma(() => { et.textContent = etiqueta(); });
+    if (pista) { const p = document.createElement("span"); p.className = "pista"; alCambiarIdioma(() => { p.textContent = pista(); }); l.append(p); }
     raiz.append(l); return el;
   };
-  const nombre = campo("Título", Object.assign(document.createElement("input"), { type: "text", maxLength: 60, id: "ficha-nombre" }));
-  const portada = campo("Imagen del mundo", Object.assign(document.createElement("input"), { type: "text", id: "ficha-portada", placeholder: "<sha256>.png" }), "Una imagen que ya está en este servidor; vacío = sin imagen.");
-  const avatar = campo("Avatar por defecto", document.createElement("select"), "Lo llevan todos los que entran después, hasta que cada uno elija el suyo.");
+  const nombre = campo(() => tx("Title", "Título"), Object.assign(document.createElement("input"), { type: "text", maxLength: 60, id: "ficha-nombre" }));
+  const portada = campo(() => tx("World picture", "Imagen del mundo"), Object.assign(document.createElement("input"), { type: "text", id: "ficha-portada", placeholder: "<sha256>.png" }), () => tx("A picture already on this server; empty = no picture.", "Una imagen que ya está en este servidor; vacío = sin imagen."));
+  const avatar = campo(() => tx("Default avatar", "Avatar por defecto"), document.createElement("select"), () => tx("Everyone who joins afterwards wears it, until each one picks their own.", "Lo llevan todos los que entran después, hasta que cada uno elija el suyo."));
   avatar.id = "ficha-avatar";
-  avatar.append(Object.assign(document.createElement("option"), { value: "", textContent: "El de la casa" }));
+  avatar.append(ligar(Object.assign(document.createElement("option"), { value: "" }), "textContent", "The house one", "El de la casa"));
   for (const a of o.avatares) avatar.append(Object.assign(document.createElement("option"), { value: a.id, textContent: a.nombre || a.id }));
-  const aforo = campo("Límite de personas", Object.assign(document.createElement("input"), { type: "number", min: "0", max: "1000", step: "1", id: "ficha-aforo" }), "");
+  const aforo = campo(() => tx("People limit", "Límite de personas"), Object.assign(document.createElement("input"), { type: "number", min: "0", max: "1000", step: "1", id: "ficha-aforo" }));
   const pistaAforo = aforo.parentElement!.querySelector(".pista") as HTMLElement | null ?? aforo.parentElement!.appendChild(Object.assign(document.createElement("span"), { className: "pista" }));
-  const guardar = Object.assign(document.createElement("button"), { type: "button", id: "ficha-guardar", textContent: "Guardar ajustes" });
+  const guardar = Object.assign(document.createElement("button"), { type: "button", id: "ficha-guardar" }); ligar(guardar, "textContent", "Save settings", "Guardar ajustes");
   const estado = Object.assign(document.createElement("p"), { className: "estado", id: "ficha-estado" }); estado.setAttribute("role", "status"); estado.setAttribute("aria-live", "polite");
   raiz.append(guardar, estado); o.padre.append(raiz);
   void o.imagenes;
@@ -62,7 +64,8 @@ export function montarFichaMundo(o: OpcionesFichaMundo): { raiz: HTMLElement; re
   const rellenar = (a: Ajustes) => {
     if (!editando) { nombre.value = a.nombre; portada.value = a.portada; avatar.value = a.avatar; aforo.value = String(a.aforo); }
     aforo.max = String(a.capacidad);
-    pistaAforo.textContent = `0 = sin límite propio (este motor admite ${a.capacidad}). Si ya hay más dentro, nadie sale: el siguiente en llegar encuentra la puerta cerrada.${a.guardado ? "" : " Este mundo no tiene carpeta donde guardar: el cambio dura hasta reiniciar."}`;
+    pistaAforo.textContent = tx(`0 = no limit of its own (this engine allows ${a.capacidad}). If more people are already inside, nobody is removed: the next one to arrive finds the door closed.${a.guardado ? "" : " This world has no folder to save in: the change lasts until a restart."}`,
+      `0 = sin límite propio (este motor admite ${a.capacidad}). Si ya hay más dentro, nadie sale: el siguiente en llegar encuentra la puerta cerrada.${a.guardado ? "" : " Este mundo no tiene carpeta donde guardar: el cambio dura hasta reiniciar."}`);
   };
   for (const el of [nombre, portada, avatar, aforo]) el.addEventListener("input", () => { editando = true; estado.textContent = ""; });
   const refrescar = () => { raiz.hidden = !(o.ajustes.estado.puede && o.ajustes.actual()); const a = o.ajustes.actual(); if (a) rellenar(a); };
@@ -70,14 +73,14 @@ export function montarFichaMundo(o: OpcionesFichaMundo): { raiz: HTMLElement; re
     const r = o.ajustes.guardar({ nombre: nombre.value.trim(), portada: portada.value.trim(), avatar: avatar.value, aforo: Math.max(0, Math.floor(Number(aforo.value) || 0)) });
     if (!r.ok) { estado.textContent = r.why; return; }
     const antes = o.ajustes.estado.cambios;
-    estado.textContent = "Guardando…";
+    estado.textContent = tx("Saving…", "Guardando…");
     const t = setInterval(() => {
       if (o.ajustes.estado.ultimoRechazo && o.ajustes.estado.cambios === antes) { estado.textContent = o.ajustes.estado.ultimoRechazo; o.ajustes.estado.ultimoRechazo = ""; clearInterval(t); }
-      else if (o.ajustes.estado.cambios > antes) { estado.textContent = "Guardado."; editando = false; refrescar(); clearInterval(t); }
+      else if (o.ajustes.estado.cambios > antes) { estado.textContent = tx("Saved.", "Guardado."); editando = false; refrescar(); clearInterval(t); }
     }, 150);
     setTimeout(() => clearInterval(t), 5000);
   });
-  o.ajustes.alCambiar(() => refrescar());
+  o.ajustes.alCambiar(() => refrescar()); alCambiarIdioma(() => { const a = o.ajustes.actual(); if (a) rellenar(a); });
   const t0 = setInterval(refrescar, 1000); // «puede» arrives as an event, not as state: re-read it while the page is open
   if (typeof t0 === "object" && "unref" in t0) (t0 as { unref(): void }).unref();
   return { raiz, refrescar };

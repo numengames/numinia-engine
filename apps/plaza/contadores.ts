@@ -7,6 +7,7 @@
 // the chat are.
 import type { Contador } from "../../features/contadores/client.ts";
 import { formato } from "../../features/contadores/client.ts";
+import { tx, ligar } from "../../packages/feature/src/idioma.ts";
 
 type Contadores = {
   lista(): Contador[];
@@ -24,7 +25,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLEl
 export function montarContadores(o: { contadores: Contadores; yo: () => { x: number; z: number } | null }): { visibles(): Contador[] } {
   const { contadores, yo } = o;
   const panel = el("section", { id: "contadores-panel" });
-  panel.setAttribute("aria-label", "Contadores del mundo");
+  ligar(panel, "aria-label", "World counters", "Contadores del mundo");
   panel.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
   panel.hidden = true;
   document.body.appendChild(panel);
@@ -45,7 +46,7 @@ export function montarContadores(o: { contadores: Contadores; yo: () => { x: num
         valor.setAttribute("aria-live", "off"); // once a second: never read tick by tick (the milestones are announced)
         const estado = el("span", { className: "estado" });
         const botones = el("div", { className: "botones", role: "group" });
-        botones.setAttribute("aria-label", `${c.nombre}: órdenes`);
+        botones.setAttribute("aria-label", tx(`${c.nombre}: commands`, `${c.nombre}: órdenes`));
         const raiz = el("div", { className: "contador", role: "group" }, el("p", { className: "nombre", textContent: c.nombre }), valor, estado, botones);
         raiz.setAttribute("aria-label", c.nombre);
         valor.id = `contador-valor-${c.id}`;
@@ -55,13 +56,13 @@ export function montarContadores(o: { contadores: Contadores; yo: () => { x: num
       f.valor.value = texto; f.valor.textContent = texto;
       f.valor.setAttribute("aria-label", `${c.nombre}: ${texto}`);
       f.raiz.dataset.tipo = c.tipo; f.raiz.classList.toggle("marcha", c.marcha);
-      f.estado.textContent = c.tipo === "contador" ? (c.tope ? `tope ${c.tope}` : "") : c.marcha ? "en marcha" : "parado";
+      f.estado.textContent = c.tipo === "contador" ? (c.tope ? tx(`cap ${c.tope}`, `tope ${c.tope}`) : "") : c.marcha ? tx("running", "en marcha") : tx("stopped", "parado");
       const cerca = alAlcance(c), firma = `${cerca}|${c.marcha}|${c.tipo}`;
       if (firma !== f.firma) {
         f.firma = firma;
         if (!cerca) f.botones.replaceChildren();
-        else if (c.tipo === "contador") f.botones.replaceChildren(boton("+1", `${c.nombre}: sumar uno`, () => contadores.suma(c.id, 1)), boton("−1", `${c.nombre}: restar uno`, () => contadores.suma(c.id, -1)), boton("Reiniciar", `${c.nombre}: reiniciar`, () => contadores.reinicia(c.id)));
-        else f.botones.replaceChildren(c.marcha ? boton("Parar", `${c.nombre}: parar`, () => contadores.para(c.id)) : boton("Arrancar", `${c.nombre}: arrancar`, () => contadores.arranca(c.id)), boton("Reiniciar", `${c.nombre}: reiniciar`, () => contadores.reinicia(c.id)));
+        else if (c.tipo === "contador") f.botones.replaceChildren(boton("+1", tx(`${c.nombre}: add one`, `${c.nombre}: sumar uno`), () => contadores.suma(c.id, 1)), boton("−1", tx(`${c.nombre}: subtract one`, `${c.nombre}: restar uno`), () => contadores.suma(c.id, -1)), boton(tx("Reset", "Reiniciar"), tx(`${c.nombre}: reset`, `${c.nombre}: reiniciar`), () => contadores.reinicia(c.id)));
+        else f.botones.replaceChildren(c.marcha ? boton(tx("Stop", "Parar"), tx(`${c.nombre}: stop`, `${c.nombre}: parar`), () => contadores.para(c.id)) : boton(tx("Start", "Arrancar"), tx(`${c.nombre}: start`, `${c.nombre}: arrancar`), () => contadores.arranca(c.id)), boton(tx("Reset", "Reiniciar"), tx(`${c.nombre}: reset`, `${c.nombre}: reiniciar`), () => contadores.reinicia(c.id)));
       }
     }
   };

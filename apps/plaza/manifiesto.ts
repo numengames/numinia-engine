@@ -38,7 +38,7 @@ export type CachesLike = { open(n: string): Promise<CacheLike> };
 
 export class HashFalso extends Error {
   readonly ruta: string; readonly esperado: string; readonly obtenido: string;
-  constructor(ruta: string, esperado: string, obtenido: string) { super(`${ruta}: el sha256 no coincide con el del manifiesto (${obtenido.slice(0, 12)}… en vez de ${esperado.slice(0, 12)}…)`); this.ruta = ruta; this.esperado = esperado; this.obtenido = obtenido; }
+  constructor(ruta: string, esperado: string, obtenido: string) { super(`${ruta}: el sha256 no coincide con el del manifiesto (${obtenido.slice(0, 12)}… en vez de ${esperado.slice(0, 12)}…)`); this.ruta = ruta; this.esperado = esperado; this.obtenido = obtenido; } // i18n-ok: developer error, never shown in the UI
 }
 
 export type Estadisticas = { desdeCache: number; descargados: number; bytesDescargados: number; bytesDeCache: number; rechazados: number };

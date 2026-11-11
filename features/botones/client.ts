@@ -3,6 +3,7 @@
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg, PlacedObject } from "../../packages/feature/src/index.ts";
 import { botones as decl } from "./feature.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 /** The house block (features/objetos/biblioteca.json «bloque», CC0). */
 const MODELO = "32fce59977a24c3c15eb40084c700c1537e59853747f92ce1d01c6fd65958588";
@@ -10,7 +11,7 @@ const MODELO = "32fce59977a24c3c15eb40084c700c1537e59853747f92ce1d01c6fd65958588
 export const LADO_M = 0.3, ALTURA_M = 1.0, PULSADO_M = -0.06;
 export type Boton = { id: string; nombre: string; x: number; y: number; z: number; radio: number; pulsado: boolean; pulsaciones: number; puerta: string };
 type Res = { ok: true } | { ok: false; why: string };
-const SIN: Res = { ok: false, why: "la función botones no está en este servidor" };
+const SIN: Res = { ok: false, get why() { return tx("the buttons function is not on this server", "la función botones no está en este servidor"); } }; // a getter: read in the language of that moment
 
 /** The button's cap: a small block at hand height, sunk a little while lit. Pure. */
 export const tapa = (v: Pick<Boton, "x" | "y" | "z" | "pulsado">): PlacedObject =>

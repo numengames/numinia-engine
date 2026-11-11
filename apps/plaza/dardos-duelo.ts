@@ -11,6 +11,7 @@ import { letreroDe } from "../../packages/render/src/dardos-duelo-plaza.ts";
 import { estadoEntrada } from "./dardos-unirse.ts"; // R4: is the board free to sit at
 
 type Res = { ok: true } | { ok: false; why: string };
+import { tx } from "../../packages/feature/src/idioma.ts";
 type SitioV = { id: string; nombre?: string; ocupado?: boolean; duelo?: boolean; remoto?: boolean; rondas?: number; espera?: boolean; jugadores?: number; equipos?: number };
 /** The part of the controller (features/dardos/client.ts) this glue uses. */
 export type Ctl = {
@@ -32,7 +33,8 @@ export function elegirSitioAR(sitios: SitioV[], preferido?: string | null): Siti
 export function lineaDuelo(d: DueloV | null, rondas: number): string {
   const p = panelDe(d, rondas);
   if (p.fase === "nada") return "";
-  const marc = p.filas.map((f) => `${f.nombre}${f.yo ? " (tú)" : ""} ${f.puntos}`).join(" – ");
+  const yoTxt = tx(" (you)", " (tú)");
+  const marc = p.filas.map((f) => `${f.nombre}${f.yo ? yoTxt : ""} ${f.puntos}`).join(" – ");
   return [p.fase === "espera" ? "" : marc, p.ronda, p.pie].filter(Boolean).join(" · ");
 }
 
@@ -93,7 +95,7 @@ export function montarDuelo(o: { dardos: Ctl; plaza?: Partial<PlazaDianas>; enti
           duelo: () => dardos.duelo(), yo: o.entity, activo: () => activo, rondas: () => rondas,
           salir: () => { dardos.salir(); activo = false; },
           boton: (que) => { if (que === "unirse") { entrar(); return; } const r = que === "cambiar" ? dardos.cambiar?.() : dardos.empezar?.(); if (r && !r.ok) o.avisar(r.why); },
-          unirse: () => { if (hayPartida()) return null; const s = elegirSitioAR(dardos.sitios(), elegido); return s && estadoEntrada({ ...s, ocupado: !!s.ocupado }).libre ? s.nombre || "la diana" : null; },
+          unirse: () => { if (hayPartida()) return null; const s = elegirSitioAR(dardos.sitios(), elegido); return s && estadoEntrada({ ...s, ocupado: !!s.ocupado }).libre ? s.nombre || tx("the target", "la diana") : null; },
         })),
       };
     },

@@ -15,7 +15,7 @@ export const GROSORES_M = [0.005, 0.015, 0.04] as const;
 
 export type Punta = { x: number; y: number; z: number; presion?: number };
 export type Opciones = { color: number; grosor: number };
-export type Resultado = "primero" | "añadido" | "igual" | "lleno";
+export type Resultado = "primero" | "añadido" | "igual" | "lleno"; // i18n-ok: result keys, never shown
 export type Hecho = { fichero: string; bytes: number; centro: { x: number; y: number; z: number }; puntos: number };
 
 const mm = (v: number): number => Math.round(v * 1000) / 1000;
@@ -56,7 +56,7 @@ export function crearPincel(opciones: Opciones) {
       ultimo = cur;
       if (!guardar) return "igual";
       pts.push({ ...cur, p });
-      return pts.length >= TRAZO.puntosMax ? "lleno" : "añadido";
+      return pts.length >= TRAZO.puntosMax ? "lleno" : "añadido"; // i18n-ok: result key, never shown
     },
     /** Close the stroke at the tip's last place (so the line ends where the hand let go) and write the file, or null when it is too short to be a line. */
     terminar(): Hecho | null {

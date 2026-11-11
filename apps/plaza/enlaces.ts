@@ -4,6 +4,7 @@
 // and then opens it in a new tab (window.open, never this one: a world must not navigate itself away). Building mode,
 // dragging the camera or a long press (orbit) never trigger it — interactuar.ts already filters those out; `pinchar`
 // only runs on a true click release. Mirrors huecos.ts (U12): same shape, a different page module, no shared file.
+import { tx } from "../../packages/feature/src/idioma.ts";
 type Objeto = { id: string; enlace?: unknown };
 export type OpcionesEnlaces = {
   constructor: { objeto(id: string): Objeto | null };
@@ -32,7 +33,7 @@ export function enlaceAbrible(url: string): boolean {
   } catch { return false; }
 }
 /** What the confirm says: the whole address, and where it goes (the host), so nobody leaves the world by accident. */
-export const preguntaEnlace = (url: string): string => `¿Abrir en una pestaña nueva?\n${url}`;
+export const preguntaEnlace = (url: string): string => tx("Open in a new tab?", "¿Abrir en una pestaña nueva?") + "\n" + url;
 
 export function montarEnlaces(o: OpcionesEnlaces) {
   const confirmar = o.confirmar ?? ((t: string) => confirm(t));

@@ -20,6 +20,8 @@ import type { ClientPart } from "../packages/feature/src/index.ts";
 import { crearObjetos } from "../features/objetos/server.ts";
 import { crearCliente } from "../features/objetos/client.ts";
 import { nombreDeFichero } from "../apps/plaza/soltar.ts";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // these checks assert the Spanish text; English is covered in test/idioma-simposio-b.test.ts
 
 const SECRETO = "una-clave-de-prueba-larga";
 const BILLETE = emitir(signer(SECRETO), "abcdefgh2345", today());

@@ -4,6 +4,7 @@
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg } from "../../packages/feature/src/index.ts";
 import { ancestros as decl, AVISO, LEMA, LEYES, NUESTRAS } from "./feature.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 export { AVISO, LEMA, LEYES, NUESTRAS };
 export type Holograma = { id: string; nombre: string; x: number; y: number; z: number; rumbo: number; radio: number; encendido: boolean };
@@ -11,7 +12,7 @@ export type Muro = { id: string; x0: number; y0: number; z0: number; x1: number;
 export type Dicho = { quien: number; pnj: string; ley: number; texto: string; regla: string; nuestra: string; mia: boolean; cuando: number };
 export type Que = "cosas" | "dice" | "despierta" | "aviso";
 type Res = { ok: true } | { ok: false; why: string };
-const SIN: Res = { ok: false, why: "la función ancestros no está en este servidor" };
+const SIN: Res = { ok: false, get why() { return tx("the ancestors feature is not on this server", "la función ancestros no está en este servidor"); } };
 const ahora = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
 export function crearCliente() {

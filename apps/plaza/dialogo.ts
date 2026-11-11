@@ -5,7 +5,8 @@
 import { teclas } from "./teclas.ts";
 import { escribiendo, construyendo } from "./interactuar.ts";
 import { perfil } from "./perfil-aparato.ts";
-import { conGlifo, esMovil } from "../../packages/client/src/movil.ts"; // U24: a phone names no key: «Despedirse», answers without a digit
+import { conGlifo, esMovil } from "../../packages/client/src/movil.ts";
+import { tx, alCambiarIdioma } from "../../packages/feature/src/idioma.ts"; // U24: a phone names no key: «Despedirse», answers without a digit
 
 type Res = { ok: true } | { ok: false; why: string };
 type Dialogo = { pnj: string; nombre: string; oficio?: string; texto: string; opciones: string[] };
@@ -16,7 +17,7 @@ export function montarDialogo(c: Ctl, caja: HTMLElement, view: Vista): void {
   const nombre = document.createElement("h2"), texto = document.createElement("p"), opciones = document.createElement("div");
   const estado = document.createElement("p"), adios = document.createElement("button");
   nombre.id = "dialogo-nombre"; texto.className = "texto"; opciones.className = "opciones"; estado.className = "estado";
-  adios.type = "button"; adios.className = "adios"; adios.textContent = esMovil(perfil().clase) ? "Despedirse" : conGlifo(perfil().clase, "cerrar", "Adiós");
+  adios.type = "button"; adios.className = "adios"; alCambiarIdioma(() => { adios.textContent = esMovil(perfil().clase) ? tx("Say goodbye", "Despedirse") : conGlifo(perfil().clase, "cerrar", tx("Goodbye", "Adiós")); });
   caja.setAttribute("role", "dialog"); caja.setAttribute("aria-labelledby", "dialogo-nombre");
   caja.append(nombre, texto, opciones, estado, adios);
   caja.addEventListener("pointerdown", (ev) => ev.stopPropagation()); // a tap here is not a joystick touch

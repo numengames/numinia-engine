@@ -77,7 +77,7 @@ test("pace: near 1/s burst 3 and the server drops the rest; the page says «wait
   assert.equal(dropped, 7);
   const r = [...Array(5)].map((_, i) => B.chat.decir(`b${i}`));                       // through the page helper
   assert.deepEqual(r.map((x) => x.ok), [true, true, true, false, false]);
-  assert.match((r[3] as { why: string }).why, /deprisa/);
+  assert.match((r[3] as { why: string }).why, /too fast/);
   W.pump(TICK_HZ);                                                                    // a second later: one more
   assert.equal(B.chat.decir("otra").ok, true);
   assert.deepEqual(RITMO_CERCA, { perSecond: 1, burst: 3 });
@@ -89,7 +89,7 @@ test("length: over 200 bytes never leaves the page, and the wire cannot carry mo
   W.pump(); W.place(A.s.entity, 0, 0); W.place(B.s.entity, 5, 0);
   const r = A.chat.decir("x".repeat(300));
   assert.equal(r.ok, false);
-  assert.match((r as { why: string }).why, /300 de 200 bytes/);
+  assert.match((r as { why: string }).why, /300 of 200 bytes/);
   assert.equal(A.s.features.send("chat", "decir", { texto: "x".repeat(300) }).ok, false, "the plug refuses it too");
   // a forged message that claims a longer text: the server reads its own 200-byte schema, so at most 200 arrive
   const idx = A.s.features.catalog!.features.find((f) => f.id === "chat")!.intents.find((i) => i.name === "decir")!.index;

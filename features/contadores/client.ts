@@ -2,6 +2,7 @@
 // inside their zone) and asks for orders; never counts on its own. The 3D sign (`donde` cartel or ambos) is the
 // cheapest text the page already has: the sprite label over a thing (`api.view.tag`, a canvas redrawn only when its
 // text changes — once a second while running, never while stopped). The HTML panel lives in apps/plaza/contadores.ts.
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg } from "../../packages/feature/src/index.ts";
 import { contadores as decl, formato } from "./feature.ts";
@@ -11,7 +12,7 @@ export { formato };
 export type Contador = { id: string; nombre: string; tipo: Tipo; x: number; y: number; z: number; radio: number; valor: number; inicio: number; tope: number; marcha: boolean; donde: Donde; evento: string; manda: Manda; equipo: string };
 export type Que = "lista" | "llegada" | "hito" | "aviso";
 type Res = { ok: true } | { ok: false; why: string };
-const SIN: Res = { ok: false, why: "la función contadores no está en este servidor" };
+const sin = (): Res => ({ ok: false, why: tx("the counters feature is not on this server", "la función contadores no está en este servidor") });
 /** Height of the sign over the counter's ground point (m): readable over heads. */
 export const CARTEL_ALTO_M = 2.4;
 
@@ -28,10 +29,10 @@ export function crearCliente() {
     uno: (id: string): Contador | null => { const m = A?.state.get(id); return m ? leer(id, m) : null; },
     aviso: (): string => aviso,
     llegada: () => ultimaLlegada,
-    arranca: (id: string, equipo?: string): Res => (A ? A.send("arranca", equipo === undefined ? { id } : { id, equipo }) : SIN),
-    para: (id: string, equipo?: string): Res => (A ? A.send("para", equipo === undefined ? { id } : { id, equipo }) : SIN),
-    suma: (id: string, cuanto = 1, equipo?: string): Res => (A ? A.send("suma", equipo === undefined ? { id, cuanto } : { id, cuanto, equipo }) : SIN),
-    reinicia: (id: string, equipo?: string): Res => (A ? A.send("reinicia", equipo === undefined ? { id } : { id, equipo }) : SIN),
+    arranca: (id: string, equipo?: string): Res => (A ? A.send("arranca", equipo === undefined ? { id } : { id, equipo }) : sin()),
+    para: (id: string, equipo?: string): Res => (A ? A.send("para", equipo === undefined ? { id } : { id, equipo }) : sin()),
+    suma: (id: string, cuanto = 1, equipo?: string): Res => (A ? A.send("suma", equipo === undefined ? { id, cuanto } : { id, cuanto, equipo }) : sin()),
+    reinicia: (id: string, equipo?: string): Res => (A ? A.send("reinicia", equipo === undefined ? { id } : { id, equipo }) : sin()),
     alCambiar: (fn: (que: Que) => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
 

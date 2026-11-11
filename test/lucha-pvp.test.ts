@@ -264,7 +264,7 @@ test("pvp feedback: the Estado shows over the person struck (icon + word) for wh
   assert.ok(a.seen.includes(`label ${b.s.entity} ${ROTULO.aletargado}`));
   W.pump(INCAPACITADO_S * HZ + 4);
   assert.equal(a.l.estadoDe(b.s.entity), "ninguno");
-  assert.ok(a.seen.includes(`label ${b.s.entity} Reaparece`));
+  assert.ok(a.seen.includes(`label ${b.s.entity} Respawns`));
   assert.ok(ROTULO.ninguno === "" && ESTADO_MS > REAPARECE_MS);
 });
 

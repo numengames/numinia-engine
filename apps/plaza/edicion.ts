@@ -7,6 +7,7 @@ import { leerDisposicion, marcosMovibles, ajustarPaso, acotar, cssDisposicion, d
 import type { Disposicion } from "../../packages/client/src/disposicion.ts";
 import { ANCHO_MIN_MARCOS } from "../../packages/client/src/densidad.ts";
 import { icono } from "./iconos.ts";
+import { tx, ligar } from "../../packages/feature/src/idioma.ts";
 
 const CLAVE = "numinia.ui.disposicion";
 const MARCOS = marcosMovibles(MARCOS_PLAZA);
@@ -30,7 +31,7 @@ export function montarEdicion() {
   const rect = (id: string) => elDe(id)?.getBoundingClientRect() ?? null;
 
   let abierto = false, elegido: string | null = null;
-  const panel = document.createElement("section"); panel.id = "editar-ui"; panel.hidden = true; panel.setAttribute("aria-label", "Editar interfaz");
+  const panel = document.createElement("section"); panel.id = "editar-ui"; panel.hidden = true; ligar(panel, "aria-label", "Edit interface", "Editar interfaz");
   const etiquetas = document.createElement("div"); etiquetas.id = "editar-etiquetas"; etiquetas.setAttribute("aria-hidden", "true"); etiquetas.hidden = true;
   document.body.append(etiquetas, panel);
 
@@ -44,9 +45,9 @@ export function montarEdicion() {
   }
   function pintaPanel(): void {
     panel.replaceChildren();
-    const cab = document.createElement("header"); cab.innerHTML = `${icono("gear", 18)}<h2>Editar interfaz</h2>`; // constants only
+    const cab = document.createElement("header"); cab.innerHTML = `${icono("gear", 18)}<h2>${tx("Edit interface", "Editar interfaz")}</h2>`; // constants only
     const ayuda = document.createElement("p"); ayuda.className = "nota";
-    ayuda.textContent = "Arrastra un marco para moverlo. Con uno elegido, las flechas lo mueven (Mayús: más). Esc termina.";
+    ayuda.textContent = tx("Drag a frame to move it. With one selected, the arrow keys move it (Shift: more). Esc finishes.", "Arrastra un marco para moverlo. Con uno elegido, las flechas lo mueven (Mayús: más). Esc termina.");
     const ul = document.createElement("ul");
     for (const m of MARCOS) {
       const li = document.createElement("li"), id = `ed-${m.id}`;
@@ -56,9 +57,9 @@ export function montarEdicion() {
       li.append(c, l); ul.appendChild(li);
     }
     const pie = document.createElement("div"); pie.className = "pie";
-    const rest = document.createElement("button"); rest.type = "button"; rest.id = "editar-restablecer"; rest.textContent = "Restablecer";
+    const rest = document.createElement("button"); rest.type = "button"; rest.id = "editar-restablecer"; rest.textContent = tx("Reset", "Restablecer");
     rest.addEventListener("click", () => { d = { mov: {}, oculto: [] }; guardar(); aplicar(); pintaPanel(); requestAnimationFrame(pintaEtiquetas); });
-    const hecho = document.createElement("button"); hecho.type = "button"; hecho.id = "editar-hecho"; hecho.className = "primario"; hecho.textContent = "Hecho";
+    const hecho = document.createElement("button"); hecho.type = "button"; hecho.id = "editar-hecho"; hecho.className = "primario"; hecho.textContent = tx("Done", "Hecho");
     hecho.addEventListener("click", () => api.cerrar());
     pie.append(rest, hecho);
     panel.append(cab, ayuda, ul, pie);

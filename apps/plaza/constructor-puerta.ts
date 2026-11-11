@@ -9,6 +9,7 @@ import type { Cajon } from "./cajones.ts";
 import { crearPuerta } from "./puerta.ts";
 import { escribiendo } from "./escribiendo.ts";
 import { teclas } from "./teclas.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 type Args = Parameters<typeof import("./constructor.ts").montarConstructor>;
@@ -44,7 +45,7 @@ export function montarConstructorPuerta(c: Args[0], view: Args[1], boton: HTMLBu
     alIr: (donde) => puerta.real()?.alIr(donde) ?? false, // the builder cannot be open before it exists: nothing to select
     puedeEditar,
     editar: (id) => { const r = puerta.real(); if (r) return r.editar(id); if (!puedeEditar(id)) return false; puerta.despues((u) => { u.editar(id); }); void puerta.cargarYa().catch(() => {}); return true; },
-    irAObjeto: (id): Res => { const r = puerta.real(); if (r) return r.irAObjeto(id); if (!c.estado.puede) return { ok: false, why: "no tienes permiso para construir aquí" }; puerta.despues((u) => { u.irAObjeto(id); }); void puerta.cargarYa().catch(() => {}); return { ok: true }; },
+    irAObjeto: (id): Res => { const r = puerta.real(); if (r) return r.irAObjeto(id); if (!c.estado.puede) return { ok: false, why: tx("you do not have permission to build here", "no tienes permiso para construir aquí") }; puerta.despues((u) => { u.irAObjeto(id); }); void puerta.cargarYa().catch(() => {}); return { ok: true }; },
     cajon: (id) => cuerpos[id], ranuraFicha: ranura,
     abrirCajon: (id) => { const r = puerta.real(); if (r) r.abrirCajon(id); else if (id) { puerta.despues((u) => u.abrirCajon(id)); void puerta.cargarYa().catch(() => {}); } },
     cajonAbierto: () => puerta.real()?.cajonAbierto() ?? "",

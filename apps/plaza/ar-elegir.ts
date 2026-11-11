@@ -8,6 +8,7 @@
 //   · The miniature button runs the page's own AR entry (`alMiniatura`) in its click, as ever. Choosing it, or closing the chooser, closes the link.
 //   · Leaving AR (any way: the button, the headset's menu, the time limit) closes the link; losing the connection while in AR leaves AR.
 import { vistaElegir, nombreDelEnlace, TITULO_ELEGIR, ROTULO_MESA, AYUDA_MESA, ROTULO_REINTENTAR, ROTULO_CANCELAR } from "./ar-elegir-logica.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 import type { EnlaceDardosPagina } from "./dardos-enlace.ts";
 import type { montarCondiciones } from "./condiciones.ts";
 import type { EnlaceDardos } from "../../features/dardos/enlace.ts";
@@ -126,7 +127,7 @@ export function crearElegirAR(o: OpcionesElegirAR) {
   async function abrir(): Promise<void> {
     if (raiz) return;
     const v = o.enlace.vigente(); ajuste = v.enlace;
-    if (!ajuste) { o.decir("Pulsa otra vez para entrar en AR."); return; } // the link went away while this loaded: the next press is the plain button
+    if (!ajuste) { o.decir(tx("Press again to enter AR.", "Pulsa otra vez para entrar en AR.")); return; } // the link went away while this loaded: the next press is the plain button
     aceptadas = false; falloAR = ""; ultimoAnuncio = "";
     montar(); pintar(); bDardos.focus({ preventScroll: true });
     const mio = raiz;
@@ -156,7 +157,7 @@ export function crearElegirAR(o: OpcionesElegirAR) {
     if (r.ok) { cerrarPanel(false); vigilar(e); return; }
     // AR did not start. If the link itself is fine it was the session (permission, device); otherwise the link says why
     const estado = e.estado();
-    falloAR = estado === "listo" || estado === "jugando" ? (r.why === "No se pudo abrir la sesión de AR." ? o.falloAR() : r.why) : "";
+    falloAR = estado === "listo" || estado === "jugando" ? (r.why === tx("Could not open the AR session.", "No se pudo abrir la sesión de AR.") ? o.falloAR() : r.why) : "";
     if (falloAR) o.informarFallo?.(r.why);
     pintar();
     bDardos.focus({ preventScroll: true });
@@ -227,7 +228,7 @@ export function crearElegirAR(o: OpcionesElegirAR) {
       const st = e.estado();
       if (st === "jugando" || st === "conectando") return;
       quitar();
-      if ((st === "error" || st === "cerrado") && o.view.ar.jugando) { void o.view.ar.exit(); o.decir(`Se ha perdido la conexión con ${nombre.corto}: sales de AR.`); }
+      if ((st === "error" || st === "cerrado") && o.view.ar.jugando) { void o.view.ar.exit(); o.decir(tx(`The connection to ${nombre.corto} was lost: you leave AR.`, `Se ha perdido la conexión con ${nombre.corto}: sales de AR.`)); }
       void e.cerrar(); // leaving AR (the session ended, the wall's game ended) = nothing of the link stays open
     });
   }

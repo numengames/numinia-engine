@@ -3,6 +3,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ponerPortada } from "../apps/plaza/foto-portada.ts";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // these checks assert the Spanish text; English is covered in test/idioma-simposio-b.test.ts
 
 type Aj = Parameters<typeof ponerPortada>[0];
 const ajustes = (o: { actual?: object | null; rechazo?: string; guardado?: { ok: boolean; why?: string } } = {}): Aj & { visto: object[] } => {

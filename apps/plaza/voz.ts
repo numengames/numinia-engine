@@ -10,6 +10,7 @@ import { VOZ_OPUS, VOZ_MULAW, aMulaw, deMulaw } from "../../packages/net/src/ind
 import { decaerBoca } from "../../packages/render/src/avatares-politica.ts";
 import { audio } from "../../packages/render/src/audio/nucleo.ts"; // S1: the engine's one audio graph and its buses
 import { icono } from "./iconos.ts";
+import { tx, ligar, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
 
 type Sesion = {
   entity: number;
@@ -55,16 +56,17 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const boton = document.createElement("button");
   boton.type = "button"; boton.id = "microfono"; boton.className = "solo-icono"; boton.setAttribute("aria-pressed", "false");
-  boton.title = "Microphone: what you say is heard by people within 30 m. It is not recorded.";
+  ligar(boton, "title", "Microphone: what you say is heard by people within 30 m. It is not recorded.", "Micrófono: lo que dices lo oye la gente a menos de 30 m. No se graba.");
   const texto = document.createElement("span");
   const nivel = document.createElement("span"); nivel.className = "nivel"; nivel.setAttribute("aria-hidden", "true");
   boton.append(texto, nivel);
   // keymap v1 (privacy): while the microphone is open a red icon and these words stay fixed on screen, whatever panel is open
   const aviso = document.createElement("div"); aviso.id = "microfono-aviso"; aviso.setAttribute("role", "status"); aviso.hidden = true;
   const punto = document.createElement("span"); punto.className = "punto"; punto.setAttribute("aria-hidden", "true");
-  const letrero = document.createElement("span"); letrero.textContent = "Your microphone is on";
+  const letrero = document.createElement("span"); ligar(letrero, "textContent", "Your microphone is on", "Tu micrófono está encendido");
   aviso.append(punto, letrero); document.body.appendChild(aviso);
   teclas.alCambiar(() => pintar());
+  queueMicrotask(() => alCambiarIdioma(() => pintar())); // the label is built here: it follows the language
   document.body.appendChild(boton);
   boton.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
   const estado = { encendido: false, codec: 0, enviadas: 0, recibidas: 0, sinOpus: false, error: "" };
@@ -126,13 +128,13 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
     oidaHasta = performance.now() + OIDA_MS; nucleo.despertar("voz-oida", true);
     const v = vozDe(m.entidad, m.escenario), ahora = performance.now();
     if (!v) return;
-    if (ahora - v.marca > 700) { v.marca = ahora; o.view.label(m.entidad, m.escenario ? "habla en el escenario" : "habla", 800); }
+    if (ahora - v.marca > 700) { v.marca = ahora; o.view.label(m.entidad, m.escenario ? tx("speaking on stage", "habla en el escenario") : tx("speaking", "habla"), 800); }
     if (m.codec === VOZ_MULAW) {
       const pcm = new Float32Array(m.trama.length);
       for (let i = 0; i < pcm.length; i++) pcm[i] = deMulaw(m.trama[i]) / 32768;
       reproducir(v, pcm, MULAW_HZ);
     } else if (m.codec === VOZ_OPUS) {
-      if (!v.dec || v.dec.state !== "configured") { if (!estado.sinOpus) { estado.sinOpus = true; o.decir("Alguien habla cerca, pero este navegador no puede oír su voz (le falta Opus)."); } return; }
+      if (!v.dec || v.dec.state !== "configured") { if (!estado.sinOpus) { estado.sinOpus = true; o.decir(tx("Someone is speaking nearby, but this browser cannot play their voice (it lacks Opus).", "Alguien habla cerca, pero este navegador no puede oír su voz (le falta Opus).")); } return; }
       v.dec.decode(new EncodedAudioChunk({ type: "key", timestamp: (v.ts += TRAMA_MS * 1000), data: m.trama }));
     }
   };
@@ -171,17 +173,17 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
     nucleo.despertar("microfono", estado.encendido); // v10: leaving the headset must not put the audio graph (and so the mic capture) to sleep
     boton.setAttribute("aria-pressed", String(estado.encendido));
     const k = teclas.etiqueta("microfono"), mant = String(o.ajuste?.("controles.microfonoModo") ?? "mantener") !== "alternar";
-    const t = estado.encendido ? `Your microphone is on: people within 30 m hear you (${mant ? `release ${k}` : `${k}`} to turn it off)` : `Microphone off (${mant ? `hold ${k} to talk` : `${k} to open`})`;
+    const t = estado.encendido ? tx(`Your microphone is on: people within 30 m hear you (${mant ? `release ${k}` : `${k}`} to turn it off)`, `Tu micrófono está encendido: te oye la gente a menos de 30 m (${mant ? `suelta ${k}` : `${k}`} para apagarlo)`) : tx(`Microphone off (${mant ? `hold ${k} to talk` : `${k} to open`})`, `Micrófono apagado (${mant ? `mantén ${k} para hablar` : `${k} para abrirlo`})`);
     aviso.hidden = !estado.encendido;
     texto.innerHTML = `${icono(estado.encendido ? "microphone" : "microphone-slash")}<span class="solo-lector">${t}</span>`; boton.title = t;
   };
   async function encender(): Promise<void> {
-    if (!navigator.mediaDevices?.getUserMedia) { o.decir("Este navegador no da el micrófono aquí (hace falta https)."); return; }
+    if (!navigator.mediaDevices?.getUserMedia) { o.decir(tx("This browser does not give the microphone here (https is needed).", "Este navegador no da el micrófono aquí (hace falta https).")); return; }
     try {
       flujo = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
-    } catch (e) { estado.error = String((e as Error)?.name ?? e); o.decir(estado.error === "NotAllowedError" ? "Sin permiso para el micrófono: dalo en el candado de la barra de direcciones." : `No se pudo abrir el micrófono (${estado.error}).`); return; }
+    } catch (e) { estado.error = String((e as Error)?.name ?? e); o.decir(estado.error === "NotAllowedError" ? tx("No microphone permission: allow it with the padlock in the address bar.", "Sin permiso para el micrófono: dalo en el candado de la barra de direcciones.") : tx(`Could not open the microphone (${estado.error}).`, `No se pudo abrir el micrófono (${estado.error}).`)); return; }
     const c = contexto();
-    if (!c) { o.decir("Este navegador no da audio aquí: no se puede abrir el micrófono."); return; }
+    if (!c) { o.decir(tx("This browser gives no audio here: the microphone cannot be opened.", "Este navegador no da audio aquí: no se puede abrir el micrófono.")); return; }
     await c.resume();
     const hz = c.sampleRate, porTrama = Math.round((hz * TRAMA_MS) / 1000);
     // Opus where the browser can encode it at this rate; µ-law otherwise
@@ -217,14 +219,14 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
       }
     };
     estado.encendido = true; pintar();
-    o.decir(`Micrófono encendido: te oye la gente a menos de ${LEJOS_M} m.`);
+    o.decir(tx(`Microphone on: people within ${LEJOS_M} m can hear you.`, `Micrófono encendido: te oye la gente a menos de ${LEJOS_M} m.`));
   }
   function apagar(): void {
     nodo?.disconnect(); fuente?.disconnect(); for (const t of flujo?.getTracks() ?? []) t.stop();
     try { enc?.close(); } catch { /* already closed */ }
     nodo = null; fuente = null; flujo = null; enc = null; acumulado = new Float32Array(0);
     estado.encendido = false; nivel.style.width = "0"; pintar();
-    o.decir("Micrófono apagado.");
+    o.decir(tx("Microphone off.", "Micrófono apagado."));
   }
   const entraVR = { antes: false, pendiente: false, enCurso: false };
   const alternar = () => { entraVR.pendiente = false; if (estado.encendido) apagar(); else void encender(); }; // a press of yours settles it: nothing opens by itself afterwards

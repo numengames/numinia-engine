@@ -6,7 +6,7 @@ import type { Ajustes, Grupo, Valor, Vista } from "../../packages/client/src/aju
 import type { ClientSession } from "../../packages/client/src/index.ts";
 import type { createView } from "../../packages/render/src/index.ts";
 import { icono } from "./iconos.ts";
-import { t } from "../../packages/client/src/idioma.ts";
+import { tx, ligar, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
 import { filasAparato, filasIdentidad, infoDom } from "./info-aparato.ts";
 import { escribiendo } from "./escribiendo.ts";
 import { teclas } from "./teclas.ts";
@@ -23,10 +23,10 @@ const escribeTexto = (t: EventTarget | null): boolean => {
   return el.tagName === "INPUT" && !["checkbox", "radio", "range", "button", "submit", "reset", "color"].includes((el as HTMLInputElement).type);
 };
 
-const TECLAS: Record<string, string> = { Escape: "Escape", Space: "Espacio", Enter: "Intro", Tab: "Tabulador", Delete: "Supr", Backspace: "Retroceso", ShiftLeft: "Mayús", ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→" };
-const nombreTecla = (code: string): string => TECLAS[code] ?? code.replace(/^Key/, "").replace(/^Digit/, "").replace(/^Numpad/, "Teclado numérico ");
+const TECLAS = (): Record<string, string> => ({ Escape: "Escape", Space: tx("Space", "Espacio"), Enter: tx("Enter", "Intro"), Tab: tx("Tab", "Tabulador"), Delete: tx("Delete", "Supr"), Backspace: tx("Backspace", "Retroceso"), ShiftLeft: tx("Shift", "Mayús"), ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→" });
+const nombreTecla = (code: string): string => TECLAS()[code] ?? code.replace(/^Key/, "").replace(/^Digit/, "").replace(/^Numpad/, tx("Numpad ", "Teclado numérico "));
 function textoValor(s: Vista): string {
-  if (s.tipo === "bool") return s.valor ? "sí" : "no";
+  if (s.tipo === "bool") return s.valor ? tx("on", "sí") : tx("off", "no");
   if (s.tipo === "numero") return `${s.valor}${s.unidad ? ` ${s.unidad}` : ""}`;
   if (s.tipo === "eleccion") return s.opciones?.find((o) => o.valor === s.valor)?.nombre ?? String(s.valor);
   return nombreTecla(String(s.valor));
@@ -40,7 +40,7 @@ export function montarMenuAjustes(c: ContextoMenu): MenuAjustes {
   const html = document.documentElement, $ = (id: string) => document.getElementById(id);
   const dlg = $("ajustes") as HTMLDialogElement | null, boton = $("ajustes-abrir") as HTMLButtonElement | null;
   const listaEl = $("ajustes-grupos"), estado = $("ajustes-estado"), titulo = $("ajustes-titulo");
-  if (!dlg || !boton || !listaEl || !estado) { console.warn("[ajustes] faltan #ajustes, #ajustes-abrir, #ajustes-grupos o #ajustes-estado en la página"); return { abrir: () => false, cerrar() {}, abierto: () => false }; }
+  if (!dlg || !boton || !listaEl || !estado) { console.warn("[ajustes] faltan #ajustes, #ajustes-abrir, #ajustes-grupos o #ajustes-estado en la página"); /* i18n-ok: developer log */ return { abrir: () => false, cerrar() {}, abierto: () => false }; }
   const lista: HTMLElement = listaEl;
 
   let espera: ReturnType<typeof setTimeout> | undefined;
@@ -48,7 +48,7 @@ export function montarMenuAjustes(c: ContextoMenu): MenuAjustes {
   const cid = (id: string) => `ajuste-${id}`;
   function elegir(id: string, v: Valor, ms = 0): void {
     const r = a.set(id, v);
-    if (!r.ok) { anunciar(`No: ${r.issues[0].message}`); return; }
+    if (!r.ok) { anunciar(tx(`Not done: ${r.issues[0].message}`, `No: ${r.issues[0].message}`)); return; }
     const s = a.lista().find((x) => x.id === id);
     if (s) anunciar(`${s.nombre}: ${textoValor(s)}`, ms);
   }
@@ -100,10 +100,10 @@ export function montarMenuAjustes(c: ContextoMenu): MenuAjustes {
   }
   // ---- the window: categories on the left, a search, «Restablecer esta página» (MMO interface, M2) ----
   const CATEGORIAS: Array<{ id: string; nombre: string; icono: string }> = [
-    { id: "juego", get nombre() { return t("menu.juego"); }, icono: "game-controller" }, { id: "interfaz", get nombre() { return t("menu.interfaz"); }, icono: "desktop" },
-    { id: "controles", get nombre() { return t("menu.controles"); }, icono: "hand-grabbing" }, { id: "graficos", get nombre() { return t("menu.graficos"); }, icono: "image-square" },
-    { id: "sonido", get nombre() { return t("menu.sonido"); }, icono: "music-notes" }, { id: "accesibilidad", get nombre() { return t("menu.accesibilidad"); }, icono: "eye" },
-    { id: "cuenta", get nombre() { return t("menu.cuenta"); }, icono: "user" },
+    { id: "juego", get nombre() { return tx("Game", "Juego"); }, icono: "game-controller" }, { id: "interfaz", get nombre() { return tx("Interface", "Interfaz"); }, icono: "desktop" },
+    { id: "controles", get nombre() { return tx("Controls", "Controles"); }, icono: "hand-grabbing" }, { id: "graficos", get nombre() { return tx("Graphics", "Gráficos"); }, icono: "image-square" },
+    { id: "sonido", get nombre() { return tx("Sound and voice", "Sonido y voz"); }, icono: "music-notes" }, { id: "accesibilidad", get nombre() { return tx("Accessibility", "Accesibilidad"); }, icono: "eye" },
+    { id: "cuenta", get nombre() { return tx("Account and privacy", "Cuenta y privacidad"); }, icono: "user" },
   ];
   /** Which category a registry group lives in: the engine's groups by id; features' and worlds' groups are «Juego». */
   const categoriaDe = (grupo: string): string => ({ graficos: "graficos", aparato: "graficos", sonido: "sonido", controles: "controles", accesibilidad: "accesibilidad", interfaz: "interfaz", privacidad: "cuenta", identidad: "cuenta" } as Record<string, string>)[grupo] ?? "juego";
@@ -111,8 +111,8 @@ export function montarMenuAjustes(c: ContextoMenu): MenuAjustes {
   const cuerpo = document.createElement("div"); cuerpo.className = "ajustes-cuerpo";
   // MIS-239: ONE card. Wide screen: the categories are a strip of tabs (role=tablist; ↑ ↓ ← → Home End move between them).
   // Narrow screen / phone profile: no strip, each category is a heading that folds and unfolds its settings (accordion).
-  const nav = document.createElement("nav"); nav.setAttribute("aria-label", "Categorías de ajustes");
-  const tiras = document.createElement("div"); tiras.setAttribute("role", "tablist"); tiras.setAttribute("aria-orientation", "vertical"); tiras.setAttribute("aria-label", "Pestañas de ajustes");
+  const nav = document.createElement("nav"); ligar(nav, "aria-label", "Settings categories", "Categorías de ajustes");
+  const tiras = document.createElement("div"); tiras.setAttribute("role", "tablist"); tiras.setAttribute("aria-orientation", "vertical"); ligar(tiras, "aria-label", "Settings tabs", "Pestañas de ajustes");
   nav.append(tiras);
   lista.before(cuerpo); cuerpo.append(nav, lista);
   let modo = modoAjustes(innerWidth, html.dataset.aparato ?? "");
@@ -124,10 +124,10 @@ export function montarMenuAjustes(c: ContextoMenu): MenuAjustes {
     if (modo === "pestanas") { lista.setAttribute("role", "tabpanel"); lista.setAttribute("aria-labelledby", categoria ? `ajustes-tab-${categoria}` : "ajustes-titulo"); } else { lista.removeAttribute("role"); lista.removeAttribute("aria-labelledby"); }
     return cambio;
   };
-  const buscar = document.createElement("input"); buscar.type = "search"; buscar.id = "ajustes-buscar"; buscar.placeholder = "Buscar un ajuste";
-  const etqBuscar = document.createElement("label"); etqBuscar.htmlFor = "ajustes-buscar"; etqBuscar.className = "solo-lector"; etqBuscar.textContent = "Buscar un ajuste";
+  const buscar = document.createElement("input"); buscar.type = "search"; buscar.id = "ajustes-buscar"; ligar(buscar, "placeholder", "Search a setting", "Buscar un ajuste");
+  const etqBuscar = document.createElement("label"); etqBuscar.htmlFor = "ajustes-buscar"; etqBuscar.className = "solo-lector"; ligar(etqBuscar, "textContent", "Search a setting", "Buscar un ajuste");
   const cab = dlg.querySelector(".cabecera"); cab?.insertBefore(etqBuscar, cab.lastElementChild); cab?.insertBefore(buscar, cab.lastElementChild);
-  const pagina = document.createElement("button"); pagina.type = "button"; pagina.id = "ajustes-restablecer-pagina"; pagina.textContent = t("menu.restablecerPagina");
+  const pagina = document.createElement("button"); pagina.type = "button"; pagina.id = "ajustes-restablecer-pagina"; pagina.textContent = tx("Reset this page", "Restablecer esta página"); 
   $("ajustes-restablecer")?.before(pagina);
   function mostrar(): void {
     const q = busqueda.trim().toLowerCase(), buscando = q !== "";
@@ -159,15 +159,15 @@ export function montarMenuAjustes(c: ContextoMenu): MenuAjustes {
     }
     if (modo === "pestanas") lista.setAttribute("aria-labelledby", sel ? `ajustes-tab-${sel}` : "ajustes-titulo");
     pagina.hidden = !buscando && !categoria; // a folded accordion has no «page» to reset
-    pagina.textContent = modo === "acordeon" ? t("menu.restablecerSeccion") : t("menu.restablecerPagina");
-    if (!lista.querySelector("fieldset:not([hidden])") && (buscando || modo === "pestanas")) { const v = lista.querySelector(".vacio") ?? Object.assign(document.createElement("p"), { className: "vacio" }); v.textContent = q ? "Ningún ajuste coincide." : "Esta categoría no tiene ajustes."; lista.append(v); } else lista.querySelector(".vacio")?.remove();
+    pagina.textContent = modo === "acordeon" ? tx("Reset this section", "Restablecer esta sección") : tx("Reset this page", "Restablecer esta página");
+    if (!lista.querySelector("fieldset:not([hidden])") && (buscando || modo === "pestanas")) { const v = lista.querySelector(".vacio") ?? Object.assign(document.createElement("p"), { className: "vacio" }); v.textContent = q ? tx("No setting matches.", "Ningún ajuste coincide.") : tx("This category has no settings.", "Esta categoría no tiene ajustes."); lista.append(v); } else lista.querySelector(".vacio")?.remove();
     const editar = lista.querySelector<HTMLElement>("#ajustes-editar-interfaz"); if (editar) editar.hidden = !!q || categoria !== "interfaz" || !edicion.disponible;
   }
   // read-only facts: the device and this visit under Gráficos, who you are under Cuenta y privacidad (live while open)
   const fuente = { view, session, desde: () => Number((o.numinia.informe as { bienvenidaMs?: number } | undefined)?.bienvenidaMs) || 0, ahora: () => performance.now() };
   const infos = [
-    infoDom("aparato", "Este aparato", "Lo que da tu aparato ahora y cómo va esta visita. Solo se lee: lo de arriba lo cambia.", () => filasAparato(fuente)),
-    infoDom("identidad", "Tu identidad", "Cómo te conoce este mundo desde este navegador. Solo se lee.", () => filasIdentidad(fuente)),
+    infoDom("aparato", () => tx("This device", "Este aparato"), () => tx("What your device gives now and how this visit is going. Read-only: the settings above change it.", "Lo que da tu aparato ahora y cómo va esta visita. Solo se lee: lo de arriba lo cambia."), () => filasAparato(fuente)),
+    infoDom("identidad", () => tx("Your identity", "Tu identidad"), () => tx("How this world knows you from this browser. Read-only.", "Cómo te conoce este mundo desde este navegador. Solo se lee."), () => filasIdentidad(fuente)),
   ];
   setInterval(() => { if (dlg.open) for (const x of infos) x.pintar(); }, 1000);
   const conAjustes = () => CATEGORIAS.filter((c) => [...lista.querySelectorAll<HTMLFieldSetElement>("fieldset")].some((fs) => categoriaDe(fs.dataset.grupo ?? "") === c.id && !fs.hidden)).map((c) => c.id);
@@ -196,7 +196,7 @@ export function montarMenuAjustes(c: ContextoMenu): MenuAjustes {
       return b;
     }));
     const fsI = lista.querySelector<HTMLElement>('fieldset[data-grupo="interfaz"]');
-    if (fsI) { const e = document.createElement("button"); e.type = "button"; e.id = "ajustes-editar-interfaz"; e.className = "grande"; e.textContent = "Editar interfaz"; e.hidden = true; e.dataset.listo = "1"; e.addEventListener("click", () => { cerrar(); edicion.abrir(); }); fsI.append(e); }
+    if (fsI) { const e = document.createElement("button"); e.type = "button"; e.id = "ajustes-editar-interfaz"; e.className = "grande"; ligar(e, "textContent", "Edit interface", "Editar interfaz"); e.hidden = true; e.dataset.listo = "1"; e.addEventListener("click", () => { cerrar(); edicion.abrir(); }); fsI.append(e); }
     // the fieldsets start hidden for categories without visible settings: decide with what is there, then show
     for (const fs of lista.querySelectorAll<HTMLFieldSetElement>("fieldset")) fs.hidden = !fs.querySelector(".ajuste:not([hidden])");
     categoria = categoriaInicial(modo, conAjustes(), categoria);
@@ -217,9 +217,10 @@ export function montarMenuAjustes(c: ContextoMenu): MenuAjustes {
   buscar.addEventListener("input", () => { busqueda = buscar.value; mostrar(); });
   pagina.addEventListener("click", () => {
     for (const x of a.lista()) if (categoriaDe(x.grupo) === categoria) a.restablecer(x.id);
-    anunciar(t("menu.paginaRestablecida", { pagina: CATEGORIAS.find((c) => c.id === categoria)?.nombre ?? "" }));
+    anunciar(tx(`Page reset: ${CATEGORIAS.find((c) => c.id === categoria)?.nombre}.`, `Página restablecida: ${CATEGORIAS.find((c) => c.id === categoria)?.nombre}.`));
   });
   construir();
+  alCambiarIdioma(() => { for (const x of infos) x.pintar(); construir(); }); // the window follows the language at once (tabs, group names, reset buttons)
   // any change (the menu, an agent, the B key, a preset, a capability that arrived) updates the controls in place
   a.alCambiar((id) => {
     const s = a.lista().find((x) => x.id === id), fil = lista.querySelector<HTMLElement>(`.ajuste[data-id="${id}"]`);
@@ -262,7 +263,7 @@ export function montarMenuAjustes(c: ContextoMenu): MenuAjustes {
     if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) cerrar();
   });
   $("ajustes-cerrar")?.addEventListener("click", cerrar);
-  $("ajustes-restablecer")?.addEventListener("click", () => { a.restablecer(); anunciar("Ajustes restablecidos: cada uno vuelve a lo que da tu aparato."); });
+  $("ajustes-restablecer")?.addEventListener("click", () => { a.restablecer(); anunciar(tx("Settings reset: each one goes back to what your device gives.", "Ajustes restablecidos: cada uno vuelve a lo que da tu aparato.")); });
   boton.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
   boton.addEventListener("click", () => { if (dlg.open) cerrar(); else abrir(); });
   // ux2-barra: O opens the bar's «Menú» (main.ts, menu-barra.ts), whose first entry is this; inside the dialog O still closes it

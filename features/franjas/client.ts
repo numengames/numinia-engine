@@ -4,6 +4,7 @@
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg } from "../../packages/feature/src/index.ts";
 import { franjas as decl, ZONA } from "./feature.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 export type FranjaVista = { franja: string; siguiente: string; desde: number; activa: boolean; texto: string };
 type Res = { ok: true } | { ok: false; why: string };
@@ -25,7 +26,7 @@ export function crearCliente() {
     A = api;
     api.on("franja", (m) => { ultimo = String(m.texto); cambios++; });
     api.on("estado", (m) => { ultimo = String(m.texto); });
-    api.action({ id: "consultar", label: "Time of day", describe: "Ask which band of the day it is and when the next one starts", run: () => { franjas.consultar(); }, disponible: () => franjas.actual() !== null });
+    api.action({ id: "consultar", get label() { return tx("Time of day", "Hora del día"); }, get describe() { return tx("Ask which band of the day it is and when the next one starts", "Pregunta en qué franja del día estás y cuándo empieza la siguiente"); }, run: () => { franjas.consultar(); }, disponible: () => franjas.actual() !== null });
   });
   return { parts: [parte], franjas };
 }

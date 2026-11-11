@@ -237,13 +237,13 @@ test("cliente del enlace: connects, finds the gate, accepts, hangs nothing witho
     assert.equal(link.dardos.sitios().length, 1);
     assert.equal(link.dardos.jugar("torre", "pared").ok, true);
     await sleep(120); assert.equal(link.dardos.sitios()[0]?.ocupado === false && !link.dardos.sitios()[0]?.espera, true, "the Tower ignores darts before the visitor accepts");
-    const sinVista = await link.jugarEnPared(); assert.equal(sinVista.ok, false); assert.match(!sinVista.ok ? sinVista.why : "", /aceptar las normas/);
+    const sinVista = await link.jugarEnPared(); assert.equal(sinVista.ok, false); assert.match(!sinVista.ok ? sinVista.why : "", /accept the rules/);
     assert.equal(link.aceptar({ casa: "1" }), true);
     for (let i = 0; i < 60 && link.estado() !== "listo"; i++) await sleep(20);
     assert.equal(link.estado(), "listo");
     assert.equal(Q.s.stats.visible, 0, "the person in the Tower sees nobody");
     assert.equal(T.inst.players().length, 2);
-    const r = await link.jugarEnPared(); assert.equal(r.ok, false, "no view in this headless run"); assert.match(!r.ok ? r.why : "", /no puede abrir AR/);
+    const r = await link.jugarEnPared(); assert.equal(r.ok, false, "no view in this headless run"); assert.match(!r.ok ? r.why : "", /cannot open AR/);
     assert.equal(link.dardos.jugar("torre", "pared", "Plaza de Ana", "Ana").ok, true); await sleep(120);
     assert.equal(link.dardos.sitios()[0]?.espera, true);
     await link.cerrar();
@@ -285,13 +285,13 @@ test("cliente del enlace: the name people read is the one the linked server tell
 test("cliente del enlace: an unreachable server is an error with a reason, and a silent one times out", async () => {
   const roto = crearEnlaceDardos({ enlace: { servidor: "ws://127.0.0.1:1/ws", diana: "torre" }, nombre: () => "Ana", mundo: () => "x", almacen: { getItem: () => null, setItem() {} },
     abrir: () => ({ send() {}, onMessage() {}, sentBytes: 0, opened: Promise.reject(new Error("no")), closed: new Promise(() => {}), close() {} } as never) });
-  assert.equal(await roto.conectar(), "error"); assert.match(roto.vista().motivo, /no se pudo llegar a 127\.0\.0\.1:1/);
+  assert.equal(await roto.conectar(), "error"); assert.match(roto.vista().motivo, /could not reach 127\.0\.0\.1:1/);
   const mudo = crearEnlaceDardos({ enlace: { servidor: "ws://127.0.0.1:2/ws", diana: "torre" }, nombre: () => "Ana", mundo: () => "x", almacen: { getItem: () => null, setItem() {} }, esperaMs: 80,
     abrir: () => ({ send() {}, onMessage() {}, sentBytes: 0, opened: Promise.resolve(), closed: new Promise(() => {}), close() {} } as never) });
-  assert.equal(await mudo.conectar(), "error"); assert.match(mudo.vista().motivo, /no responde/);
+  assert.equal(await mudo.conectar(), "error"); assert.match(mudo.vista().motivo, /not answering/);
   const cae = crearEnlaceDardos({ enlace: { servidor: "ws://127.0.0.1:3/ws", diana: "torre" }, nombre: () => "Ana", mundo: () => "x", almacen: { getItem: () => null, setItem() {} },
     abrir: () => ({ send() {}, onMessage() {}, sentBytes: 0, opened: Promise.resolve(), closed: Promise.resolve({ code: 4004, reason: "lleno 8/8" }), close() {} } as never) });
-  assert.equal(await cae.conectar(), "error"); assert.match(cae.vista().motivo, /lleno/);
+  assert.equal(await cae.conectar(), "error"); assert.match(cae.vista().motivo, /is full/);
 });
 
 // ---------------------------------------------------------------- the sign

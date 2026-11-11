@@ -1,5 +1,6 @@
 // burbujas v1: the voice bubble. The SERVER's relay decides who hears whom; these tests send real voice frames through a real Instance.
 import { test } from "node:test";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
 import assert from "node:assert/strict";
 import { Instance } from "../packages/instance/src/index.ts";
 import { ClientSession } from "../packages/client/src/index.ts";
@@ -143,7 +144,9 @@ test("burbujas (interruptor): only who directs or rules switches it; first time 
 });
 
 test("burbujas: the cartel's text; a world without the file keeps the fingerprint", () => {
-  assert.equal(textoCartel({ etiqueta: "La mesa", modo: "aislada" }), "En La mesa: solo te oyen los de la mesa");
+  assert.equal(textoCartel({ etiqueta: "La mesa", modo: "aislada" }), "In La mesa: only la mesa can hear you");
+  fijarIdioma("es");
+  try { assert.equal(textoCartel({ etiqueta: "La mesa", modo: "aislada" }), "En La mesa: solo te oyen los de la mesa"); } finally { fijarIdioma("en"); }
   const huella = (con: boolean) => {
     const lista = conMundo(con ? funciones : funciones.filter((f) => f.feature.id !== "burbujas"), () => undefined, () => {});
     const inst = new Instance({ seed: 9, capacity: 8, k: 50, snapshotEvery: 2, features: lista, log: () => {}, identitySign: sign });

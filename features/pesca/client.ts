@@ -2,6 +2,7 @@
 // catch, basket) and who is fishing where near you (for their float), and offers one small controller the page
 // (apps/plaza/pesca.ts: big «Recoger» button, tension bar, 3D rod/line/float) and agents use. It only asks: the server
 // decides the bite, the fish and the catch. Nothing 3D here: the page's lazy chunk (packages/render/src/pesca.ts) draws.
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg } from "../../packages/feature/src/index.ts";
 import { pesca as decl } from "./feature.ts";
@@ -25,25 +26,25 @@ export type Captura = { quien: number; sitio: string; pez: string; cm: number; r
 /** How long a landed fish stays in the hand (ms) unless its angler walks away (the 3D decides that part). */
 export const EN_MANO_MS = 7000;
 /** «23,1 cm»: the fish's size as people write it here. */
-export const cmTexto = (cm: number): string => `${String(Math.round(cm * 10) / 10).replace(".", ",")} cm`;
+export const cmTexto = (cm: number): string => { const n = String(Math.round(cm * 10) / 10); return `${tx(n, n.replace(".", ","))} cm`; };
 /** N4: what to DO now, in a few words (the HUD, the VR gauge on the rod, the agents read the same line). Coaching beats a
  * bare phase name: in the fight it says when to reel and when to ease off, before the line snaps. */
 export function consejo(e: { fase: Fase; tension: number; arrancada: "no" | "aviso" | "si"; pez: string }): string {
   switch (e.fase) {
     case "nada": return "";
-    case "espera": return "Esperando… algo picará";
-    case "mordisqueo": return "Algo mordisquea el cebo… espera";
-    case "picada": return "¡PICA! Recoge ahora";
+    case "espera": return tx("Waiting… something will bite", "Esperando… algo picará");
+    case "mordisqueo": return tx("Something is nibbling the bait… wait", "Algo mordisquea el cebo… espera");
+    case "picada": return tx("BITE! Reel in now", "¡PICA! Recoge ahora");
     case "pelea":
-      if (e.arrancada === "aviso") return `¡${e.pez || "El pez"} va a tirar! Afloja`;
-      if (e.arrancada === "si") return "¡Arrancada! Afloja y deja que tire";
-      if (e.tension >= 80) return "¡Afloja, que se rompe el sedal!";
-      return `Pelea: ${e.pez} · recoge sin pasarte`;
+      if (e.arrancada === "aviso") return tx(`${e.pez || "The fish"} is about to pull! Ease off`, `¡${e.pez || "El pez"} va a tirar! Afloja`);
+      if (e.arrancada === "si") return tx("It bolts! Ease off and let it pull", "¡Arrancada! Afloja y deja que tire");
+      if (e.tension >= 80) return tx("Ease off, the line is about to snap!", "¡Afloja, que se rompe el sedal!");
+      return tx(`Fight: ${e.pez} · reel without overdoing it`, `Pelea: ${e.pez} · recoge sin pasarte`);
   }
 }
 type Res = { ok: true } | { ok: false; why: string };
-const SIN: Res = { ok: false, why: "la función pesca no está en este servidor" };
-const APAGADA: Res = { ok: false, why: "la pesca está apagada en este mundo" };
+const SIN: Res = { ok: false, get why() { return tx("the fishing feature is not on this server", "la función pesca no está en este servidor"); } }; // a getter: read in the language of that moment
+const APAGADA: Res = { ok: false, get why() { return tx("fishing is turned off in this world", "la pesca está apagada en este mundo"); } };
 const ahora = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
 /** One per page (tests make one per client). `pesca` is what the page and an agent call; `espia` sees every event (tests). */
@@ -79,13 +80,13 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
       if (!A) return SIN;
       if (apagada()) return APAGADA;
       const id = sitio ?? pesca.sitios().find((s) => !s.ocupado)?.id;
-      if (!id) return { ok: false, why: "no hay ningún sitio de pesca cerca" };
+      if (!id) return { ok: false, why: tx("there is no fishing spot nearby", "no hay ningún sitio de pesca cerca") };
       return A.send("lanzar", { sitio: id });
     },
     /** Hold (true) / let go (false). While waiting it does nothing on the server; at the bite it hooks; in the fight it reels. */
     recoger: (activo: boolean): Res => {
       if (!A) return SIN;
-      if (e.fase === "nada") return { ok: false, why: "no estás pescando" };
+      if (e.fase === "nada") return { ok: false, why: tx("you are not fishing", "no estás pescando") };
       if (soltando) { clearTimeout(soltando); soltando = null; }
       e.recogiendo = activo;
       avisar("estado");
@@ -97,7 +98,7 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
       if (r.ok) soltando = setTimeout(() => { soltando = null; pesca.recoger(false); }, 200);
       return r;
     },
-    soltar: (): Res => (A ? (e.fase === "nada" ? { ok: false, why: "no estás pescando" } : A.send("soltar", {})) : SIN),
+    soltar: (): Res => (A ? (e.fase === "nada" ? { ok: false, why: tx("you are not fishing", "no estás pescando") } : A.send("soltar", {})) : SIN),
     alCambiar: (fn: (que: "estado" | "flotadores" | "sitios" | "capturas") => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
 
@@ -120,11 +121,11 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     api.on("captura", (m) => {
       e.ultimo = { pez: String(m.pez), cm: Number(m.cm), rareza: String(m.rareza), total: Number(m.total), guardado: m.guardado === true, color: String(m.color ?? "") };
       e.ultimo.cm = Math.round(e.ultimo.cm * 10) / 10; // Q16.16 on the wire: 33.3 arrives as 33.300000000000004
-      e.aviso = `Has pescado: ${e.ultimo.pez} de ${cmTexto(e.ultimo.cm)}`;
+      e.aviso = tx(`You caught: ${e.ultimo.pez}, ${cmTexto(e.ultimo.cm)}`, `Has pescado: ${e.ultimo.pez} de ${cmTexto(e.ultimo.cm)}`);
       api.view.bounce(api.self(), 1200);
     });
     api.on("escape", (m) => { e.aviso = String(m.texto); });
-    api.on("recogida", () => { e.aviso = "Has recogido la caña."; });
+    api.on("recogida", () => { e.aviso = tx("You reeled in the rod.", "Has recogido la caña."); });
     api.on("fin", (m) => {
       const quien = Number(m.quien);
       flotadores.delete(quien);
@@ -142,7 +143,7 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     api.on("rechazado", (m) => { e.aviso = String(m.motivo); avisar("estado"); });
     // the touch bar's button, the F key and the agents' list: a press reels for a moment (hooks at the bite); nothing while
     // not fishing. The page's HUD (apps/plaza/pesca.ts) turns a held F or a held button into recoger(true)…recoger(false).
-    api.action({ id: "recoger", label: "Reel in", key: "KeyE", describe: "Reel the line in while fishing (hooks the fish on a bite; in the fight it raises the tension).", run: () => { if (e.fase !== "nada") pesca.pulsar(); } });
+    api.action({ id: "recoger", get label() { return tx("Reel in", "Recoger"); }, key: "KeyE", get describe() { return tx("Reel in the line while fishing (hooks the fish at the bite; in the fight it raises the tension).", "Recoger el sedal mientras pescas (engancha el pez en la picada; en la pelea sube la tensión)."); }, run: () => { if (e.fase !== "nada") pesca.pulsar(); } });
   });
 
   return { parts: [parte], pesca };

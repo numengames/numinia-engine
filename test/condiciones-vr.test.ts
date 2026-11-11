@@ -1,6 +1,8 @@
 // condiciones/c4: the entry bubble in VR without a browser — the paging of the text, the zones a ray/pinch/fingertip hits, the stick,
 // where the panel stands, the bubble's fade/burst, and that the VR view is built from the SAME logic as the flat one.
 import { test } from "node:test";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // these assertions read the Spanish text; the English side is tested in test/idioma-condiciones.test.ts
 import assert from "node:assert/strict";
 import type { CondicionesCapa } from "../packages/net/src/index.ts";
 import { botonesDePie, marcasVacias, planificar, puedeSeguir } from "../apps/plaza/condiciones-logica.ts";

@@ -3,6 +3,7 @@
 // the server checks it and tells whoever is within 20 m, in their own language. Focus goes to the first phrase and
 // comes back on close (crearDialogo). Lazy: the dialog is built when first needed. In VR the HTML is not drawn: the
 // bubble over the speaker and the `frase` verb (chat order, agents) are.
+import { tx, ligar } from "../../packages/feature/src/idioma.ts";
 import { crearDialogo, anunciar } from "./paneles.ts";
 import { idiomaDe, LISTA } from "../../features/frases/frases.ts";
 import type { Frase } from "../../features/frases/pagina.ts";
@@ -22,10 +23,10 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLEl
 
 export function montarFrases(frases: Pagina, o: { barra?: HTMLElement | null; idioma?: () => string } = {}): { abrir(): void; cerrar(): void; abierto(): boolean } {
   const idioma = o.idioma ?? (() => document.documentElement.lang);
-  const boton = el("button", { type: "button", id: "frases-abrir", textContent: "Phrases" });
-  boton.title = "Say a fixed phrase: hello, thank you, help, follow me…";
+  const boton = ligar(el("button", { type: "button", id: "frases-abrir" }), "textContent", "Phrases", "Frases");
+  ligar(boton, "title", "Say a fixed phrase: hello, thank you, help, follow me…", "Decir una frase fija: hola, gracias, ayuda, sígueme…");
   (o.barra ?? document.getElementById("barra-arriba") ?? document.body).appendChild(boton);
-  const panel = crearDialogo({ id: "frases", titulo: "Phrases", tecla: "Backquote", boton, alAbrir: () => { pintar(); primera()?.focus({ preventScroll: true }); } });
+  const panel = crearDialogo({ id: "frases", titulo: () => tx("Phrases", "Frases"), tecla: "Backquote", accion: "frases", boton, alAbrir: () => { pintar(); primera()?.focus({ preventScroll: true }); } });
   const estado = el("p", { className: "estado" });
   estado.setAttribute("role", "status");
   const cuerpo = el("div", { className: "frases-lista" });

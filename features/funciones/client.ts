@@ -5,6 +5,7 @@ import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi } from "../../packages/feature/src/index.ts";
 import { funciones, FUNCIONES } from "./feature.ts";
 import type { Funcion } from "./feature.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 export type EstadoFunciones = Partial<Record<Funcion, boolean>>;
 
@@ -23,7 +24,7 @@ export function crearCliente() {
     /** True when the server decides this one from outside (MOTOR_CONDICIONES_PUERTA / startServer's option): the switch will refuse. */
     fija: (f: Funcion): boolean => api?.state.get(f)?.fija === true,
     /** Ask the server to turn a function on (true) or off (false). */
-    ponerFuncion: (f: Funcion, si: boolean) => api?.send("poner", { funcion: f, activa: si }) ?? { ok: false as const, why: "la página aún no ha arrancado" },
+    ponerFuncion: (f: Funcion, si: boolean) => api?.send("poner", { funcion: f, activa: si }) ?? { ok: false as const, why: tx("the page has not started yet", "la página aún no ha arrancado") },
   };
   const part = clientPart(funciones, (a) => {
     api = a;

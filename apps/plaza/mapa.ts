@@ -22,6 +22,7 @@ import { frase } from "../../packages/client/src/ir-andando.ts";
 import type { Fin } from "../../packages/client/src/ir-andando.ts";
 import { tituloDe } from "../../packages/render/src/menu-secciones.ts"; // v2 paridad: the map's name is the one list's
 import { esMovil } from "../../packages/client/src/movil.ts"; // U24
+import { tx, ligar, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
 import "./mapa.css";
 
 type Vec = { x: number; z: number };
@@ -189,11 +190,11 @@ export function montarMapa(h: HostMapa) {
 
   // ---------- the built-in sources ----------
   let fichas: Marcador[] = [], fichasT = -Infinity, marcasAntes: unknown = null;
-  const nombreDe = (id: number): string => { const n = h.otros().chat?.nombres?.get?.(id); return typeof n === "string" && n ? n : `Persona ${id}`; };
+  const nombreDe = (id: number): string => { const n = h.otros().chat?.nombres?.get?.(id); return typeof n === "string" && n ? n : tx(`Person ${id}`, `Persona ${id}`); };
   // AGW-007/J5: the server is the one that ever adds the IA marker to a name — a client that sees it may
   // trust it. Groups AI inhabitants and organization agents apart from people on the map and its list.
   const esIA = (nombre: string): boolean => nombre.endsWith(MARCA_IA);
-  fuentes.set("tu", () => (yo ? [{ id: "tu", tipo: "tu", nombre: h.session.who?.nombre ?? "Tú", x: yo.x, z: yo.z, yaw: yawYo }] : []));
+  fuentes.set("tu", () => (yo ? [{ id: "tu", tipo: "tu", nombre: h.session.who?.nombre ?? tx("You", "Tú"), x: yo.x, z: yo.z, yaw: yawYo }] : []));
   fuentes.set("gente", () => h.session.remotePositions().map((r) => { const nombre = nombreDe(r.id); return { id: `p${r.id}`, tipo: esIA(nombre) ? (h.otros().ia?.de?.(r.id)?.estado === "dormida" ? "agente-dormida" : "agente") : "persona", nombre, x: r.x, z: r.z }; })); // ia-visible S5: a sleeping AI is drawn hollow (features/ia says its state)
   // U14 (4): a person or a quest thing the server marks for you is drawn as «!» or «✓» (misiones.marcaDe), and a
   // person's trade goes next to the name in the list (misiones.oficioDe); re-read at once when the marks change.
@@ -219,7 +220,7 @@ export function montarMapa(h: HostMapa) {
   fuentes.set("misiones", () => {
     const o = (h.otros().misiones?.senalados ?? h.otros().misiones?.objetivos)?.(); // P3: a quest with pistas:false is not on the map
     if (!Array.isArray(o)) return [];
-    return o.map((m: { mision?: unknown; paso?: unknown; nombre?: unknown; x?: unknown; z?: unknown }) => ({ id: `m:${String(m.mision)}:${String(m.paso)}`, tipo: "objetivo", nombre: String(m.nombre ?? "Objetivo"), x: Number(m.x), z: Number(m.z), detalle: `Misión: ${String(m.mision ?? "")}` }));
+    return o.map((m: { mision?: unknown; paso?: unknown; nombre?: unknown; x?: unknown; z?: unknown }) => ({ id: `m:${String(m.mision)}:${String(m.paso)}`, tipo: "objetivo", nombre: String(m.nombre ?? tx("Objective", "Objetivo")), x: Number(m.x), z: Number(m.z), detalle: tx(`Quest: ${String(m.mision ?? "")}`, `Misión: ${String(m.mision ?? "")}`) }));
   });
   let destino: { id: string; nombre: string; x: number; z: number; baliza: number; lejos: boolean } | null = null;
   fuentes.set("destino", () => (destino ? [{ id: "destino", tipo: "destino", nombre: destino.nombre, x: destino.x, z: destino.z }] : []));
@@ -236,7 +237,7 @@ export function montarMapa(h: HostMapa) {
   let origenViaje: (Vec & { nombre: string }) | null = null;
   function irA(m: { id: string; nombre: string; x: number; z: number }): void {
     if (!h.teletransporte?.activo()) return;
-    if (yo) origenViaje = { x: yo.x, z: yo.z, nombre: "donde estabas" };
+    if (yo) origenViaje = { x: yo.x, z: yo.z, nombre: tx("where you were", "donde estabas") };
     h.andar?.parar(); // a trip by teleport replaces a walk
     h.teletransporte.ir(m.x, m.z, m.nombre);
     h.alIr?.({ id: m.id, nombre: m.nombre, x: m.x, z: m.z });
@@ -271,12 +272,12 @@ export function montarMapa(h: HostMapa) {
   function marcarDestino(m: { id: string; nombre: string; x: number; z: number }): void {
     if (destino && destino.id === m.id) { quitarDestino("quitado"); return; }
     quitarDestino(null);
-    const texto = `Destino: ${m.nombre}`;
+    const texto = tx(`Destination: ${m.nombre}`, `Destino: ${m.nombre}`);
     let baliza = -1;
     if (h.view.waypoint) baliza = h.view.waypoint(m.x, m.z, texto); else h.view.beacon(m.x, m.z, texto, 10 * 60_000);
     const d = yo ? Math.hypot(m.x - yo.x, m.z - yo.z) : Infinity;
     destino = { id: m.id, nombre: m.nombre, x: m.x, z: m.z, baliza, lejos: d > LLEGADA_M + 2 };
-    anunciar(`Destino marcado: ${m.nombre}, ${yo ? enPalabras(m.x - yo.x, m.z - yo.z) : ""}.`);
+    anunciar(tx(`Destination set: ${m.nombre}, ${yo ? enPalabras(m.x - yo.x, m.z - yo.z) : ""}.`, `Destino marcado: ${m.nombre}, ${yo ? enPalabras(m.x - yo.x, m.z - yo.z) : ""}.`));
     cambio();
   }
   function quitarDestino(motivo: "quitado" | "llegada" | null): void {
@@ -284,28 +285,28 @@ export function montarMapa(h: HostMapa) {
     if (destino.baliza >= 0) h.view.dropWaypoint?.(destino.baliza);
     const n = destino.nombre;
     destino = null;
-    if (motivo === "quitado") anunciar(`Destino quitado: ${n}.`);
-    if (motivo === "llegada") anunciar(`Has llegado: ${n}.`);
+    if (motivo === "quitado") anunciar(tx(`Destination cleared: ${n}.`, `Destino quitado: ${n}.`));
+    if (motivo === "llegada") anunciar(tx(`You have arrived: ${n}.`, `Has llegado: ${n}.`));
     cambio();
   }
   function cambio(): void { limMini.forzar(); limGrande.forzar(); listaT = -Infinity; pintarDetalle(); }
 
   // ---------- minimap (corner) ----------
   const mini = document.createElement("section");
-  mini.id = "minimapa"; mini.setAttribute("aria-label", "Minimapa");
+  mini.id = "minimapa"; ligar(mini, "aria-label", "Minimap", "Minimapa");
   const miniCanvas = document.createElement("canvas"); miniCanvas.setAttribute("aria-hidden", "true");
   const miniTexto = document.createElement("p"); miniTexto.className = "solo-lector"; miniTexto.id = "minimapa-texto";
   // ux2-barra: the minimap IS the button of the big map (M): no «−», «+», «Mapa», «Ficha» under it (MIS-257: and the N is the compass button on its rim). The wheel over it
   // zooms; turning with the camera is a setting (Ajustes › Interfaz, interfaz.minimapaGira); the sheet is your card (I).
   const bMapa = document.createElement("button"); bMapa.type = "button"; bMapa.id = "minimapa-abrir";
-  bMapa.title = `${tituloDe("mapa")} · rueda: acercar y alejar`; bMapa.setAttribute("aria-label", tituloDe("mapa")); // v2 paridad: the name is the list's
+  alCambiarIdioma(() => { bMapa.title = tx(`${tituloDe("mapa")} · wheel: zoom in and out`, `${tituloDe("mapa")} · rueda: acercar y alejar`); bMapa.setAttribute("aria-label", tituloDe("mapa")); }); // v2 paridad: the name is the list's
   bMapa.append(miniCanvas);
   // MIS-257: the north is a button, not a letter painted on the canvas: it rides just inside the rim where north is (up, or swinging
   // round when the minimap turns with the camera) and pressing it puts the minimap back: centred on you, north up,
   // the usual radius. Phosphor «compass» (house icons); on a phone the folded minimap has no buttons (movil.css).
   const caja = document.createElement("div"); caja.className = "caja";
   const bNorte = document.createElement("button"); bNorte.type = "button"; bNorte.className = "norte"; bNorte.id = "minimapa-norte";
-  bNorte.innerHTML = icono("compass", 16); bNorte.setAttribute("aria-label", "Norte arriba: centrar el minimapa en ti"); bNorte.title = "Norte arriba · centrar el minimapa en ti";
+  bNorte.innerHTML = icono("compass", 16); ligar(bNorte, "aria-label", "North up: centre the minimap on you", "Norte arriba: centrar el minimapa en ti"); ligar(bNorte, "title", "North up · centre the minimap on you", "Norte arriba · centrar el minimapa en ti");
   caja.append(bMapa, bNorte);
   mini.append(caja, miniTexto);
   document.body.appendChild(mini);
@@ -327,7 +328,7 @@ export function montarMapa(h: HostMapa) {
   /** The north button: centred on you, north up, the usual radius. Says so for screen readers, and redraws at once. */
   function recentrarMini(): void {
     ponerZoom(ZOOM_INICIAL); ponerGiro(false); recentrados++; limMini.forzar(); textoT = -Infinity;
-    anunciar("Minimapa centrado en ti, norte arriba.");
+    anunciar(tx("Minimap centred on you, north up.", "Minimapa centrado en ti, norte arriba."));
   }
   bNorte.addEventListener("click", (e) => { recentrarMini(); if (e.detail > 0) bNorte.blur(); });
   // on touch screens the features' buttons live in the bottom-right corner: sit to their left
@@ -386,29 +387,30 @@ export function montarMapa(h: HostMapa) {
     const n = contar(ms), partes: string[] = [];
     for (const [id, ti] of reg.tipos()) if (n[id] && ti.enLista) partes.push(`${n[id]} ${ti.nombre.toLowerCase()}`);
     const cerca = cercanos(ms, yo, reg, 3).map((e) => `${e.nombre} (${reg.tipo(e.tipo).nombre.toLowerCase()}), ${e.texto}`);
-    const t = `Minimapa, ${gira ? "gira con la cámara" : "norte arriba"}, ${RADIOS[zoom]} m alrededor: ${partes.join(", ") || "nada cerca"}.` +
-      (cerca.length ? ` Lo más cerca: ${cerca.join("; ")}.` : "") + (destino ? ` Destino: ${destino.nombre}, ${enPalabras(destino.x - yo.x, destino.z - yo.z)}.` : "") + (esMovil(perfil().clase) ? " Toca el minimapa para ver dónde estás y la lista." : " Pulsa M para ver dónde estás y la lista.");
+    const t = tx(`Minimap, ${gira ? "turns with the camera" : "north up"}, ${RADIOS[zoom]} m around: ${partes.join(", ") || "nothing near"}.`, `Minimapa, ${gira ? "gira con la cámara" : "norte arriba"}, ${RADIOS[zoom]} m alrededor: ${partes.join(", ") || "nada cerca"}.`) +
+      (cerca.length ? tx(` Nearest: ${cerca.join("; ")}.`, ` Lo más cerca: ${cerca.join("; ")}.`) : "") + (destino ? tx(` Destination: ${destino.nombre}, ${enPalabras(destino.x - yo.x, destino.z - yo.z)}.`, ` Destino: ${destino.nombre}, ${enPalabras(destino.x - yo.x, destino.z - yo.z)}.`) : "") + (esMovil(perfil().clase) ? tx(" Tap the minimap to see where you are and the list.", " Toca el minimapa para ver dónde estás y la lista.") : tx(" Press M to see where you are and the list.", " Pulsa M para ver dónde estás y la lista."));
     if (t !== textoAntes) { miniTexto.textContent = t; textoAntes = t; }
   }
 
   // ---------- big map (dialog) ----------
-  const panel = crearDialogo({ id: "mapa-grande", titulo: tituloDe("mapa").replace(/ \(M\)$/, ""), tecla: "KeyM", boton: bMapa, alAbrir: () => abrirGrande(), alCerrar: () => { arrastre.clear(); } });
+  const panel = crearDialogo({ id: "mapa-grande", titulo: () => tituloDe("mapa").replace(/ \(\w+\)$/, ""), tecla: "KeyM", accion: "mapa", boton: bMapa, alAbrir: () => abrirGrande(), alCerrar: () => { arrastre.clear(); } });
   const zonaLienzo = document.createElement("div"); zonaLienzo.className = "lienzo";
   const gCanvas = document.createElement("canvas"); gCanvas.tabIndex = 0;
   gCanvas.setAttribute("role", "img");
-  gCanvas.setAttribute("aria-label", "La zona vista desde arriba, norte arriba. Flechas: mover la vista; + y −: acercar y alejar; 0: centrar en ti. La misma información está en la lista.");
+  ligar(gCanvas, "aria-label", "The area seen from above, north up. Arrow keys: move the view; + and −: zoom in and out; 0: centre on you. The same information is in the list.", "La zona vista desde arriba, norte arriba. Flechas: mover la vista; + y −: acercar y alejar; 0: centrar en ti. La misma información está en la lista.");
   const controles = document.createElement("div"); controles.className = "controles";
-  const gMas = boton("+", "Acercar la vista"), gMenos = boton("−", "Alejar la vista"), gCentro = boton("◎", "Centrarte en la vista");
+  const gMas = boton("+", ""), gMenos = boton("−", ""), gCentro = boton("◎", "");
+  ligar(gMas, "aria-label", "Zoom in", "Acercar la vista"); ligar(gMas, "title", "Zoom in", "Acercar la vista"); ligar(gMenos, "aria-label", "Zoom out", "Alejar la vista"); ligar(gMenos, "title", "Zoom out", "Alejar la vista"); ligar(gCentro, "aria-label", "Centre the view on you", "Centrarte en la vista"); ligar(gCentro, "title", "Centre the view on you", "Centrarte en la vista");
   controles.append(gMas, gMenos, gCentro);
   const estadoImagen = document.createElement("p"); estadoImagen.className = "estado-imagen";
   zonaLienzo.append(gCanvas, controles, estadoImagen);
   const lado = document.createElement("aside");
-  const detalle = document.createElement("section"); detalle.className = "detalle"; detalle.setAttribute("aria-live", "polite"); detalle.setAttribute("aria-label", "Detalle");
-  const hLista = document.createElement("h3"); hLista.id = "mapa-lista-titulo"; hLista.textContent = "Todo el mundo"; hLista.tabIndex = -1;
-  const buscar = document.createElement("input"); buscar.type = "search"; buscar.id = "mapa-buscar"; buscar.placeholder = "Buscar en el mundo…"; buscar.setAttribute("aria-label", "Buscar en la lista del mundo");
+  const detalle = document.createElement("section"); detalle.className = "detalle"; detalle.setAttribute("aria-live", "polite"); ligar(detalle, "aria-label", "Details", "Detalle");
+  const hLista = document.createElement("h3"); hLista.id = "mapa-lista-titulo"; ligar(hLista, "textContent", "The whole world", "Todo el mundo"); hLista.tabIndex = -1;
+  const buscar = document.createElement("input"); buscar.type = "search"; buscar.id = "mapa-buscar"; ligar(buscar, "placeholder", "Search the world…", "Buscar en el mundo…"); ligar(buscar, "aria-label", "Search the world's list", "Buscar en la lista del mundo");
   buscar.addEventListener("input", () => { listaT = -Infinity; pintarLista(); });
   const lista = document.createElement("ul"); lista.id = "mapa-lista"; lista.setAttribute("aria-labelledby", hLista.id);
-  const hLeyenda = document.createElement("h3"); hLeyenda.textContent = "Leyenda";
+  const hLeyenda = document.createElement("h3"); ligar(hLeyenda, "textContent", "Legend", "Leyenda");
   const leyenda = document.createElement("ul"); leyenda.className = "leyenda";
   lado.append(detalle, hLista, buscar, lista, hLeyenda, leyenda);
   panel.cuerpo.append(zonaLienzo, lado);
@@ -430,14 +432,14 @@ export function montarMapa(h: HostMapa) {
     const v = h.view.cenitalVersion?.() ?? 0, ahora = performance.now();
     if (!h.view.cenital || generando || (imagen && v === imagenV) || (!alAbrir && ahora - imagenT < IMAGEN_MS)) return;
     generando = true; imagenT = ahora;
-    estadoImagen.textContent = "Dibujando la zona desde arriba…";
+    estadoImagen.textContent = tx("Drawing the area from above…", "Dibujando la zona desde arriba…");
     try {
       const img = await h.view.cenital({ px: h.view.power.mobile ? 256 : 512, incluir: yo ?? undefined });
       imagen = img; imagenV = v; imagenes++;
       estadoImagen.textContent = "";
       limMini.forzar(); limGrande.forzar();
       if (panel.abierto) pedir(); // a picture made for the minimap (U14) does not redraw a closed big map
-    } catch (e) { estadoImagen.textContent = `No se pudo dibujar la zona: ${String((e as Error)?.message ?? e).slice(0, 80)}`; }
+    } catch (e) { estadoImagen.textContent = tx(`Could not draw the area: ${String((e as Error)?.message ?? e).slice(0, 80)}`, `No se pudo dibujar la zona: ${String((e as Error)?.message ?? e).slice(0, 80)}`); }
     finally { generando = false; }
   }
   function pintarGrande(): void {
@@ -474,33 +476,33 @@ export function montarMapa(h: HostMapa) {
   function pintarDetalle(): void {
     detalle.replaceChildren();
     if (origenViaje && h.teletransporte) {
-      const v = boton("", "Volver a donde estabas"); v.className = "ic volver"; v.innerHTML = icono("arrow-u-up-left", 18);
+      const v = boton("", tx("Back to where you were", "Volver a donde estabas")); v.className = "ic volver"; v.innerHTML = icono("arrow-u-up-left", 18);
       v.disabled = !h.teletransporte.activo();
       v.addEventListener("click", () => volver());
       detalle.append(v);
     }
-    if (!elegido) { const p = document.createElement("p"); p.textContent = "Elige algo en la vista o en la lista para ver su detalle y marcarlo como destino."; detalle.append(p); return; }
+    if (!elegido) { const p = document.createElement("p"); p.textContent = tx("Pick something on the view or in the list to see its details and set it as your destination.", "Elige algo en la vista o en la lista para ver su detalle y marcarlo como destino."); detalle.append(p); return; }
     const t = document.createElement("h3"); t.textContent = elegido.nombre;
     const p = document.createElement("p");
     p.textContent = `${reg.tipo(elegido.tipo).nombre}${yo ? ` · ${enPalabras(elegido.x - yo.x, elegido.z - yo.z)}` : ""}${elegido.detalle ? ` · ${elegido.detalle}` : ""}`;
     const es = destino?.id === elegido.id;
-    const b = boton(es ? "Quitar destino" : "Marcar destino");
+    const b = boton(es ? tx("Clear destination", "Quitar destino") : tx("Set destination", "Marcar destino"));
     const e = elegido;
     b.addEventListener("click", () => marcarDestino(e));
     detalle.append(t, p, b);
     if (h.andar) { // MIS-257: «Ir» walks there by itself
-      const a = boton("Ir", `Ir andando a ${e.nombre}`); a.className = "andar";
+      const a = boton(tx("Go", "Ir"), tx(`Walk to ${e.nombre}`, `Ir andando a ${e.nombre}`)); a.className = "andar";
       a.addEventListener("click", () => { irAndando(e); });
       detalle.append(a);
     }
     if (h.puedeEditar?.(e) && h.alEditar) { // MIS-240: a thing of the world, and you may build: open it in the builder
-      const ed = boton("Editar este objeto", `Abrir ${e.nombre} en Construir`); ed.className = "editar";
+      const ed = boton(tx("Edit this object", "Editar este objeto"), tx(`Open ${e.nombre} in Build`, `Abrir ${e.nombre} en Construir`)); ed.className = "editar";
       ed.addEventListener("click", () => { if (h.alEditar!(e) && panel.abierto) panel.cerrar(); });
       detalle.append(ed);
     }
     if (h.teletransporte) { // U27 (MVL1): pick a site, press «Ir de golpe», appear there (the server decides; same in VR)
       const activo = h.teletransporte.activo();
-      const g = boton(activo ? "Ir de golpe" : "Ir de golpe (apagado en este mundo)");
+      const g = boton(activo ? tx("Jump there", "Ir de golpe") : tx("Jump there (off in this world)", "Ir de golpe (apagado en este mundo)"));
       g.disabled = !activo;
       g.addEventListener("click", () => irA(e));
       detalle.append(g);
@@ -545,20 +547,20 @@ export function montarMapa(h: HostMapa) {
       f.e = e;
       const texto = `${e.nombre} · ${reg.tipo(e.tipo).nombre.toLowerCase()} · ${e.texto}`;
       if (f.ver.textContent !== texto) f.ver.textContent = texto;
-      const es = destino?.id === e.id, mt = es ? "Quitar destino" : "Marcar destino", ml = `${mt}: ${e.nombre}`;
+      const es = destino?.id === e.id, mt = es ? tx("Clear destination", "Quitar destino") : tx("Set destination", "Marcar destino"), ml = `${mt}: ${e.nombre}`;
       if (f.marcar.getAttribute("aria-label") !== ml) { f.marcar.setAttribute("aria-label", ml); f.marcar.title = mt; }
       if (h.andar) {
-        const al = `Ir andando a ${e.nombre}`;
+        const al = tx(`Walk to ${e.nombre}`, `Ir andando a ${e.nombre}`);
         if (f.andar.getAttribute("aria-label") !== al) { f.andar.setAttribute("aria-label", al); f.andar.title = al; }
       }
       if (h.teletransporte) {
-        const activo = h.teletransporte.activo(), il = activo ? `Ir de golpe a ${e.nombre}` : "Ir de golpe (apagado en este mundo)";
+        const activo = h.teletransporte.activo(), il = activo ? tx(`Jump to ${e.nombre}`, `Ir de golpe a ${e.nombre}`) : tx("Jump there (off in this world)", "Ir de golpe (apagado en este mundo)");
         if (f.ir.getAttribute("aria-label") !== il) { f.ir.setAttribute("aria-label", il); f.ir.title = il; }
         f.ir.disabled = !activo;
       }
     }
     if (!foco) for (const e of entradas) lista.appendChild(filas.get(e.id)!.li); // nearest first (moving rows only when focus is elsewhere)
-    if (!entradas.length && !lista.childElementCount) { const li = document.createElement("li"); li.textContent = q ? "Nada con ese nombre." : "No hay nada en el mundo."; li.dataset.id = ""; lista.appendChild(li); }
+    if (!entradas.length && !lista.childElementCount) { const li = document.createElement("li"); li.textContent = q ? tx("Nothing with that name.", "Nada con ese nombre.") : tx("There is nothing in the world.", "No hay nada en el mundo."); li.dataset.id = ""; lista.appendChild(li); }
     else for (const li of [...lista.children] as HTMLElement[]) if (li.dataset.id === "") li.remove();
   }
   function pintarLeyenda(): void {
@@ -618,7 +620,7 @@ export function montarMapa(h: HostMapa) {
         if (d < d2) { d2 = d; mejor = m; }
       }
       if (mejor) elegir({ id: mejor.id === "destino" && destino ? destino.id : mejor.id, nombre: mejor.nombre, tipo: mejor.tipo, x: mejor.x, z: mejor.z, detalle: mejor.detalle });
-      else { const w = desproyectar(gv, p.px, p.py), x = Math.round(w.x * 10) / 10, z = Math.round(w.z * 10) / 10; elegir({ id: `punto:${x},${z}`, nombre: "Punto elegido", tipo: "lugar", x, z }); }
+      else { const w = desproyectar(gv, p.px, p.py), x = Math.round(w.x * 10) / 10, z = Math.round(w.z * 10) / 10; elegir({ id: `punto:${x},${z}`, nombre: tx("Chosen point", "Punto elegido"), tipo: "lugar", x, z }); }
     }
     if (arrastre.size < 2) pinza = 0;
   };

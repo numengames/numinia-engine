@@ -3,6 +3,7 @@
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg, PlacedObject } from "../../packages/feature/src/index.ts";
 import { puertas as decl } from "./feature.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 /** The house block (features/objetos/biblioteca.json «bloque», 1 m, CC0) is the slab. */
 export const MODELO_HOJA = "32fce59977a24c3c15eb40084c700c1537e59853747f92ce1d01c6fd65958588";
@@ -10,7 +11,7 @@ export const GROSOR_M = 0.08;
 export const ABIERTA_GRADOS = 90;
 export type Puerta = { id: string; nombre: string; x: number; y: number; z: number; ry: number; ancho: number; alto: number; radio: number; abierta: boolean; cierraEn: number; aviso: string };
 type Res = { ok: true } | { ok: false; why: string };
-const SIN: Res = { ok: false, why: "la función puertas no está en este servidor" };
+const sinFuncion = (): Res => ({ ok: false, why: tx("the puertas feature is not on this server", "la función puertas no está en este servidor") });
 
 /** Where the slab's centre goes for a hinge at (x, z) facing `ry` (degrees), closed or open. Pure: the test checks it. */
 export function hoja(v: Pick<Puerta, "x" | "y" | "z" | "ry" | "ancho" | "alto" | "abierta">): PlacedObject {
@@ -25,7 +26,7 @@ export function crearCliente() {
   const oyentes = new Set<(id: string) => void>();
   const puertas = {
     lista: (): Puerta[] => (A ? A.state.keys().map((k) => ({ id: k, ...(A!.state.get(k) as Msg) }) as Puerta) : []),
-    usar: (id: string): Res => (A ? A.send("usar", { puerta: id }) : SIN),
+    usar: (id: string): Res => (A ? A.send("usar", { puerta: id }) : sinFuncion()),
     alCambiar: (fn: (id: string) => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
   const parte: ClientPart = clientPart(decl, (api) => {

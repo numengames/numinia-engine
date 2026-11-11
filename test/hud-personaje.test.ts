@@ -10,7 +10,7 @@ import { MARCOS_PLAZA, validarMarcos, marcosVisibles, cajaDe } from "../packages
 const leer = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
 
 test("without a source nothing is invented: Estado, Carga and Aliento are null (their rows are not drawn)", () => {
-  assert.deepEqual(leerHud({}), { nombre: "Tú", estado: null, carga: null, aliento: null });
+  assert.deepEqual(leerHud({}), { nombre: "You", estado: null, carga: null, aliento: null });
   assert.equal(leerHud({ nombre: " Siroco " }).nombre, "Siroco");
 });
 test("with a source: the ladder index, the load and the breath, clamped", () => {
@@ -72,8 +72,8 @@ test("P2: the three slots are the kit in order, lit by what the Carga pays, each
   const c = casillas(0);
   assert.deepEqual(c.map((x) => [x.tecla, x.clave, x.lista]), [[1, "corte-breve", true], [2, "incision-semantica", false], [3, "discontinuidad", false]]);
   assert.deepEqual(c.map((x) => x.nombre), HABILIDADES.map((k) => ECLIPSE[k].nombre));
-  assert.ok(c[0].etiqueta.startsWith("Habilidad 1, Corte Breve: 12 de daño, enfriamiento 1 s, da 12 de Carga") && !c[0].etiqueta.includes("Te falta"));
-  assert.ok(c[1].etiqueta.includes("cuesta 30 de Carga") && c[1].etiqueta.endsWith("Te falta Carga"));
+  assert.ok(c[0].etiqueta.startsWith("Skill 1, Corte Breve: 12 damage, cooldown 1 s, gives 12 Charge") && !c[0].etiqueta.includes("Not enough"));
+  assert.ok(c[1].etiqueta.includes("costs 30 Charge") && c[1].etiqueta.endsWith("Not enough Charge"));
   assert.deepEqual(casillas(55).map((x) => x.lista), [true, true, true]);
   assert.equal(casillas(NaN)[0].lista, true);
 });
@@ -91,7 +91,7 @@ test("P2: using a slot only ASKS (the intent goes out with the ability's key); a
   usar({ habilidad: (k) => { pedidas.push(k); return { ok: true }; } }, "discontinuidad", (t) => dichas.push(t));
   assert.deepEqual(pedidas, ["discontinuidad"]);
   assert.deepEqual(dichas, []);
-  usar({ habilidad: () => ({ ok: false, why: "no hay ninguna criatura cerca" }) }, "corte-breve", (t) => dichas.push(t));
+  usar({ habilidad: () => ({ ok: false, why: "no hay ninguna criatura cerca" }) }, "corte-breve", (t) => { (dichas as string[]).push(t); });
   assert.deepEqual(dichas, ["No hay ninguna criatura cerca."]);
 });
 test("P2: wiring — main.ts plugs the hooks into __numinia and mounts the slots; the placeholder left objetivo.ts; Escape/layers are asked before a key acts", () => {
