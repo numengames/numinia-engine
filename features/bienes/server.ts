@@ -17,6 +17,7 @@ import { serverPart } from "../../packages/feature/src/index.ts";
 import type { ServerApi } from "../../packages/feature/src/index.ts";
 import { bienes, partir, DONDE } from "./feature.ts";
 import type { Donde } from "./feature.ts";
+import { textoBienes } from "./textos.ts";
 
 export const PREFIJO_BIEN = "b:", PREFIJO_AJENO = "f:", PREFIJO_INDICE = "d:", PREFIJO_PUESTO = "l:", PREFIJO_LLEVA = "p:";
 /** Store keys per index page (100 × ≈ 29 bytes ≈ 2.9 kB, under the store's 4,096 per key). */
@@ -56,7 +57,8 @@ export function leerConfianza(texto: string): { emisores: Confiado[]; problemas:
 }
 
 /** `confianza` only for tests: the world's file is `<aventura>/bienes/confianza.json` (api.aventura("bienes")). */
-export const crearBienes = (o: { confianza?: () => { fichero: string; texto: string }[] } = {}) => serverPart(bienes, (api: ServerApi) => {
+export const crearBienes = (o: { confianza?: () => { fichero: string; texto: string }[]; /** the WORLD's language (ficha.json `idioma`); omitted = Spanish */ idioma?: string } = {}) => serverPart(bienes, (api: ServerApi) => {
+  const tx = (clave: string, vars?: Record<string, string | number>) => textoBienes(o.idioma, clave, vars);
   const suyos = (id: string) => api.players().filter((e) => api.who(e)?.id === id);
 
   // ---- the per-owner index: d:<guest>, d:<guest>~2, … (lists of store keys) ----
@@ -114,8 +116,8 @@ export const crearBienes = (o: { confianza?: () => { fichero: string; texto: str
     const donde = s(m.donde);
     if (!donde) { api.store.delete(PREFIJO_PUESTO + w.id); for (const e of suyos(w.id)) api.state.delete(PREFIJO_LLEVA + e); return; }
     const b = bienDe(w.id, s(m.id));
-    if (!b) return aviso(from, "Ese objeto no es tuyo en este mundo.");
-    if (!verse(b)) return aviso(from, `«${b.nombre}» no tiene modelo 3D en este mundo: no se puede llevar puesto.`);
+    if (!b) return aviso(from, tx("no_tuyo"));
+    if (!verse(b)) return aviso(from, tx("sin_modelo", { nombre: b.nombre }));
     api.store.set(PREFIJO_PUESTO + w.id, { id: b.id, donde });
     for (const e of suyos(w.id)) ponerA(e, b, donde as Donde);
   });
@@ -133,18 +135,18 @@ export const crearBienes = (o: { confianza?: () => { fichero: string; texto: str
     const res = (r: { ok?: boolean; nombre?: string; mundo?: string; confia?: boolean; dado?: boolean; motivo: string }) =>
       api.emit("traido", { ok: false, nombre: "", mundo: "", confia: false, dado: false, ...r }, { to: from });
     const v = api.verificarRecibo(token);
-    if (!v.ok) return res({ motivo: `Ese recibo no vale: ${v.motivo}.` });
+    if (!v.ok) return res({ motivo: tx("recibo_no_vale", { motivo: v.motivo }) });
     const r = v.recibo, n = r.objeto.nombre, base = { ok: true, nombre: n, mundo: r.mundo };
-    if (v.nuestro) return res({ ...base, confia: true, dado: r.dueno === g, motivo: r.dueno === g ? `«${n}» ya es tuyo: lo firmó este mundo y está en tu inventario.` : `«${n}» lo firmó este mundo, pero es de otro invitado: no pasa a ser tuyo.` });
+    if (v.nuestro) return res({ ...base, confia: true, dado: r.dueno === g, motivo: tx(r.dueno === g ? "ya_tuyo_nuestro" : "de_otro_invitado", { n }) });
     const de = confianza().get(r.emisor);
-    if (!de) return res({ ...base, motivo: `Auténtico: «${n}», del mundo ${r.mundo}. Este mundo no confía en quien lo firmó: lo ves como «de otro mundo», pero aquí no es tuyo.` });
+    if (!de) return res({ ...base, motivo: tx("autentico_sin_confianza", { n, mundo: r.mundo }) });
     const k = PREFIJO_AJENO + v.huella.slice(0, 24), ya = leerBien(api.store.get(k));
-    if (ya) return res({ ...base, confia: true, dado: ya.dueno === g, motivo: ya.dueno === g ? `«${n}» ya estaba en tu inventario.` : `«${n}» ya lo trajo otra persona a este mundo: un recibo vale para una sola persona.` });
+    if (ya) return res({ ...base, confia: true, dado: ya.dueno === g, motivo: tx(ya.dueno === g ? "ya_en_inventario" : "ya_otra_persona", { n }) });
     const b: Bien = { id: k.slice(2), recibo: token, dueno: g, objeto: r.objeto.id, nombre: n, descripcion: r.objeto.descripcion, modelo: r.objeto.modelo, licencia: r.objeto.licencia, mundo: r.mundo, mision: r.mision, instante: r.instante, ajeno: true };
-    if (!api.store.set(k, b) || !indexar(g, k)) { api.store.delete(k); api.log(`no pude guardar «${n}» traído por ${g}`); return res({ ...base, confia: true, motivo: "No pude guardarlo en este mundo (almacén lleno)." }); }
+    if (!api.store.set(k, b) || !indexar(g, k)) { api.store.delete(k); api.log(`no pude guardar «${n}» traído por ${g}`); return res({ ...base, confia: true, motivo: tx("almacen_lleno") }); }
     api.log(`«${n}» de ${r.mundo} (firmado por ${de.nombre || r.emisor.slice(0, 20)}…, en quien este mundo confía) pasa a ser de ${g} aquí`);
     for (const e of suyos(g)) enviar(e, b);
-    return res({ ...base, confia: true, dado: true, motivo: `«${n}», del mundo ${de.nombre || r.mundo}: este mundo confía en quien lo firmó, así que aquí también es tuyo.` });
+    return res({ ...base, confia: true, dado: true, motivo: tx("es_tuyo_aqui", { n, mundo: de.nombre || r.mundo }) });
   };
   api.on("traer", (from, m) => {
     const w = api.who(from);
