@@ -490,6 +490,23 @@ const compartir = montarPantalla({
   decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } },
 });
 
+// ---- «Watch full screen»: seated before a 3D screen that shows a share or a video, an extra button (F) opens that picture full screen; local only, not offered in VR ----
+// Lazy: its code is a chunk fetched the first time you sit while a screen shows something; a world without screens never downloads it.
+{
+  const sentadoAhora = () => { const k = asiento.mio(), v = k ? asiento.lista().find((c) => c.id === k) : undefined; return v ? { x: v.x, z: v.z, mira: v.mira } : null; };
+  const espera = setInterval(() => {
+    if (!sentadoAhora() || view.pantallasMostrando().length === 0) return;
+    clearInterval(espera);
+    void import("./pantalla-completa.ts").then((m) => {
+      const pc = m.montarPantallaCompleta({
+        view, escribiendo, sentado: sentadoAhora,
+        teclaLibre: () => pesca.estado().fase === "nada" && document.getElementById("panel-construir")?.hidden !== false && !document.body.classList.contains("modo-foto") && !document.body.classList.contains("rueda-abierta"), // F reels while fishing, frames in the builder and the photo mode, and the wheel takes it
+      });
+      (globalThis as unknown as { __numinia?: Record<string, unknown> }).__numinia ??= {}; (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia.pantallaCompleta = pc;
+    });
+  }, 500);
+}
+
 // ---- J4/J5: what you can use from close by (E, a click, the prompt button), conversations, the quest book (J) ----
 const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k) && dardos.ofrece(f, k) && cerradurasPagina.ofrece(f, k) && lucha.ofrece(f, k), ocupado: () => !!misiones.dialogo(), locales: (x, z, y) => [...asiento.cerca(), ...huecos.cerca(x, z, y), ...cerradurasPagina.cerca(x, z), ...videoMandos.cerca(x, z), ...llamarIA.cerca()], pinchar: (key) => huecos.pinchar(key) || enlaces.pinchar(key),
   persona: (x, y) => { const q = view.pickPerson(x, y); return q !== null && gente.tarjeta(q); } }); // ux2-gente: a click on someone = their card
