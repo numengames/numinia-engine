@@ -9,6 +9,8 @@ import {
   encodeWelcome, encodeInput, encodePing, encodeLatido, encodeReport, encodeIdentityRequest, encodeIdentity, encodePase,
   encodeCondiciones, encodeAceptar, encodeLeyendo, encodePedirCondiciones, writeFields, BitWriter,
   codificarVozSubida, codificarVozBajada, leerVozSubida, leerVozBajada, VOZ_OPUS, VOZ_MULAW,
+  PANTALLA_VP8, codificarPantallaEmpezar, codificarPantallaParar, codificarPantallaTrama, bajarPantallaTrama, codificarPantallaEstado, codificarPantallaPideClave,
+  leerPantallaEmpezar, leerPantallaParar, leerPantallaTramaSubida, leerPantallaTramaBajada, leerPantallaEstado, leerPantallaPideClave,
 } from "../packages/net/src/index.ts";
 import { comprobarGlb, comprobarFichero, comprobarTrazo, medidasImagen, TIPOS, TRAZO_SCHEMA } from "../packages/net/src/ficheros.ts";
 import type { Fields } from "../packages/net/src/index.ts";
@@ -65,6 +67,12 @@ const CASES: Case[] = [
   { name: "readFields", run: (b) => readFields(new BitReader(b), FIELDS), seeds: [(() => { const w = new BitWriter(); writeFields(w, FIELDS, { a: true, n: 7, f: 1.5, e: "dos", t: "hola" }); return w.finish(); })(), new Uint8Array(0)] },
   { name: "leerVozSubida", run: leerVozSubida, seeds: [codificarVozSubida(VOZ_OPUS, 5, new Uint8Array(20))!, codificarVozSubida(VOZ_MULAW, 6, new Uint8Array(3))!] },
   { name: "leerVozBajada", run: leerVozBajada, seeds: [codificarVozBajada(codificarVozSubida(VOZ_OPUS, 5, new Uint8Array(20))!, 9, true)] },
+  { name: "leerPantallaEmpezar", run: leerPantallaEmpezar, seeds: [codificarPantallaEmpezar({ codec: PANTALLA_VP8, ancho: 1280, alto: 720, key: "o1" })!] },
+  { name: "leerPantallaParar", run: leerPantallaParar, seeds: [codificarPantallaParar("o1")!, codificarPantallaParar("")!] },
+  { name: "leerPantallaTramaSubida", run: leerPantallaTramaSubida, seeds: [codificarPantallaTrama({ seq: 3, idx: 0, n: 2, clave: true, ts: 99, datos: new Uint8Array(40) })!] },
+  { name: "leerPantallaTramaBajada", run: leerPantallaTramaBajada, seeds: [bajarPantallaTrama(codificarPantallaTrama({ seq: 3, idx: 1, n: 2, clave: false, ts: 99, datos: new Uint8Array(40) })!, 7)] },
+  { name: "leerPantallaEstado", run: leerPantallaEstado, seeds: [codificarPantallaEstado({ id: 7, vivo: true, motivo: 0, emisor: 2, codec: PANTALLA_VP8, ancho: 640, alto: 360, puedeParar: false, key: "o1" })] },
+  { name: "leerPantallaPideClave", run: leerPantallaPideClave, seeds: [codificarPantallaPideClave(7)] },
   { name: "decodeCatalog", run: decodeCatalog, seeds: [json(MSG.CATALOG, { schema: "numinia-engine/catalog@1", features: [] }), json(MSG.CATALOG, [])] },
   { name: "decodeFeatureMessage", run: (b) => decodeFeatureMessage(b, FIELDS), seeds: [fw(MSG.FEATURE, 2, { a: true, n: 3, f: 2, e: "tres", t: "x" }), new Uint8Array(3)] },
   { name: "featureIndex", run: featureIndex, seeds: [fw(MSG.FEATURE, 2, {}), new Uint8Array(0)] },
