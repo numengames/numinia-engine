@@ -58,3 +58,12 @@ export function elegirMirado<K>(ojo: V3, adelante: V3, cand: readonly Mirable<K>
 /** Does this name show? `todos` (Alt held), the one looked at, or whoever speaks. `marca` is accepted for a later decision (a quest mark that keeps its plate on) and is off today.
  * `ia` (ia-visible S4): the plate of an AI is always on; a person's keeps the rules above. */
 export const nombreVisible = (o: { todos: boolean; mirado: boolean; habla: boolean; marca?: boolean; ia?: boolean }): boolean => o.todos || o.mirado || o.habla || !!o.ia || (MARCA_FIJA && !!o.marca);
+
+export const NOMBRE_ESCALA = 0.65;          // Pablo 2026-11-11: names 35 % smaller than the angle cap gives
+export const NOMBRE_SOBRE_CABEZA_M = 0.06;  // the plate's bottom edge floats this far over the top of the head
+
+/** World y of a name plate's sprite centre so its bottom edge sits NOMBRE_SOBRE_CABEZA_M over `cabezaY`.
+ * `alto` = the sprite's scaled height (m), `centroY` = the sprite's anchor (0 = bottom, 0.5 = middle). */
+export function yPlacaSobreCabeza(cabezaY: number, alto: number, centroY: number): number {
+  return cabezaY + NOMBRE_SOBRE_CABEZA_M + alto * centroY;
+}
