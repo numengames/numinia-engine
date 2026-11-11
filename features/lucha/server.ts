@@ -19,7 +19,7 @@ import { rngNext } from "../../packages/core/src/index.ts";
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
 import type { Pvp } from "./estados.ts";
-import { crearEscalera, NIVEL_COLAPSADO, NIVEL_ALETARGADO, ESCALERA, INCAPACITADO_S, pvpEntre } from "./estados.ts";
+import { crearEscalera, quieto, NIVEL_COLAPSADO, NIVEL_ALETARGADO, ESCALERA, INCAPACITADO_S, pvpEntre } from "./estados.ts";
 import { lucha, ALCANCE_PVP_M, DANO_BASE, DANO_VAR, ENFRIAMIENTO_TICKS, REAPARICION_S, VER_M, VIDA_JUGADOR_MAX, REAPARICION_JUGADOR_TICKS } from "./feature.ts";
 import { BESTIARIO } from "./bestiario.ts";
 import { ECLIPSE, CRITICO_PCT, CRITICO_X, cargaTras, ticksDe } from "./habilidades.ts";
@@ -237,6 +237,8 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
   };
 
   api.onTick((t) => {
+    // L2: the rung slows the person (a one-tick `quieto` on the rung's duty cycle, estados.ts); Aletargado already holds its own order.
+    if (escalera.size > 0) for (const e of escalera.enEstado(t)) { const n = escalera.nivel(e, t); if (n < NIVEL_ALETARGADO && quieto(n, t)) api.ordenar(e, { quieto: 0.05 }); }
     if (reaparecen.size > 0) {
       for (const [e, en] of reaparecen) {
         if (t < en) continue;

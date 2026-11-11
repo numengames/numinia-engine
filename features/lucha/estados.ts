@@ -14,6 +14,15 @@ export const NIVEL_COLAPSADO = 3, NIVEL_ALETARGADO = 4;
 /** Seconds a person stays still and Aletargado before the server puts them back on their last safe spot (design §1: 10 s). */
 export const INCAPACITADO_S = 10;
 
+/**
+ * The ladder's effect on a person's SPEED, decided by the server (L2). The engine's walk has no speed knob (changing it would touch
+ * the shared simulation and every page's prediction), so a rung slows a person by freezing them for one tick out of every N, a duty
+ * cycle: Desestabilizado walks at full speed (it is the warning rung, the HUD shows it), Confundido at 3/4, Colapsado at 1/2
+ * (and cannot strike), Aletargado is held still by its own order. Pure: `quieto(nivel, t)` says if tick `t` is a frozen one.
+ */
+export const VELOCIDAD_POR_NIVEL = [1, 1, 0.75, 0.5, 0] as const;
+export const quieto = (nivel: number, t: number): boolean => nivel === 2 ? t % 4 === 0 : nivel === 3 ? t % 2 === 0 : false;
+
 type Ficha = { nivel: number; desde: number };
 
 /** The ladder of one world: rung per player entity, computed lazily from the tick of the last change. */
@@ -39,6 +48,8 @@ export function crearEscalera() {
     /** Back to «ninguno» (left the world, or reappeared). */
     reiniciar(e: number): void { fichas.delete(e); },
     get size(): number { return fichas.size; },
+    /** The players on some rung right now (a settled one is dropped on read). A quiet world has none and the tick does nothing. */
+    enEstado(t: number): number[] { const o: number[] = []; for (const e of [...fichas.keys()]) if (nivel(e, t) > 0) o.push(e); return o; },
   };
 }
 export type Escalera = ReturnType<typeof crearEscalera>;
