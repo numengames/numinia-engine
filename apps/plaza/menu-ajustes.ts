@@ -6,7 +6,8 @@
 // loop only starts drawing on the next animation frame), so stored choices and the system's preferences are on screen
 // from the start (V7). Not named «ajustes.ts»: dev:lan proxies every path that starts with /a to the server.
 import { acciones } from "./acciones-informe.ts"; // session log: VR body and speed changes
-import { crearAjustes, crearCapacidades, leerNavegador, AJUSTES_MOTOR, CONSULTAS, NIVELES, hayMando } from "../../packages/client/src/ajustes.ts";
+import { crearAjustes, crearCapacidades, leerNavegador, AJUSTES_MOTOR, CONSULTAS, NIVELES, hayMando, AJUSTE_IDIOMA, ID_IDIOMA, ESQUEMA_MUNDO, enlazarIdioma } from "../../packages/client/src/ajustes.ts";
+import { detectarIdioma, IDIOMA_DEFECTO } from "../../packages/client/src/idioma.ts"; // i18n 2/5: English first, Español second
 import type { Ajustes, Grupo, Lectura, Nivel, Valor, Vista } from "../../packages/client/src/ajustes.ts";
 import type { ClientSession } from "../../packages/client/src/index.ts";
 import type { ClientPart } from "../../packages/feature/src/index.ts";
@@ -78,6 +79,13 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   };
   const a = crearAjustes({ capacidades: caps, guardado, mundo: mundoPlaza.mundo, registro: (l) => console.warn(l) });
   a.declarar(AJUSTES_MOTOR);
+  // i18n 2/5: «Language / Idioma» (interfaz). What the person chose wins; else the browser's language; else English. The
+  // browser's pick is the setting's default (so «Restablecer» returns to it). Its applier makes the language active and sets
+  // <html lang> BEFORE the registry tells its listeners, so the menu hears a change already in the new language.
+  a.declarar([AJUSTE_IDIOMA]);
+  enlazarIdioma(a, document);
+  const idiomaNavegador = detectarIdioma({ guardado: guardado, navegador: navigator });
+  if (idiomaNavegador !== IDIOMA_DEFECTO) a.aplicarMundo({ schema: ESQUEMA_MUNDO, mundo: mundoPlaza.mundo, defectos: { [ID_IDIOMA]: idiomaNavegador } });
   for (const p of o.funciones) {
     if (p.feature.ajustes?.length && !p.feature.issues.length) a.declarar(p.feature.ajustes, { de: "funcion", id: p.feature.id, describe: p.feature.describe });
   }

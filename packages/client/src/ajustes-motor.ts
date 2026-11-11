@@ -3,6 +3,9 @@
 // Defaults by tier follow limits.json and H12 (phones and headsets start cool: no shadows, no HDR, few particles);
 // defaults by capability carry the system's preferences (V7): reduced motion, more contrast, save-data.
 import type { AjusteDecl } from "../../feature/src/ajustes.ts";
+import type { AjusteDeclI18n } from "./ajustes.ts"; // type only: erased at run time, so no import cycle
+import { fijarIdioma, IDIOMAS } from "./idioma.ts";
+import type { DocumentoIdioma } from "./idioma.ts";
 
 /** The engine's groups, in menu order. Features and worlds add one group each (their id). */
 export const GRUPOS_MOTOR: readonly { id: string; nombre: string }[] = [
@@ -13,6 +16,27 @@ export const GRUPOS_MOTOR: readonly { id: string; nombre: string }[] = [
   { id: "interfaz", nombre: "Interfaz" },
   { id: "privacidad", nombre: "Privacidad" },
 ];
+
+/** i18n 2/5: «Language / Idioma», in the «interfaz» group. English is the official language and the default; Spanish is second.
+ * The label carries both names on purpose, so it can be found from either language. Not in AJUSTES_MOTOR: the page declares it
+ * (apps/plaza/menu-ajustes.ts) with the default its browser asks for. */
+export const AJUSTE_IDIOMA: AjusteDeclI18n = {
+  grupo: "interfaz", id: "idioma", tipo: "eleccion", nombre: "Language / Idioma",
+  describe: {
+    en: "The language of the menus and messages. It changes at once, without reloading the page.",
+    es: "El idioma de los menús y los mensajes. Cambia al instante, sin recargar la página.",
+  },
+  // the options are written in their own language, always: whoever cannot read the current one still finds theirs
+  opciones: [{ valor: "en", nombre: "English" }, { valor: "es", nombre: "Español" }],
+  defecto: "en",
+};
+export const ID_IDIOMA = "interfaz.idioma";
+
+/** Make the setting speak: choosing a language makes it the active one (and <html lang>) BEFORE the registry tells its
+ * listeners, so the menu that hears the change already reads every label in the new language — no reload. */
+export function enlazarIdioma(a: { alAplicar(id: string, fn: (valor: string | number | boolean) => void): void }, documento?: DocumentoIdioma): void {
+  a.alAplicar(ID_IDIOMA, (v) => { fijarIdioma(typeof v === "string" && (IDIOMAS as readonly string[]).includes(v) ? v : undefined, documento); });
+}
 
 const ENTORNO = { "graficos.sombras": null, "graficos.agua": null, "graficos.particulas": null, "graficos.hdr": null };
 const H5 = "Llega con H5: todavía no suena nada en el mundo.";
