@@ -6,7 +6,7 @@
 // that height (a floor plan inside a building), and the world's file says it again at each start (server.ts).
 import type { Issue, Result } from "../../packages/core/src/index.ts";
 import { defineSchema, validate } from "../../packages/schema/src/index.ts";
-import { CAMARA_INICIOS, CAMARA_MAX_MAX, CAMARA_MAX_MIN, CAMPOS, DISCO_RADIO_MAX, DISCO_RADIO_MIN, MOV_ANDAR_MAX, MOV_ANDAR_MIN, MOV_CORRER_MAX, MOV_CORRER_MIN, MOV_FOV_MAX, MOV_FOV_MIN, MOV_FOV_PASO, MOV_VEL_PASO, SUELO_FORMAS, entorno } from "./feature.ts";
+import { CAMARA_INICIOS, CAMARA_MAX_MAX, CAMARA_MAX_MIN, CAMINOS_MAX, CAMPOS, DISCO_RADIO_MAX, DISCO_RADIO_MIN, MOV_ANDAR_MAX, MOV_ANDAR_MIN, MOV_CORRER_MAX, MOV_CORRER_MIN, MOV_FOV_MAX, MOV_FOV_MIN, MOV_FOV_PASO, MOV_VEL_PASO, SUELO_FORMAS, entorno } from "./feature.ts";
 
 export const ESQUEMA = "numinia-engine/entorno@1";
 export type Plano = Record<string, unknown>;
@@ -71,6 +71,8 @@ export function validarEntorno(json: unknown, base: Plano = porDefecto()): Resul
   if (!vu.ok) issues.push(...vu.issues);
   const te = leerTema(json);
   if (!te.ok) issues.push(...te.issues);
+  const cm = leerCaminos(json);
+  if (!cm.ok) issues.push(...cm.issues);
   const plano: Plano = { ...base };
   for (const [campo, ruta, color] of RUTAS) {
     const v = leer(json, ruta);
@@ -93,6 +95,7 @@ export function validarEntorno(json: unknown, base: Plano = porDefecto()): Resul
   }
   // the shape of the ground rides the flat state too (the page's prediction and the server's sim agree): only when the file says it
   if (di.ok && di.value) { plano.sueloForma = di.value.forma; plano.sueloRadio = di.value.radio; }
+  if (cm.ok && cm.value) { plano.caminos = cm.value.texto; if (cm.value.color !== undefined) plano.caminosColor = cm.value.color; }
   if (ap.ok && ap.value?.giro !== undefined) { plano.llegadaGira = true; plano.llegadaGiro = ap.value.giro; }
   const v = validate(SCHEMA, plano);
   if (!v.ok) {
@@ -191,6 +194,43 @@ export function leerDisco(json: unknown): Result<DiscoFichero | null> {
   return { ok: true, value: { forma: "disco", radio: r as number } };
 }
 
+/** Glowing paths: `caminos: [{ "desde": [x, z], "hasta": [x, z] }]` (metres) and optional `caminosColor: "#rrggbb"` of an `entorno@1` file.
+ * They ride the flat state as `caminos` = "x1,z1,x2,z2;…" (2 decimals) and `caminosColor`; the page draws one strip per path with a pulse of light
+ * running along it. null when the file has none (nothing is drawn). Each path 0.5–2000 m long, ends within ±APARICION_XZ_MAX, at most CAMINOS_MAX. */
+export type CaminosFichero = { texto: string; color?: number; lista: { desde: [number, number]; hasta: [number, number] }[] };
+export function leerCaminos(json: unknown): Result<CaminosFichero | null> {
+  const o = typeof json === "object" && json !== null && !Array.isArray(json) ? (json as Record<string, unknown>) : {};
+  if (o.caminos === undefined && o.caminosColor === undefined) return { ok: true, value: null };
+  const issues: Issue[] = [], lista: CaminosFichero["lista"] = [];
+  let color: number | undefined;
+  if (o.caminosColor !== undefined) {
+    if (typeof o.caminosColor === "string" && COLOR.test(o.caminosColor)) color = parseInt(o.caminosColor.slice(1), 16);
+    else issues.push({ path: "entorno.caminosColor", message: "un color \"#rrggbb\", p. ej. \"#7fe8ff\": el color de la luz de los caminos" });
+  }
+  if (o.caminos !== undefined) {
+    const c = o.caminos, forma = `una lista de { "desde": [x, z], "hasta": [x, z] } en metros, como mucho ${CAMINOS_MAX}: cada camino es una tira de luz sobre el suelo`;
+    if (!Array.isArray(c)) issues.push({ path: "entorno.caminos", message: forma });
+    else {
+      if (c.length > CAMINOS_MAX) issues.push({ path: "entorno.caminos", message: `como mucho ${CAMINOS_MAX} caminos (hay ${c.length})` });
+      c.slice(0, CAMINOS_MAX).forEach((e, i) => {
+        const par = (k: string): [number, number] | null => {
+          const v = (e as Record<string, unknown> | null)?.[k];
+          if (Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= APARICION_XZ_MAX)) return [Math.round(v[0] * 100) / 100, Math.round(v[1] * 100) / 100];
+          issues.push({ path: `entorno.caminos[${i}].${k}`, message: `[x, z] en metros, cada uno entre -${APARICION_XZ_MAX} y ${APARICION_XZ_MAX}` });
+          return null;
+        };
+        if (typeof e !== "object" || e === null || Array.isArray(e)) { issues.push({ path: `entorno.caminos[${i}]`, message: forma }); return; }
+        const d = par("desde"), h = par("hasta");
+        if (!d || !h) return;
+        const largo = Math.hypot(h[0] - d[0], h[1] - d[1]);
+        if (largo < 0.5 || largo > 2000) issues.push({ path: `entorno.caminos[${i}]`, message: `el camino mide ${Math.round(largo * 10) / 10} m: debe medir entre 0.5 y 2000 m (desde y hasta no pueden ser el mismo punto)` });
+        else lista.push({ desde: d, hasta: h });
+      });
+    }
+  }
+  return issues.length ? { ok: false, issues } : { ok: true, value: { texto: lista.map((p) => `${p.desde[0]},${p.desde[1]},${p.hasta[0]},${p.hasta[1]}`).join(";"), color, lista } };
+}
+
 /** D-045: the world's void. `sueloMinimo` (metres, SUELO_MIN–SUELO_MAX): under it you have fallen and the server puts you
  * back on your last safe spot; optional `vuelta: { x, y, z, siempre? }` = a fixed point to come back to (`siempre` = always
  * there, else only until a safe spot is known). null when the file says nothing. The server's (instance + feature `suelo`),
@@ -269,6 +309,12 @@ export function aFichero(p: Plano): Record<string, unknown> {
   if (inicio !== "tercera" || max > 0) out.camara = { inicio, ...(max > 0 ? { distanciaMax: max } : {}) };
   const [ma, mc, mf] = [Number(p.movAndar ?? 0), Number(p.movCorrer ?? 0), Number(p.movFov ?? 0)];
   if (ma > 0 || mc > 0 || mf > 0) out.movimiento = { ...(ma > 0 ? { andar: ma } : {}), ...(mc > 0 ? { correr: mc } : {}), ...(mf > 0 ? { fov: mf } : {}) };
+  // glowing paths go back to their place in the file only when the world has some
+  const texto = String(p.caminos ?? "");
+  if (texto) {
+    out.caminos = texto.split(";").map((t) => t.split(",").map(Number)).filter((q) => q.length === 4 && q.every(Number.isFinite)).map((q) => ({ desde: [q[0], q[1]], hasta: [q[2], q[3]] }));
+    out.caminosColor = hex(Number(p.caminosColor ?? 0x7fe8ff));
+  }
   return out;
 }
 
