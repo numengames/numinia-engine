@@ -97,7 +97,7 @@ export function eleccionDesde(o: { url?: string | null; guardado?: string | null
 export function decidirAparato(o: { eleccion?: Eleccion; real: Real; enMarco?: boolean }): Perfil {
   const r = o.real, eleccion = o.eleccion && esEleccion(o.eleccion) ? o.eleccion : "auto";
   if (eleccion === "auto") {
-    const memoriaBaja = r.memoriaGB > 0 && r.memoriaGB <= 4;
+    const memoriaBaja = r.punteroGrueso && r.memoriaGB > 0 && r.memoriaGB <= 4; // QA 2026-11-11: memory alone never makes a desktop a phone
     // a headset: the `vr` class with its declared capabilities (controllers point like a fine pointer, no touch HUD, no
     // phone-size screen); phone-class power only by the memory rule, never because the pointer reads «coarse»
     if (r.visor) return { eleccion, clase: "vr", forzado: false, ...DECLARADAS.vr, movil: memoriaBaja, marco: null };
