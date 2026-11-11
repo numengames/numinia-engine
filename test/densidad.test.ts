@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import {
   DENSIDADES, MARCOS_PLAZA, FUERA_DEL_DIAL, nivelDensidad, siguienteDensidad, visibleEn, seFunde, marcosVisibles, validarMarcos, esDensidad, SEGUNDOS_AL_CAMBIAR,
 } from "../packages/client/src/densidad.ts";
-import { crearAjustes, crearCapacidades, leerNavegador, AJUSTES_MOTOR, validarAjuste } from "../packages/client/src/ajustes.ts";
+import { crearAjustes, crearCapacidades, leerNavegador, AJUSTES_MOTOR, resolverTexto, validarAjuste } from "../packages/client/src/ajustes.ts";
 import type { Guardado } from "../packages/client/src/ajustes.ts";
 
 const leer = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
@@ -55,10 +55,10 @@ test("al_cambiar fades after 6 s; «menos movimiento» and the full level keep i
 
 test("the setting lives in N2: Interfaz group, three options, Normal by default, key U shown", () => {
   const d = AJUSTES_MOTOR.find((a) => a.grupo === "interfaz" && a.id === "densidad")!;
-  assert.deepEqual(validarAjuste(d, "densidad"), []);
+  assert.deepEqual(validarAjuste({ ...d, nombre: resolverTexto(d.nombre, "en"), describe: resolverTexto(d.describe, "en") } as never, "densidad"), []);
   assert.deepEqual(d.opciones!.map((o) => o.valor), [...DENSIDADES]);
-  assert.deepEqual(d.opciones!.map((o) => o.nombre), ["Mínimo", "Normal", "Completo"]);
-  assert.equal(d.nombre, "Densidad de interfaz"); assert.equal(d.defecto, "normal");
+  assert.deepEqual(d.opciones!.map((o) => o.nombre), ["Minimum", "Normal", "Full"]);
+  assert.equal(resolverTexto(d.nombre, "es"), "Densidad de interfaz"); assert.equal(d.defecto, "normal");
   const t = AJUSTES_MOTOR.find((a) => a.id === "teclaDensidad")!;
   assert.equal(t.defecto, "KeyU"); assert.equal(t.soloVer, true);
   const datos = new Map<string, string>(), guardado: Guardado = { leer: (k) => datos.get(k) ?? null, escribir: (k, v) => { datos.set(k, v); } };
