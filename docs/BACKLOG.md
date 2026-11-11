@@ -834,6 +834,7 @@ pasa, uno sin licencia).
 `check` (valida esquemas, manifiestos y licencias de una carpeta), `shot` (captura sin pantalla desde una
 cámara con nombre), `diff-shot` (compara con una imagen de referencia y da el porcentaje distinto),
 `replay` (reproduce una grabación de entradas y comprueba la huella). Ya existen `run` y `describe`.
+**Hecho (10-11, primera parte):** `check` y `replay` (`packages/cli/src/check.ts`, `replay.ts`; `npm run check -- <carpeta>`, `npm run replay -- <grabación.json>|--reference`). **Falta:** `shot` y `diff-shot` (necesitan navegador sin pantalla).
 
 ### M25 — Imágenes de referencia
 La plaza con semilla fija, capturada en WebGPU y en WebGL2 (GL por software) desde 3 cámaras; `diff-shot`
