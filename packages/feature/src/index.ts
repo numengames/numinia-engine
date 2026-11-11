@@ -1047,7 +1047,7 @@ export type ViewHooks = {
   pausa?(fotogramas: number): void;
 };
 /** J7b: a move as the view plays it (features/gestos/movimientos.ts has the list). */
-export type MovimientoVista = { id: string; clips: readonly string[]; modo: "una" | "bucle" | "quedarse"; hastaS: number; viva: boolean; apoya?: boolean };
+export type MovimientoVista = { id: string; clips: readonly string[]; modo: "una" | "bucle" | "quedarse"; hastaS: number; viva: boolean; apoya?: boolean; sujeto?: boolean /* held by its owner (a seat): walking does not end it */ };
 /** H1: a thing in the world as the page draws it. Rotation in degrees, applied yaw (ry), then pitch (rx), then roll (rz). */
 export type PlacedObject = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; sx: number; sy: number; sz: number; animate: boolean;
   /** U10 (optional): what it is (modelo = a .glb; imagen, video: a plane; sonido: a sphere of sound, radius = sx), the file's
