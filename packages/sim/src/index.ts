@@ -95,7 +95,7 @@ const MESH_FLOOR = fx(500);
  * is a wall or a ceiling, never a floor or a ramp to walk up. cos(50°) in Q16.16. */
 export const MAX_SLOPE_COS = 42126;
 /** Does the state have any geometry (solid boxes or a mesh) that the step must look at? */
-const hasGeometry = (s: SimState): boolean => s.solids.length > 0 || s.mesh !== null;
+const hasGeometry = (s: SimState): boolean => s.solids.length > 0 || s.mesh !== null || s.piso !== 0; // a world with no flat floor (`piso`) always looks at its ground
 
 // ---- U10: solid things (a boolean on a placed thing). World geometry, like the ground: NOT part of the state's
 // fingerprint (both sides build it from the same shared state). Boxes are axis-aligned, Q16.16:
@@ -229,6 +229,16 @@ export function setMesh(s: SimState, mesh: Bvh | null, piso = 0): void { s.mesh 
 /** N5: `piso` for a world whose mesh IS the whole ground (the seeded terrain): there is no flat floor at y = 0 under it, so where the
  * mesh has no ground (outside its border) a body keeps falling until D-045's void sends it back. Y_BOUND, the lowest `Transform` y. */
 export const PISO_SIN_SUELO = -Y_BOUND;
+/** A world with no ground (entorno `suelo: "ninguno"`, sky above and below): the shared state «entorno:zona» says so and there is no flat floor at y = 0
+ * either, so whoever walks off the geometry falls instead of standing on thin air. Pure; the instance and the page both ask it (`allState()` entries)
+ * and hand `PISO_SIN_SUELO` to `setMesh`, as they do for the terrain. A world that never says it keeps `piso` 0 and the same fingerprint. */
+export const CLAVE_ENTORNO = "entorno:zona";
+export function sinSueloDelEstado(objetos: Iterable<[string, Record<string, unknown>]>): boolean {
+  for (const [k, v] of objetos) if (k === CLAVE_ENTORNO) return !!v && v.suelo === "ninguno";
+  return false;
+}
+/** Where the void starts (m) in a world with no ground that gives no `sueloMinimo` (D-045): 100 m under y = 0. Its own `sueloMinimo` wins. */
+export const SUELO_MINIMO_SIN_SUELO = -100;
 /** The boxes of every value with `solido: true` and its world box (bx0…bz1, metres), at most SOLIDS_MAX, in key order. */
 export function solidsFrom(values: Iterable<[string, Record<string, unknown>]>): Int32Array {
   const list = [...values].filter(([, v]) => v.solido === true && Number(v.bx1) > Number(v.bx0) && Number(v.bz1) > Number(v.bz0))
