@@ -5,7 +5,7 @@
 import { createServer } from "node:http";
 import { origenAdmitido } from "./embed-espejo.ts";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { signer } from "./secret.ts";
 import { crearRecibos } from "./recibos.ts"; // N10: digital goods' ownership receipts
@@ -272,6 +272,13 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     const portada = sha && activos.buscar(sha, ext) ? `/a/${f!.portada}` : undefined;
     return f ? { nombre: f.nombre, descripcion: f.descripcion, portada, tema: tema ?? undefined, ...(interfaz ? { interfaz } : {}), avatar: f.avatar, aforo: aforo(), ...(ficha?.audio ? { audio: ficha.audio } : {}) } : { aforo: aforo() };
   };
+  // the world's own loading-screen picture (ficha `carga`): only when the file is in this server; a heavy one is said in the log, not refused
+  if (pagina) pagina.carga = () => {
+    const f = fichaViva.ficha(), [sha, ext] = f?.carga?.split(".") ?? [];
+    return sha && activos.buscar(sha, ext) ? { url: `/a/${f!.carga}`, credito: f!.carga_credito } : null;
+  };
+  { const [sha, ext] = ficha?.carga?.split(".") ?? [], ruta = sha ? activos.buscar(sha, ext) : null;
+    if (ficha?.carga) log(ruta ? `[ficha] pantalla de carga propia /a/${ficha.carga} (${Math.round(statSync(ruta).size / 1024)} kB${statSync(ruta).size > 150 * 1024 ? "; pesa más de 150 kB: un móvil la espera, mejor un webp ligero" : ""})` : `[ficha] su imagen de carga ${ficha.carga} no está en este servidor: queda la luna`); }
   if (pagina) pagina.portada = () => { const p = fichaPublica(); return "portada" in p ? p.portada ?? null : null; }; // MIS-265: the cover in every page's og:image, live as the owner changes it
   (o.features ?? []).find(conFicha)?.ficha.conectar({ ajustes: fichaViva.ajustes, cambiar: fichaViva.cambiar });
   if (o.suelo) log(`[mundo] suelo mínimo ${o.suelo.minimo} m: bajo él se vuelve a la última posición segura${o.suelo.vuelta ? ` (punto de vuelta ${o.suelo.vuelta.x}, ${o.suelo.vuelta.y}, ${o.suelo.vuelta.z})` : ""}`);
