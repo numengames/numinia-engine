@@ -30,19 +30,19 @@ export type SeccionMundo = {
 };
 
 export const SECCIONES_MUNDO: readonly SeccionMundo[] = [
-  { id: "tu", icono: "user", es: "Tú", en: "You", orden: 1, tecla: "I", botones: ["hud-personaje-abrir"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
-  { id: "gente", icono: "users", es: "Gente", en: "People", orden: 2, tecla: "L", botones: ["gente-abrir"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
-  { id: "bolsa", icono: "package", es: "Bolsa", en: "Bag", orden: 3, tecla: "R", botones: ["inventario-abrir"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
+  { id: "tu", icono: "user", es: "Tú", en: "You", orden: 1, tecla: "C", botones: ["hud-personaje-abrir"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
+  { id: "gente", icono: "users", es: "Gente", en: "People", orden: 2, tecla: "Tab", botones: ["gente-abrir"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
+  { id: "bolsa", icono: "package", es: "Bolsa", en: "Bag", orden: 3, tecla: "I", botones: ["inventario-abrir"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
   { id: "misiones", icono: "scroll", es: "Misiones", en: "Quests", orden: 4, tecla: "J", botones: ["misiones"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
   { id: "mapa", icono: "map-trifold", es: "Dónde estoy", en: "Where am I", orden: 5, tecla: "M", botones: ["minimapa-abrir"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
-  { id: "construir", icono: "crane-tower", es: "Construir", en: "Build", orden: 6, tecla: "C", botones: ["construir"], aparatos: ["pc", "vr"], vr: { panel: true } }, // not on a phone: a phone walks and talks (Pablo, 2026-10-22)
+  { id: "construir", icono: "crane-tower", es: "Construir", en: "Build", orden: 6, tecla: "B", botones: ["construir"], aparatos: ["pc", "vr"], vr: { panel: true } }, // not on a phone: a phone walks and talks (Pablo, 2026-10-22)
   { id: "ajustes", icono: "gear", es: "Ajustes", en: "Settings", orden: 7, tecla: "O", botones: ["ajustes-abrir"], aparatos: ["pc", "movil", "vr"], vr: { panel: true } },
   // the rest of the bar
-  { id: "micro", icono: "microphone", es: "Micrófono", en: "Microphone", orden: 8, tecla: "Q", botones: ["microfono"], aparatos: ["pc", "movil", "vr"], vr: { reloj: "micro" } },
+  { id: "micro", icono: "microphone", es: "Micrófono", en: "Microphone", orden: 8, tecla: "V", botones: ["microfono"], aparatos: ["pc", "movil", "vr"], vr: { reloj: "micro" } },
   { id: "foto", icono: "camera", es: "Foto", en: "Photo", orden: 9, tecla: "P", botones: ["foto-abrir"], aparatos: ["pc", "movil", "vr"], vr: { reloj: "camara" } },
   { id: "camara", icono: "camera", es: "Cámara", en: "Camera", orden: 10, tecla: "P", botones: ["camara-abrir"], aparatos: ["pc"],
     sinVR: { motivo: "en VR la cámara es el botón «Foto» del reloj (la Cámara de la barra solo reúne foto, grabar y compartir pantalla)", debe: false } },
-  { id: "grabar", icono: "record", es: "Grabar", en: "Record", orden: 11, tecla: "K", botones: ["graboso"], aparatos: ["pc", "vr"], vr: { reloj: "graboso" } }, // in VR: the watch's «Grabar» button, only where the Graboso exists (MIS-200)
+  { id: "grabar", icono: "record", es: "Grabar", en: "Record", orden: 11, botones: ["graboso"], aparatos: ["pc", "vr"], vr: { reloj: "graboso" } }, // in VR: the watch's «Grabar» button, only where the Graboso exists (MIS-200)
   { id: "compartir", icono: "screencast", es: "Compartir pantalla", en: "Share screen", orden: 12, botones: ["compartir-pantalla"], aparatos: ["pc"],
     sinVR: { motivo: "el navegador no comparte la pantalla del ordenador dentro de una sesión VR", debe: false } },
   { id: "avisos", icono: "bell", es: "Avisos", en: "Notices", orden: 13, tecla: "N", botones: ["avisos-abrir"], aparatos: ["pc", "vr"], vr: { reloj: "avisos" } },
@@ -74,7 +74,10 @@ export function seccion(id: string): SeccionMundo {
 export const nombreDe = (id: string, idioma: Idioma = "es"): string => { const s = seccion(id); return idioma === "en" ? s.en : s.es; };
 export const iconoDe = (id: string): string => seccion(id).icono;
 /** «Nombre (L)» as the computer's tooltips write it; no key → just the name. */
-export const tituloDe = (id: string, idioma: Idioma = "es"): string => { const s = seccion(id); return s.tecla ? `${nombreDe(id, idioma)} (${s.tecla})` : nombreDe(id, idioma); };
+/** Keymap v1: the page tells which key is in effect for a section (Yours or Default, apps/plaza/teclas.ts); without it the written letter. */
+let teclaEfectiva: (id: string) => string | undefined = () => undefined;
+export const fijarTeclaEfectiva = (f: (id: string) => string | undefined): void => { teclaEfectiva = f; };
+export const tituloDe = (id: string, idioma: Idioma = "es"): string => { const s = seccion(id), t = teclaEfectiva(id) ?? s.tecla; return t ? `${nombreDe(id, idioma)} (${t})` : nombreDe(id, idioma); };
 /** The sections that exist on a device, in order. */
 export const seccionesEn = (aparato: Aparato): SeccionMundo[] => SECCIONES_MUNDO.filter((s) => s.aparatos.includes(aparato)).sort((a, b) => a.orden - b.orden);
 /** The ids of the sections that are rows of the VR menu panel, in order. */

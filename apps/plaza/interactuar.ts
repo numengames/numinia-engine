@@ -12,6 +12,7 @@
 // P15: of the things in reach the prompt names the one the player LOOKS at (interactuar-mirada.ts: smallest angle to the camera's
 // heading, nearest on a tie, nearest of all when none is ahead), the chosen thing wears a ring in the world (`view.marcar`), and the
 // prompt is drawn big in the house amber with the key as a drawn key cap. It lasts exactly as long as the thing is in reach.
+import { teclas } from "./teclas.ts";
 import type { Object3D } from "three/webgpu";
 type Res = { ok: true } | { ok: false; why: string };
 export type Cerca = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number; hold?: number; local?: () => Res;
@@ -78,13 +79,13 @@ export function montarInteraccion(o: {
   };
   setInterval(mirar, 200);
   addEventListener("keydown", (e) => {
-    if (e.code !== "KeyE" || e.repeat || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e) || !libre()) return;
+    if (!teclas.es(e, "usar") || e.repeat || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e) || !libre()) return;
     mirar();
     if (!actual) return;
     e.preventDefault();
     if (actual.hold) empezarMantener(actual); else usar(actual);
   });
-  addEventListener("keyup", (e) => { if (e.code === "KeyE") cancelarMantener(); });
+  addEventListener("keyup", (e) => { if (teclas.es(e, "usar")) cancelarMantener(); });
   o.boton.addEventListener("pointerdown", (ev) => { ev.stopPropagation(); if (actual?.hold) empezarMantener(actual); }); // a tap here is not a joystick touch
   o.boton.addEventListener("pointerup", () => { if (manteniendo) cancelarMantener(); });
   o.boton.addEventListener("pointerleave", () => cancelarMantener());

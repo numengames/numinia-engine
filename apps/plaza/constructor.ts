@@ -1,4 +1,4 @@
-// The builder (H1 + M22): a «Construir» button (C or Tab) for whoever may build; real HTML controls that screen readers
+// The builder (H1 + M22): a «Construir» button (B) for whoever may build; real HTML controls that screen readers
 // and keyboards can use — since ux2-dock a row of icons (the dock: Añadir, Objetos del mundo, Cable, Entorno, Precisión, Inspector, Ayuda |
 // Deshacer, Rehacer | Salir) with ONE drawer open at a time under it (cajones.ts), and the selected object's card on the
 // right — so building no longer covers the world; and the hands in the 3D view
@@ -26,6 +26,7 @@ import { encuadreDe, filasDeObjetos, filtrarObjetos, firmaDeLista, frase, recort
 import { transformarGrupo } from "../../packages/render/src/grupo.ts";
 import { rectDesde, esCaja, idsEnRect, unirSeleccion, gestoDosDedos, aplicarGesto } from "./seleccion-caja.ts";
 import { esTactil } from "./perfil-aparato.ts"; // U25: the page's one answer to «touch controls or not»
+import { teclas } from "./teclas.ts"; // keymap v1: B builds (Yours or Default)
 
 type Res = { ok: true } | { ok: false; why: string };
 type Obj = Record<string, unknown> & { id: string };
@@ -61,12 +62,11 @@ const FANTASMA = "~fantasma";   // the library model following the pointer befor
 const ENVIO_MS = 125;           // a drag sends `mover` at most 8 times a second,
 const VIVO_MS = 500;            // and again every half second while held still (the server keeps one undo step per drag)
 const CLIC_PX = 6;              // a press that moves less than this is a click
-const TAB_RATON_MS = 30_000;    // Tab opens build mode only if the mouse moved lately: keyboard users keep Tab
 const PASOS_POS = [0, 0.1, 0.5, 1], PASOS_GIRO = [0, 5, 15, 45];
 const HERRAMIENTAS: [Herr, string, string][] = [["coger", "Coger", "1"], ["mover", "Mover", "2 o G"], ["girar", "Girar", "3 o R"], ["escalar", "Escalar", "4"]];
 /** Keys and mouse in build mode (also in docs/JUGADOR.md). */
 export const AYUDA = [
-  "C o Tab: abrir y cerrar construir (Tab solo si usas el ratón; con teclado, Tab sigue moviendo el foco).",
+  "B: abrir y cerrar construir.",
   "Clic izquierdo: seleccionar · clic en el suelo o Esc: nada seleccionado.",
   "1 coger: sigue al puntero sobre el suelo y otros objetos; rueda gira, Mayús + rueda escala; clic lo suelta; Esc lo devuelve.",
   "2 o G mover · 3 o R girar · 4 escalar: arrastra las asas X roja, Y verde, Z azul.",
@@ -425,7 +425,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   let fantasma: { id: string; nombre: string; modelo: string; p: Punto | null; ry: number } | null = null;
   let puntero: { x: number; y: number } | null = null;
   let ctrl = false, eje: Eje | null = null, local = false, trasDuplicar = false;
-  let abajo: { x: number; y: number; gizmo: boolean } | null = null, arrastrado = false, ultimoRaton = -Infinity;
+  let abajo: { x: number; y: number; gizmo: boolean } | null = null, arrastrado = false;
   // M22b-1: coarse pointer (a phone) → «mover» has no handles, the thing is the handle. Starts from the device profile (perfil-aparato.ts: a headset's coarse pointer is not a finger) and
   // turns on at the first touch (a laptop with a touch screen reports a fine pointer)
   let tactil = esTactil();
@@ -765,7 +765,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   boton.addEventListener("click", (e) => { abrir(!abierto()); if (e.detail > 0) boton.blur(); });
   // U11: an icon (the house glyph for production, crane-tower), the words for screen readers and the tooltip
   function pintarBoton(si: boolean): void {
-    const t = si ? "Cerrar construir (C)" : "Construir (C)";
+    const t = si ? "Cerrar construir (B)" : "Construir (B)";
     boton.classList.add("solo-icono"); boton.title = t;
     boton.innerHTML = `${icono(si ? "x" : "crane-tower")}<span class="solo-lector">${t}</span>`;
   }
@@ -793,12 +793,10 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     }
     return null;
   }
-  const tabAbre = (e: KeyboardEvent) => !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && performance.now() - ultimoRaton < TAB_RATON_MS
-    && (e.target === document.body || e.target === document.documentElement || e.target === lienzo);
   addEventListener("keydown", (e) => {
     if (e.code === "ControlLeft" || e.code === "ControlRight") { if (!ctrl) { ctrl = true; aplicarPaso(); } return; }
     if (esEntrada(e.target) || !c.estado.puede) return;
-    if ((e.code === "KeyC" && !e.ctrlKey && !e.metaKey && !e.altKey) || (e.code === "Tab" && tabAbre(e))) {
+    if (teclas.es(e, "construir")) { // keymap v1: B builds (Yours or Default); Tab is People now
       e.preventDefault(); e.stopPropagation();
       if (!e.repeat) abrir(!abierto());
       return;
@@ -815,7 +813,6 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   addEventListener("blur", () => { if (ctrl) { ctrl = false; aplicarPaso(); } });
 
   // ---- mouse on the 3D view: the left button is the builder's ----
-  addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") ultimoRaton = performance.now(); }, { passive: true });
   lienzo.addEventListener("pointerdown", (e) => {
     if (!abierto() || e.button !== 0) return;
     abajo = { x: e.clientX, y: e.clientY, gizmo: !!ed.estado().ejeBajo }; // a handle under the pointer: the gizmo takes it

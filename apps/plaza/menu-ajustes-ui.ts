@@ -9,6 +9,8 @@ import { icono } from "./iconos.ts";
 import { t } from "../../packages/client/src/idioma.ts";
 import { filasAparato, filasIdentidad, infoDom } from "./info-aparato.ts";
 import { escribiendo } from "./escribiendo.ts";
+import { teclas } from "./teclas.ts";
+import { tablaControles } from "./controles-ui.ts";
 import type { montarEdicion } from "./edicion.ts";
 import { categoriaInicial, categoriaTrasPulsar, categoriaVisible, modoAjustes, pestanaSiguiente } from "./ajustes-pestanas.ts";
 
@@ -89,15 +91,10 @@ export function montarMenuAjustes(c: ContextoMenu): MenuAjustes {
     const fs = document.createElement("fieldset"), lg = document.createElement("legend");
     fs.dataset.grupo = g.id; lg.textContent = g.nombre; fs.append(lg);
     if (g.describe) { const p = document.createElement("p"); p.className = "describe"; p.textContent = g.describe; fs.append(p); }
-    for (const s of g.ajustes) fs.append(fila(s));
-    if (g.id === "controles") { // the features' keys, read-only (they come from the features' actions)
-      const acts = session.features.actions().filter((x) => x.key);
-      if (acts.length) {
-        const ul = document.createElement("ul"); ul.className = "teclas"; ul.setAttribute("aria-label", "Teclas de las funciones");
-        for (const x of acts) { const li = document.createElement("li"), k = document.createElement("kbd"); k.textContent = nombreTecla(x.key!); li.append(k, ` ${x.label}`); ul.append(li); }
-        fs.append(ul);
-      }
-    }
+    // keymap v1: in Controls the old read-only key rows give way to the two-column table (Default | Yours); a phone shows no key list
+    const movil = (document.documentElement.dataset.aparato ?? "").startsWith("movil");
+    for (const s of g.ajustes) if (!(g.id === "controles" && s.tipo === "tecla")) fs.append(fila(s));
+    if (g.id === "controles" && !movil) fs.append(tablaControles(teclas));
     fs.hidden = !g.ajustes.some((s) => s.visible);
     return fs;
   }
@@ -256,7 +253,7 @@ export function montarMenuAjustes(c: ContextoMenu): MenuAjustes {
   // keys typed in the menu never reach the world (W, B, Space…), like escribiendo() for the chat; O closes, Escape too (native)
   dlg.addEventListener("keydown", (e) => {
     e.stopPropagation();
-    if (e.code === "KeyO" && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey && !escribeTexto(e.target)) { e.preventDefault(); cerrar(); }
+    if (teclas.es(e, "menu") && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey && !escribeTexto(e.target)) { e.preventDefault(); cerrar(); }
   });
   dlg.addEventListener("pointerdown", (e) => e.stopPropagation()); // touching the menu never starts the joystick
   dlg.addEventListener("click", (e) => { // a click on the dimmed page around the panel closes it

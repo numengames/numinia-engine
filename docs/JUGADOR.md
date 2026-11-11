@@ -77,9 +77,9 @@ en este turno; lo que dependa de una versión concreta de esos productos está s
 | Cosa | Qué es | Capa | Nivel | Escritorio / móvil / VR | Primitivas | Coste móvil | Fila |
 |---|---|---|---|---|---|---|---|
 | Libro de misiones | Qué tengo que hacer y por dónde voy | ciudad | Base | panel / panel / panel 3D | C, S, G, P | bajo | J5 |
-| Inventario | Lo que llevo, que no se pierde ✓ (tecla R: 1 arma y 3 reliquias contigo, el resto en la Reserva; Semillas por color) | motor | Base | panel | C, G | bajo | Y1 (S4, J4) |
+| Inventario | Lo que llevo, que no se pierde ✓ (tecla I: 1 arma y 3 reliquias contigo, el resto en la Reserva; Semillas por color) | motor | Base | panel | C, G | bajo | Y1 (S4, J4) |
 | Sellos y logros | Recuerdo de lo hecho | ciudad | Base | panel | G, P | bajo | J5 |
-| Ficha de jugador | Quién soy, mi aparato y calidad, tiempo conectado, misiones, insignias, ajustes ◐ (tecla I; avatar próximamente; el inventario resume aquí y vive en R) | motor | Base | panel / panel / — | P | bajo | J11 (propuesta) |
+| Ficha de jugador | Quién soy, mi aparato y calidad, tiempo conectado, misiones, insignias, ajustes ◐ (tecla C; avatar próximamente; el inventario resume aquí y vive en I) | motor | Base | panel / panel / — | P | bajo | J11 (propuesta) |
 | Persistencia | Volver y encontrar lo mío | motor | Base | — | G | bajo | S4 |
 | Eventos programados | Algo pasa a una hora | ciudad | Mejorado | — | S, calendario | bajo | Frontera, sin fila |
 
@@ -176,7 +176,7 @@ Todo cambio pasa por el servidor (`features/objetos`) y llega a todos al momento
 
 | Tecla o ratón | Qué hace |
 |---|---|
-| C, o Tab | Abrir y cerrar construir (Tab solo si has usado el ratón hace poco: con teclado, Tab sigue moviendo el foco) |
+| B | Abrir y cerrar construir |
 | Clic izquierdo | Seleccionar lo que hay bajo el puntero; en el suelo, o con Esc, nada seleccionado |
 | 1 | Coger: lo seleccionado sigue al puntero sobre el suelo y sobre otros objetos (con paso); rueda = girar, Mayús + rueda = escalar; clic = soltar; Esc = devolverlo |
 | 2 o G · 3 o R · 4 | Mover · girar · escalar con el gizmo: asas X roja, Y verde, Z azul |
@@ -267,7 +267,7 @@ izquierdo solo es del constructor (elegir, mover con el gizmo). F (del construct
 vuelve sobre tu avatar; al cerrar construir, la cámara vuelve sola detrás de ti. Si andas mientras construyes,
 la vista viaja contigo. En el móvil, dos dedos también desplazan.
 
-Teclas reservadas por otras ramas (no usarlas para la cámara): W A S D y flechas, Espacio, Mayús, C, Tab, B, G
+Teclas reservadas por otras ramas (no usarlas para la cámara): W A S D y flechas, Espacio, Mayús, I, C, B, Tab, V, G
 (toque: saludar; mantenida: la rueda de movimientos, J7b; construyendo es del constructor), H, E, Intro, 1–4, R, T, F,
 P, X, Y, Z, N, Supr/Retroceso, Ctrl+Z/Ctrl+Y, Esc. Con Ctrl, Alt o Meta, o escribiendo
 en una caja de texto, las teclas de cámara no hacen nada.

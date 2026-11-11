@@ -2,6 +2,7 @@
 // a tap, E for the first one, or the digits 1-4 while the box is open) and «Adiós» (Esc). Focus moves to the first answer so a keyboard or
 // a screen reader lands in it; the line itself reaches screen readers once, through the engine's announcements (the
 // polite #avisos region, V1), so the box does not repeat it. It only asks: features/misiones decides on the server.
+import { teclas } from "./teclas.ts";
 import { escribiendo, construyendo } from "./interactuar.ts";
 import { perfil } from "./perfil-aparato.ts";
 import { conGlifo, esMovil } from "../../packages/client/src/movil.ts"; // U24: a phone names no key: «Despedirse», answers without a digit
@@ -63,7 +64,7 @@ export function montarDialogo(c: Ctl, caja: HTMLElement, view: Vista): void {
   addEventListener("keydown", (e) => {
     if (caja.hidden || e.repeat || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e) || construyendo(view)) return;
     if (e.code === "Escape") { e.preventDefault(); c.adios(); return; }
-    if (e.code === "KeyE") { e.preventDefault(); c.elegir(1); return; } // the key you talked with goes on (Continuar / Aceptar)
+    if (teclas.es(e, "usar")) { e.preventDefault(); c.elegir(1); return; } // the key you talked with goes on (Continuar / Aceptar)
     const n = /^(?:Digit|Numpad)([1-4])$/.exec(e.code);
     if (n) { e.preventDefault(); c.elegir(Number(n[1])); }
   });
@@ -73,7 +74,7 @@ export function montarDialogo(c: Ctl, caja: HTMLElement, view: Vista): void {
 // (voz.ts) and drops what you hold, and neither may fire while you answer.
 export function montarTeclaQ(c: Pick<Ctl, "dialogo" | "elegir">, caja: HTMLElement, view: Vista): void {
   addEventListener("keydown", (e) => {
-    if (e.code !== "KeyQ" || caja.hidden || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e) || construyendo(view)) return;
+    if (!teclas.es(e, "soltar") || caja.hidden || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e) || construyendo(view)) return;
     e.preventDefault(); e.stopImmediatePropagation();
     const n = c.dialogo()?.opciones.length ?? 0;
     if (!e.repeat && n >= 2) c.elegir(n);

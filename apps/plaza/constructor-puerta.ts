@@ -8,6 +8,7 @@ import { CAJONES } from "./cajones.ts";
 import type { Cajon } from "./cajones.ts";
 import { crearPuerta } from "./puerta.ts";
 import { escribiendo } from "./escribiendo.ts";
+import { teclas } from "./teclas.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 type Args = Parameters<typeof import("./constructor.ts").montarConstructor>;
@@ -31,7 +32,7 @@ export function montarConstructorPuerta(c: Args[0], view: Args[1], boton: HTMLBu
   const pulsar = (): void => { quiereAbrir = true; void puerta.cargarYa().catch(() => { quiereAbrir = false; }); };
   const alBoton = (e: MouseEvent): void => { e.stopImmediatePropagation(); pulsar(); if (e.detail > 0) boton.blur(); };
   const alTeclado = (e: KeyboardEvent): void => {
-    if (escribiendo(e) || !c.estado.puede || e.code !== "KeyC" || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (escribiendo(e) || !c.estado.puede || !teclas.es(e, "construir") || e.ctrlKey || e.metaKey || e.altKey) return;
     e.preventDefault(); e.stopPropagation(); pulsar();
   };
   boton.addEventListener("click", alBoton);

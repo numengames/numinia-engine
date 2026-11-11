@@ -21,10 +21,10 @@ export const BOTON = {
 export const ACCIONES = {
   saltar: { tecla: "Space", key: " ", nombre: "saltar" },
   usar: { tecla: "KeyE", key: "e", nombre: "hablar o coger" },
-  ficha: { tecla: "KeyI", key: "i", nombre: "ficha" },
+  soltar: { tecla: "KeyQ", key: "q", nombre: "soltar o rechazar" },
+  ficha: { tecla: "KeyC", key: "c", nombre: "ficha" },
   mapa: { tecla: "KeyM", key: "m", nombre: "dónde estoy" },
   ajustes: { tecla: "KeyO", key: "o", nombre: "ajustes" },
-  vista: { tecla: "KeyV", key: "v", nombre: "1.ª o 3.ª persona" },
   misiones: { tecla: "KeyJ", key: "j", nombre: "misiones" },
   chat: { tecla: "Enter", key: "Enter", nombre: "chat" },
   atras: { tecla: "Escape", key: "Escape", nombre: "atrás o cerrar" },
@@ -33,8 +33,8 @@ export type Accion = keyof typeof ACCIONES;
 
 /** The default layout: button index → action. (L3, the sprint latch, and the sticks and bumpers are handled apart.) */
 export const DISTRIBUCION: Readonly<Record<number, Accion>> = {
-  [BOTON.abajo]: "saltar", [BOTON.izquierda]: "usar", [BOTON.arriba]: "ficha", [BOTON.derecha]: "atras",
-  [BOTON.ver]: "mapa", [BOTON.menu]: "ajustes", [BOTON.R3]: "vista",
+  [BOTON.abajo]: "saltar", [BOTON.izquierda]: "usar", [BOTON.arriba]: "ficha", [BOTON.derecha]: "soltar", // keymap v1: X = E (use), B = Q (opposite: drop, decline); in a menu or a text box B still closes
+  [BOTON.ver]: "mapa", [BOTON.menu]: "ajustes", [BOTON.R3]: "atras",
   [BOTON.cruzArriba]: "misiones", [BOTON.cruzAbajo]: "chat",
 };
 
@@ -74,7 +74,7 @@ export function filasMando(f: Familia, dist: Readonly<Record<number, Accion>> = 
     { boton: `${nombreBoton(f, BOTON.LB)} / ${nombreBoton(f, BOTON.RB)}`, que: "acercar y alejar la cámara" },
     { boton: nombreBoton(f, BOTON.L3), que: "correr (pulsa; se suelta al parar)" },
   ];
-  for (const a of ["saltar", "usar", "ficha", "mapa", "ajustes", "vista", "misiones", "chat", "atras"] as Accion[]) {
+  for (const a of ["saltar", "usar", "soltar", "ficha", "mapa", "ajustes", "misiones", "chat", "atras"] as Accion[]) {
     const b = botonDe(a, dist);
     if (b !== null) filas.push({ boton: nombreBoton(f, b), que: ACCIONES[a].nombre });
   }
@@ -125,7 +125,7 @@ export function crearMando(dist: Readonly<Record<number, Accion>> = DISTRIBUCION
       if (modo !== modoAntes) { if (modo !== "mundo") soltarCarrera(out); modoAntes = modo; dir = { x: 0, y: 0, desde: ahora, ultima: ahora }; }
 
       if (modo === "texto") { // typing in a box: the pad only gets out of it
-        if (dist[BOTON.derecha] === "atras" && sube(BOTON.derecha)) out.push(...toque("atras"));
+        if (sube(BOTON.derecha) || (dist[BOTON.R3] === "atras" && sube(BOTON.R3))) out.push(...toque("atras"));
         return out;
       }
       if (modo === "menu") {

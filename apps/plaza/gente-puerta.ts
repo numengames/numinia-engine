@@ -8,6 +8,7 @@ import type { OpcionesGente } from "./gente.ts";
 import { crearBotonGente } from "./gente-comun.ts";
 import { crearPuerta } from "./puerta.ts";
 import { escribiendo } from "./escribiendo.ts";
+import { teclas, teclaLibre } from "./teclas.ts";
 
 type Real = ReturnType<typeof import("./gente.ts").montarGente>;
 export type GentePuerta = Real;
@@ -15,10 +16,10 @@ export type GentePuerta = Real;
 export function montarGentePuerta(o: OpcionesGente): GentePuerta {
   const boton = crearBotonGente(o.barra);
   boton.setAttribute("aria-haspopup", "dialog"); boton.setAttribute("aria-controls", "gente");
-  boton.setAttribute("aria-expanded", "false"); boton.setAttribute("aria-keyshortcuts", "L");
+  boton.setAttribute("aria-expanded", "false"); boton.setAttribute("aria-keyshortcuts", "Tab");
   const alClic = (): void => ya((r) => r.abrir());
   const alTeclado = (e: KeyboardEvent): void => {
-    if (e.repeat || e.code !== "KeyL" || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e)) return;
+    if (e.repeat || !teclas.es(e, "gente") || !teclaLibre(e) || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e)) return;
     e.preventDefault(); e.stopPropagation(); ya((r) => r.abrir());
   };
   const puerta = crearPuerta<Real>(async () => {

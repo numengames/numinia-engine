@@ -6,6 +6,7 @@
 // a short chime, a long buzz) or «Se ha escapado» (why, a low tone). The 3D (pond, rod, line, float, the fish in the
 // hand) is view.pesca (packages/render/src/pesca.ts). Everything asked goes through the controller
 // (features/pesca/client.ts): the server decides. No key fires while typing (escribiendo).
+import { teclas } from "./teclas.ts";
 import { escribiendo } from "./escribiendo.ts";
 import { montarPescaManos } from "./pesca-vr.ts"; // N4: the rod in your hand in VR, and a gamepad
 import { consejo } from "../../features/pesca/client.ts";
@@ -175,13 +176,13 @@ export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud
   recoger.addEventListener("keyup", (e) => { if (e.code === "Space" || e.code === "Enter") { manteniendo = false; o.pesca.recoger(false); } });
   soltar.addEventListener("pointerdown", (ev) => ev.stopPropagation());
   soltar.addEventListener("click", () => { o.pesca.soltar(); soltar.blur(); });
-  // keyboard: hold F reels, X lets go of the rod; never while typing or not fishing
+  // keyboard (keymap v1): hold E reels, Q lets go of the rod; never while typing or not fishing
   addEventListener("keydown", (e) => {
     if (e.repeat || escribiendo(e) || o.pesca.estado().fase === "nada" || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.code === "KeyF") { e.preventDefault(); manteniendo = true; o.pesca.recoger(true); }
-    else if (e.code === "KeyX") { e.preventDefault(); o.pesca.soltar(); }
+    if (teclas.es(e, "usar")) { e.preventDefault(); manteniendo = true; o.pesca.recoger(true); } // keymap v1: E reels in
+    else if (teclas.es(e, "soltar")) { e.preventDefault(); o.pesca.soltar(); } // Q lets the line go
   });
-  addEventListener("keyup", (e) => { if (e.code === "KeyF" && manteniendo) { manteniendo = false; if (o.pesca.estado().fase !== "nada") o.pesca.recoger(false); } });
+  addEventListener("keyup", (e) => { if (teclas.es(e, "usar") && manteniendo) { manteniendo = false; if (o.pesca.estado().fase !== "nada") o.pesca.recoger(false); } });
   addEventListener("blur", () => { if (manteniendo) { manteniendo = false; if (o.pesca.estado().fase !== "nada") o.pesca.recoger(false); } });
   const manos = montarPescaManos({ pesca: o.pesca, view: o.view, session: o.session, get interaccion() { return o.interaccion?.(); } });
   return { pintar, manos };

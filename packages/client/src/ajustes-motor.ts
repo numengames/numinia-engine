@@ -30,6 +30,7 @@ export const ES_GRUPOS: Readonly<Record<string, string>> = {
 export const ES_OPCIONES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   "graficos.calidad": { auto: "Automática", baja: "Baja (fresca)", media: "Media", alta: "Alta" },
   "graficos.fpsMax": { auto: "Automático" },
+  "controles.microfonoModo": { mantener: "Mantener para hablar", alternar: "Pulsar para abrir y cerrar" },
   "graficos.foveacionVR": { "100": "Máxima (como hasta ahora)", "50": "Media", "0": "Apagada" },
   "graficos.escalaVR": { "100": "100 % (como hasta ahora)", "80": "80 %" },
   "graficos.sombras": { no: "Sin sombras", baja: "Baja", media: "Media", alta: "Alta" },
@@ -188,8 +189,8 @@ export const AJUSTES_MOTOR: AjusteDeclI18n[] = [
   {
     grupo: "graficos", id: "bateria", tipo: "bool", nombre: T("Battery mode", "Modo batería"),
     describe: T(
-      "24 frames per second and contained resolution: uses less power and runs cooler. Also with the B key.",
-      "24 cuadros por segundo y resolución contenida: gasta y calienta menos. También con la tecla B.",
+      "24 frames per second and contained resolution: uses less power and runs cooler.",
+      "24 cuadros por segundo y resolución contenida: gasta y calienta menos.",
     ),
     defecto: { valor: false, si: [{ requiere: ["ahorroDatos"], valor: true }] },
   },
@@ -397,7 +398,7 @@ export const AJUSTES_MOTOR: AjusteDeclI18n[] = [
   },
   { grupo: "controles", id: "teclaAjustes", tipo: "tecla", soloVer: true, nombre: T("Open and close the settings", "Abrir y cerrar los ajustes"), describe: T("The key that opens this menu. Escape also closes it.", "La tecla que abre este menú. Escape también lo cierra."), defecto: "KeyO" },
   { grupo: "controles", id: "teclaDensidad", tipo: "tecla", soloVer: true, nombre: T("Change the interface density", "Cambiar la densidad de interfaz"), describe: T("The key that goes from Minimum to Normal, to Full and back.", "La tecla que pasa de Mínimo a Normal, a Completo y vuelta."), defecto: "KeyU" },
-  { grupo: "controles", id: "teclaBateria", tipo: "tecla", soloVer: true, nombre: T("Battery mode", "Modo batería"), describe: T("The key that turns battery mode on and off.", "La tecla que enciende y apaga el modo batería."), defecto: "KeyB" },
+  { grupo: "controles", id: "microfonoModo", tipo: "eleccion", nombre: T("Microphone key", "Tecla del micrófono"), describe: T("Hold the microphone key to talk (default), or press it once to open the microphone and again to close it. It never opens by itself.", "Mantén pulsada la tecla del micrófono para hablar (por defecto), o púlsala una vez para abrirlo y otra para cerrarlo. Nunca se abre solo."), opciones: [{ valor: "mantener", nombre: "Hold to talk" }, { valor: "alternar", nombre: "Press to open and close" }], defecto: "mantener" },
   // ---- Accessibility (V7, V11, V1): the system's preferences are the first defaults ----
   {
     grupo: "accesibilidad", id: "menosMovimiento", tipo: "bool", nombre: T("Reduce motion", "Reducir movimiento"),

@@ -3,6 +3,7 @@
 // does the hiding — no work per frame. Two small behaviours live here: the folded chat's pill («Chat · 2 nuevos · Intro»,
 // Mínimo) and the chat's lines fading after 6 s in Normal (`al_cambiar`; «menos movimiento» keeps them fixed).
 // Key U cycles the level (never while typing, never with a panel open). Not named «a…»: dev:lan proxies those paths.
+import { teclas } from "./teclas.ts";
 import { MARCOS_PLAZA, NOMBRES_DENSIDAD, SEGUNDOS_AL_CAMBIAR, nivelDensidad, siguienteDensidad } from "../../packages/client/src/densidad.ts";
 import type { Densidad } from "../../packages/client/src/densidad.ts";
 import { escribiendo } from "./escribiendo.ts";
@@ -71,7 +72,7 @@ export function montarDensidad(a: Registro): { nivel(): Densidad; poner(d: Densi
 
   // ---- key U: Mínimo → Normal → Completo ----
   addEventListener("keydown", (e) => {
-    if (e.code !== "KeyU" || e.repeat || e.ctrlKey || e.altKey || e.metaKey || escribiendo(e) || document.querySelector("dialog[open]")) return;
+    if (!teclas.es(e, "densidad") || e.repeat || e.ctrlKey || e.altKey || e.metaKey || escribiendo(e) || document.querySelector("dialog[open]")) return;
     const sig = siguienteDensidad(nivel);
     a.set("interfaz.densidad", sig);
     anunciar(`Densidad de interfaz: ${NOMBRES_DENSIDAD[sig]}.`);

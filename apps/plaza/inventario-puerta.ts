@@ -5,6 +5,7 @@
 // the start bundle (inventario-resumen.ts): the sheet, the VR menu and fishing use them.
 import { crearPuerta } from "./puerta.ts";
 import { escribiendo } from "./escribiendo.ts";
+import { teclas } from "./teclas.ts";
 
 type Real = ReturnType<typeof import("./inventario.ts").montarInventario>;
 type Ctl = Parameters<typeof import("./inventario.ts").montarInventario>[0];
@@ -12,10 +13,10 @@ export type InventarioPuerta = Real;
 
 export function montarInventarioPuerta(c: Ctl, boton: HTMLButtonElement): InventarioPuerta {
   boton.setAttribute("aria-haspopup", "dialog"); boton.setAttribute("aria-controls", "inventario");
-  boton.setAttribute("aria-expanded", "false"); boton.setAttribute("aria-keyshortcuts", "R");
+  boton.setAttribute("aria-expanded", "false"); boton.setAttribute("aria-keyshortcuts", "I");
   const alClic = (): void => ya((r) => r.abrir());
   const alTeclado = (e: KeyboardEvent): void => {
-    if (e.repeat || e.code !== "KeyR" || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e) || document.body.classList.contains("construyendo")) return;
+    if (e.repeat || !teclas.es(e, "bolsa") || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e) || document.body.classList.contains("construyendo")) return;
     e.preventDefault(); e.stopPropagation(); ya((r) => r.abrir());
   };
   const puerta = crearPuerta<Real>(async () => {
