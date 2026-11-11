@@ -2,7 +2,7 @@
   "schema": "numinia-engine/espejo@1",
   "activa": true,
   "notas": "Planta provisional, plana y sencilla (Pablo dibujará la definitiva). Z0 umbral con el panel de interruptores en el centro; Z7 el reloj (tareas programadas) al este; Z3 las sesiones al oeste; Z8 la plaza (marcador del chat) al norte; Z6 la torre de control (perfiles, figuras sobre una cuadrícula de 4 m) al noreste; Z2 la sala de máquinas (medidores de uso) al noroeste. Solo «salud» nace encendida: para encender «cron» o «sesiones» ponga true y reinicie el mundo. M6: Z1 la biblioteca (documentos: estantes que abren el visor), Z4 el taller (habilidades: tablillas por grupo) y Z9 el tablero (tablero de trabajo, solo se mira) al sur. \"documentos.origenes\" es la lista de páginas que el visor puede abrir; \"guia\" trae las frases de la guía y el orden del recorrido. Todo nace apagado.",
-  "funciones": { "salud": true, "cron": false, "sesiones": false, "chat": false, "perfiles": false, "uso": false, "documentos": false, "habilidades": false, "kanban": false, "guia": false },
+  "funciones": { "salud": true, "cron": false, "sesiones": false, "chat": false, "perfiles": false, "uso": false, "documentos": false, "habilidades": false, "kanban": false, "proyectos": false, "guia": false },
   "fuente": { "tipo": "enlace-local", "puerto": 8791 },
   "zonas": [
     { "id": "z0", "nombre": "El umbral", "centro": { "x": 0, "z": 0 }, "ancho": 20, "fondo": 14, "alto": 4, "tipos": ["salud"], "cartel": "EL UMBRAL · interruptores" },
@@ -13,7 +13,8 @@
     { "id": "z2", "nombre": "La sala de máquinas", "centro": { "x": -30, "z": -30 }, "ancho": 24, "fondo": 16, "alto": 6, "tipos": ["uso"], "cartel": "LA SALA DE MÁQUINAS · uso" },
     { "id": "z1", "nombre": "La biblioteca", "centro": { "x": 0, "z": 28 }, "ancho": 24, "fondo": 16, "alto": 6, "tipos": ["documento"], "cartel": "LA BIBLIOTECA · documentación" },
     { "id": "z4", "nombre": "El taller", "centro": { "x": -30, "z": 32 }, "ancho": 24, "fondo": 24, "alto": 6, "tipos": ["habilidad"], "cartel": "EL TALLER · habilidades" },
-    { "id": "z9", "nombre": "El tablero", "centro": { "x": 30, "z": 30 }, "ancho": 24, "fondo": 20, "alto": 6, "tipos": ["tablero"], "cartel": "EL TABLERO · trabajo" }
+    { "id": "z5", "nombre": "Projects", "centro": { "x": 60, "z": 0 }, "ancho": 24, "fondo": 20, "alto": 6, "tipos": ["proyecto"], "cartel": "PROJECTS · shelf tree" },
+    { "id": "z9", "nombre": "El tablero", "centro": { "x": 30, "z": 30 }, "ancho": 34, "fondo": 32, "alto": 6, "tipos": ["tablero"], "cartel": "EL TABLERO · trabajo" }
   ],
   "acciones": { "cron.pausar": "confirmar", "cron.reanudar": "confirmar", "cron.ejecutar": "aprobar" },
   "documentos": { "origenes": ["http://127.0.0.1:8791"]},
@@ -28,7 +29,9 @@
       "z6": "Esta es la torre de control. Cada figura es un agente: blanca si trabaja, vacía si descansa.",
       "z7": "Este es el reloj. Cada esfera es una tarea programada de Hermes.",
       "z8": "Esta es la plaza, donde estará el chat. Todavía no está disponible.",
+      "z5": "This is the projects shelf. Each folder is a Hermes project; solid is active, dashed is archived.",
       "z9": "Este es el tablero de trabajo: por hacer, en curso y hecho. Aquí solo se mira.",
+      "tocar:proyecto": "That is a project. Its folders hang from it like branches. You can only look.",
       "tocar:documento": "Eso es un documento. Pulse «Abrir» y lo leerá aquí mismo, sin salir del mundo.",
       "tocar:habilidad": "Eso es una habilidad: algo que Hermes sabe hacer. Aquí se lee, no se cambia.",
       "tocar:tablero": "Ese es el tablero de trabajo. Le cuenta cuántas tareas hay en cada columna.",
@@ -38,6 +41,6 @@
       "tocar:uso": "Ese medidor muestra el gasto estimado de un agente, no lo facturado.",
       "tocar:salud": "Ese es el panel de interruptores. Cada lámpara es una función del mundo."
     },
-    "recorrido": ["z0", "z7", "z3", "z8", "z6", "z2", "z1", "z4", "z9"]
+    "recorrido": ["z0", "z7", "z5", "z3", "z8", "z6", "z2", "z1", "z4", "z9"]
   }
 }

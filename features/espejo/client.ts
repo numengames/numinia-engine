@@ -41,11 +41,13 @@ export function estadoDeForma(tipo: string, estado: EstadoCosa): "off" | "starti
   if (tipo === "cron") return estado === "programado" ? "on" : estado === "activo" ? "starting" : "off";
   if (tipo === "sesion") return estado === "activo" ? "on" : "off";
   if (tipo === "documento" || tipo === "tablero") return "on";
+  if (tipo === "proyecto") return estado === "activo" ? "on" : "off";
   return estado === "activo" || estado === "programado" ? "on" : "off";
 }
 /** The word for the state of a thing, by kind: a profile (an agent) works, rests or is off; anything else uses the house words. Pure. */
 export function textoEstadoDe(tipo: string, estado: EstadoCosa): string {
   if (tipo === "habilidad") return estado === "activo" ? tx("active", "activa") : tx("inactive", "inactiva");
+  if (tipo === "proyecto") return estado === "activo" ? tx("active", "activo") : tx("archived", "archivado"); // C7
   if (tipo === "perfil") return estado === "activo" ? tx("working", "trabajando") : estado === "apagado" ? tx("off", "apagado") : estado === "fallo" ? tx("failed", "con fallo") : tx("resting", "en reposo");
   return TEXTO_ESTADO[estado] ?? TEXTO_ESTADO.desconocido;
 }
@@ -75,6 +77,7 @@ export function leerUso(subtitulo: string): LecturaUso {
 export const cortar = (t: string, n: number): string => { const a = [...t]; return a.length <= n ? t : `${a.slice(0, n - 1).join("").trimEnd()}…`; };
 export function detalleDe(c: Pick<Cosa, "tipo" | "subtitulo"> & Partial<Pick<Cosa, "grupo" | "descripcion" | "tablero" | "url">>): string[] {
   if (c.tipo === "habilidad") return [...(c.grupo ? [tx(`Group: ${c.grupo}`, `Grupo: ${c.grupo}`)] : []), ...(c.descripcion ? [cortar(c.descripcion, LIMITES.descripcionVista)] : c.subtitulo ? [cortar(c.subtitulo, LIMITES.descripcionVista)] : [])];
+  if (c.tipo === "proyecto") return [...(c.grupo ? [tx(`Status: ${c.grupo}`, `Estado: ${c.grupo}`)] : []), ...(c.descripcion ? [cortar(c.descripcion, LIMITES.descripcionVista)] : []), ...(c.subtitulo ? [c.subtitulo] : [])];
   if (c.tipo === "documento") return [...(c.descripcion ? [cortar(c.descripcion, LIMITES.descripcionVista)] : c.subtitulo ? [c.subtitulo] : []), ...(c.url ? [tx(`Page: ${c.url}`, `Página: ${c.url}`)] : [])];
   if (c.tipo === "tablero") { const t = tableroDeTexto(c.tablero ?? ""); return t ? COLUMNAS_TABLERO.flatMap((k) => [`${TEXTO_COLUMNA[k]}: ${t[k].n}`, ...t[k].top.map((x) => `  · ${x}`)]) : c.subtitulo ? [c.subtitulo] : []; }
   if (c.tipo !== "uso") return c.subtitulo ? [c.subtitulo] : [];
@@ -96,9 +99,9 @@ export function manoDe(clave: string): number {
   let h = 2166136261; for (let i = 0; i < clave.length; i++) { h ^= clave.charCodeAt(i); h = Math.imul(h, 16777619); }
   return ((h >>> 0) % 1000) / 1000;
 }
-const ALTO_ROTULO: Record<string, number> = { cron: 3.1, sesion: 2.9, salud: 2.9, perfil: 3.0, uso: 3.1, documento: 2.9, habilidad: 2.0, tablero: 5.8 };
+const ALTO_ROTULO: Record<string, number> = { cron: 3.1, sesion: 2.9, salud: 2.9, perfil: 3.0, uso: 3.1, documento: 2.9, habilidad: 2.0, tablero: 5.8, proyecto: 2.5 };
 /** The height (m) of the figure under each label: the label keeps clear of it on the screen (a camera that looks down from behind sees a label «over the head» drawn over the body). */
-const TOPE_FIGURA: Record<string, number> = { cron: 2.7, sesion: 2.4, salud: 2.3, perfil: 2.4, uso: 2.8, documento: 2.4, habilidad: 1.5, tablero: 5.3 };
+const TOPE_FIGURA: Record<string, number> = { cron: 2.7, sesion: 2.4, salud: 2.3, perfil: 2.4, uso: 2.8, documento: 2.4, habilidad: 1.5, tablero: 5.3, proyecto: 2.0 };
 
 /** The columns of a board thing as the shape wants them (three, in order; zeros when the text is not a board). */
 const columnasDe = (texto: string): { n: number; top: string[] }[] => { const t = tableroDeTexto(texto); return COLUMNAS_TABLERO.map((k) => t?.[k] ?? { n: 0, top: [] }); };
@@ -131,10 +134,10 @@ export function crearCliente() {
     const v = A?.view;
     if (!v) return;
     if (!c) { v.forma?.(`espejo:${clave}`, null); v.tag?.(`espejo:${clave}`, null); return; }
-    const forma = ({ cron: "reloj", salud: "losa", perfil: "perfil", uso: "uso", documento: "estante", habilidad: "tableta", tablero: "tablero" } as Record<string, "reloj" | "losa" | "perfil" | "uso" | "estante" | "tableta" | "tablero">)[c.tipo] ?? "cubo";
+    const forma = ({ cron: "reloj", salud: "losa", perfil: "perfil", uso: "uso", documento: "estante", habilidad: "tableta", tablero: "tablero", proyecto: "proyecto" } as Record<string, "reloj" | "losa" | "perfil" | "uso" | "estante" | "tableta" | "tablero" | "proyecto">)[c.tipo] ?? "cubo";
     v.forma?.(`espejo:${clave}`, { forma, x: c.x, z: c.z, estado: estadoDeForma(c.tipo, c.estado), rumbo: 0, ...(forma === "reloj" ? { mano: manoDe(clave) } : {}), ...(forma === "losa" ? { luces: luces() } : {}), ...(forma === "perfil" && c.estado === "apagado" ? { discontinuo: true } : {}), ...(forma === "uso" ? { nivel: nivelDeUso(c, cosas.values()) ?? 0 } : {}), ...(forma === "tablero" ? { columnas: columnasDe(c.tablero) } : {}) });
     // a spend meter is labelled with its tokens (what it measures); anything else with its state, in the house words
-    const pie = c.tipo === "uso" ? leerUso(c.subtitulo).tokensTexto || textoEstadoDe(c.tipo, c.estado) : c.tipo === "habilidad" ? `${c.grupo} · ${textoEstadoDe(c.tipo, c.estado)}` : c.tipo === "documento" ? tx("document", "documento") : c.tipo === "tablero" ? tx("work board", "tablero de trabajo") : textoEstadoDe(c.tipo, c.estado);
+    const pie = c.tipo === "uso" ? leerUso(c.subtitulo).tokensTexto || textoEstadoDe(c.tipo, c.estado) : c.tipo === "habilidad" ? `${c.grupo} · ${textoEstadoDe(c.tipo, c.estado)}` : c.tipo === "documento" ? tx("document", "documento") : c.tipo === "tablero" ? tx("work board", "tablero de trabajo") : c.tipo === "proyecto" ? (c.grupo || tx("project", "proyecto")) : textoEstadoDe(c.tipo, c.estado);
     v.tag?.(`espejo:${clave}`, { text: c.titulo, sub: pie, x: c.x, y: ALTO_ROTULO[c.tipo] ?? 3, z: c.z, plano: true, tope: TOPE_FIGURA[c.tipo] ?? 2.4, siempre: true });
   };
   /** The floors of the zones (a white edge on the black ground; dashed when everything the zone shows is switched off) and their signs. */
