@@ -11,7 +11,7 @@
 // Safety valve: at most EVENTOS_POR_BARRIDO changes are announced per review; the rest wait for the next one (and stay as they were).
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { ServerApi } from "../../packages/feature/src/index.ts";
-import { CADA_TICKS, DEFECTO, burbuja, dentro, leerBurbuja } from "./feature.ts";
+import { CADA_TICKS, DEFECTO, NADIE, burbuja, dentro, leerBurbuja } from "./feature.ts";
 import type { Burbuja, Punto } from "./feature.ts";
 
 export const AVISO_RESPIRO_TICKS = 200;   // 10 s at 20 Hz: the entry notice of one AI to one person at most this often
@@ -29,7 +29,7 @@ function cortar(s: string, max: number): string {
 }
 
 type Ocupante = { visto: number; esIA: boolean; avisado: boolean };
-type Zona = { cfg: Burbuja; dentro: Map<number, Ocupante>; avisos: Map<number, number> };
+type Zona = { cfg: Burbuja; dentro: Map<number, Ocupante>; avisos: Map<number, number>; mira: number }; // mira: the person it is with (NADIE = nobody)
 
 /** One per server. `part` goes into the list of parts; the other three are the queries for S10/S12 (and tests). */
 export function crearBurbuja() {
@@ -40,11 +40,16 @@ export function crearBurbuja() {
 
   const part = serverPart(burbuja, (api: ServerApi) => {
     zonas = new Map(); barrido = 0;
-    const publicar = (ai: number, cfg: Burbuja): void => { api.state.set(String(ai), { forma: cfg.forma, radio: cfg.radio, visible: cfg.visible }); };
+    const publicar = (ai: number, z: Zona): void => { api.state.set(String(ai), { forma: z.cfg.forma, radio: z.cfg.radio, visible: z.cfg.visible, mira: z.mira }); };
     const poner = (ai: number, cfg: Burbuja): void => {
-      const z = zonas.get(ai);
-      if (z) z.cfg = cfg; else zonas.set(ai, { cfg, dentro: new Map(), avisos: new Map() });
-      publicar(ai, cfg);
+      let z = zonas.get(ai);
+      if (z) z.cfg = cfg; else zonas.set(ai, (z = { cfg, dentro: new Map(), avisos: new Map(), mira: NADIE }));
+      publicar(ai, z);
+    };
+    /** Presence: who the AI is with. The one it has, while still inside; else the nearest person inside (`cerca`, NADIE if none). */
+    const atender = (ai: number, z: Zona, cerca: number): void => {
+      const mira = z.mira !== NADIE && z.dentro.has(z.mira) ? z.mira : cerca;
+      if (mira !== z.mira) { z.mira = mira; publicar(ai, z); }
     };
     const nombreDe = (e: number, otro: string): string => cortar(api.who(e)?.nombre || otro, NOMBRE_BYTES);
 
@@ -58,6 +63,7 @@ export function crearBurbuja() {
 
     const sale = (ai: number, z: Zona, p: number, o: Ocupante, avisar: boolean): void => {
       z.dentro.delete(p);
+      if (z.mira === p) { z.mira = NADIE; if (zonas.get(ai) === z) publicar(ai, z); } // the next review turns it to whoever is still inside
       api.emit("saleDeBurbuja", { ia: ai, quien: p, nombre: nombreDe(p, ""), esIA: o.esIA }, { to: ai });
       if (avisar && o.avisado && api.position(p)) api.emit("sales", { ia: ai, nombre: nombreDe(ai, "una IA") }, { to: p });
     };
@@ -88,6 +94,7 @@ export function crearBurbuja() {
         const a = api.position(ai);
         if (!a) continue;
         const { forma, radio } = z.cfg;
+        let cerca = NADIE, cercaD2 = Infinity; // the nearest PERSON inside (presence)
         for (let i = 0; i < m; i++) {
           const p = ids[i];
           if (p === ai) continue;
@@ -95,7 +102,7 @@ export function crearBurbuja() {
           pie.x = xs[i]; pie.y = ys[i]; pie.z = zs[i];
           if (!dentro(forma, radio, a, pie)) continue;
           const o = z.dentro.get(p);
-          if (o) { o.visto = n; continue; }
+          if (o) { o.visto = n; if (!o.esIA) { const d2 = (pie.x - a.x) ** 2 + (pie.z - a.z) ** 2; if (d2 < cercaD2) { cercaD2 = d2; cerca = p; } } continue; }
           if (cupo <= 0) continue; // over the valve: it waits for the next review
           cupo--;
           const ia = esIA(api.who(p)?.id);
@@ -103,12 +110,14 @@ export function crearBurbuja() {
           z.dentro.set(p, rec);
           const dm = Math.min(65535, Math.round(Math.hypot(pie.x - a.x, pie.y - a.y, pie.z - a.z) * 10));
           api.emit("entraEnBurbuja", { ia: ai, quien: p, nombre: nombreDe(p, ""), distanciaDm: dm, esIA: ia }, { to: ai });
+          if (!ia) { const d2 = (pie.x - a.x) ** 2 + (pie.z - a.z) ** 2; if (d2 < cercaD2) { cercaD2 = d2; cerca = p; } }
           if (!ia && tick - (z.avisos.get(p) ?? -Infinity) >= AVISO_RESPIRO_TICKS) {
             z.avisos.set(p, tick); rec.avisado = true;
             api.emit("entras", { ia: ai, nombre: nombreDe(ai, "una IA") }, { to: p });
           }
         }
         for (const [p, o] of z.dentro) if (o.visto !== n) { if (cupo <= 0) break; cupo--; sale(ai, z, p, o, true); }
+        atender(ai, z, cerca);
       }
     });
   });
@@ -121,10 +130,12 @@ export function crearBurbuja() {
     estaEnBurbuja: (ai: number, quien: number): boolean => zonas.get(ai)?.dentro.has(quien) ?? false,
     /** The shape of this AI's bubble now, or null when the entity is no AI here. */
     burbujaDe: (ai: number): Burbuja | null => { const z = zonas.get(ai); return z ? { ...z.cfg } : null; },
+    /** Presence: the person this AI is with now (the first who came in, while they stay; then the nearest inside), or NADIE (-1). */
+    miraDe: (ai: number): number => zonas.get(ai)?.mira ?? NADIE,
   };
 }
 
 /** The server's instance, for the composition root (features/servidor.ts). `crearBurbuja()` again gives an independent one (tests). */
 const unica = crearBurbuja();
-export const dentroDeBurbuja = unica.dentroDeBurbuja, estaEnBurbuja = unica.estaEnBurbuja, burbujaDeIA = unica.burbujaDe;
+export const dentroDeBurbuja = unica.dentroDeBurbuja, estaEnBurbuja = unica.estaEnBurbuja, burbujaDeIA = unica.burbujaDe, miraDeIA = unica.miraDe;
 export default unica.part;
