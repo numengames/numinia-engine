@@ -5,7 +5,7 @@
 import { adoptarClaves, alAlcanceEnAltura, INTERACT_SLACK_M, serverPart } from "../../packages/feature/src/index.ts";
 import type { ServerApi, ServerPart } from "../../packages/feature/src/index.ts";
 import { pnj as pnjDecl, misiones as misionesDecl } from "./feature.ts";
-import { ACCIONES_PAGINA, cargarAventura, corta, LIM } from "./formato.ts";
+import { ACCIONES_PAGINA, cargarAventura, corta, IDIOMA_MISIONES, LIM, textoMision } from "./formato.ts";
 import type { Accion, Aventura, Cosa, Dialogo, Fichero, Lugar, Mision, Nodo, Opcion, Paso, Pnj } from "./formato.ts";
 import { aTexto, compilar, redondeaPunto, rondaEn } from "./ronda.ts"; // P16: a person's round
 import type { Plan, Ronda } from "./ronda.ts";
@@ -46,8 +46,9 @@ export const LIBRO_HECHAS = 20;
  * written line is the fallback. Called only when someone talks (event cadence), never per tick. */
 export type Frasear = (l: { pnj: string; nodo: string; texto: string; jugador: string }) => string;
 /** `reloj` (U14 (5)): the server's clock in ms (default Date.now) — steps that wait (`espera`) count with it and it is
- * saved with the progress, so it must survive restarts; tests pass their own. */
-export type OpcionesMisiones = { aventura?: { misiones: Fichero[]; pnj: Fichero[]; cosas: Fichero[]; secuencias?: Fichero[]; objetos?: Fichero[] }; frasear?: Frasear; reloj?: () => number };
+ * saved with the progress, so it must survive restarts; tests pass their own. `idioma`: the WORLD's language (ficha.json `idioma`, read by
+ * packages/server/src/idiomas.ts) for what a player is told and the labels a file leaves out; omitted = Spanish. */
+export type OpcionesMisiones = { aventura?: { misiones: Fichero[]; pnj: Fichero[]; cosas: Fichero[]; secuencias?: Fichero[]; objetos?: Fichero[] }; frasear?: Frasear; reloj?: () => number; idioma?: string };
 
 /** One engine behind two features: [pnj, misiones]. `aventura` only for tests; the server reads AVENTURA_DIR. */
 export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
@@ -58,6 +59,8 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   // published ON the ground instead; only those follow the ground when it changes (`sueloAhora().clave`). One above the ground never moves.
   const sueloAhora = (api: ServerApi) => sueloDe(api.estadoDe("espacio-base").get("mundo"), api.estadoDe("naturaleza").get("mundo"));
   const sobreSuelo = (suelo: { altura: (x: number, z: number) => number }, o: { posicion: { x: number; z: number; y: number }; sinY?: true }) => alSuelo(suelo.altura(o.posicion.x, o.posicion.z), o.posicion.y, o.sinY === true);
+  const idioma = o.idioma ?? IDIOMA_MISIONES;
+  const tx = (clave: string, vars?: Record<string, string | number>) => textoMision(idioma, clave, vars);
   let cargada = false;
   const enviadoSitio = new Map<number, Map<string, string>>(); // P2: connection -> person -> the place last sent to it
   // P16: where each player is in each round. One clock per (player, person), made when the `posiciones` entry with a `ronda` begins to hold
@@ -81,7 +84,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     if (cargada) return;
     cargada = true;
     objetos = leerCatalogo(o.aventura?.objetos ?? api.aventura("objetos")).objetos; // its own problems are said by inventario, once
-    const r = cargarAventura(o.aventura ?? { misiones: api.aventura("misiones"), pnj: api.aventura("pnj"), cosas: api.aventura("cosas"), secuencias: api.aventura("secuencias") }, { modelo: (sha) => api.activo(sha, "glb"), objetos: new Set(objetos.keys()) });
+    const r = cargarAventura(o.aventura ?? { misiones: api.aventura("misiones"), pnj: api.aventura("pnj"), cosas: api.aventura("cosas"), secuencias: api.aventura("secuencias") }, { modelo: (sha) => api.activo(sha, "glb"), objetos: new Set(objetos.keys()), idioma });
     for (const i of r.issues) api.log(`aventura: ${i.path}: ${i.message}`);
     A = r.aventura;
     if (A.misiones.size + A.pnjs.size + A.cosas.size) api.log(`aventura: ${A.misiones.size} misiones, ${A.pnjs.size} personas, ${A.cosas.size} cosas${A.secuencias.size ? `, ${A.secuencias.size} secuencias` : ""}`);
@@ -172,7 +175,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   /** U14 (5): «Todavía no: faltan 7 s para «Abre el cofre…».» — when someone tries a step that still waits. */
   const todaviaNo = (w: { mision: string; paso: number; faltaMs: number }) => {
     const s = Math.max(1, Math.ceil(w.faltaMs / 1000)), texto = A.misiones.get(w.mision)?.pasos[w.paso]?.texto ?? "";
-    return corta(`Todavía no: ${s === 1 ? "falta 1 s" : `faltan ${s} s`} para «${texto}».`, 160);
+    return corta(s === 1 ? tx("espera_1", { texto }) : tx("espera_n", { s, texto }), 160);
   };
   /** P3: «Recoja antes el cuaderno…» — tried a step that is still locked behind an earlier one and that has an `antes`: tell
    * this connection (the aviso event), at most once every ANTES_CADA_MS per step. True when it was sent now. */
@@ -352,7 +355,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
   const cerrar = (e: number, n: Hablante) => { abiertos.delete(e); soltarRonda(e, n.id); P?.emit("fin", { pnj: n.id, nombre: n.nombre }, { to: e }); };
   const hacer = (e: number, n: Hablante, ac: Exclude<Accion, { tipo: "despedir" }>): { ok: true } | { ok: false; motivo: string } => {
     const m = A.misiones.get(ac.mision);
-    if (!m) return { ok: false, motivo: "Esa misión ya no existe." };
+    if (!m) return { ok: false, motivo: tx("mision_no_existe") };
     const p = prog(e);
     if (ac.tipo === "dar_mision") return tomar(e, p, m);
     const x: Suceso = !esPersona(n) ? { tipo: "usa", cosa: n.id, mision: m.id, ahora: ahora() } // P3: a thing's option counts the `usa` step that names it
@@ -361,7 +364,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     const h = registrar(p, A, x);
     if (!h.length) {
       const w = esperando(p, A, x), antes = bloqueados(p, A, x)[0];
-      return { ok: false, motivo: w ? todaviaNo(w) : antes ? antes.antes : ac.tipo === "avanzar_paso" ? "Eso ahora no toca." : `No llevas lo que ${n.nombre} espera.` }; // P3: a locked step says its `antes`
+      return { ok: false, motivo: w ? todaviaNo(w) : antes ? antes.antes : ac.tipo === "avanzar_paso" ? tx("eso_no_toca") : tx("no_llevas", { nombre: n.nombre }) }; // P3: a locked step says its `antes`
     }
     tras(e, p, h);
     return { ok: true };
@@ -393,12 +396,12 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     api.onTick(() => { const su = sueloAhora(api); if (su.clave === claveP) return; claveP = su.clave; cifradas.clear(); ponerPnjs(su); enviadoSitio.clear(); for (const x of M?.players() ?? []) enviarSitios(x, prog(x)); }); // the ground changed: the ones standing on it stand on the new one
     api.on("hablar", (e, msg) => {
       const n = A.pnjs.get(String(msg.pnj));
-      if (!n) return rechazarP(e, "No hay nadie así por aquí.");
-      if (!cerca(api, e, n)) return rechazarP(e, `Acércate a ${n.nombre} para hablar.`);
+      if (!n) return rechazarP(e, tx("nadie"));
+      if (!cerca(api, e, n)) return rechazarP(e, tx("acercate_hablar", { nombre: n.nombre }));
       const p = prog(e), x: Suceso = { tipo: "habla", pnj: n.id, ahora: ahora() };
       asentarYa(e, p, true); // a finished grupo moves on before this talk (its dialogue reads the next block)
       const nodo = nodoInicial(n, p, A);
-      if (nodo === null) return rechazarP(e, `${n.nombre} no tiene nada que decirle ahora.`); // P3: outside its phase it says nothing, and talking to it counts for nothing
+      if (nodo === null) return rechazarP(e, tx("nada_que_decir", { nombre: n.nombre })); // P3: outside its phase it says nothing, and talking to it counts for nothing
       const h = registrar(p, A, x); // steps that complete just by talking
       if (h.length) tras(e, p, h);
       else { const w = esperando(p, A, x); if (w) M?.emit("aviso", { texto: todaviaNo(w) }, { to: e }); else avisarAntes(e, bloqueados(p, A, x)); } // U14 (5): it still waits; P3: or it comes later
@@ -406,10 +409,10 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     });
     api.on("elegir", (e, msg) => {
       const d = abiertos.get(e), n = hablante(String(msg.pnj));
-      if (!d || !n || d.pnj !== n.id) return rechazarP(e, "No estás hablando con esa persona.");
-      if (!alAlcance(e, n)) { cerrar(e, n); return rechazarP(e, `Te has alejado de ${n.nombre}.`); }
+      if (!d || !n || d.pnj !== n.id) return rechazarP(e, tx("no_hablas"));
+      if (!alAlcance(e, n)) { cerrar(e, n); return rechazarP(e, tx("te_alejaste", { nombre: n.nombre })); }
       const op = d.vistas[Number(msg.opcion) - 1];
-      if (!op) return rechazarP(e, "Esa respuesta no está.");
+      if (!op) return rechazarP(e, tx("respuesta_no"));
       if (op.marca) { // P4: mark / unmark / just close; whatever it was, the card closes
         if (op.marca !== "cerrar") { const r = alternar(e, n, op.marca); if (!r.ok) { cerrar(e, n); return rechazarP(e, r.motivo); } }
         return cerrar(e, n);
@@ -480,7 +483,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     api.listen("disparadores", "senal", (m) => { if (m.persona === true) hizo(Number(m.quien), { accion: "dispara_cable", disparador: String(m.disparador) }); });
     api.on("hace", (e, msg) => {
       const accion = String(msg.accion);
-      if (!(ACCIONES_PAGINA as readonly string[]).includes(accion)) return rechazarM(e, "Eso lo ve el servidor solo: no hace falta que me lo cuentes.");
+      if (!(ACCIONES_PAGINA as readonly string[]).includes(accion)) return rechazarM(e, tx("solo_servidor"));
       hizo(e, { accion });
     });
     // D-041 historia 4: the cable's receiver `da_paso` names a mission and a step and jumps straight there (taking the
@@ -515,25 +518,25 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     });
     api.on("aceptar", (e, msg) => {
       const m = A.misiones.get(String(msg.mision));
-      if (!m) return rechazarM(e, "No hay ninguna misión así.");
+      if (!m) return rechazarM(e, tx("mision_no_hay"));
       const dadores = A.dadores.get(m.id) ?? [];
-      if (!dadores.some((id) => { const n = A.pnjs.get(id); return !!P && !!n && cerca(P, e, n); })) return rechazarM(e, `Esa misión la da ${dadores.map((id) => A.pnjs.get(id)?.nombre ?? id).join(" o ") || "alguien que no está"}: acércate a hablar.`);
+      if (!dadores.some((id) => { const n = A.pnjs.get(id); return !!P && !!n && cerca(P, e, n); })) return rechazarM(e, tx("mision_la_da", { quien: dadores.map((id) => A.pnjs.get(id)?.nombre ?? id).join(tx("o")) || tx("alguien_ausente") }));
       const r = tomar(e, prog(e), m);
       if (!r.ok) rechazarM(e, r.motivo);
     });
     api.on("abandonar", (e, msg) => {
       const p = prog(e), id = String(msg.mision);
-      if (!abandonar(p, id)) return rechazarM(e, "No tienes esa misión activa.");
+      if (!abandonar(p, id)) return rechazarM(e, tx("no_activa"));
       guardar(e, p);
       api.hecho("aventura.abandonada", { aventura: id }); // MIS-248
-      for (const x of suyos(e)) api.emit("aviso", { texto: corta(`Has dejado «${A.misiones.get(id)?.titulo ?? id}».`, 160) }, { to: x });
+      for (const x of suyos(e)) api.emit("aviso", { texto: corta(tx("dejaste", { titulo: A.misiones.get(id)?.titulo ?? id }), 160) }, { to: x });
       enviarLibro(e);
       revisarLlegadas(e);
       revisarEsperas(e);
     });
     api.on("seguir", (e, msg) => {
       const p = prog(e), id = String(msg.mision);
-      if (!seguir(p, id)) return rechazarM(e, "Solo se puede seguir una misión activa.");
+      if (!seguir(p, id)) return rechazarM(e, tx("solo_seguir"));
       guardar(e, p);
       enviarLibro(e);
     });
@@ -546,7 +549,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       asentarYa(e, p, true);
       if (!pasosFoto(p, A, ahora()).length) return;
       const t = ahora(), ultima = ultimaFoto.get(e);
-      if (ultima !== undefined && t - ultima < FOTO_CADA_MS) return rechazarM(e, "Espere un momento antes de hacer otra foto.");
+      if (ultima !== undefined && t - ultima < FOTO_CADA_MS) return rechazarM(e, tx("foto_espera"));
       ultimaFoto.set(e, t);
       const pose: PoseFoto = { x: Number(msg.x), y: Number(msg.y), z: Number(msg.z), fx: Number(msg.fx), fy: Number(msg.fy), fz: Number(msg.fz), fov: Number(msg.fov), aspecto: Number(msg.aspecto) };
       const mal = poseInvalida(pose);
@@ -554,7 +557,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
       const yo = api.position(e);
       if (!yo) return;
       const ojo = { x: yo.x, y: yo.y + FOTO_OJO_M, z: yo.z };
-      if (Math.hypot(pose.x - ojo.x, pose.y - ojo.y, pose.z - ojo.z) > FOTO_CAMARA_MAX_M) return rechazarM(e, "La cámara queda demasiado lejos de usted para esa foto.");
+      if (Math.hypot(pose.x - ojo.x, pose.y - ojo.y, pose.z - ojo.z) > FOTO_CAMARA_MAX_M) return rechazarM(e, tx("foto_lejos"));
       const r = fotografiar(p, A, pose, t, (o) => {
         const dir = { x: o.x - ojo.x, y: o.y - ojo.y, z: o.z - ojo.z }, d = Math.hypot(dir.x, dir.y, dir.z);
         if (d <= o.radio) return false; // the player's eye is inside the corner
@@ -566,14 +569,14 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
     });
     api.on("usar", (e, msg) => {
       const c = A.cosas.get(String(msg.cosa));
-      if (!c) return rechazarM(e, "No hay nada así por aquí.");
-      if (!api.within(e, c.id)) return rechazarM(e, `Acércate más a ${c.nombre}.`);
+      if (!c) return rechazarM(e, tx("nada_asi"));
+      if (!api.within(e, c.id)) return rechazarM(e, tx("acercate_mas", { nombre: c.nombre }));
       const p = prog(e), x: Suceso = { tipo: "usa", cosa: c.id, ahora: ahora() };
       asentarYa(e, p, true);
       const marcando = !!c.marcable && marcablesAhora(p, A, ahora()).includes(c.id); // P4: a marca step is to do: this thing opens its card to mark it
       if ((c.dialogo || marcando) && !cogePendiente(p, A, c.id)) { // P3: inspecting — a thing with a conversation opens it (picking it up, when a coge step asks, stays as it was)
         const nodo = c.dialogo ? nodoInicial({ dialogo: c.dialogo }, p, A) : null;
-        if (nodo === null && !marcando) return rechazarM(e, `Ahora no hay nada que inspeccionar en ${c.nombre}.`);
+        if (nodo === null && !marcando) return rechazarM(e, tx("nada_inspeccionar", { nombre: c.nombre }));
         return abrir(e, c, nodo ?? "");
       }
       const h = registrar(p, A, x);
@@ -582,7 +585,7 @@ export function crearMisiones(o: OpcionesMisiones = {}): ServerPart[] {
         if (w) return rechazarM(e, todaviaNo(w));
         const antes = bloqueados(p, A, x);
         if (antes.length) { avisarAntes(e, antes); return; }
-        return rechazarM(e, `Ahora no te hace falta ${c.nombre}.`);
+        return rechazarM(e, tx("no_hace_falta", { nombre: c.nombre }));
       }
       tras(e, p, h);
     });
