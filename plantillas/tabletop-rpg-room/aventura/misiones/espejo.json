@@ -1,0 +1,39 @@
+{
+  "formato": "mision@1",
+  "id": "espejo",
+  "titulo": "The Broken Mirror: the First Shard",
+  "descripcion": "A shard of the Shattered Mirror that Drusa Malter was looking for has reached the tholos. Find it and take it to Senet.",
+  "requisitos": {
+    "misiones": [
+      "aprendiz"
+    ]
+  },
+  "pasos": [
+    {
+      "id": "buscar",
+      "tipo": "coge",
+      "texto": "Look for the shard beside the olive tree, to the south-west of the hall",
+      "cosa": "fragmento-espejo"
+    },
+    {
+      "id": "entregar",
+      "tipo": "entrega",
+      "texto": "Take the shard to Senet, next to the tower",
+      "cosa": "fragmento-espejo",
+      "pnj": "senet"
+    }
+  ],
+  "recompensas": [
+    {
+      "tipo": "insignia",
+      "id": "primera-astilla",
+      "nombre": "First mirror shard"
+    }
+  ],
+  "textos": {
+    "aceptada": "Beside the olive tree, to the south-west. Don't stare at it for long.",
+    "completada": "A Conflict Piece in your bag: the broken mirror already knows you."
+  },
+  "repetible": false,
+  "notas": "Template of the tabletop room: the door into «The Broken Mirror», an adventure for the tabletop manual. The real game is run by a person at the table."
+}

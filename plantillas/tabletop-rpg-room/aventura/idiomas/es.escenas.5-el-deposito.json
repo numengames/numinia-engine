@@ -1,0 +1,22 @@
+{
+  "schema": "numinia-engine/escena@1",
+  "nombre": "El depósito del museo",
+  "preset": "noche",
+  "entorno": {
+    "cielo": {
+      "tipo": "degradado",
+      "arriba": "#04110f",
+      "horizonte": "#0f3b37"
+    },
+    "niebla": {
+      "cerca": 3,
+      "lejos": 30,
+      "color": "#0f3b37",
+      "delCielo": false
+    },
+    "tono": {
+      "exposicion": 0.55
+    }
+  },
+  "narracion": "El Corredor de Möbius termina aquí. En el fondo del depósito, algo devuelve un reflejo que no es el vuestro."
+}

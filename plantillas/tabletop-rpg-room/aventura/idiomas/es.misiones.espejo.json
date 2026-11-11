@@ -1,0 +1,39 @@
+{
+  "formato": "mision@1",
+  "id": "espejo",
+  "titulo": "El espejo roto: la primera astilla",
+  "descripcion": "Una astilla del Espejo Astillado que buscaba Drusa Malter ha llegado al tholos. Encuéntrala y llévasela a Senet.",
+  "requisitos": {
+    "misiones": [
+      "aprendiz"
+    ]
+  },
+  "pasos": [
+    {
+      "id": "buscar",
+      "tipo": "coge",
+      "texto": "Busca la astilla junto al olivo, al suroeste de la sala",
+      "cosa": "fragmento-espejo"
+    },
+    {
+      "id": "entregar",
+      "tipo": "entrega",
+      "texto": "Llévale la astilla a Senet, junto a la torre",
+      "cosa": "fragmento-espejo",
+      "pnj": "senet"
+    }
+  ],
+  "recompensas": [
+    {
+      "tipo": "insignia",
+      "id": "primera-astilla",
+      "nombre": "Primera astilla del espejo"
+    }
+  ],
+  "textos": {
+    "aceptada": "Junto al olivo, al suroeste. No la mires mucho rato.",
+    "completada": "Una Pieza del Conflicto en tu bolsa: el espejo roto ya te conoce."
+  },
+  "repetible": false,
+  "notas": "Plantilla de la mesa de rol: la puerta de «El espejo roto» (lore/adventures/tabletop/el-espejo-roto.md). La partida de verdad la dirige una persona en la mesa."
+}

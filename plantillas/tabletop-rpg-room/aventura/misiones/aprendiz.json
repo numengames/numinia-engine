@@ -1,0 +1,51 @@
+{
+  "formato": "mision@1",
+  "id": "aprendiz",
+  "titulo": "The Apprentice's Table",
+  "descripcion": "Ten minutes for anyone who has never played: sit down, pick up your sheet, roll your pool in the tower and learn to read the house dice.",
+  "pasos": [
+    {
+      "id": "mesa",
+      "tipo": "llega_a",
+      "texto": "Sit at the table (any seat but the high one to the north)",
+      "x": 0,
+      "z": 0,
+      "radio": 3,
+      "lugar": "the table"
+    },
+    {
+      "id": "ficha",
+      "tipo": "coge",
+      "texto": "Pick up your sheet from the table, in front of the seat by the door",
+      "cosa": "ficha-aprendiz"
+    },
+    {
+      "id": "torre",
+      "tipo": "llega_a",
+      "texto": "Go to the dice tower and roll 3d6 (the 3d6 button or /tirar 3d6)",
+      "x": 3.08,
+      "z": 0,
+      "radio": 1.6,
+      "lugar": "the dice tower"
+    },
+    {
+      "id": "leer",
+      "tipo": "habla_con",
+      "texto": "Tell Senet what you rolled",
+      "pnj": "senet"
+    }
+  ],
+  "recompensas": [
+    {
+      "tipo": "insignia",
+      "id": "aprendiz-de-la-mesa",
+      "nombre": "Apprentice of the Table"
+    }
+  ],
+  "textos": {
+    "aceptada": "The table is waiting for you. The mission book (key J) marks every step.",
+    "completada": "Now you can read the dice: sixes count, ones weigh."
+  },
+  "repetible": false,
+  "notas": "Template of the tabletop room: the apprentice's table. The mission does not check the roll: the whole table sees it. The close is one of Senet's options (avanzar_paso)."
+}

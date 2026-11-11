@@ -1,0 +1,18 @@
+{
+  "formato": "cosa@1",
+  "id": "ficha-aprendiz",
+  "nombre": "Ficha de aprendiz",
+  "descripcion": "Una ficha de personaje en blanco: Características, Competencias y la reserva de dados. La rellenarás jugando.",
+  "posicion": {
+    "x": 0,
+    "z": 1.265,
+    "y": 0.8300000000000001
+  },
+  "radio": 1.6,
+  "aviso": "coger tu ficha",
+  "apariencia": {
+    "escala": 0.18,
+    "color": "#F9EBDC"
+  },
+  "notas": "Plantilla de la mesa de rol: sobre la mesa, delante del asiento de la puerta."
+}

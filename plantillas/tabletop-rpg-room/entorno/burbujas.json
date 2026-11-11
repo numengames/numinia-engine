@@ -1,0 +1,15 @@
+{
+  "schema": "numinia-engine/burbujas@1",
+  "activa": true,
+  "burbujas": [
+    {
+      "id": "mesa",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "radio": 3.2,
+      "modo": "aislada",
+      "etiqueta": "The table"
+    }
+  ]
+}
