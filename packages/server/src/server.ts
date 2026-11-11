@@ -38,6 +38,7 @@ import { infoMotor, semverMotor } from "./version.ts";
 import type { Motor } from "./version.ts";
 import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
 import { leerFicha, leerInterfaz, leerTema, lectorAventura } from "./aventura.ts";
+import { leerMapa } from "../../client/src/mapa-interes.ts"; // Map v2: the world's declared points of interest (ficha.json `mapa`)
 import { leerLeemeIA } from "./leeme-ia.ts";
 import { crearFichaViva } from "./ficha-viva.ts"; // H7: the ficha while running (the owner edits it from the settings panel)
 import { leerCondiciones, PUERTA_POR_DEFECTO } from "./condiciones.ts";
@@ -169,6 +170,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   for (const p of temaMal) log(`[ficha] ${p}: lo dejo fuera`);
   const { interfaz, problemas: interfazMal } = leerInterfaz(ficha?.interfaz); // which buttons it takes off the page (ocultar: ["gestos", "recoger-soltar"]); a bad name drops only itself
   for (const p of interfazMal) log(`[ficha] ${p}: lo dejo fuera`);
+  const { mapa: mapaMundo, problemas: mapaMal } = leerMapa(ficha?.mapa); // Map v2: its points of interest and decorative characters (ficha.json `mapa`); a bad entry drops only itself
+  for (const p of mapaMal) log(`[ficha] ${p}: lo dejo fuera`);
   // C1: its conditions of entry, from aventura/condiciones.json; none or broken = the house example (said in the log)
   const { condiciones, deFichero: condicionesPropias, problemas: condicionesMal } = leerCondiciones(o.aventura ?? null);
   for (const p of condicionesMal) log(`[condiciones] no se carga, uso las de la casa: ${p}`);
@@ -270,7 +273,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const fichaPublica = () => {
     const f = fichaViva.ficha(), [sha, ext] = f?.portada?.split(".") ?? [];
     const portada = sha && activos.buscar(sha, ext) ? `/a/${f!.portada}` : undefined;
-    return f ? { nombre: f.nombre, descripcion: f.descripcion, ...(typeof f.idioma === "string" ? { idioma: f.idioma } : {}), portada, tema: tema ?? undefined, ...(interfaz ? { interfaz } : {}), avatar: f.avatar, aforo: aforo(), ...(ficha?.audio ? { audio: ficha.audio } : {}) } : { aforo: aforo() };
+    return f ? { nombre: f.nombre, descripcion: f.descripcion, ...(typeof f.idioma === "string" ? { idioma: f.idioma } : {}), portada, tema: tema ?? undefined, ...(interfaz ? { interfaz } : {}), ...(mapaMundo ? { mapa: mapaMundo } : {}), avatar: f.avatar, aforo: aforo(), ...(ficha?.audio ? { audio: ficha.audio } : {}) } : { aforo: aforo() };
   };
   if (pagina) pagina.portada = () => { const p = fichaPublica(); return "portada" in p ? p.portada ?? null : null; }; // MIS-265: the cover in every page's og:image, live as the owner changes it
   (o.features ?? []).find(conFicha)?.ficha.conectar({ ajustes: fichaViva.ajustes, cambiar: fichaViva.cambiar });

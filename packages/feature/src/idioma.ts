@@ -95,6 +95,9 @@ export function cambiarIdioma(idioma: unknown, entorno: { guardado?: GuardadoIdi
   return nuevo;
 }
 
+/** A lazy module adds its own words (the map's) to the catalogues the first time it loads, so the first page never carries them. */
+export function anadirTextos(textosEn: Catalogo, textosEs: Catalogo): void { Object.assign(en as Record<string, string>, textosEn); Object.assign(es as Record<string, string>, textosEs); }
+
 /** Translates `clave` into `idioma` (default: the active one). Missing in that language → English → the key itself.
  * `{name}` placeholders take `vars.name`; a placeholder with no value stays as written. */
 export function t(clave: string, vars?: Readonly<Record<string, string | number>>, idioma: Idioma = activo): string {
