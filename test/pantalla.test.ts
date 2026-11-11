@@ -37,7 +37,7 @@ test("sePuedeCompartir: getDisplayMedia must exist (desktop, iOS 27) and the pag
   assert.equal(sePuedeCompartir(undefined, { protocol: "https:", hostname: "x" }), false);
 });
 
-test("fraseInicio: says where your screen went, and that only you see it for now", () => {
-  assert.equal(fraseInicio("Cine"), "Compartiendo tu pantalla en «Cine» (solo la ves tú por ahora).");
+test("fraseInicio: says where your screen went, and who sees it", () => {
+  assert.equal(fraseInicio("Cine"), "Compartiendo tu pantalla en «Cine»: la ven quienes estén cerca.");
   assert.match(fraseInicio(null), /^No hay ninguna pantalla cerca: la ves en una ventana/);
 });

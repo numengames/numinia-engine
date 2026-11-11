@@ -21,6 +21,7 @@ import { crearCliente as crearClienteBaculo } from "../features/baculo/client.ts
 import { asiento, COGER_M, LIBRE, ATRAS_M } from "../features/asiento/feature.ts";
 import { crearAsiento, leerAsientos } from "../features/asiento/server.ts";
 import { crearCliente, banqueta, rotulo } from "../features/asiento/client.ts";
+import { empezarMovimiento, pasoDeMovimiento } from "../packages/render/src/avatares-politica.ts";
 import { crearRoles } from "../packages/server/src/roles-mundo.ts";
 import funciones from "../features/servidor.ts";
 import paginas from "../features/cliente.ts";
@@ -47,16 +48,16 @@ function mundo(n: number, o: { sitios?: typeof SITIOS | null; archivos?: Archivo
   const inst: Instance = new Instance({ seed: 1, capacity: 32, k: 50, snapshotEvery: 2, features: [chatServer, crearEntorno({ schema: "numinia-engine/entorno@1", suelo: { tipo: "hierba" } }), crearDirector({ escenas: [] }), crearBaculo(null), as, roles.part], log: (l) => log.push(l), identitySign: sign, puede: (who, accion) => roles.puede(who, accion) });
   const gente = Array.from({ length: n }, (_, i) => {
     const t = inst.join(i), c = crearChat(() => reloj.ms), a = crearCliente(), b = crearClienteBaculo();
-    const vistas: string[] = [], rech: string[] = [], rumbos = new Map<number, number | undefined>(), poses = new Map<number, string | null>();
+    const vistas: string[] = [], rech: string[] = [], rumbos = new Map<number, number | undefined>(), poses = new Map<number, string | null>(), sujetos = new Map<number, boolean | undefined>();
     const s = new ClientSession(t, { features: [c.part, a.parts[0], b.parts[0]], identity: keeper(), view: {
       label() {}, bounce() {}, lleva() {},
       place: (k, p) => { vistas.push(`${k}:${p ? "puesto" : "quitado"}`); },
       tag: (k, p) => { vistas.push(`${k}:tag:${p ? p.text : "quitado"}`); },
-      movimiento: (e, m) => { poses.set(e, m ? m.id : null); return true; },
+      movimiento: (e, m) => { poses.set(e, m ? m.id : null); sujetos.set(e, m?.sujeto); return true; },
       orientar: (e, r) => { rumbos.set(e, r); },
     } });
     s.features.tap((f, e, m) => { if (f === "asiento" && e === "rechazado") rech.push(String(m.motivo)); });
-    return { t, s, chat: c.chat, asiento: a.asiento, baculo: b.baculo, rech, vistas, rumbos, poses };
+    return { t, s, chat: c.chat, asiento: a.asiento, baculo: b.baculo, rech, vistas, rumbos, poses, sujetos };
   });
   const pump = (ticks = 2) => { for (let k = 0; k < ticks; k++) { for (const c of gente) c.t.flush(); inst.tick(); for (const c of gente) c.t.flush(); reloj.ms += 1000 / TICK_HZ; } };
   const poner = (p: { s: ClientSession }, x: number, z: number) => { inst.sim.tf.cols.x[p.s.entity] = fx(x); inst.sim.tf.cols.z[p.s.entity] = fx(z); };
@@ -110,8 +111,10 @@ test("asiento: «E» beside a free seat sits you there — put on it, facing it,
   assert.ok(!B.s.features.reachable(10, 0.5, 0).some((r) => r.feature === "asiento" && r.key === "j1"));
   // what a page draws: the pose held on the sitter, facing where the seat looks (90° = +x), the name on the seat
   assert.equal(B.poses.get(A.s.entity), "sentarse");
+  assert.equal(B.sujetos.get(A.s.entity), true, "the pose is held by the seat: walking does not end it");
   assert.ok(Math.abs((B.rumbos.get(A.s.entity) ?? 99) - Math.PI / 2) < 1e-9);
-  assert.ok(B.vistas.includes(`asiento:j1:tag:${rotulo({ nombre: "Jugador 1", quien: W.nombre(A) })}`));
+  // QA Simposio 2026-11-11: a seat on the world's own furniture (dibujo false) puts no sign over the person sitting
+  assert.ok(!B.vistas.includes(`asiento:j1:tag:${rotulo({ nombre: "Jugador 1", quien: W.nombre(A) })}`));
   // a second person cannot take the same seat; the sitter cannot take a second seat
   B.s.features.use("asiento", "j1"); W.pump(3);
   assert.match(B.rech.at(-1) ?? "", /Jugador 1 lo ocupa/);
@@ -374,4 +377,29 @@ test("asiento: without a folder to write (no files), the switch lasts through a 
   assert.equal(roto.get("asientos.json"), "esto no es un objeto", "kept verbatim");
   assert.match(c.asiento.interruptor.estado.ultimoRechazo, /asientos\.json no es un objeto JSON/);
   void s;
+});
+
+test("asiento: a seat the engine draws (dibujo true) keeps the sign over the sitter; the world's own furniture (dibujo false) has none", () => {
+  const W = mundo(2, { sitios: [{ id: "b1", x: 10, y: 0, z: 0, mira: 90, etiqueta: "Banqueta", dibujo: true }] });
+  const [A, B] = W.gente;
+  W.pump(4); W.poner(A, 9.2, 0.6); W.pump(3);
+  assert.deepEqual(A.s.features.use("asiento", "b1"), { ok: true }); W.pump(4);
+  assert.ok(B.vistas.includes(`asiento:b1:tag:${rotulo({ nombre: "Banqueta", quien: W.nombre(A) })}`), B.vistas.join(" | "));
+});
+
+test("asiento: a held (sujeto) seat movement is not ended by the avatar walking state; a free one still is", () => {
+  const dur = () => 1, todo = () => true;
+  const M = (sujeto?: boolean) => ({ id: "sentarse", clips: ["sentarse"], modo: "bucle" as const, hastaS: 60, viva: true, etiqueta: "", ...(sujeto ? { sujeto } : {}) });
+  const libre = empezarMovimiento(M(), 0), sujeta = empezarMovimiento(M(true), 0);
+  assert.ok(pasoDeMovimiento(libre, 100, "andar", dur, todo).fin, "walking ends a plain move");
+  assert.ok(!pasoDeMovimiento(sujeta, 100, "andar", dur, todo).fin, "the slide onto the seat does not stand the sitter up");
+});
+
+test("asiento: a hall of 34 chairs fits (the limit is 64); more are left out with a reason", () => {
+  const lista = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `c${i}`, x: i, z: 0 }));
+  const treintaYCuatro = leerAsientos({ sitios: lista(34) })!;
+  assert.equal(treintaYCuatro.valor.sitios!.length, 34); assert.deepEqual(treintaYCuatro.problemas, []);
+  const muchos = leerAsientos({ sitios: lista(70) })!;
+  assert.equal(muchos.valor.sitios!.length, 64);
+  assert.match(muchos.problemas.join("\n"), /como mucho 64/);
 });

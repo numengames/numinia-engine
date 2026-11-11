@@ -28,5 +28,5 @@ export function sePuedeCompartir(nav: Navegador, loc: Direccion): boolean {
 
 /** The sentence said when the share starts: on a screen of the world, or in a floating window. */
 export function fraseInicio(nombre: string | null): string {
-  return nombre === null ? "No hay ninguna pantalla cerca: la ves en una ventana (solo la ves tú por ahora)." : `Compartiendo tu pantalla en «${nombre}» (solo la ves tú por ahora).`;
+  return nombre === null ? "No hay ninguna pantalla cerca: la ves en una ventana (solo la ves tú)." : `Compartiendo tu pantalla en «${nombre}»: la ven quienes estén cerca.`;
 }

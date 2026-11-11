@@ -1,7 +1,7 @@
-// pantalla (M18, trozo 2): «Compartir pantalla» — LOCAL ONLY. A real button (an entry of the bar's «Cámara» menu, P) asks the browser for your
+// pantalla (M18, trozos 2 y 3): «Compartir pantalla». A real button (an entry of the bar's «Cámara» menu, P) asks the browser for your
 // screen (getDisplayMedia) and shows the live picture on the nearest video screen of the world (within 30 m), or in a
-// floating window if none is near. Nothing leaves this page: no wire message, nothing to the server, no feature state
-// changes; other people keep seeing the screen's file. Sending it to others is the next slice (M18 trozo 3).
+// floating window if none is near. Trozo 3: when it is on a screen of the world, `red` (pantalla-red.ts) also sends it, through the
+// server's relay, to everyone within reach of that screen; in the window, nothing leaves this page. No feature state changes.
 // Where it works: desktop Chrome, Firefox and Safari, and iPhone with iOS 27; NOT Android Chrome, Firefox Android or the
 // Quest Browser (MDN compat data: no getDisplayMedia) — there the button is hidden (`hidden` attribute) and the help says so.
 // The browser opens its picker only inside the click or key handler: getDisplayMedia is called with nothing awaited before it.
@@ -12,6 +12,8 @@ import { pantallaMasCercana, sePuedeCompartir, fraseInicio, PANTALLA_CERCA_M } f
 import type { Pantalla, Punto } from "./pantalla-logica.ts";
 
 type Vista = { pantallas(): Pantalla[]; pantallaEnVivo(key: string, stream: MediaStream | null): boolean };
+/** M18 trozo 3: what sends the share to the others (apps/plaza/pantalla-red.ts). Absent = local only. */
+type Red = { empezar(key: string, stream: MediaStream): void | Promise<void>; parar(): void };
 
 const CSS = `
 #barra-arriba > #compartir-pantalla[aria-pressed="true"] { background: var(--n-accion, #017C8D) !important; color: #fff !important; border-color: var(--n-accion, #017C8D) !important; }
@@ -21,7 +23,7 @@ const CSS = `
 #pantalla-vista button:focus-visible { outline: 3px solid #ffd27a; }
 `;
 
-export function montarPantalla(o: { view: Vista; decir(t: string): void; escribiendo(e: KeyboardEvent): boolean; yo(): Punto | null; nombreDe(key: string): string; construyendo?(): boolean }) {
+export function montarPantalla(o: { view: Vista; decir(t: string): void; escribiendo(e: KeyboardEvent): boolean; yo(): Punto | null; nombreDe(key: string): string; construyendo?(): boolean; red?: Red }) {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const puede = sePuedeCompartir(navigator, location);
   const boton = document.createElement("button");
@@ -50,17 +52,39 @@ export function montarPantalla(o: { view: Vista; decir(t: string): void; escribi
     boton.setAttribute("aria-pressed", String(estado.compartiendo));
     // ux2-barra: an entry of the bar's «Cámara» menu (P opens the menu): a short name, the long sentence in the tooltip
     const corto = estado.compartiendo ? "Dejar de compartir" : "Compartir pantalla";
-    const t = estado.compartiendo ? "Compartiendo tu pantalla (solo la ves tú por ahora)" : "Compartir pantalla: se ve en la pantalla más cercana del mundo, solo en tu navegador por ahora";
+    const t = estado.compartiendo ? "Compartiendo tu pantalla" : "Compartir pantalla: la ven quienes estén cerca de la pantalla más cercana del mundo";
     texto.innerHTML = `${icono("screencast")}<span class="solo-lector">${corto}</span>`; boton.title = t;
   };
-  function mostrar(stream: MediaStream): void {
-    flujo = stream;
+  /** Put the share where it belongs now: on the nearest screen of the world (within reach) or in the floating window.
+   * True when the place changed. QA Simposio 2026-11-11: the share follows you — starting it far from the stage put it in
+   * the window for good; now walking up to the screen moves it there, and walking away brings the window back. */
+  let vetada: { key: string; hasta: number } | null = null; // a screen the server refused: not asked again for a while
+  function colocar(stream: MediaStream): boolean {
     const yo = o.yo();
-    const cerca = yo ? pantallaMasCercana(yo, o.view.pantallas(), PANTALLA_CERCA_M) : null;
-    if (cerca && o.view.pantallaEnVivo(cerca.key, stream)) estado.pantalla = cerca.key;
-    else { estado.pantalla = null; video.srcObject = stream; vista.hidden = false; void video.play().catch(() => {}); }
+    const libres = vetada && vetada.hasta > Date.now() ? o.view.pantallas().filter((p) => p.key !== vetada!.key) : o.view.pantallas();
+    const cerca = yo ? pantallaMasCercana(yo, libres, PANTALLA_CERCA_M) : null;
+    const destino = cerca?.key ?? null;
+    if (destino === estado.pantalla && (destino !== null || !vista.hidden)) return false;
+    if (estado.pantalla !== null && estado.pantalla !== destino) o.view.pantallaEnVivo(estado.pantalla, null);
+    if (destino !== null && o.view.pantallaEnVivo(destino, stream)) {
+      estado.pantalla = destino; video.pause(); video.srcObject = null; vista.hidden = true;
+      void o.red?.empezar(destino, stream); // everyone near that screen sees it too
+    } else {
+      o.red?.parar(); estado.pantalla = null; if (video.srcObject !== stream) video.srcObject = stream; vista.hidden = false; void video.play().catch(() => {});
+    }
+    return true;
+  }
+  let vigia: ReturnType<typeof setInterval> | null = null;
+  function mostrar(stream: MediaStream): void {
+    flujo = stream; estado.pantalla = null; vista.hidden = true;
+    colocar(stream);
     estado.compartiendo = true; estado.veces++; pintar();
     o.decir(fraseInicio(estado.pantalla === null ? null : o.nombreDe(estado.pantalla) || "pantalla"));
+    if (vigia) clearInterval(vigia);
+    vigia = setInterval(() => {
+      if (!flujo || !colocar(flujo)) return;
+      o.decir(estado.pantalla === null ? "Te has alejado de la pantalla: tu pantalla compartida vuelve a la ventana." : `Tu pantalla compartida se ve ahora en «${o.nombreDe(estado.pantalla) || "pantalla"}».`);
+    }, 1000);
     for (const t of stream.getTracks()) t.addEventListener("ended", () => { if (flujo === stream) parar("el navegador dejó de compartir"); }, { once: true });
   }
   function empezar(): void {
@@ -74,16 +98,25 @@ export function montarPantalla(o: { view: Vista; decir(t: string): void; escribi
   function parar(por = ""): void {
     if (!estado.compartiendo) return;
     const s = flujo; flujo = null;
+    if (vigia) { clearInterval(vigia); vigia = null; }
     if (s) for (const t of s.getTracks()) t.stop();
+    o.red?.parar();
     if (estado.pantalla !== null) o.view.pantallaEnVivo(estado.pantalla, null);
     video.pause(); video.srcObject = null; vista.hidden = true;
     estado.compartiendo = false; estado.pantalla = null; pintar();
     o.decir(por ? `Has dejado de compartir la pantalla (${por}).` : "Has dejado de compartir la pantalla.");
+  }
+  /** The server ended or refused my share on `key` (busy, too far, stopped by a moderator, gone): back to the window, and not that screen again for 30 s. */
+  function alPararPropia(key: string): void {
+    if (!flujo || estado.pantalla !== key) return;
+    vetada = { key, hasta: Date.now() + 30_000 };
+    o.view.pantallaEnVivo(key, null); estado.pantalla = null;
+    if (video.srcObject !== flujo) video.srcObject = flujo; vista.hidden = false; void video.play().catch(() => {});
   }
   const alternar = () => { if (estado.compartiendo) parar(); else empezar(); };
   boton.addEventListener("click", (e) => { alternar(); if (e.detail > 0) boton.blur(); });
   cerrar.addEventListener("click", () => parar());
   // ux2-barra: no key of its own any more — P opens the bar's «Cámara» menu, where this is the third entry
   pintar();
-  return { estado, alternar, parar };
+  return { estado, alternar, parar, alPararPropia };
 }

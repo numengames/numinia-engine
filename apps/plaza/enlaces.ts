@@ -11,7 +11,13 @@ export type OpcionesEnlaces = {
   construyendo(): boolean; // build panel open or camera in build mode: no hover, no click-opens-link
   confirmar?(texto: string): boolean; // injectable for tests; default: window.confirm
   abrir?(url: string): void;         // injectable for tests; default: window.open(url, "_blank", "noopener")
+  ahora?(): number;                  // injectable clock (ms) for tests; default: performance.now
 };
+
+/** The hover pick raycasts every placed thing (no BVH): measured 47 ms p50 on the Symposium world (275 meshes, 1.4 M tris), and the
+ * browser delivers a pointermove every frame while the mouse moves — so it must never run while the camera is being turned (button
+ * held, or pointer locked) and may spend at most ~1/PRESUPUESTO of the time: after a pick that took c ms, the next waits PRESUPUESTO·c. */
+const PRESUPUESTO = 8;
 
 const enlaceDe = (o: Objeto | null): string => { const s = String(o?.enlace ?? "").trim(); return s; };
 
@@ -47,10 +53,15 @@ export function montarEnlaces(o: OpcionesEnlaces) {
   const url = (key: string): string | null => { if (o.construyendo()) return null; const u = enlaceDe(o.constructor.objeto(key)); return u && enlaceAbrible(u) ? u : null; };
 
   // ---- the hand cursor: only while playing, only over a thing that actually opens something ----
-  let encima = false;
+  let encima = false, noAntesDe = 0;
+  const ahora = o.ahora ?? (() => performance.now());
   const mover = (e: PointerEvent) => {
     if (o.construyendo()) { if (encima) { lienzo.style.cursor = ""; encima = false; } return; }
+    if (e.buttons || (typeof document !== "undefined" && document.pointerLockElement)) return; // turning the camera: no hover work
+    const t0 = ahora();
+    if (t0 < noAntesDe) return;
     const k = o.view.pickThing?.(e.clientX, e.clientY);
+    noAntesDe = ahora() + PRESUPUESTO * (ahora() - t0);
     const tiene = !!k && !!enlaceDe(o.constructor.objeto(k));
     if (tiene !== encima) { lienzo.style.cursor = tiene ? "pointer" : ""; encima = tiene; }
   };
