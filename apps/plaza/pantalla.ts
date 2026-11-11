@@ -53,14 +53,33 @@ export function montarPantalla(o: { view: Vista; decir(t: string): void; escribi
     const t = estado.compartiendo ? "Compartiendo tu pantalla (solo la ves tú por ahora)" : "Compartir pantalla: se ve en la pantalla más cercana del mundo, solo en tu navegador por ahora";
     texto.innerHTML = `${icono("screencast")}<span class="solo-lector">${corto}</span>`; boton.title = t;
   };
-  function mostrar(stream: MediaStream): void {
-    flujo = stream;
+  /** Put the share where it belongs now: on the nearest screen of the world (within reach) or in the floating window.
+   * True when the place changed. QA Simposio 2026-11-11: the share follows you — starting it far from the stage put it in
+   * the window for good; now walking up to the screen moves it there, and walking away brings the window back. */
+  function colocar(stream: MediaStream): boolean {
     const yo = o.yo();
     const cerca = yo ? pantallaMasCercana(yo, o.view.pantallas(), PANTALLA_CERCA_M) : null;
-    if (cerca && o.view.pantallaEnVivo(cerca.key, stream)) estado.pantalla = cerca.key;
-    else { estado.pantalla = null; video.srcObject = stream; vista.hidden = false; void video.play().catch(() => {}); }
+    const destino = cerca?.key ?? null;
+    if (destino === estado.pantalla && (destino !== null || !vista.hidden)) return false;
+    if (estado.pantalla !== null && estado.pantalla !== destino) o.view.pantallaEnVivo(estado.pantalla, null);
+    if (destino !== null && o.view.pantallaEnVivo(destino, stream)) {
+      estado.pantalla = destino; video.pause(); video.srcObject = null; vista.hidden = true;
+    } else {
+      estado.pantalla = null; if (video.srcObject !== stream) video.srcObject = stream; vista.hidden = false; void video.play().catch(() => {});
+    }
+    return true;
+  }
+  let vigia: ReturnType<typeof setInterval> | null = null;
+  function mostrar(stream: MediaStream): void {
+    flujo = stream; estado.pantalla = null; vista.hidden = true;
+    colocar(stream);
     estado.compartiendo = true; estado.veces++; pintar();
     o.decir(fraseInicio(estado.pantalla === null ? null : o.nombreDe(estado.pantalla) || "pantalla"));
+    if (vigia) clearInterval(vigia);
+    vigia = setInterval(() => {
+      if (!flujo || !colocar(flujo)) return;
+      o.decir(estado.pantalla === null ? "Te has alejado de la pantalla: tu pantalla compartida vuelve a la ventana." : `Tu pantalla compartida se ve ahora en «${o.nombreDe(estado.pantalla) || "pantalla"}».`);
+    }, 1000);
     for (const t of stream.getTracks()) t.addEventListener("ended", () => { if (flujo === stream) parar("el navegador dejó de compartir"); }, { once: true });
   }
   function empezar(): void {
@@ -74,6 +93,7 @@ export function montarPantalla(o: { view: Vista; decir(t: string): void; escribi
   function parar(por = ""): void {
     if (!estado.compartiendo) return;
     const s = flujo; flujo = null;
+    if (vigia) { clearInterval(vigia); vigia = null; }
     if (s) for (const t of s.getTracks()) t.stop();
     if (estado.pantalla !== null) o.view.pantallaEnVivo(estado.pantalla, null);
     video.pause(); video.srcObject = null; vista.hidden = true;
