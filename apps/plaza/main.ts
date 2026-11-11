@@ -572,9 +572,16 @@ const foto = montarFotoPuerta({ view, yo: () => (session.entity >= 0 ? session.s
 montarObjetivo({ lucha, interaccion });
 montarCombate({ lucha }); // combate nivel 2: the three skill slots (keys 1–3) — hidden until the page hears of fighting
 const fuentesLucha = fuentesDeLucha(lucha); // the character HUD's Estado and Carga come from the lucha client (hud-personaje.ts reads them from __numinia)
-// ux2-barra: your sheet (I) opens from your card, top left (hud-personaje.ts); no «Ficha» under the minimap any more
-// «Tú» (I): the avatar you wear (its portrait: tu-logica.ts) and the world's name, read when the sheet draws
+// ux2-barra: your sheet (C, keymap v1) opens from your card, top left (hud-personaje.ts); no «Ficha» under the minimap any more
+// «Tú» (C): the avatar you wear (its portrait: tu-logica.ts) and the world's name, read when the sheet draws
 const botonFicha = document.getElementById("hud-personaje-abrir") as HTMLButtonElement;
+{ // keymap v1: its name says the key in effect (Yours or Default), in both languages, so the language switch keeps it
+  const rotularTu = (): void => {
+    const k = teclas.etiqueta("ficha"), en = k ? `You (${k})` : "You", es = k ? `Tú (${k})` : "Tú", ahora = document.documentElement.lang === "es" ? es : en;
+    for (const a of ["title", "aria-label"]) { botonFicha.setAttribute(`data-en-${a}`, en); botonFicha.setAttribute(`data-es-${a}`, es); botonFicha.setAttribute(a, ahora); }
+  };
+  rotularTu(); teclas.alCambiar(rotularTu);
+}
 let nombreDelMundo = estado?.nombre ?? "";
 ajustesMundo.alCambiar((a) => { if (a.nombre) { nombreDelMundo = a.nombre; document.title = a.nombre; } }); // H7: the owner renames the world → every tab
 const miAvatar = () => avatarQueLlevas(catalogoAvatares?.modelos, avatarUI?.eleccion("yo"), session.entity);
@@ -979,7 +986,7 @@ void view.vrSupported().then(async (ok) => {
 });
 
 // ---- U11 + ux2-barra: the bar, top right — one thing, one place, one key. Left to right: Micrófono (Q) · Gente (L) ·
-// Bolsa (R) · Cámara (P: foto, grabar, compartir pantalla) · Construir (C, builders only) | Avisos (N) · Menú (O: ajustes,
+// Bolsa (I) · Cámara (P: foto, grabar, compartir pantalla) · Construir (B, builders only) | Avisos (N) · Menú (O: ajustes,
 // pantalla completa, volver a la ciudad, teclas y ayuda). The order is CSS (`order`, tema.css ux2-barra): modules add
 // their own buttons at different moments. The menus move the modules' own buttons in (menu-barra.ts): same ids, same
 // handlers, same `hidden` rules ----

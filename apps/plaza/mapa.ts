@@ -392,7 +392,7 @@ export function montarMapa(h: HostMapa) {
   }
 
   // ---------- big map (dialog) ----------
-  const panel = crearDialogo({ id: "mapa-grande", titulo: tituloDe("mapa").replace(/ \(M\)$/, ""), tecla: "KeyM", boton: bMapa, alAbrir: () => abrirGrande(), alCerrar: () => { arrastre.clear(); } });
+  const panel = crearDialogo({ id: "mapa-grande", titulo: tituloDe("mapa").replace(/ \(M\)$/, ""), tecla: "KeyM", accion: "mapa", boton: bMapa, alAbrir: () => abrirGrande(), alCerrar: () => { arrastre.clear(); } });
   const zonaLienzo = document.createElement("div"); zonaLienzo.className = "lienzo";
   const gCanvas = document.createElement("canvas"); gCanvas.tabIndex = 0;
   gCanvas.setAttribute("role", "img");

@@ -1,8 +1,8 @@
-// Y1 on the page: the Inventario panel (key R, «Reserva», or the «Inventario» button next to «Misiones»): what you carry (one
+// Y1 on the page: the Inventario panel (key I by default — keymap v1 —, «Reserva», or the «Inventario» button next to «Misiones»): what you carry (one
 // weapon, up to three relics) and your Reserva (the rest; tokens with «× n»), each line with a house icon and a real
 // button «Llevar» / «Guardar» where it applies. No drag and drop (that is Y2). Plain accessible HTML, like the book:
 // headings, lists, buttons. It is drawn only while open and only when the Reserva changes.
-// La Bolsa galáctica on the page (key R, or the «Bolsa» button): a classic game inventory — 42 square slots (7 x 6 on a PC, 6
+// La Bolsa galáctica on the page (key I by default, or the «Bolsa» button): a classic game inventory — 42 square slots (7 x 6 on a PC, 6
 // columns on a phone) with the item's house icon big and centred, rarity as the slot's border and glow, «× n» for a stack, empty
 // sockets dim; above them the equipment slots (1 weapon, 3 relics, silhouettes when empty). Pick a slot (click, tap, arrows +
 // Enter) for its card — name, type line, worth, «Llevar»/«Guardar» — or hover it on a PC for the tooltip. Weapons and relics
@@ -29,7 +29,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, texto = "", clase = "
 const conIcono = (e: HTMLElement, nombre: string, px: number): void => { e.innerHTML = icono(nombre, px); };
 
 export function montarInventario(c: Ctl, boton: HTMLButtonElement) {
-  const panel = crearDialogo({ id: "inventario", titulo: "Bolsa galáctica", tecla: "KeyR", noConstruyendo: true, boton, alAbrir: () => { pintar(true); (rejilla.querySelector('[tabindex="0"]') as HTMLElement | null)?.focus({ preventScroll: true }); } });
+  const panel = crearDialogo({ id: "inventario", titulo: "Bolsa galáctica", tecla: "KeyI", accion: "bolsa", noConstruyendo: true, boton, alAbrir: () => { pintar(true); (rejilla.querySelector('[tabindex="0"]') as HTMLElement | null)?.focus({ preventScroll: true }); } });
   const titulo = panel.dialog.querySelector("h2") as HTMLElement, cuenta = el("span", "", "cuenta");
   titulo.after(cuenta);
   const equipoEl = el("div", "", "equipo"), rejilla = el("div", "", "rejilla"), ficha = el("aside", "", "ficha-objeto"), tip = el("div", "", "bolsa-tip");

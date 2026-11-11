@@ -208,9 +208,9 @@ try {
   paso("movido con la flecha X (el servidor lo guarda)", Math.abs(o1.x - o0.x) >= 0.3, { x0: o0.x, x1: o1.x });
   let l = await libro(p);
   console.log("tras mover:", JSON.stringify(l.filter((m) => m.id === "muevelo")));
-  // girar: tecla R + aro
+  // girar: tecla R + aro (build mode keeps its own keyboard: 3 or R rotate — teclas.ts OTROS_MODOS; I is the bag only outside it)
   await p.mouse.move(640, 130); await sleep(300);
-  await p.keyboard.press("KeyI"); await sleep(600);
+  await p.keyboard.press("KeyR"); await sleep(600);
   console.log("modo", await p.evaluate(() => globalThis.__numinia.constructor.estado.modo));
   const aro = [];
   for (const r of [0.6, 0.9, 1.2, 1.6, 0.4, 2]) for (let a = 0; a < 360; a += 10) aro.push([o1.x + r * Math.cos((a * Math.PI) / 180), cy + 0.02, o1.z + r * Math.sin((a * Math.PI) / 180)]);

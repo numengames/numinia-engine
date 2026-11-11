@@ -25,7 +25,7 @@ export function montarFrases(frases: Pagina, o: { barra?: HTMLElement | null; id
   const boton = el("button", { type: "button", id: "frases-abrir", textContent: "Phrases" });
   boton.title = "Say a fixed phrase: hello, thank you, help, follow me…";
   (o.barra ?? document.getElementById("barra-arriba") ?? document.body).appendChild(boton);
-  const panel = crearDialogo({ id: "frases", titulo: "Phrases", tecla: "Backquote", boton, alAbrir: () => { pintar(); primera()?.focus({ preventScroll: true }); } });
+  const panel = crearDialogo({ id: "frases", titulo: "Phrases", tecla: "Backquote", accion: "frases", boton, alAbrir: () => { pintar(); primera()?.focus({ preventScroll: true }); } });
   const estado = el("p", { className: "estado" });
   estado.setAttribute("role", "status");
   const cuerpo = el("div", { className: "frases-lista" });

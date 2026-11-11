@@ -7,6 +7,7 @@
 // Sections come from a registry: a feature or an adventure adds its own with `__numinia.ficha.seccion(id, {...})`.
 // innerHTML below only ever receives icono()'s output (a fixed table of house SVGs); every text goes in with textContent.
 import { crearDialogo } from "./paneles.ts";
+import { teclas } from "./teclas.ts"; // keymap v1: the bag's key is read from the one table (Yours or Default)
 import { resumenTexto } from "./inventario-resumen.ts";
 import { icono } from "./iconos.ts";
 import { retratoDe, insigniasDelLibro, lineaDeTu, equipoDeLaLista, aventurasEnCurso } from "./tu-logica.ts";
@@ -67,7 +68,7 @@ function ficheroInsignia(x: Insignia, grande = false): HTMLElement {
 export function montarFicha(h: HostFicha, boton: HTMLButtonElement) {
   const secciones = new Map<string, Seccion>();
   const cajas = new Map<string, HTMLElement>();
-  const panel = crearDialogo({ id: "ficha", titulo: "Tú", tecla: "KeyI", boton, alAbrir: () => construir() });
+  const panel = crearDialogo({ id: "ficha", titulo: "Tú", tecla: "KeyC", accion: "ficha", boton, alAbrir: () => construir() });
   const tecla = el("kbd", "tecla", "I"); tecla.setAttribute("aria-hidden", "true");
   panel.dialog.querySelector("h2")?.after(tecla);
 
@@ -168,7 +169,7 @@ export function montarFicha(h: HostFicha, boton: HTMLButtonElement) {
     };
     caja.setAttribute("role", "group"); caja.setAttribute("aria-label", "Un arma y hasta tres reliquias");
     caja.replaceChildren(hueco(arma, "arma"), ...[0, 1, 2].map((i) => hueco(reliquias[i] ?? null, "reliquia")));
-    nota.textContent = rs.objetos > rs.portados ? `${resumenTexto(rs)} · el resto, en la Bolsa (R)` : resumenTexto(rs);
+    nota.textContent = rs.objetos > rs.portados ? `${resumenTexto(rs)} · el resto, en la Bolsa (${teclas.etiqueta("bolsa")})` : resumenTexto(rs);
   }
   /** Up to three adventures under way: title, «paso 2 de 5», the step you are on; the one you follow first. */
   function pintarAventuras(r: HTMLElement, libro: unknown): void {
@@ -274,7 +275,7 @@ export function montarFicha(h: HostFicha, boton: HTMLButtonElement) {
       if (!r) return void c.replaceChildren(el("p", "nota", "Este servidor no lleva inventario."));
       const ul = el("ul");
       for (const o of i.lista() as { nombre: string; n: number; portado: boolean }[]) ul.appendChild(el("li", "", `${o.n > 1 ? `${o.nombre} × ${o.n}` : o.nombre}${o.portado ? " (contigo)" : ""}`));
-      const b = el("button", "", "Abrir la Reserva (R)"); b.type = "button"; b.setAttribute("aria-keyshortcuts", "R");
+      const k = teclas.etiqueta("bolsa"), b = el("button", "", `Abrir la Reserva (${k})`); b.type = "button"; b.setAttribute("aria-keyshortcuts", k);
       b.addEventListener("click", () => { panel.cerrar(); i.abrir(); });
       c.replaceChildren(el("p", "", resumenTexto(r)), ...(r.objetos ? [ul] : []), b);
     },

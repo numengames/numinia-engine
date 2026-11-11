@@ -55,7 +55,7 @@ function montarCentro(): void {
   const hist: Entrada[] = [];
   const leer = (h: Entrada) => { if (!h.leido) { h.leido = true; try { h.alLeer?.(); } catch { /* a reader never breaks the bell */ } } };
   let filtro: Tipo | null = null;
-  const panel = crearDialogo({ id: "avisos-centro", titulo: "Avisos", tecla: "KeyN", boton, alAbrir: () => { for (const h of hist) leer(h); pintar(); } });
+  const panel = crearDialogo({ id: "avisos-centro", titulo: "Avisos", tecla: "KeyN", accion: "avisos", boton, alAbrir: () => { for (const h of hist) leer(h); pintar(); } });
   const filtros = document.createElement("div"); filtros.className = "filtros"; filtros.setAttribute("role", "group"); filtros.setAttribute("aria-label", "Filtrar avisos");
   const lista = document.createElement("ul"); lista.className = "avisos-lista"; lista.setAttribute("aria-label", "Avisos de esta sesión");
   const marcar = document.createElement("button"); marcar.type = "button"; marcar.textContent = "Marcar leídos";

@@ -7,7 +7,7 @@
     {
       "id": "abre",
       "tipo": "hace",
-      "texto": "Pulsa Construir (o la tecla C)",
+      "texto": "Pulsa Construir (o la tecla B)",
       "accion": "abre_construir",
       "senala": "construir"
     }

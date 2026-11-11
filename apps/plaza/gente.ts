@@ -83,7 +83,7 @@ export function montarGente(o: OpcionesGente) {
   const boton = o.boton ?? crearBotonGente(o.barra); // t_45ef2f70: the façade (gente-puerta.ts) makes the button at once and hands it over
 
   let reloj = 0;
-  const panel = crearDialogo({ id: "gente", titulo: "Gente", tecla: "KeyL", boton,
+  const panel = crearDialogo({ id: "gente", titulo: "Gente", tecla: "Tab", accion: "gente", boton,
     alAbrir: () => { pintar(); pedir(); reloj = window.setInterval(pedir, REFRESCO_MS); },
     alCerrar: () => { clearInterval(reloj); } });
   // header: «Añadir amigo» next to the title, before «Cerrar»
