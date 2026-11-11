@@ -1,10 +1,12 @@
 // condiciones/c3 — the bubble of entry, the decisions without a browser (apps/plaza/condiciones-logica.ts) and the promise that a
 // world with the gate OFF is untouched (apps/plaza/condiciones.ts reads no `document` until a bubble is asked for).
 import { test } from "node:test";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // these assertions read the Spanish text; the English side is tested in test/idioma-condiciones.test.ts
 import assert from "node:assert/strict";
 import {
-  aceptacion, conservados, esVuelta, flechaVersion, lineaQuitado, marcasVacias, nombreDeCapa, pideBurbuja, planificar, porcentajeLeido, puedeSeguir, ROTULO_TODO, rotuloAcepto, rotuloSinOpcional,
-  SUBTITULO_CAMBIOS, TITULO_CAMBIOS, todoMarcado,
+  aceptacion, conservados, esVuelta, flechaVersion, lineaQuitado, marcasVacias, nombreDeCapa, pideBurbuja, planificar, porcentajeLeido, puedeSeguir, rotuloTodo, rotuloAcepto, rotuloSinOpcional,
+  subtituloCambios, tituloCambios, todoMarcado,
 } from "../apps/plaza/condiciones-logica.ts";
 import { montarCondiciones } from "../apps/plaza/condiciones.ts";
 import type { CondicionesAceptado, CondicionesCapa, CondicionesMensaje } from "../packages/net/src/index.ts";
@@ -85,7 +87,7 @@ test("aceptacion: every layer at its version; data = the ticked ones, all, or no
 
 test("the two ways out of the last step: refusing says so, and it is as plain as accepting", () => {
   assert.equal(rotuloSinOpcional(0), "Entrar sin lo opcional");
-  assert.equal(ROTULO_TODO, "Aceptar todo y entrar");
+  assert.equal(rotuloTodo(), "Aceptar todo y entrar");
   assert.notEqual(rotuloSinOpcional(2), "Entrar sin lo opcional", "with boxes ticked the button says what it will do");
 });
 
@@ -155,7 +157,7 @@ test("c6 conservados/aceptacion: the permissions given for what was not asked tr
 });
 
 test("c6 words: the title, the box of the version, the arrow of versions and the line of a removed point", () => {
-  assert.equal(TITULO_CAMBIOS, "Han cambiado las normas"); assert.match(SUBTITULO_CAMBIOS, /solo te enseñamos lo que ha cambiado/);
+  assert.equal(tituloCambios(), "Han cambiado las normas"); assert.match(subtituloCambios(), /solo te enseñamos lo que ha cambiado/);
   assert.equal(flechaVersion("1.0", "1.1"), "v1.0 → v1.1");
   const c = planificar(capasVuelta, dados)[0]; assert.ok(c.tipo === "capa");
   assert.equal(rotuloAcepto(c), "Acepto la versión 1.1 de las normas de Numen Games");

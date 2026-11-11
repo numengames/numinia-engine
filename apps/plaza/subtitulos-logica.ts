@@ -1,17 +1,19 @@
 // V13 (docs/V13-SUBTITULOS-VOZ.md): the pure part of the voice subtitles — no DOM, no clock of its own.
 // Where a speaker is relative to where you look (8 sectors, 8° hysteresis), near/far with hysteresis, who leaves when there
 // are more boxes than room, and how long a box stays. The page part is subtitulos.ts.
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 /** The 8 sectors of 45°, clockwise from straight ahead: the word in the box (§4) and the sentence the screen reader says (§7). */
-export const SECTORES: readonly { palabra: string; lector: string }[] = [
-  { palabra: "delante", lector: "delante de ti" },
-  { palabra: "delante dcha.", lector: "delante de ti a la derecha" },
-  { palabra: "derecha", lector: "a tu derecha" },
-  { palabra: "detrás dcha.", lector: "detrás de ti a la derecha" },
-  { palabra: "detrás", lector: "detrás de ti" },
-  { palabra: "detrás izq.", lector: "detrás de ti a la izquierda" },
-  { palabra: "izquierda", lector: "a tu izquierda" },
-  { palabra: "delante izq.", lector: "delante de ti a la izquierda" },
+// getters: the word is read in the language of that moment, never frozen at import
+export const SECTORES: readonly { readonly palabra: string; readonly lector: string }[] = [
+  { get palabra() { return tx("ahead", "delante"); }, get lector() { return tx("ahead of you", "delante de ti"); } },
+  { get palabra() { return tx("ahead right", "delante dcha."); }, get lector() { return tx("ahead of you to the right", "delante de ti a la derecha"); } },
+  { get palabra() { return tx("right", "derecha"); }, get lector() { return tx("to your right", "a tu derecha"); } },
+  { get palabra() { return tx("behind right", "detrás dcha."); }, get lector() { return tx("behind you to the right", "detrás de ti a la derecha"); } },
+  { get palabra() { return tx("behind", "detrás"); }, get lector() { return tx("behind you", "detrás de ti"); } },
+  { get palabra() { return tx("behind left", "detrás izq."); }, get lector() { return tx("behind you to the left", "detrás de ti a la izquierda"); } },
+  { get palabra() { return tx("left", "izquierda"); }, get lector() { return tx("to your left", "a tu izquierda"); } },
+  { get palabra() { return tx("ahead left", "delante izq."); }, get lector() { return tx("ahead of you to the left", "delante de ti a la izquierda"); } },
 ];
 export const HISTERESIS_GRADOS = 8;
 export const CERCA_M = 15;          // half of VOZ_RADIO_M (30 m)
@@ -77,11 +79,11 @@ export function ordenar<T extends Caja>(cajas: readonly T[]): T[] {
 /** The line the screen reader gets (§7), e.g. «Marta, detrás de ti a la izquierda, lejos: habla.» */
 export function frase(o: { nombre: string; escenario: boolean; escrito?: boolean; sector?: number | null; lejos?: boolean; texto: string }): string {
   const partes = [o.nombre];
-  if (o.escenario) partes.push("en el escenario");
+  if (o.escenario) partes.push(tx("on stage", "en el escenario"));
   else {
-    if (o.escrito) partes.push("escrito");
+    if (o.escrito) partes.push(tx("typed", "escrito"));
     if (o.sector !== null && o.sector !== undefined) partes.push(SECTORES[o.sector].lector);
-    if (o.lejos) partes.push("lejos");
+    if (o.lejos) partes.push(tx("far", "lejos"));
   }
   return `${partes.join(", ")}: ${o.texto}`;
 }

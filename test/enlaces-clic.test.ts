@@ -88,7 +88,7 @@ test("VR: the ray can point at a thing with a link and at nothing else plain; th
   assert.equal(v.apuntable("cartel"), true); assert.equal(v.apuntable("sin"), false); assert.equal(v.apuntable("otro"), false);
   v.apuntar("cartel");
   assert.equal(v.paneles.length, 1);
-  assert.match(v.paneles[0]!.texto, /https:\/\/numinia\.com\/mundo/); assert.deepEqual(v.paneles[0]!.opciones, ["Abrir", "Ahora no"]);
+  assert.match(v.paneles[0]!.texto, /https:\/\/numinia\.com\/mundo/); assert.deepEqual(v.paneles[0]!.opciones, ["Open", "Not now"]);
   assert.deepEqual(v.p.abiertas, [], "pointing and pulling the trigger does not open it by itself");
   assert.deepEqual(v.usos, [], "and it is not sent to the server as a use");
 });

@@ -1,7 +1,8 @@
 // MIS-200 (t_9687b5fc): «Entrar en VR» / «Entrar en AR» wait while the world still loads, with a ceiling; the state is text too.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { crearListo, aspectoBoton, TECHO_LISTO_MS, TEXTO_PREPARANDO, MOTIVO_PREPARANDO } from "../apps/plaza/boton-listo.ts";
+import { crearListo, aspectoBoton, TECHO_LISTO_MS, textoPreparando, motivoPreparando } from "../apps/plaza/boton-listo.ts";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
 
 test("loading → disabled → enabled: the entry waits while the world loads, then opens and stays open", () => {
   const b = crearListo();
@@ -34,8 +35,10 @@ test("the ceiling is configurable (a short one for the test of the ceiling itsel
 
 test("aspecto: waiting shows «Preparando…», aria-disabled and the reason; ready shows the normal label, no tooltip", () => {
   const espera = aspectoBoton(false, "Entrar en VR");
-  assert.deepEqual(espera, { texto: TEXTO_PREPARANDO, ariaDisabled: true, titulo: MOTIVO_PREPARANDO });
-  assert.equal(TEXTO_PREPARANDO, "Preparando…");
-  assert.match(MOTIVO_PREPARANDO, /cargar/);
+  assert.deepEqual(espera, { texto: textoPreparando(), ariaDisabled: true, titulo: motivoPreparando() });
+  assert.equal(textoPreparando(), "Preparing…");
+  assert.match(motivoPreparando(), /loading/);
+  fijarIdioma("es");
+  try { assert.equal(textoPreparando(), "Preparando…"); assert.match(motivoPreparando(), /cargar/); } finally { fijarIdioma("en"); }
   assert.deepEqual(aspectoBoton(true, "Entrar en AR"), { texto: "Entrar en AR", ariaDisabled: false, titulo: "" });
 });

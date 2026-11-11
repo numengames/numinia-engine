@@ -42,7 +42,7 @@ test("«Teclas y ayuda» reads the help line into rows; notes without a key stay
 
 test("the page's help line no longer gives P to two things, and names the camera, the bag and the menu", () => {
   const html = readFileSync(new URL("../apps/plaza/index.html", import.meta.url), "utf8");
-  const ayuda = /<div id="help"[^>]*data-es="([^"]*)"/.exec(html)?.[1] ?? "";
+  const ayuda = /<div id="help"[^>]*data-es="([^"]*)"/.exec(html)?.[1] ?? ""; // the Spanish half: the checks below read Spanish words
   const filas = filasDeAyuda(ayuda);
   assert.equal(filas.filter((f) => f.tecla === "P").length, 1, "one P");
   assert.ok(filas.some((f) => f.tecla === "P" && /cámara/.test(f.que)));

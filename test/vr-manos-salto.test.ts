@@ -170,8 +170,8 @@ test("manos: la altura se lee en el marco de la plataforma — subir toda la pla
 });
 
 test("la hoja de mandos de VR dice cómo saltar sin mandos", () => {
-  const l = LINEAS_MANDOS.find((x) => /^Manos:/.test(x));
-  assert.ok(l && /salt/i.test(l), l);
+  const l = LINEAS_MANDOS.find((x) => /^Hands:/.test(x));
+  assert.ok(l && /jump/i.test(l), l);
 });
 
 test("vr.ts: el gesto de salto pide el salto de A/X, y no con menú, burbuja o diálogo delante", () => {

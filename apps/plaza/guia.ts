@@ -4,6 +4,7 @@
 import type { espejo as Controlador } from "../../features/espejo/client.ts";
 import { DISTANCIA_M, aparecerCerca, fraseDe, seguir, zonaDe } from "../../features/espejo/guia.ts";
 import type { Pose } from "../../features/espejo/guia.ts";
+import { ligar } from "../../packages/feature/src/idioma.ts";
 
 type Ctl = typeof Controlador;
 export const CLAVE_FORMA = "espejo:guia";
@@ -20,7 +21,7 @@ export function montarGuia(o: { espejo: Ctl; yo: () => { x: number; z: number } 
   const d = o.doc ?? document;
   const estilo = d.createElement("style"); estilo.textContent = CSS; d.head.appendChild(estilo);
   const voz = d.createElement("div"); voz.id = "guia-voz"; voz.hidden = true; voz.setAttribute("role", "status"); voz.setAttribute("aria-live", "polite");
-  const quien = d.createElement("b"), texto = d.createElement("span"); quien.textContent = "La guía"; voz.append(quien, texto); d.body.appendChild(voz);
+  const quien = d.createElement("b"), texto = d.createElement("span"); ligar(quien, "textContent", "The guide", "La guía"); voz.append(quien, texto); d.body.appendChild(voz);
 
   let pose: Pose | null = null, zonaAntes: string | null | undefined, dichoHasta = 0, caminando = false, saludado = false, ultimaFicha = "";
   const decir = (t: string): void => { if (!t) return; texto.textContent = t; voz.hidden = false; dichoHasta = performance.now() + DURA_FRASE_MS; };

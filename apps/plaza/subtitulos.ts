@@ -6,13 +6,14 @@
 // The box model already carries text (`texto`) so trozos 2 and 3 only have to call `texto()`.
 import { SECTORES, aLaVista, anguloRelativo, esLejos, frase, ordenar, permanenciaMs, quienSale, recortarNombre, sectorDe } from "./subtitulos-logica.ts";
 import type { Caja } from "./subtitulos-logica.ts";
+import { tx, ligar, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
 
-const SIN_TEXTO = "[habla · sin subtítulos]";
+const SIN_TEXTO = (): string => tx("[speaking · no captions]", "[habla · sin subtítulos]");
 const TICK_MS = 250;           // direction and layout: 4 times a second at most, never per frame
 const MAX_LECTOR = 20;
 const CHOQUES = ["chat", "accion", "joy-fantasma", "dialogo", "interactuar", "hoja-msg"];
 
-const CSS = `
+const CSS = `/* i18n-ok: CSS */
 :root { --sub-caja: rgba(20, 17, 15, .88); --sub-letra: 18px; --sub-ancho: 42ch; --sub-base: 96px; --sub-choque: 0px; }
 html.texto-grande { --sub-letra: 24px; --sub-ancho: 32ch; }
 @media (pointer: coarse) and (orientation: portrait) { :root { --sub-letra: 16px; --sub-ancho: 34ch; --sub-base: calc(var(--sb, 0px) + 246px); } html.texto-grande { --sub-letra: 20px; --sub-ancho: 28ch; } }
@@ -60,11 +61,11 @@ export function montarSubtitulos(o: OpcionesSubtitulos) {
   document.body.appendChild(columna);
   const lector = document.createElement("div");
   lector.id = "subtitulos-lector"; lector.className = "solo-lector"; lector.setAttribute("role", "log");
-  lector.setAttribute("aria-live", "polite"); lector.setAttribute("aria-relevant", "additions"); lector.setAttribute("aria-label", "Subtítulos de voz");
+  lector.setAttribute("aria-live", "polite"); lector.setAttribute("aria-relevant", "additions"); ligar(lector, "aria-label", "Voice captions", "Subtítulos de voz");
   document.body.appendChild(lector);
   const cc = document.createElement("span");
   cc.id = "subtitulos-cc"; cc.hidden = true;
-  cc.innerHTML = `<span aria-hidden="true">CC</span><span class="solo-lector">Alguien cerca lee subtítulos de tu voz</span>`;
+  alCambiarIdioma(() => { cc.innerHTML = `<span aria-hidden="true">CC</span><span class="solo-lector">${tx("Someone nearby is reading captions of your voice", "Alguien cerca lee subtítulos de tu voz")}</span>`; }); // i18n-ok: markup around tx()
 
   const cajas = new Map<number, Estado>();
   const tope = () => (matchMedia("(pointer: coarse)").matches ? 2 : 3);
@@ -87,11 +88,11 @@ export function montarSubtitulos(o: OpcionesSubtitulos) {
     const quien = document.createElement("span"); quien.className = "sub-quien";
     const donde = document.createElement("span"); donde.className = "sub-donde";
     cab.append(icono, quien, donde);
-    const texto = document.createElement("p"); texto.className = "sub-texto sub-sin-texto"; texto.textContent = SIN_TEXTO;
+    const texto = document.createElement("p"); texto.className = "sub-texto sub-sin-texto"; texto.textContent = SIN_TEXTO(); // i18n-ok: SIN_TEXTO() is tx()
     el.append(cab, texto);
-    const nombre = recortarNombre(o.nombre(entidad) ?? "Alguien");
+    const nombre = recortarNombre(o.nombre(entidad) ?? tx("Someone", "Alguien"));
     quien.textContent = nombre;
-    const c: Estado = { entidad, escenario, llegada: ahora, ultima: ahora, el, icono, quien, donde, texto, sector: null, lejos: false, larga: SIN_TEXTO.length };
+    const c: Estado = { entidad, escenario, llegada: ahora, ultima: ahora, el, icono, quien, donde, texto, sector: null, lejos: false, larga: SIN_TEXTO().length };
     cajas.set(entidad, c);
     refrescar(c);
     anunciar(frase({ nombre, escenario, sector: c.sector, lejos: c.lejos, texto: "habla." }));

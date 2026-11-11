@@ -12,6 +12,7 @@ import { teclas } from "./teclas.ts";
 import { icono } from "./iconos.ts";
 import { crearGraboso, elegirFormato, TOPE_S, type Clip, type Estado, type Grabador } from "../../packages/client/src/graboso.ts";
 import { escribiendo } from "./escribiendo.ts";
+import { tx, ligar, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
 
 // keymap v1: K is the Director's; recording has no key until the person picks one (Settings → Controls)
 export type OpcionesGraboso = {
@@ -55,7 +56,7 @@ export function grabadorDeNavegador(lienzo: HTMLCanvasElement, cuadros = 30, xr?
   let rec: MediaRecorder | null = null, mic: MediaStream | null = null, trozos: Blob[] = [], tipo = "", espejo: Espejo | null = null;
   return {
     async empezar(t) {
-      if (typeof MediaRecorder === "undefined" || typeof lienzo.captureStream !== "function") throw new Error("este navegador no sabe grabar el lienzo");
+      if (typeof MediaRecorder === "undefined" || typeof lienzo.captureStream !== "function") throw new Error("este navegador no sabe grabar el lienzo"); // i18n-ok: developer error
       const f = await elegirFuente(lienzo, xr); espejo = f.espejo ? xr!.espejo : null; // the mirror only runs while it is filmed
       const video = f.fuente.captureStream(cuadros);
       let sonido = false;
@@ -95,22 +96,22 @@ export function montarGraboso(o: OpcionesGraboso) {
   boton.type = "button"; boton.id = "graboso"; boton.setAttribute("aria-pressed", "false"); boton.setAttribute("aria-keyshortcuts", "K");
   // ux2-barra: «Grabar», an entry of the bar's «Cámara» menu (K still takes the Graboso out and puts it away)
   const etiqueta = (t: string) => { boton.innerHTML = `${icono("record")}<span class="solo-lector">${t}</span>`; }; // constants only
-  etiqueta("Grabar");
-  boton.title = "Grabar (K): el Graboso graba lo que ves y dices, de 30 s a 1 min; guárdalo y descarga el clip.";
+  etiqueta(tx("Record", "Grabar"));
+  ligar(boton, "title", "Record (K): the Graboso records what you see and say, 30 s to 1 min; save it and download the clip.", "Grabar (K): el Graboso graba lo que ves y dices, de 30 s a 1 min; guárdalo y descarga el clip.");
   if (o.barra) o.barra.appendChild(boton); else document.body.appendChild(boton);
   boton.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
   const libre = () => { try { return o.permiso ? o.permiso.libre() : true; } catch { return true; } };
 
-  const hud = document.createElement("div"); hud.id = "graboso-hud"; hud.setAttribute("aria-label", "El Graboso");
+  const hud = document.createElement("div"); hud.id = "graboso-hud"; ligar(hud, "aria-label", "The Graboso", "El Graboso");
   const punto = document.createElement("span"); punto.className = "punto"; punto.setAttribute("aria-hidden", "true");
   const tiempo = document.createElement("span"); tiempo.className = "tiempo"; tiempo.textContent = "";
-  const tope = document.createElement("select"); tope.setAttribute("aria-label", "Tope del clip");
+  const tope = document.createElement("select"); ligar(tope, "aria-label", "Clip length limit", "Tope del clip");
   for (const [v, t] of [[30, "30 s"], [45, "45 s"], [60, "1 min"]] as const) { const op = document.createElement("option"); op.value = String(v); op.textContent = t; if (v === TOPE_S.defecto) op.selected = true; tope.appendChild(op); }
-  const descargar = document.createElement("a"); descargar.textContent = "Descargar"; descargar.hidden = true;
-  const ver = document.createElement("button"); ver.type = "button"; ver.textContent = "Ver"; ver.hidden = true; ver.setAttribute("aria-pressed", "false");
-  const quitar = document.createElement("button"); quitar.type = "button"; quitar.textContent = "Quitar"; quitar.hidden = true;
+  const descargar = document.createElement("a"); ligar(descargar, "textContent", "Download", "Descargar"); descargar.hidden = true;
+  const ver = document.createElement("button"); ver.type = "button"; ligar(ver, "textContent", "View", "Ver"); ver.hidden = true; ver.setAttribute("aria-pressed", "false");
+  const quitar = document.createElement("button"); quitar.type = "button"; ligar(quitar, "textContent", "Remove", "Quitar"); quitar.hidden = true;
   hud.append(punto, tiempo, tope, descargar, ver, quitar);
-  const video = document.createElement("video"); video.id = "graboso-video"; video.controls = true; video.hidden = true; video.setAttribute("aria-label", "Tu clip del Graboso");
+  const video = document.createElement("video"); video.id = "graboso-video"; video.controls = true; video.hidden = true; ligar(video, "aria-label", "Your Graboso clip", "Tu clip del Graboso");
   document.body.append(hud, video);
   for (const t of ["pointerdown", "wheel", "keydown"]) hud.addEventListener(t, (e) => e.stopPropagation());
 
@@ -120,7 +121,7 @@ export function montarGraboso(o: OpcionesGraboso) {
   const pintar = (e: Estado) => {
     const fuera = e.fase !== "guardado";
     boton.setAttribute("aria-pressed", String(fuera));
-    etiqueta(e.fase === "grabando" ? "Guardar" : e.fase === "despertando" ? "Grabar…" : "Grabar");
+    etiqueta(e.fase === "grabando" ? tx("Save", "Guardar") : e.fase === "despertando" ? tx("Record…", "Grabar…") : tx("Record", "Grabar"));
     o.view.graboso.mostrar(fuera); o.view.graboso.grabando(e.fase === "grabando");
     if (!fuera && boton.hidden !== !libre()) boton.hidden = !libre(); // kept: the button follows the relic again
     hud.classList.toggle("visible", fuera || !!e.clip);
@@ -128,8 +129,8 @@ export function montarGraboso(o: OpcionesGraboso) {
     tope.hidden = fuera;
     const clip = !fuera && e.clip ? e.clip : null;
     descargar.hidden = ver.hidden = quitar.hidden = !clip;
-    if (clip) { tiempo.textContent = `Clip ${formato(clip.duracionS)}${clip.conSonido ? "" : " · sin sonido"}`; prepararClip(clip); }
-    else if (fuera) tiempo.textContent = e.fase === "despertando" ? "despertando…" : gr.contador();
+    if (clip) { tiempo.textContent = `Clip ${formato(clip.duracionS)}${clip.conSonido ? "" : tx(" · no sound", " · sin sonido")}`; prepararClip(clip); } // i18n-ok: composed from translated parts
+    else if (fuera) tiempo.textContent = e.fase === "despertando" ? tx("waking up…", "despertando…") : gr.contador();
     else { tiempo.textContent = ""; soltarUrl(); }
   };
   const formato = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
@@ -145,8 +146,9 @@ export function montarGraboso(o: OpcionesGraboso) {
     alCambiar: pintar, avisar: (a) => o.decir(a.texto),
   });
   tope.addEventListener("change", () => gr.tope(Number(tope.value)));
+  alCambiarIdioma(() => pintar(gr.estado)); // the button label follows the language
   ver.addEventListener("click", () => { const abierto = video.hidden; if (abierto && url) { video.src = url; video.hidden = false; void video.play().catch(() => {}); } else { video.pause(); video.hidden = true; } ver.setAttribute("aria-pressed", String(abierto)); });
-  quitar.addEventListener("click", () => { soltarUrl(); clipPreparado = null; gr.quitarClip(); o.decir("Clip descartado."); });
+  quitar.addEventListener("click", () => { soltarUrl(); clipPreparado = null; gr.quitarClip(); o.decir(tx("Clip discarded.", "Clip descartado.")); });
   boton.addEventListener("click", () => { if (libre() || gr.estado.fase !== "guardado") void gr.alternar(); });
   addEventListener("keydown", (e) => { if (teclas.es(e, "grabar") && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !escribiendo(e)) { if (!libre() && gr.estado.fase === "guardado") return; e.preventDefault(); void gr.alternar(); } });
   // without the relic: no button (the bar's «Cámara» menu hides the entry by itself) and a recording

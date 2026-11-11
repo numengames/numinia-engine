@@ -86,7 +86,7 @@ test("page accessor: reads the state, asks `llamar {ia, texto}` and refuses too 
   const pagina = crearLlamarPagina();
   assert.equal(pagina.de(4), null, "before the part is set up");
   assert.equal(pagina.puedeBoton(4), false);
-  assert.deepEqual(pagina.llamar(4, "hola"), { ok: false, why: "la página aún no ha arrancado" });
+  assert.deepEqual(pagina.llamar(4, "hola"), { ok: false, why: "the page has not started yet" });
   const estado = new Map<string, Record<string, unknown>>([["4", { nombre: true, barra: true, boton: true, dentro: true, frase: "" }], ["5", { boton: false }]]);
   const enviados: [string, Record<string, unknown>][] = [];
   pagina.part.setup({

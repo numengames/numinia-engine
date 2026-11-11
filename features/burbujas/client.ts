@@ -5,11 +5,12 @@
 // an icon next to them). The switch of the Entorno panel only asks; the server checks who may and keeps it in burbujas.json.
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg } from "../../packages/feature/src/index.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { burbujas as decl } from "./feature.ts";
 
 export type Burbuja = { id: string; etiqueta: string; x: number; y: number; z: number; radio: number; modo: "aislada" | "abierta" };
 type Res = { ok: true } | { ok: false; why: string };
-const SIN: Res = { ok: false, why: "la función burbujas no está en este servidor" };
+const SIN = (): Res => ({ ok: false, why: tx("bubbles are not on this server", "la función burbujas no está en este servidor") });
 
 export function crearCliente() {
   let A: ClientApi | null = null;
@@ -30,7 +31,7 @@ export function crearCliente() {
     interruptor: {
       estado,
       activa: (): boolean => (A ? lista().length > 0 : false),
-      poner: (activa: boolean): Res => (A ? A.send("encender", { activa }) : SIN),
+      poner: (activa: boolean): Res => (A ? A.send("encender", { activa }) : SIN()),
     },
     alCambiar: (fn: () => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };

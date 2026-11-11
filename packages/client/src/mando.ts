@@ -7,6 +7,7 @@
 // The sticks (walk, look) and the bumpers (zoom) stay in render/camara.ts; this file does the rest.
 // Phase 2 (BACKLOG N5): rebinding every button in the settings, rumble, «press the button for…» for non-standard pads.
 
+import { tx } from "./idioma.ts";
 export type Familia = "xbox" | "playstation" | "nintendo" | "generico";
 export type Modo = "mundo" | "menu" | "texto";
 
@@ -19,15 +20,15 @@ export const BOTON = {
 
 /** The actions a pad can trigger in the world, each with the key the page already understands and the words for help. */
 export const ACCIONES = {
-  saltar: { tecla: "Space", key: " ", nombre: "saltar" },
-  usar: { tecla: "KeyE", key: "e", nombre: "hablar o coger" },
-  soltar: { tecla: "KeyQ", key: "q", nombre: "soltar o rechazar" },
-  ficha: { tecla: "KeyC", key: "c", nombre: "ficha" },
-  mapa: { tecla: "KeyM", key: "m", nombre: "dónde estoy" },
-  ajustes: { tecla: "KeyO", key: "o", nombre: "ajustes" },
-  misiones: { tecla: "KeyJ", key: "j", nombre: "misiones" },
-  chat: { tecla: "Enter", key: "Enter", nombre: "chat" },
-  atras: { tecla: "Escape", key: "Escape", nombre: "atrás o cerrar" },
+  saltar: { tecla: "Space", key: " ", get nombre() { return tx("jump", "saltar"); } },
+  usar: { tecla: "KeyE", key: "e", get nombre() { return tx("talk or pick up", "hablar o coger"); } },
+  soltar: { tecla: "KeyQ", key: "q", get nombre() { return tx("drop or decline", "soltar o rechazar"); } },
+  ficha: { tecla: "KeyC", key: "c", get nombre() { return tx("card", "ficha"); } },
+  mapa: { tecla: "KeyM", key: "m", get nombre() { return tx("where am I", "dónde estoy"); } },
+  ajustes: { tecla: "KeyO", key: "o", get nombre() { return tx("settings", "ajustes"); } },
+  misiones: { tecla: "KeyJ", key: "j", get nombre() { return tx("quests", "misiones"); } },
+  chat: { tecla: "Enter", key: "Enter", get nombre() { return tx("chat", "chat"); } },
+  atras: { tecla: "Escape", key: "Escape", get nombre() { return tx("back or close", "atrás o cerrar"); } },
 } as const;
 export type Accion = keyof typeof ACCIONES;
 
@@ -39,12 +40,13 @@ export const DISTRIBUCION: Readonly<Record<number, Accion>> = {
 };
 
 /** What each position is called on the pad in the person's hands (index → printed name). */
-const NOMBRES: Record<Familia, readonly string[]> = {
-  xbox: ["A", "B", "X", "Y", "LB", "RB", "LT", "RT", "Ver", "Menú", "L3", "R3", "↑", "↓", "←", "→", "Xbox"],
+const NOMBRES: Record<Exclude<Familia, "generico">, readonly string[]> = {
+  xbox: ["A", "B", "X", "Y", "LB", "RB", "LT", "RT", "View", "Menu", "L3", "R3", "↑", "↓", "←", "→", "Xbox"],
   playstation: ["✕", "○", "□", "△", "L1", "R1", "L2", "R2", "Create", "Options", "L3", "R3", "↑", "↓", "←", "→", "PS"],
   nintendo: ["B", "A", "Y", "X", "L", "R", "ZL", "ZR", "−", "+", "L3", "R3", "↑", "↓", "←", "→", "Home"],
-  generico: ["Botón de abajo", "Botón derecho", "Botón izquierdo", "Botón de arriba", "L1", "R1", "L2", "R2", "Atrás", "Inicio", "L3", "R3", "↑", "↓", "←", "→", "Guía"],
 };
+/** The generic pad has no printed names: they are words, read in the language of the moment. */
+const nombresGenerico = (): readonly string[] => [tx("Bottom button", "Botón de abajo"), tx("Right button", "Botón derecho"), tx("Left button", "Botón izquierdo"), tx("Top button", "Botón de arriba"), "L1", "R1", "L2", "R2", tx("Back", "Atrás"), tx("Start", "Inicio"), "L3", "R3", "↑", "↓", "←", "→", tx("Guide", "Guía")];
 
 /** Which brand a pad is, from the `id` string the browser gives it (it differs per browser; unknown = generic names). */
 export function familia(id: string | undefined): Familia {
@@ -54,7 +56,12 @@ export function familia(id: string | undefined): Familia {
   if (/nintendo|switch|joy-?con|pro controller|057e/.test(t)) return "nintendo";
   return "generico";
 }
-export const nombreBoton = (f: Familia, indice: number): string => NOMBRES[f][indice] ?? `Botón ${indice}`;
+export function nombreBoton(f: Familia, indice: number): string {
+  if (f === "generico") return nombresGenerico()[indice] ?? tx(`Button ${indice}`, `Botón ${indice}`);
+  if (f === "xbox" && indice === BOTON.ver) return tx("View", "Ver");
+  if (f === "xbox" && indice === BOTON.menu) return tx("Menu", "Menú");
+  return NOMBRES[f][indice] ?? tx(`Button ${indice}`, `Botón ${indice}`);
+}
 
 /** The button that triggers an action in this layout, or null. */
 export function botonDe(accion: Accion, dist: Readonly<Record<number, Accion>> = DISTRIBUCION): number | null {
@@ -69,10 +76,10 @@ export function etiquetaAccion(f: Familia, accion: Accion, dist: Readonly<Record
 /** The rows of the controls list and of the help line, in teaching order. */
 export function filasMando(f: Familia, dist: Readonly<Record<number, Accion>> = DISTRIBUCION): { boton: string; que: string }[] {
   const filas = [
-    { boton: "Palanca izquierda", que: "andar" },
-    { boton: "Palanca derecha", que: "mirar" },
-    { boton: `${nombreBoton(f, BOTON.LB)} / ${nombreBoton(f, BOTON.RB)}`, que: "acercar y alejar la cámara" },
-    { boton: nombreBoton(f, BOTON.L3), que: "correr (pulsa; se suelta al parar)" },
+    { boton: tx("Left stick", "Palanca izquierda"), que: tx("walk", "andar") },
+    { boton: tx("Right stick", "Palanca derecha"), que: tx("look", "mirar") },
+    { boton: `${nombreBoton(f, BOTON.LB)} / ${nombreBoton(f, BOTON.RB)}`, que: tx("zoom the camera in and out", "acercar y alejar la cámara") },
+    { boton: nombreBoton(f, BOTON.L3), que: tx("run (press; released when you stop)", "correr (pulsa; se suelta al parar)") },
   ];
   for (const a of ["saltar", "usar", "soltar", "ficha", "mapa", "ajustes", "misiones", "chat", "atras"] as Accion[]) {
     const b = botonDe(a, dist);
@@ -81,7 +88,7 @@ export function filasMando(f: Familia, dist: Readonly<Record<number, Accion>> = 
   return filas;
 }
 export const ayudaMando = (f: Familia, dist: Readonly<Record<number, Accion>> = DISTRIBUCION): string =>
-  `Mando: ${filasMando(f, dist).filter((x) => !/Palanca|\//.test(x.boton) || /correr/.test(x.que)).map((x) => `${x.boton} ${x.que.replace(/ \(.*/, "")}`).join(" · ")}`;
+  `${tx("Pad", "Mando")}: ${filasMando(f, dist).filter((x) => !/Palanca|Stick|\//.test(x.boton) || /correr|run/.test(x.que)).map((x) => `${x.boton} ${x.que.replace(/ \(.*/, "")}`).join(" · ")}`; // i18n-ok: composed from translated parts
 
 // ---------- the state machine ----------
 /** One reading of one pad: pressed buttons (by index) and axes. */

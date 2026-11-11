@@ -163,7 +163,7 @@ test("check: a page text without data-es (or empty, or not reading English) is r
   assert.deepEqual(faltasDePagina(`<p id="b" aria-label="Hola" data-en-aria-label="Hi" data-es-aria-label="Hola"></p>`), ["#b aria-label: the markup does not read the English (data-en-aria-label)"]);
 });
 
-// ---- the window's own fixed texts (tabs, buttons, announcements) go through t() ----
+// ---- the settings window's own fixed texts (tabs, buttons) go through tx() ----
 test("apps/plaza/menu-ajustes-ui.ts: the window's fixed texts (tabs, buttons) have no Spanish-only literals", () => {
   const ui = readFileSync(new URL("../apps/plaza/menu-ajustes-ui.ts", import.meta.url), "utf8");
   const solo = [...ui.split("\n").entries()]

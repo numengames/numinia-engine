@@ -11,6 +11,7 @@
 // Everything goes through the controller (features/pesca/client.ts): the server decides, as with F and the button.
 import { crearGestos, conHisteresis } from "../../features/pesca/gestos.ts";
 import { instruccion } from "../../features/pesca/instrucciones.ts";
+import { tx, ligar, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
 
 type Lado = "izq" | "der";
 type Res = { ok: true } | { ok: false; why: string };
@@ -49,7 +50,7 @@ export function montarPescaManos(o: { pesca: Pesca; view: Vista; session: Sesion
   /** The line over my rod: what to do in this phase (features/pesca/instrucciones.ts); "" hides it. */
   const decir = (t: string) => { if (t !== textoPuesto) { textoPuesto = t; view.pesca.instruccion?.(t); } };
   const zumbar = (v: number, ms: number) => { if (sujeta) view.manos?.vibrar(sujeta, v, ms); };
-  const tomar = (lado: Lado, id: string) => { agarreAntes[lado] = pellizcoAntes[lado] = pinzaAntes = true; quietoHasta = performance.now() + 300; sujeta = lado; sitio = id; capturado = false; ultimoAntes = (pesca.estado() as { ultimo?: unknown }).ultimo; g.reiniciar(); view.pesca.sujetar(lado, id); view.pesca.resaltar(""); view.manos?.vibrar(lado, 0.6, 60); view.vr.nota?.("Caña cogida: lánzala con un golpe de muñeca hacia delante"); };
+  const tomar = (lado: Lado, id: string) => { agarreAntes[lado] = pellizcoAntes[lado] = pinzaAntes = true; quietoHasta = performance.now() + 300; sujeta = lado; sitio = id; capturado = false; ultimoAntes = (pesca.estado() as { ultimo?: unknown }).ultimo; g.reiniciar(); view.pesca.sujetar(lado, id); view.pesca.resaltar(""); view.manos?.vibrar(lado, 0.6, 60); view.vr.nota?.(tx("Rod taken: cast it with a flick of the wrist forward", "Caña cogida: lánzala con un golpe de muñeca hacia delante")); };
   const dejar = () => {
     if (!sujeta) return;
     if (reelVR) { reelVR = false; if (pesca.estado().fase !== "nada") pesca.recoger(false); }
@@ -68,13 +69,13 @@ export function montarPescaManos(o: { pesca: Pesca; view: Vista; session: Sesion
     pinzaAntes = !!en?.mano && en.gatillo > 0.5; esperaSoltar = !!en && en.gatillo > 0.3;
     quietoHasta = performance.now() + 300; g.reiniciar(); // the tip jumps from one hand to the other: no cast, no strike from that
     sujeta = a; view.pesca.sujetar(a, sitio);
-    view.vr.nota?.(`Caña en la mano ${a === "izq" ? "izquierda" : "derecha"}`);
+    view.vr.nota?.(a === "izq" ? tx("Rod in your left hand", "Caña en la mano izquierda") : tx("Rod in your right hand", "Caña en la mano derecha"));
   };
   view.manos?.llevable?.("pesca", {
-    que: "la caña", lado: () => sujeta, ocupante: "reglas", pasar,
+    get que() { return tx("the rod", "la caña"); }, lado: () => sujeta, ocupante: "reglas", pasar,
     // N3: let go of the rod: back on its holder at any time (a fish on the line is let go, as the grip does)
-    soltar: () => { if (!sujeta) return "No llevas la caña"; if (pesca.estado().fase !== "nada") pesca.soltar(); dejar(); view.vr.nota?.("La caña ha vuelto a su soporte"); return true; },
-    puede: () => { const f = pesca.estado().fase; return f === "nada" || f === "espera" ? true : "Ahora no: el pez ya ha picado"; },
+    soltar: () => { if (!sujeta) return tx("You are not holding the rod", "No llevas la caña"); if (pesca.estado().fase !== "nada") pesca.soltar(); dejar(); view.vr.nota?.(tx("The rod is back on its holder", "La caña ha vuelto a su soporte")); return true; },
+    puede: () => { const f = pesca.estado().fase; return f === "nada" || f === "espera" ? true : tx("Not now: the fish has already bitten", "Ahora no: el pez ya ha picado"); },
   });
   const flanco = (antes: Record<Lado, boolean>, l: Lado, ahora: boolean) => { const b = ahora && !antes[l]; antes[l] = ahora; return b; };
 
@@ -118,7 +119,7 @@ export function montarPescaManos(o: { pesca: Pesca; view: Vista; session: Sesion
     const agarre = flanco(agarreAntes, sujeta, en.mano ? false : en.agarre > 0.6);
     if (agarre) { if (e.fase !== "nada") pesca.soltar(); dejar(); return; }
     const sop = view.pesca.soporte(sitio), yo = o.session.selfPosition(1);
-    if (sop && Math.hypot(sop.x - yo.x, sop.z - yo.z) > LEJOS_M) { if (e.fase !== "nada") pesca.soltar(); dejar(); view.vr.nota?.("La caña ha vuelto a su soporte"); return; }
+    if (sop && Math.hypot(sop.x - yo.x, sop.z - yo.z) > LEJOS_M) { if (e.fase !== "nada") pesca.soltar(); dejar(); view.vr.nota?.(tx("The rod is back on its holder", "La caña ha vuelto a su soporte")); return; }
     const pellizca = flanco(pellizcoAntes, sujeta, en.mano && en.gatillo > 0.5);
     if (en.mano && (en.gatillo > 0.5) !== pinzaAntes) { pinzaAntes = en.gatillo > 0.5; quietoHasta = Math.max(quietoHasta, performance.now() + 250); g.reiniciar(); } // a pinch closing or opening jerks the tracked joints
     if (pellizca && e.fase === "nada") { const c = view.pesca.alAlcance(true); if (c?.sitio === sitio && c.lado === sujeta) { dejar(); return; } }

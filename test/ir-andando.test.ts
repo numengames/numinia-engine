@@ -9,6 +9,8 @@ import { buildBvh } from "../packages/sim/src/bvh.ts";
 import { createSim, spawnAvatar, step, setMesh, getBody, setBody, PISO_SIN_SUELO, BTN_RUN, STICK_MAX } from "../packages/sim/src/index.ts";
 import { crearIrAndando, puedeIr, rumbo, frase, LLEGADA_M, ATASCO_MS, MAX_M, CORRER_DESDE_M } from "../packages/client/src/ir-andando.ts";
 import type { Fin } from "../packages/client/src/ir-andando.ts";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // these checks assert the Spanish text; English is covered in test/idioma-simposio-b.test.ts
 
 const U = 64, TICK_MS = 50; // U: the mesh's 1/64 m units; the body is in FX_ONE units
 const suelo = (s = 200): number[] => [-s * U, 0, -s * U, s * U, 0, s * U, s * U, 0, -s * U, -s * U, 0, -s * U, -s * U, 0, s * U, s * U, 0, s * U];
@@ -96,8 +98,8 @@ test("state machine: nothing running gives null; starting again replaces; cancel
 test("the page wiring: the map's «Ir» exists, the stick is fed by it, the stick/keys stop it, «Ir de golpe» is the teleport", () => {
   const mapa = readFileSync(new URL("../apps/plaza/mapa.ts", import.meta.url), "utf8");
   const main = readFileSync(new URL("../apps/plaza/main.ts", import.meta.url), "utf8");
-  assert.match(mapa, /boton\("Ir", `Ir andando a \$\{e\.nombre\}`\)/);
-  assert.match(mapa, /"Ir de golpe"/);
+  assert.match(mapa, /boton\(tx\("Go", "Ir"\), tx\(`Walk to \$\{e\.nombre\}`, `Ir andando a \$\{e\.nombre\}`\)\)/);
+  assert.match(mapa, /tx\("Jump there", "Ir de golpe"\)/);
   assert.match(main, /e = yo \? andar\.ejes\(yo, manoEnMandos\(\)\) : null/);
   assert.match(main, /if \(andarCorrer\) b \|= BTN_RUN/);
   assert.match(main, /teclas\.sujeta\(keys, "saltar"\) \|\| saltoPendiente \|\| touch !== null/);

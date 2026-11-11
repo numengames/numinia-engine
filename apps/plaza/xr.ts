@@ -6,6 +6,7 @@
 import { ESTADOS, ahorasDe, estadoPaso } from "./misiones.ts"; // U14 (3): a step's state, the same as in the book
 import { LINEAS_MANDOS } from "./xr-mandos.ts"; // the controls sheet's words (test/xr-mandos.test.ts checks them against the bindings)
 import { crearAlcance } from "./xr-alcance.ts"; // the ray only lands on what is within reach
+import { tx } from "../../packages/feature/src/idioma.ts";
 type Res = { ok: true } | { ok: false; why: string };
 type Lado = "izq" | "der";
 type EventoMano = { tipo: "agarrar"; key: string; lado: Lado } | { tipo: "apuntar"; key: string; lado: Lado } | { tipo: "panel"; fila: number; lado: Lado } | { tipo: "gatillo"; lado: Lado } | { tipo: "gatillo_fin"; lado: Lado } | { tipo: "soltar"; que: string; lado: Lado } | { tipo: "salto" };
@@ -63,7 +64,7 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
     } else if (e.tipo === "apuntar") {
       if (!e.key.includes(":") && o.huecos?.pinchar(e.key)) return; // MIS-222: a hole: the menu opens on the images to put in it
       const u = o.enlaces?.url(e.key);
-      if (u && !e.key.includes(":")) { enlacePendiente = u; view.vr.dialogo({ nombre: "Enlace", texto: `¿Abrir en una pestaña nueva? ${u}`, opciones: ["Abrir", "Ahora no"] }); return; }
+      if (u && !e.key.includes(":")) { enlacePendiente = u; view.vr.dialogo({ nombre: tx("Link", "Enlace"), texto: tx(`Open in a new tab? ${u}`, `¿Abrir en una pestaña nueva? ${u}`), opciones: [tx("Open", "Abrir"), tx("Not now", "Ahora no")] }); return; }
       const [f, key] = partir(e.key);
       if (f === "misiones") pendiente.set(key, e.lado);
       decir(session.features.use(f, key));
@@ -89,9 +90,9 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
   const registrar = (cosa: string) => {
     if (registros.has(cosa) || !view.manos.llevable) return;
     registros.set(cosa, view.manos.llevable(`misiones:${cosa}`, {
-      que: "lo que llevas", puede: () => true,
+      que: tx("what you carry", "lo que llevas"), puede: () => true,
       soltar: () => {
-        if (!enMano.has(cosa)) return "No llevas eso";
+        if (!enMano.has(cosa)) return tx("You are not carrying that", "No llevas eso");
         dejadas.add(cosa); view.llevar(`misiones:${cosa}`, null); enMano.delete(cosa); registros.get(cosa)?.(); registros.delete(cosa);
         return true;
       },
@@ -136,16 +137,16 @@ export function montarXR(o: { session: Sesion; view: Vista; misiones: Misiones; 
     lineasPanel(): string[] {
       if (view.vr.pagina === "mandos") return [...LINEAS_MANDOS];
       if (view.vr.pagina === "ajustes") return [ // MVL1: settings inside VR, without taking your headset off
-        "Ajustes (Y: ocultar)",
-        "Apunta al botón de abajo con el gatillo",
-        "para cambiar el confort de movimiento",
-        "(la viñeta: bajo, medio o alto).",
+        tx("Settings (Y: hide)", "Ajustes (Y: ocultar)"),
+        tx("Point at the button below with the trigger", "Apunta al botón de abajo con el gatillo"),
+        tx("to change the movement comfort", "para cambiar el confort de movimiento"),
+        tx("(the vignette: low, medium or high).", "(la viñeta: bajo, medio o alto)."),
       ];
       const out: string[] = [];
       const c = o.interaccion.actual();
       const seg = misiones.libro().find((m) => m.estado === "activa" && m.seguida) ?? misiones.libro().find((m) => m.estado === "activa");
-      out.push(seg ? seg.titulo : "Sin misión: habla con alguien");
-      if (c) out.push(`Gatillo: ${c.prompt}`);
+      out.push(seg ? seg.titulo : tx("No quest: talk to someone", "Sin misión: habla con alguien"));
+      if (c) out.push(tx(`Trigger: ${c.prompt}`, `Gatillo: ${c.prompt}`));
       if (seg) { // the spec's three states (misiones.ts): ✓ done, → to do now (a grupo's block: several, in any order), □ locked
         const ahoras = ahorasDe(misiones.objetivos());
         for (const s of seg.lista.slice(0, 5)) out.push(`${ESTADOS[estadoPaso(seg, s, ahoras)].vr} ${s.texto}`);

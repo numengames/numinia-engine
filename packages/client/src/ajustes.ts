@@ -49,7 +49,7 @@ function validarTextos(d: unknown, ruta: string): Issue[] {
     const t = (d as Record<string, unknown>)[campo];
     if (typeof t !== "object" || t === null) continue;
     const o = t as Record<string, unknown>;
-    for (const k of Object.keys(o)) if (k !== "en" && k !== "es") out.push({ path: `${ruta}.${campo}.${k}`, message: "only 'en' and 'es' (English is required, Español is second)" });
+    for (const k of Object.keys(o)) if (k !== "en" && k !== "es") out.push({ path: `${ruta}.${campo}.${k}`, message: "only 'en' and 'es' (English is required, Español is second)" }); // i18n-ok: developer validation message (English)
     if (o.es !== undefined && (vacio(o.es) || (o.es as string).length > max)) out.push({ path: `${ruta}.${campo}.es`, message: `the Spanish text: 1-${max} characters (or leave it out: the English one shows)` });
   }
   return out;
@@ -77,7 +77,7 @@ export const VERSION_GUARDADO = 1;
 export const CLAVE_GUARDADO = "numinia.ajustes"; // device-wide; per world: "numinia.ajustes.<mundo>"
 const ENGINE_GROUPS = (): string[] => GRUPOS_MOTOR.map((g) => g.id);
 const texto = (t: unknown, max: number, ruta: string, que: string, out: Issue[]) => {
-  if (typeof t !== "string" || !t.trim() || t.length > max) out.push({ path: ruta, message: `${que}: 1-${max} characters` });
+  if (typeof t !== "string" || !t.trim() || t.length > max) out.push({ path: ruta, message: `${que}: 1-${max} characters` }); // i18n-ok: developer validation message (English)
 };
 
 // ---------- what is kept (versioned) ----------
@@ -149,7 +149,7 @@ export function crearAjustes(opts: { capacidades: CapacidadesVivas; guardado?: G
   }
   function aplicar(e: E, v: Valor): void {
     for (const fn of aplicadores.get(e.id) ?? []) {
-      try { fn(v, lectura); } catch (err) { if (!fallidos.has(e.id)) { fallidos.add(e.id); log(`[ajustes] '${e.id}' falló al aplicarse: ${String((err as Error)?.message ?? err)} (el resto sigue)`); } }
+      try { fn(v, lectura); } catch (err) { if (!fallidos.has(e.id)) { fallidos.add(e.id); log(`[ajustes] '${e.id}' falló al aplicarse: ${String((err as Error)?.message ?? err)} (el resto sigue)`); } } // i18n-ok: developer log
     }
   }
   function guardar(): void {
@@ -162,7 +162,7 @@ export function crearAjustes(opts: { capacidades: CapacidadesVivas; guardado?: G
       for (const [id, v] of pendientes[alc]) if (!(id in valores) && n < GUARDADOS_MAX) { valores[id] = v; n++; }
       let t = JSON.stringify({ v: VERSION_GUARDADO, valores });
       if (t.length > GUARDADO_BYTES_MAX) t = propios.length <= GUARDADO_BYTES_MAX ? propios : JSON.stringify({ v: VERSION_GUARDADO, valores: {} });
-      try { opts.guardado.escribir(claves[alc], t); } catch { if (!fallidos.has("guardar")) { fallidos.add("guardar"); log("[ajustes] no puedo guardar (¿modo privado o almacén lleno?): lo elegido dura hasta cerrar"); } }
+      try { opts.guardado.escribir(claves[alc], t); } catch { if (!fallidos.has("guardar")) { fallidos.add("guardar"); log("[ajustes] no puedo guardar (¿modo privado o almacén lleno?): lo elegido dura hasta cerrar"); } } // i18n-ok: developer log
     }
   }
   const noExiste = (id: string): string => {
@@ -212,7 +212,7 @@ export function crearAjustes(opts: { capacidades: CapacidadesVivas; guardado?: G
           const r = validarValor(d, p.get(id), id);
           p.delete(id);
           if (r.ok) elegidos.set(id, r.value);
-          else log(`[ajustes] lo guardado en '${id}' ya no vale (${r.issues[0].message}): vuelve el valor por defecto`);
+          else log(`[ajustes] lo guardado en '${id}' ya no vale (${r.issues[0].message}): vuelve el valor por defecto`); // i18n-ok: developer log
         }
       });
     });
@@ -234,7 +234,7 @@ export function crearAjustes(opts: { capacidades: CapacidadesVivas; guardado?: G
         const ruta = `ajustes.${typeof d?.id === "string" ? d.id : i}`;
         issues.push(...validarAjuste(enIngles(d), ruta), ...validarTextos(d, ruta));
         const g = d?.grupo ?? m.mundo, id = `${g}.${d?.id}`;
-        if (g !== m.mundo && !ENGINE_GROUPS().includes(g)) issues.push({ path: `${ruta}.grupo`, message: `the world's own group ('${m.mundo}') or an engine group` });
+        if (g !== m.mundo && !ENGINE_GROUPS().includes(g)) issues.push({ path: `${ruta}.grupo`, message: `the world's own group ('${m.mundo}') or an engine group` }); // i18n-ok: developer validation message (English)
         if (entradas.has(id) || propios.has(id)) issues.push({ path: ruta, message: `'${id}' already exists` });
         propios.set(id, enIngles(d) as AjusteDecl);
       });
@@ -246,7 +246,7 @@ export function crearAjustes(opts: { capacidades: CapacidadesVivas; guardado?: G
       issues.push(...validarDefecto(d, def, `defectos.${id}`));
     }
     if (m.ocultar !== undefined && !(Array.isArray(m.ocultar) && m.ocultar.every((id) => typeof id === "string" && !!conocido(id)))) issues.push({ path: "ocultar", message: "full ids of settings that exist, e.g. ['graficos.agua']" });
-    if (issues.length) { log(`[ajustes] mundo: ${issues.map((x) => `${x.path}: ${x.message}`).join("; ")}`); return { ok: false, issues }; }
+    if (issues.length) { log(`[ajustes] mundo: ${issues.map((x) => `${x.path}: ${x.message}`).join("; ")}`); return { ok: false, issues }; } // i18n-ok: developer log
     if (m.ajustes?.length) declarar(m.ajustes, { de: "mundo", id: m.mundo, nombre: m.nombre, describe: m.describe });
     cambiar(() => {
       for (const [id, def] of Object.entries(m.defectos ?? {})) entradas.get(id)!.defecto = def;
@@ -266,7 +266,7 @@ export function crearAjustes(opts: { capacidades: CapacidadesVivas; guardado?: G
     aplicarMundo,
     /** What a setting does on the page. Several functions may serve one id; one function may serve several ids. */
     alAplicar(id: string, fn: Aplicar): void {
-      if (!entradas.has(id)) log(`[ajustes] alAplicar('${id}'): no está declarado (todavía)`);
+      if (!entradas.has(id)) log(`[ajustes] alAplicar('${id}'): no está declarado (todavía)`); // i18n-ok: developer log
       aplicadores.set(id, [...(aplicadores.get(id) ?? []), fn]);
     },
     /** Apply every visible setting once (the page calls it before the first frame). */

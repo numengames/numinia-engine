@@ -3,6 +3,7 @@
 // (packages/render/src/carteles.ts). Releasing, losing focus or hiding the page drops it, so it never stays on.
 import { esTactil, perfil } from "./perfil-aparato.ts";
 import { esMovil } from "../../packages/client/src/movil.ts";
+import { ligar } from "../../packages/feature/src/idioma.ts";
 type Vista = { verNombres(todos: boolean): void };
 const UN_RATO_MS = 6000;
 
@@ -25,7 +26,7 @@ export function montarVerNombres(view: Vista): { sostenido(): boolean; unRato(ms
 
   if (esTactil() && !esMovil(perfil().clase)) { // U25: the profile decides touch (a forced one too), not the media query
     const b = document.createElement("button");
-    b.id = "nombres-ver"; b.type = "button"; b.textContent = "Nombres"; b.setAttribute("aria-label", "Mantén pulsado para ver los nombres de todos");
+    b.id = "nombres-ver"; b.type = "button"; ligar(b, "textContent", "Names", "Nombres"); ligar(b, "aria-label", "Hold to see everyone's names", "Mantén pulsado para ver los nombres de todos");
     b.style.cssText = "position:fixed;left:12px;bottom:76px;padding:8px 12px;border:0;border-radius:8px;background:rgba(20,24,30,.82);color:#ffd27a;font:inherit;font-weight:600;touch-action:none;user-select:none;-webkit-user-select:none";
     b.addEventListener("pointerdown", (e) => { e.stopPropagation(); b.setPointerCapture(e.pointerId); boton = true; aplicar(); });
     const fuera = () => { boton = false; aplicar(); };

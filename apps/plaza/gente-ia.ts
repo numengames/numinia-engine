@@ -4,9 +4,10 @@
 import type { IAPublica } from "../../features/ia/feature.ts";
 import { ojosDe, type Tamano } from "../../features/ia/ojos.ts";
 import { es, type TextosIA } from "./gente-ia-es.ts";
+import { en } from "./gente-ia-en.ts";
 
-/** Every language written so far; the rest (ja, ko, pt-br) are pending and fall back to Spanish. */
-export const IDIOMAS: Readonly<Record<string, TextosIA>> = { es };
+/** Every language written so far (en, es); the rest (ja, ko, pt-br) are pending and fall back to Spanish. */
+export const IDIOMAS: Readonly<Record<string, TextosIA>> = { en, es };
 export const textos = (idioma?: string): TextosIA => {
   const base = (idioma ?? "es").toLowerCase().split("-")[0]!;
   return Object.hasOwn(IDIOMAS, base) ? IDIOMAS[base]! : es;
@@ -37,9 +38,17 @@ const NOMBRE_TAMANO: Readonly<Record<Tamano, "tamSinModelo" | "tamPequeno" | "ta
 export const GLIFO_OJOS = { punto: "•", ranura: "▬", redondo: "●", estrella: "✦" } as const;
 
 /** t_5096d6f4: what the card says about the eyes — the label, the size in words, the glyph + CSS colour, and the sentence that explains them. Never the model's name. */
+/** The sentence under «Eyes» in English (features/ia/ojos.ts keeps the Spanish one; the colours and shapes are the same). */
+const TEXTO_OJOS_EN: Readonly<Record<Tamano, string>> = {
+  "sin-modelo": "Grey dot eyes: a script, no language model behind it.",
+  pequeno: "Blue slit eyes: a small model (fast and cheap).",
+  medio: "Yellow round eyes: a medium model.",
+  grande: "Orange eyes with a starry shine: a large model (powerful and expensive).",
+  desconocido: "Grey slit eyes: there is a model behind it but we do not know its size.",
+};
 export function ojosFicha(ia: Pick<IAPublica, "tamano">, idioma?: string): { etiqueta: string; tamano: Tamano; nombre: string; glifo: string; color: string; texto: string } {
   const t = textos(idioma), o = ojosDe(ia.tamano);
-  return { etiqueta: t.ojos, tamano: o.tamano, nombre: t[NOMBRE_TAMANO[o.tamano]], glifo: GLIFO_OJOS[o.forma], color: `#${o.color.toString(16).padStart(6, "0")}`, texto: o.texto };
+  return { etiqueta: t.ojos, tamano: o.tamano, nombre: t[NOMBRE_TAMANO[o.tamano]], glifo: GLIFO_OJOS[o.forma], color: `#${o.color.toString(16).padStart(6, "0")}`, texto: t === en ? TEXTO_OJOS_EN[o.tamano] : o.texto };
 }
 
 export type FichaIA = {

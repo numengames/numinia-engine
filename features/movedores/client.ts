@@ -5,6 +5,7 @@ import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg, PlacedObject } from "../../packages/feature/src/index.ts";
 import { movedores as decl } from "./feature.ts";
 import type { Tipo } from "./feature.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 export type Movedor = {
   id: string; nombre: string; modelo: string; tipo: Tipo;
@@ -14,7 +15,7 @@ export type Movedor = {
   x: number; y: number; z: number; rx: number; ry: number; rz: number; lado: "a" | "b" | "entre"; marcha: boolean;
 };
 type Res = { ok: true } | { ok: false; why: string };
-const SIN: Res = { ok: false, why: "la función movedores no está en este servidor" };
+const SIN: Res = { ok: false, get why() { return tx("the movers feature is not on this server", "la función movedores no está en este servidor"); } };
 
 /** Where the model goes right now, as the server published it. Pure: the test checks it. */
 export function colocado(v: Pick<Movedor, "modelo" | "x" | "y" | "z" | "rx" | "ry" | "rz" | "sx" | "sy" | "sz">): PlacedObject {

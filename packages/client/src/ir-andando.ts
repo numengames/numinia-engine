@@ -7,6 +7,9 @@
 // «no direct way» is said out loud and the person goes round). It also gives up on a point farther than MAX_M.
 // The page owns the words (a notice per reason) and the marker; this file only decides «keep going» or «stop, because…».
 
+import { idiomaActivo } from "./idioma.ts";
+import type { Idioma } from "./idioma.ts";
+
 export type Motivo = "llegada" | "mando" | "atasco" | "cancelado" | "tiempo";
 export type Punto = { x: number; z: number };
 export type Destino = Punto & { nombre: string };
@@ -43,17 +46,18 @@ export function puedeIr(de: Punto, a: Punto): { ok: true } | { ok: false; motivo
 }
 
 /** The sentence the page says when a trip ends (or cannot start). `nombre` is the destination's name. */
-export function frase(motivo: Motivo | "ya-estas" | "lejos" | "invalido" | "empieza", nombre: string): string {
+export function frase(motivo: Motivo | "ya-estas" | "lejos" | "invalido" | "empieza", nombre: string, idioma: Idioma = idiomaActivo()): string {
+  const T = (en: string, es: string) => (idioma === "es" ? es : en);
   switch (motivo) {
-    case "empieza": return `Vas andando a ${nombre}. Toca cualquier mando o tecla para parar.`;
-    case "llegada": return `Has llegado: ${nombre}.`;
-    case "mando": return "Dejas de andar solo: has tocado los mandos.";
-    case "atasco": return `No hay camino directo a ${nombre}: algo corta el paso. Me paro; rodéalo y pulsa Ir otra vez.`;
-    case "tiempo": return `No llego a ${nombre}: me paro.`;
-    case "cancelado": return "Dejas de andar solo.";
-    case "ya-estas": return `Ya estás en ${nombre}.`;
-    case "lejos": return `${nombre} queda demasiado lejos para ir andando (más de ${MAX_M} m).`;
-    default: return "No puedo ir a ese punto.";
+    case "empieza": return T(`Walking to ${nombre}. Touch any control or key to stop.`, `Vas andando a ${nombre}. Toca cualquier mando o tecla para parar.`);
+    case "llegada": return T(`You have arrived: ${nombre}.`, `Has llegado: ${nombre}.`);
+    case "mando": return T("You stop walking: you touched the controls.", "Dejas de andar solo: has tocado los mandos.");
+    case "atasco": return T(`No direct way to ${nombre}: something blocks the path. I stop; go round it and press Go again.`, `No hay camino directo a ${nombre}: algo corta el paso. Me paro; rodéalo y pulsa Ir otra vez.`);
+    case "tiempo": return T(`I can't reach ${nombre}: I stop.`, `No llego a ${nombre}: me paro.`);
+    case "cancelado": return T("You stop walking.", "Dejas de andar solo.");
+    case "ya-estas": return T(`You are already at ${nombre}.`, `Ya estás en ${nombre}.`);
+    case "lejos": return T(`${nombre} is too far to walk to (more than ${MAX_M} m).`, `${nombre} queda demasiado lejos para ir andando (más de ${MAX_M} m).`);
+    default: return T("I can't go to that point.", "No puedo ir a ese punto.");
   }
 }
 

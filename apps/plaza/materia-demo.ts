@@ -70,9 +70,9 @@ renderer.setAnimationLoop(() => {
   renderer.render(scene, camera);
   if (frames === 3) medidas.sin = medir(); else if (frames > 3) medidas.con = medir();
   const e = lista[0].estado();
-  info.textContent = `nivel ${nivel} · ${metodo} · ${renderer.backend.isWebGPUBackend ? "WebGPU" : "WebGL2"} · ${piezas} pieza(s)\n` +
-    `partículas ${muestra.n} (${e.opacas} opacas + ${e.translucidas} translúcidas) · p ${p.toFixed(2)}\n` +
-    `mezcla ${Object.entries(MEZCLA[nivel]).filter(([, v]) => v > 0).map(([k, v]) => `${k} ${(v * 100).toFixed(0)}%`).join(" ")}\n` +
-    (medidas.con && medidas.sin ? `añade: ${medidas.con.calls - medidas.sin.calls} llamadas · ${medidas.con.tris - medidas.sin.tris} triángulos` : "");
+  info.textContent = `level ${nivel} · ${metodo} · ${renderer.backend.isWebGPUBackend ? "WebGPU" : "WebGL2"} · ${piezas} piece(s)\n` +
+    `particles ${muestra.n} (${e.opacas} opaque + ${e.translucidas} translucent) · p ${p.toFixed(2)}\n` +
+    `mix ${Object.entries(MEZCLA[nivel]).filter(([, v]) => v > 0).map(([k, v]) => `${k} ${(v * 100).toFixed(0)}%`).join(" ")}\n` +
+    (medidas.con && medidas.sin ? `adds: ${medidas.con.calls - medidas.sin.calls} calls · ${medidas.con.tris - medidas.sin.tris} triangles` : ""); // i18n-ok: developer demo readout (English)
 });
 (window as any).__materia = { medidas, estado: () => lista.map((m) => m.estado()), backend: () => (renderer.backend.isWebGPUBackend ? "WebGPU" : "WebGL2"), frames: () => frames };

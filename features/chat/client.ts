@@ -2,6 +2,7 @@
 // (apps/plaza/chat.ts) and an agent can read, and `decir`, which checks the text and the pace before sending so
 // the person hears "too long" or "wait" at once (the server still decides: it has the same limits).
 // Text from others is untrusted: it is only ever painted as text (canvas fillText, textContent).
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, Msg, Rate } from "../../packages/feature/src/index.ts";
 import { chat, BOCADILLO_MS, TEXTO_MAX, RITMO_CERCA, RITMO_ZONA } from "./feature.ts";
@@ -42,11 +43,11 @@ export function crearCliente(reloj: () => number = () => performance.now()) {
      * than 200 bytes or too fast. */
     decir(texto: string, canal: Canal = "cerca"): Res {
       const t = limpiar(texto, 4 * TEXTO_MAX);
-      if (!t) return { ok: false, why: "No hay nada que decir." };
+      if (!t) return { ok: false, why: tx("There is nothing to say.", "No hay nada que decir.") };
       const n = bytesDe(t);
-      if (n > TEXTO_MAX) return { ok: false, why: `Demasiado largo: ${n} de ${TEXTO_MAX} bytes. Acórtalo.` };
-      if (!paso[canal](reloj())) return { ok: false, why: canal === "zona" ? "Espera: a toda la zona, un mensaje cada 5 segundos." : "Vas muy deprisa: espera un segundo." };
-      return api?.send(canal === "zona" ? "decirZona" : "decir", { texto: t }) ?? { ok: false, why: "la página aún no ha arrancado" };
+      if (n > TEXTO_MAX) return { ok: false, why: tx(`Too long: ${n} of ${TEXTO_MAX} bytes. Shorten it.`, `Demasiado largo: ${n} de ${TEXTO_MAX} bytes. Acórtalo.`) };
+      if (!paso[canal](reloj())) return { ok: false, why: canal === "zona" ? tx("Wait: to the whole zone, one message every 5 seconds.", "Espera: a toda la zona, un mensaje cada 5 segundos.") : tx("You are going too fast: wait a second.", "Vas muy deprisa: espera un segundo.") };
+      return api?.send(canal === "zona" ? "decirZona" : "decir", { texto: t }) ?? { ok: false, why: tx("the page has not started yet", "la página aún no ha arrancado") };
     },
   };
 

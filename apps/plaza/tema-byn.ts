@@ -6,7 +6,7 @@ export const CLASE = "tema-byn";
 export const ACENTO = "#FFD400";
 
 /** The rules: every panel black with a white outline, buttons inverted on hover/focus/pressed, the minimap framed. Specific on purpose (`html.tema-byn`), `!important` only where the house CSS uses inline-ish rules. */
-export const CSS = `
+export const CSS = ` // i18n-ok: CSS, not text
 html.tema-byn { --n-fondo: #000; --n-sup: #000; --n-elev: #000; --n-texto: #fff; --n-texto2: #fff; --n-linea: #fff; --n-turquesa: #fff; --n-accion: #fff; --n-accion-h: #fff; --n-ambar: ${ACENTO}; --n-verdemar: #fff; --n-grana: #fff; --n-grana-h: #fff; --n-hecho: #fff; --n-accion-tinta: #000; --n-titulos-sombra: none; --n-r-control: 0px; }
 html.tema-byn, html.tema-byn[data-aparato] { --cr: #000; --cr-fuerte: #000; --cr-borde: #fff; --cr-blur: none; }
 html.tema-byn[data-densidad-nivel] body :is(#mision-seguida, #avisos-pila, #interactuar, #chat-lista, #reloj, #hud-personaje, #misiones, #objetivo, #habilidades, #acciones, #help):not(:empty) { background: #000 !important; border: 2px solid #fff !important; border-radius: 0 !important; color: #fff !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }

@@ -7,6 +7,7 @@
 // (vr.ts, manos.ts) come next; they call this.
 import { sha256Hex } from "../../packages/net/src/ficheros.ts";
 import { crearPincel, opcionesValidas, type Opciones, type Pincel, type Punta, type Resultado } from "./pincel.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 /** What `punto` says about a tip: whether the brush kept it as a control point (the live tube draws the same ones). */
@@ -43,7 +44,7 @@ export function montarPintar(o: OpcionesPintar) {
       const fe = o.session.features, nuevos = fe.stats.events - desde;
       const e = nuevos > 0 ? fe.log.slice(-Math.min(nuevos, fe.log.length)).find((x) => x.feature === "objetos" && (x.event === "rechazado" || (buscado === "cabe" ? x.event === "cabe" : x.event === "hecho" && x.msg.accion === "colocar"))) : undefined;
       if (e) return ok({ ok: e.event !== "rechazado", texto: String(e.msg.motivo ?? e.msg.id ?? "") });
-      if (performance.now() - t0 > espera) return ok({ ok: false, texto: "el servidor no contestó", callado: true });
+      if (performance.now() - t0 > espera) return ok({ ok: false, texto: tx("the server did not answer", "el servidor no contestó"), callado: true });
       setTimeout(mirar, 100);
     };
     mirar();
@@ -54,9 +55,9 @@ export function montarPintar(o: OpcionesPintar) {
   /** Upload (once) and place one finished stroke. */
   async function enviar(p: Pincel): Promise<Res> {
     const hecho = p.terminar();
-    if (!hecho) return no("el trazo es demasiado corto, demasiado grande o pesa más que el tope");
+    if (!hecho) return no(tx("the stroke is too short, too big or heavier than the limit", "el trazo es demasiado corto, demasiado grande o pesa más que el tope"));
     const billete = o.billete();
-    if (!billete) return no("aún no sé quién eres; espera un segundo y vuelve a probar");
+    if (!billete) return no(tx("I do not know who you are yet; wait a second and try again", "aún no sé quién eres; espera un segundo y vuelve a probar"));
     // J18b story 6 (gap of #283): ask the server whether the stroke fits BEFORE the file goes up: a refused stroke leaves nothing in /a/.
     const antes = o.session.features.stats.events, p0 = o.session.features.send("objetos", "cupo", { puntos: hecho.puntos });
     if (p0.ok) { const c = await respuesta(antes, "cabe", ESPERA_CUPO_MS); if (!c.ok && !c.callado) return no(c.texto.replace(/\.$/, "")); }
@@ -64,7 +65,7 @@ export function montarPintar(o: OpcionesPintar) {
     const ya = await f(url, { method: "HEAD", cache: "no-store" }).then((r) => r.status === 200, () => false);
     if (!ya) {
       const r = await f(url, { method: "PUT", headers: { authorization: `Bearer ${billete}`, "content-type": "application/json", "x-nombre-fichero": "trazo.trazo" }, body: bytes }).catch(() => null);
-      if (!r || (r.status !== 200 && r.status !== 201)) { let m = ""; try { m = String(((await r?.json()) as { error?: unknown } | undefined)?.error ?? ""); } catch { /* not JSON */ } return no(m.replace(/\.$/, "") || `el servidor dijo ${r?.status ?? "nada"}`); }
+      if (!r || (r.status !== 200 && r.status !== 201)) { let m = ""; try { m = String(((await r?.json()) as { error?: unknown } | undefined)?.error ?? ""); } catch { /* not JSON */ } return no(m.replace(/\.$/, "") || tx(`the server said ${r?.status ?? "nothing"}`, `el servidor dijo ${r?.status ?? "nada"}`)); }
     }
     const desde = o.session.features.stats.events;
     const s = o.session.features.send("objetos", "colocar", { modelo: sha, x: hecho.centro.x, y: hecho.centro.y, z: hecho.centro.z, ry: 0, nombre: "", decorado: true, tipo: "trazo", ext: "trazo" });
@@ -80,23 +81,23 @@ export function montarPintar(o: OpcionesPintar) {
   return {
     /** Start a stroke with this colour (0–7) and thickness (m). One at a time: a second `empezar` throws the first away. */
     empezar(op: Opciones): Res {
-      if (!o.puede()) return no("no puedes construir aquí, y pintar es construir");
+      if (!o.puede()) return no(tx("you cannot build here, and painting is building", "no puedes construir aquí, y pintar es construir"));
       const v = opcionesValidas(op);
-      if (!v) return no(`color de 0 a 7 y grosor en metros`);
+      if (!v) return no(tx("colour 0 to 7 and thickness in metres", "color de 0 a 7 y grosor en metros"));
       pincel = crearPincel(v);
       return { ok: true };
     },
     /** A tip of the brush (world metres, pressure 0–1). `r` says what the brush did with it: «primero» / «añadido» = kept as a control point, «igual» = not
      *  (too close), «lleno» = it was the last point the stroke holds: the stroke was sent and a new one started at this same place. */
     punto(p: Punta): ResPunto {
-      if (!pincel) return { ok: false, why: "no estás pintando: llama a empezar primero" };
+      if (!pincel) return { ok: false, why: tx("you are not painting: call empezar first", "no estás pintando: llama a empezar primero") };
       const r = pincel.mover(p);
       if (r === "lleno") { const op = pincel.opciones; cerrar(); pincel = crearPincel(op); pincel.mover(p); }
       return { ok: true, r };
     },
     /** Let go: the stroke goes to the world. Resolves when the server has placed it (or said why not). */
     async soltar(): Promise<Res> {
-      if (!pincel) return { ok: false, why: "no estás pintando" };
+      if (!pincel) return { ok: false, why: tx("you are not painting", "no estás pintando") };
       cerrar();
       return envios;
     },

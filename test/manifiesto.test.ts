@@ -210,9 +210,9 @@ test("page store: with no manifest (older server) or no Cache API, nothing break
 });
 
 test("loading screen: the count of pieces is the same with or without bytes; the bytes read «3,2 de 8,1 MB»", () => {
-  assert.equal(textoPiezas({ listas: 3, total: 5 }), "3 de 5 piezas");
-  assert.equal(textoPiezas({ listas: 3, total: 5, bytes: { listos: 3.2 * 1048576, total: 8.1 * 1048576 } }), "3 de 5 piezas · 3,2 de 8,1 MB");
-  assert.equal(textoBytes(99, 0), ""); assert.equal(textoBytes(20 * 1048576, 10 * 1048576), "10 de 10 MB", "never more than the total");
+  assert.equal(textoPiezas({ listas: 3, total: 5 }, "es"), "3 de 5 piezas");
+  assert.equal(textoPiezas({ listas: 3, total: 5, bytes: { listos: 3.2 * 1048576, total: 8.1 * 1048576 } }, "es"), "3 de 5 piezas · 3,2 de 8,1 MB");
+  assert.equal(textoBytes(99, 0, "es"), ""); assert.equal(textoBytes(20 * 1048576, 10 * 1048576, "es"), "10 de 10 MB", "never more than the total");
   // H13: a far thing (rank 2) is not counted whether it loads whole or as a level: the screen's total does not move
   const cerca = { key: "o1", distancia2: 30 ** 2, loaded: true, failed: false }, lejos = { key: "o2", distancia2: 300 ** 2, loaded: false, failed: false };
   assert.deepEqual(contarPiezas([cerca, lejos]), { total: 1, listas: 1, fallidas: 0 });

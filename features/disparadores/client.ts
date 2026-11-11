@@ -4,6 +4,7 @@
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg, PlacedObject } from "../../packages/feature/src/index.ts";
 import { disparadores as decl } from "./feature.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 /** The house block (features/objetos/biblioteca.json «bloque», CC0). */
 const MODELO = "32fce59977a24c3c15eb40084c700c1537e59853747f92ce1d01c6fd65958588";
@@ -19,7 +20,7 @@ export type RespuestaCable = { que: "ok" | "no"; motivo: string; id: string };
 export type EstadoDecir = { puede: boolean; motivo: string };
 export type RespuestaDecir = { que: "propuesta"; propuesta: string; frase: string } | { que: "no"; motivo: string } | { que: "creado"; id: string };
 type Res = { ok: true } | { ok: false; why: string };
-const SIN: Res = { ok: false, why: "la función disparadores no está en este servidor" };
+const SIN: Res = { ok: false, get why() { return tx("the triggers feature is not on this server", "la función disparadores no está en este servidor"); } };
 /** D-041 historias 5-6: lo que llega en el campo `receptores` del estado (JSON) o se manda a editar_receptores, sin
  * JSON roto: una lista vacía en vez de tirar. Lo usa `lista()` al leer y `editarReceptores()` al mandar. */
 const receptoresDe = (v: unknown): Record<string, unknown>[] => { try { const r = JSON.parse(String(v ?? "[]")); return Array.isArray(r) ? r : []; } catch { return []; } };
@@ -84,7 +85,7 @@ export function crearCliente() {
     // D-041 historia 4: the page only ASKS before opening a world-wired link (abre_enlace); it never auto-navigates.
     api.on("enlace", (m) => {
       const enlace = String(m.enlace ?? "");
-      if (typeof window !== "undefined" && typeof window.confirm === "function" && window.confirm(`¿Abrir este enlace en una pestaña nueva?\n${enlace}`)) {
+      if (typeof window !== "undefined" && typeof window.confirm === "function" && window.confirm(tx(`Open this link in a new tab?\n${enlace}`, `¿Abrir este enlace en una pestaña nueva?\n${enlace}`))) {
         window.open(enlace, "_blank", "noopener,noreferrer");
       }
       estado.ultimoEnlace = enlace;

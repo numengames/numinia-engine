@@ -8,6 +8,7 @@
 // Phones stay cool: when the share stops (the entry, the window's ×, the browser's own «stop sharing», the track ending) the stream's
 // tracks are stopped, the screen gets its file back and the VideoTexture is disposed.
 import { icono } from "./iconos.ts";
+import { tx, ligar, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
 import { pantallaMasCercana, sePuedeCompartir, fraseInicio, PANTALLA_CERCA_M } from "./pantalla-logica.ts";
 import type { Pantalla, Punto } from "./pantalla-logica.ts";
 
@@ -35,24 +36,24 @@ export function montarPantalla(o: { view: Vista; decir(t: string): void; escribi
   boton.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
 
   // the floating window, for when no screen of the world is near
-  const vista = document.createElement("div"); vista.id = "pantalla-vista"; vista.hidden = true; vista.setAttribute("role", "region"); vista.setAttribute("aria-label", "Tu pantalla compartida");
+  const vista = document.createElement("div"); vista.id = "pantalla-vista"; vista.hidden = true; vista.setAttribute("role", "region"); ligar(vista, "aria-label", "Your shared screen", "Tu pantalla compartida");
   const video = document.createElement("video"); video.muted = true; video.autoplay = true; video.playsInline = true; video.setAttribute("playsinline", ""); video.setAttribute("muted", "");
-  const cerrar = document.createElement("button"); cerrar.type = "button"; cerrar.innerHTML = `${icono("x", 18)}<span class="solo-lector">Dejar de compartir la pantalla</span>`; cerrar.title = "Dejar de compartir";
+  const cerrar = document.createElement("button"); cerrar.type = "button"; alCambiarIdioma(() => { cerrar.innerHTML = `${icono("x", 18)}<span class="solo-lector">${tx("Stop sharing the screen", "Dejar de compartir la pantalla")}</span>`; }); ligar(cerrar, "title", "Stop sharing", "Dejar de compartir"); // i18n-ok: wrapped in tx/ligar
   vista.append(video, cerrar);
   document.body.appendChild(vista);
   for (const el of [vista, cerrar]) el.addEventListener("pointerdown", (e) => e.stopPropagation());
 
   // the help line says where this works (the button is hidden where it does not)
   const ayuda = document.getElementById("help");
-  if (ayuda && !puede) ayuda.append(" · Compartir pantalla: solo en ordenador (y iPhone con iOS 27)"); // where it works, P: cámara says it
+  if (ayuda && !puede) ayuda.append(tx(" · Share screen: desktop only (and iPhone with iOS 27)", " · Compartir pantalla: solo en ordenador (y iPhone con iOS 27)")); // where it works, P: cámara says it
 
   const estado = { puede, compartiendo: false, pantalla: null as string | null, error: "", veces: 0 };
   let flujo: MediaStream | null = null;
   const pintar = () => {
     boton.setAttribute("aria-pressed", String(estado.compartiendo));
     // ux2-barra: an entry of the bar's «Cámara» menu (P opens the menu): a short name, the long sentence in the tooltip
-    const corto = estado.compartiendo ? "Dejar de compartir" : "Compartir pantalla";
-    const t = estado.compartiendo ? "Compartiendo tu pantalla" : "Compartir pantalla: la ven quienes estén cerca de la pantalla más cercana del mundo";
+    const corto = estado.compartiendo ? tx("Stop sharing", "Dejar de compartir") : tx("Share screen", "Compartir pantalla");
+    const t = estado.compartiendo ? tx("Sharing your screen", "Compartiendo tu pantalla") : tx("Share screen: people near the nearest screen in the world can see it", "Compartir pantalla: la ven quienes estén cerca de la pantalla más cercana del mundo");
     texto.innerHTML = `${icono("screencast")}<span class="solo-lector">${corto}</span>`; boton.title = t;
   };
   /** Put the share where it belongs now: on the nearest screen of the world (within reach) or in the floating window.
@@ -83,17 +84,17 @@ export function montarPantalla(o: { view: Vista; decir(t: string): void; escribi
     if (vigia) clearInterval(vigia);
     vigia = setInterval(() => {
       if (!flujo || !colocar(flujo)) return;
-      o.decir(estado.pantalla === null ? "Te has alejado de la pantalla: tu pantalla compartida vuelve a la ventana." : `Tu pantalla compartida se ve ahora en «${o.nombreDe(estado.pantalla) || "pantalla"}».`);
+      o.decir(estado.pantalla === null ? tx("You moved away from the screen: your shared screen is back in the window.", "Te has alejado de la pantalla: tu pantalla compartida vuelve a la ventana.") : tx(`Your shared screen now shows on «${o.nombreDe(estado.pantalla) || "screen"}».`, `Tu pantalla compartida se ve ahora en «${o.nombreDe(estado.pantalla) || "pantalla"}».`));
     }, 1000);
-    for (const t of stream.getTracks()) t.addEventListener("ended", () => { if (flujo === stream) parar("el navegador dejó de compartir"); }, { once: true });
+    for (const t of stream.getTracks()) t.addEventListener("ended", () => { if (flujo === stream) parar(tx("the browser stopped sharing", "el navegador dejó de compartir")); }, { once: true });
   }
   function empezar(): void {
     if (!estado.puede || estado.compartiendo) return;
     let p: Promise<MediaStream>;
     try { p = navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 15, max: 30 } }, audio: false }); } // synchronous: still inside the gesture
-    catch (e) { estado.error = String((e as Error)?.name ?? e); o.decir(`No se pudo compartir la pantalla (${estado.error}).`); return; }
+    catch (e) { estado.error = String((e as Error)?.name ?? e); o.decir(tx(`Could not share the screen (${estado.error}).`, `No se pudo compartir la pantalla (${estado.error}).`)); return; }
     p.then((s) => { if (estado.compartiendo) { for (const t of s.getTracks()) t.stop(); return; } mostrar(s); })
-      .catch((e: unknown) => { estado.error = String((e as Error)?.name ?? e); o.decir(estado.error === "NotAllowedError" ? "No se compartió nada." : `No se pudo compartir la pantalla (${estado.error}).`); });
+      .catch((e: unknown) => { estado.error = String((e as Error)?.name ?? e); o.decir(estado.error === "NotAllowedError" ? tx("Nothing was shared.", "No se compartió nada.") : tx(`Could not share the screen (${estado.error}).`, `No se pudo compartir la pantalla (${estado.error}).`)); });
   }
   function parar(por = ""): void {
     if (!estado.compartiendo) return;
@@ -104,7 +105,7 @@ export function montarPantalla(o: { view: Vista; decir(t: string): void; escribi
     if (estado.pantalla !== null) o.view.pantallaEnVivo(estado.pantalla, null);
     video.pause(); video.srcObject = null; vista.hidden = true;
     estado.compartiendo = false; estado.pantalla = null; pintar();
-    o.decir(por ? `Has dejado de compartir la pantalla (${por}).` : "Has dejado de compartir la pantalla.");
+    o.decir(por ? tx(`You stopped sharing your screen (${por}).`, `Has dejado de compartir la pantalla (${por}).`) : tx("You stopped sharing your screen.", "Has dejado de compartir la pantalla."));
   }
   /** The server ended or refused my share on `key` (busy, too far, stopped by a moderator, gone): back to the window, and not that screen again for 30 s. */
   function alPararPropia(key: string): void {
@@ -117,6 +118,6 @@ export function montarPantalla(o: { view: Vista; decir(t: string): void; escribi
   boton.addEventListener("click", (e) => { alternar(); if (e.detail > 0) boton.blur(); });
   cerrar.addEventListener("click", () => parar());
   // ux2-barra: no key of its own any more — P opens the bar's «Cámara» menu, where this is the third entry
-  pintar();
+  pintar(); alCambiarIdioma(pintar);
   return { estado, alternar, parar, alPararPropia };
 }

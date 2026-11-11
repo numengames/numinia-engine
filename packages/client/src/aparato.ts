@@ -9,6 +9,7 @@
 // (touch HUD = pointer: coarse), except on a headset's own browser (see `esVisor`), which is always the `vr` class. No DOM: the browser is read through `Entorno`, so Node tests pass a fake one.
 import { leerTextoGuardado } from "./ajustes.ts";
 import type { Capacidades, Nivel } from "../../feature/src/ajustes.ts";
+import { tx } from "./idioma.ts";
 
 export const APARATOS = ["auto", "escritorio", "movil-vertical", "movil-horizontal", "vr"] as const;
 export type Eleccion = (typeof APARATOS)[number];
@@ -83,7 +84,7 @@ export function claseReal(r: Real): Clase {
 /** Which profile was asked: the URL first, then what the person kept in the setting; neither outside development. */
 export function eleccionDesde(o: { url?: string | null; guardado?: string | null; desarrollo: boolean }): { eleccion: Eleccion; de: "url" | "ajuste" | "auto"; aviso?: string } {
   const url = o.url ?? null;
-  if (!o.desarrollo) return url ? { eleccion: "auto", de: "auto", aviso: `?${PARAM_APARATO} solo vale en desarrollo o con ?debug` } : { eleccion: "auto", de: "auto" };
+  if (!o.desarrollo) return url ? { eleccion: "auto", de: "auto", aviso: tx(`?${PARAM_APARATO} only works in development or with ?debug`, `?${PARAM_APARATO} solo vale en desarrollo o con ?debug`) } : { eleccion: "auto", de: "auto" };
   if (url !== null && url !== "") {
     if (esEleccion(url)) return { eleccion: url, de: "url" }; // ?aparato=auto too: it beats a kept setting
     return { eleccion: "auto", de: "auto", aviso: `?${PARAM_APARATO}=${url} no existe: ${APARATOS.join(", ")}` };

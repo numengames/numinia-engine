@@ -333,7 +333,7 @@ test("lucha h3: a critical applies the doubled damage to coherence, and the page
     if (Number(ult.queda) > 0) assert.equal(Number(W.estado().coherencia), Number(ult.queda));
     if (ult.critico && Number(ult.queda) > 0) {   // a killing blow dissolves the creature: nothing left to paint
       visto = true;
-      assert.ok(p.seen.some((s) => s.startsWith(`tag lucha:${KEY} `) && s.includes("¡CRÍTICO! −24")), "damage tag");
+      assert.ok(p.seen.some((s) => s.startsWith(`tag lucha:${KEY} `) && s.includes("CRITICAL! −24")), "damage tag");
       assert.ok(p.seen.some((s) => s.includes(`place lucha:${KEY}`) && s.endsWith(COLOR_CRITICO)), "gold flash");
     }
     W.pump(20);
@@ -384,7 +384,7 @@ test("lucha h2: a page with no creature and no Carga yet does not claim there is
   W.pump(4);
   assert.equal(W.pages[0].l.activo(), false);
   assert.equal(W.pages[0].l.estado(), undefined);
-  assert.deepEqual(W.pages[0].l.habilidad("corte-breve"), { ok: false, why: "no hay ninguna criatura cerca" });
+  assert.deepEqual(W.pages[0].l.habilidad("corte-breve"), { ok: false, why: "no creature nearby" });
 });
 
 
@@ -457,4 +457,15 @@ test("lucha: an ability that dissolves the creature (Discontinuidad 55 vs the Gu
   assert.equal(W.evs(p, "disuelta").length, vistas + 1, "the creature dissolved");
   assert.equal(W.evs(p, "jugadorHerido").length, heridos, "a dissolved creature does not strike back: life untouched");
   assert.equal(W.evs(p, "jugadorCaido").length, 0);
+});
+
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+test("lucha i18n: damage text and rejections speak the active language, English first", () => {
+  try {
+    fijarIdioma("en");
+    assert.equal(textoDano(12, true), "  CRITICAL! −12");
+    fijarIdioma("es");
+    assert.equal(textoDano(12, true), "  ¡CRÍTICO! −12");
+    assert.equal(textoDano(12, true, "en"), "  CRITICAL! −12");
+  } finally { fijarIdioma("en"); }
 });

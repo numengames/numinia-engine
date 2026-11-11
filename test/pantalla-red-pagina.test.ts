@@ -21,10 +21,10 @@ test("pantalla page: size, bitrate, backpressure, key frames, sentences and the 
   assert.equal(pideClave(10, 100, false), false);
   assert.equal(pideClave(10, PANTALLA_CLAVE_S * 1000, false), true);
   assert.equal(pideClave(10, 100, true), true);
-  assert.match(fraseFin(PANTALLA_MOTIVO.ocupada, "Cine", true)!, /Cine.*otra persona/);
+  assert.match(fraseFin(PANTALLA_MOTIVO.ocupada, "Cine", true)!, /Cine.*someone else/);
   assert.equal(fraseFin(PANTALLA_MOTIVO.fin, "Cine", true), null);
   assert.equal(fraseFin(PANTALLA_MOTIVO.fueraDeAlcance, "Cine", false), null);
-  assert.match(fraseFin(PANTALLA_MOTIVO.seFue, "", false)!, /Han dejado de compartir/);
+  assert.match(fraseFin(PANTALLA_MOTIVO.seFue, "", false)!, /stopped sharing/);
   const espera = new EsperaClave();
   assert.equal(espera.admitir(false), false);
   assert.equal(espera.admitir(true), true);

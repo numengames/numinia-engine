@@ -12,6 +12,7 @@ import { montarPescaManos } from "./pesca-vr.ts"; // N4: the rod in your hand in
 import { consejo } from "../../features/pesca/client.ts";
 import { esTactil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
 import { avisarRecibido } from "./inventario-resumen.ts"; // v3: the Bolsa button pulses when my fish has gone into the Inventario
+import { tx, ligar } from "../../packages/feature/src/idioma.ts";
 import { sonarFase } from "./pesca-sonido.ts"; // the nibble and the bite sound through the page's single door (sonar.ts bridge), once
 
 type Res = { ok: true } | { ok: false; why: string };
@@ -27,17 +28,17 @@ type Sesion = { entity: number } & Manos["session"];
 
 /** How long the result panel stays (ms) after a catch or an escape. */
 export const RESULTADO_MS = 4000;
-const RAREZA: Record<string, string> = { comun: "común", rara: "rara", legendaria: "legendaria" };
-export const cmTexto = (cm: number): string => `${String(Math.round(cm * 10) / 10).replace(".", ",")} cm`;
+const RAREZA = (r: string): string => (r === "comun" ? tx("common", "común") : r === "rara" ? tx("rare", "rara") : r === "legendaria" ? tx("legendary", "legendaria") : r);
+export const cmTexto = (cm: number): string => { const n = String(Math.round(cm * 10) / 10); return `${tx(n, n.replace(".", ","))} cm`; };
 /** v3 — the last line of «¡Pescado!»: «rara · A tu Inventario (× 3)» when the server put the fish in the Inventario (how many of
  * that species you now have, if the page already knows), else the old basket line («común · En tu cesta: 3», a full Reserva or no inventario). */
 export function notaDePescado(u: { pez: string; rareza: string; guardado: boolean }, cesta: number, cuantos = 0, llena: { ocupados: number; huecos: number } | null = null): string {
-  const r = RAREZA[u.rareza] ?? u.rareza;
-  if (!u.guardado && llena) return `${r} · Tu Bolsa está llena (${llena.ocupados}/${llena.huecos}): vuelve al agua`; // La Bolsa galáctica has no slot for a new species: the fish goes back, the cesta still counts it
-  return u.guardado ? `${r} · A tu Inventario${cuantos > 1 ? ` (× ${cuantos})` : ""}` : `${r} · En tu cesta: ${cesta}`;
+  const r = RAREZA(u.rareza);
+  if (!u.guardado && llena) return tx(`${r} · Your Backpack is full (${llena.ocupados}/${llena.huecos}): it goes back in the water`, `${r} · Tu Bolsa está llena (${llena.ocupados}/${llena.huecos}): vuelve al agua`); // La Bolsa galáctica has no slot for a new species: the fish goes back, the cesta still counts it
+  return u.guardado ? tx(`${r} · To your Inventory${cuantos > 1 ? ` (× ${cuantos})` : ""}`, `${r} · A tu Inventario${cuantos > 1 ? ` (× ${cuantos})` : ""}`) : tx(`${r} · In your basket: ${cesta}`, `${r} · En tu cesta: ${cesta}`);
 }
 
-const CSS = `
+const CSS = ` /* i18n-ok: CSS, no words */
 #pesca-hud { position: fixed; left: 50%; bottom: 70px; transform: translateX(-50%); z-index: 5; width: min(92vw, 380px); padding: 8px 10px; border-radius: 12px; background: rgba(20, 24, 30, .82); color: #eef2f6; font: 14px/1.4 system-ui, sans-serif; display: grid; gap: 8px; }
 #pesca-hud[hidden] { display: none; }
 #pesca-hud .que { min-height: 1.4em; font-weight: 600; color: #ffd27a; text-align: center; }
@@ -68,25 +69,26 @@ const CSS = `
 #pesca-hud .resultado .nota { font-size: 13px; color: #c9d3dc; }
 @keyframes pesca-entra { from { transform: scale(.92); opacity: 0; } }`;
 
-const TEXTO: Record<Estado["fase"], string> = { nada: "", espera: "Esperando… algo picará", mordisqueo: "Algo mordisquea el cebo", picada: "¡PICA! Recoge ahora", pelea: "Pelea: {pez}" };
+const TEXTO = (fase: Estado["fase"]): string => fase === "espera" ? tx("Waiting… something will bite", "Esperando… algo picará") : fase === "mordisqueo" ? tx("Something is nibbling the bait", "Algo mordisquea el cebo") : fase === "picada" ? tx("BITE! Reel in now", "¡PICA! Recoge ahora") : fase === "pelea" ? tx("Fight: {pez}", "Pelea: {pez}") : "";
 
 export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud: HTMLElement; interaccion?: () => Manos["interaccion"] }) {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const tactil = esTactil();
   const hud = o.hud;
-  hud.setAttribute("aria-label", "Pesca");
+  ligar(hud, "aria-label", "Fishing", "Pesca");
   hud.innerHTML = `<div class="que" role="status"></div>
 <div class="resultado" role="status" hidden><div class="titulo"></div><div class="pez"></div><div class="nota"></div></div>
 <div class="barras" hidden>
-  <div class="barra tension" role="progressbar" aria-label="Tensión del sedal" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
-  <div class="barra progreso" role="progressbar" aria-label="Pez acercado" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
+  <div class="barra tension" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
+  <div class="barra progreso" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
 </div>
-<div class="fila"><button id="pesca-recoger" type="button" aria-pressed="false">Recoger</button><button id="pesca-soltar" type="button">Soltar</button></div>
+<div class="fila"><button id="pesca-recoger" type="button" aria-pressed="false"></button><button id="pesca-soltar" type="button"></button></div>
 <p class="pista"></p>`;
   const que = hud.querySelector(".que") as HTMLElement, barras = hud.querySelector(".barras") as HTMLElement, fila = hud.querySelector(".fila") as HTMLElement, pista = hud.querySelector(".pista") as HTMLElement;
   const resultado = hud.querySelector(".resultado") as HTMLElement, titulo = resultado.querySelector(".titulo") as HTMLElement, pezEl = resultado.querySelector(".pez") as HTMLElement, nota = resultado.querySelector(".nota") as HTMLElement;
   const tension = hud.querySelector(".barra.tension") as HTMLElement, progreso = hud.querySelector(".barra.progreso") as HTMLElement;
-  const recoger = hud.querySelector("#pesca-recoger") as HTMLButtonElement, soltar = hud.querySelector("#pesca-soltar") as HTMLButtonElement;
+  const recoger = ligar(hud.querySelector("#pesca-recoger") as HTMLButtonElement, "textContent", "Reel in", "Recoger"), soltar = ligar(hud.querySelector("#pesca-soltar") as HTMLButtonElement, "textContent", "Let go", "Soltar");
+  ligar(tension, "aria-label", "Line tension", "Tensión del sedal"); ligar(progreso, "aria-label", "Fish brought in", "Pez acercado");
   // how many of this species the Inventario holds now (read loosely, like the sheet does: the page may have no inventario)
   /** The server said «Tu Bolsa está llena» for the last refusal: how full it is, else null (no inventario, or the fish was kept). */
   const bolsaLlena = (): { ocupados: number; huecos: number } | null => { try { const inv = (globalThis as unknown as { __numinia?: { inventario?: { estado?: { llena?: boolean }; bolsa?: () => { ocupados: number; huecos: number } } } }).__numinia?.inventario; return inv?.estado?.llena ? inv.bolsa?.() ?? null : null; } catch { return null; } };
@@ -104,8 +106,8 @@ export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud
   addEventListener("resize", () => { if (tactil && !hud.hidden) hacerSitio(); });
   // the hint under the buttons follows what you have in your hands: touch, a gamepad, or the keyboard
   const hayMando = () => { try { return [...(navigator.getGamepads?.() ?? [])].some((g) => !!g?.connected); } catch { return false; } };
-  const pistaDe = () => tactil ? "Mantén «Recoger» para tirar; suelta para que descanse el sedal"
-    : hayMando() ? "Mantén A (o RT) para recoger · B suelta la caña" : "Mantén F para recoger · X suelta la caña";
+  const pistaDe = () => tactil ? tx("Hold «Reel in» to pull; let go to rest the line", "Mantén «Recoger» para tirar; suelta para que descanse el sedal")
+    : hayMando() ? tx("Hold A (or RT) to reel in · B lets go of the rod", "Mantén A (o RT) para recoger · B suelta la caña") : tx("Hold F to reel in · X lets go of the rod", "Mantén F para recoger · X suelta la caña");
   addEventListener("gamepadconnected", () => pintar()); addEventListener("gamepaddisconnected", () => pintar());
   let fase: Estado["fase"] = "nada", arrancada: Estado["arrancada"] = "no", manteniendo = false, resultadoHasta = 0, temporizador: ReturnType<typeof setTimeout> | null = null;
   const mostrarResultado = (clase: "pescado" | "escapado", t: string, p: string, n: string, guardado = false, color = "") => {
@@ -128,10 +130,10 @@ export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud
       if (e.fase === "pelea") vibrar([40, 30, 40]);
       if (e.fase === "nada" && fase !== "nada") { // the fight just ended: say clearly how
         if (e.ultimo && /^Has pescado/.test(e.aviso)) {
-          mostrarResultado("pescado", "¡Pescado!", `🐟 ${e.ultimo.pez} · ${cmTexto(e.ultimo.cm)}`, notaDePescado(e.ultimo, e.cesta.peces, enLaBolsa(e.ultimo.pez), bolsaLlena()), e.ultimo.guardado, e.ultimo.color ?? "");
+          mostrarResultado("pescado", tx("Caught!", "¡Pescado!"), `🐟 ${e.ultimo.pez} · ${cmTexto(e.ultimo.cm)}`, notaDePescado(e.ultimo, e.cesta.peces, enLaBolsa(e.ultimo.pez), bolsaLlena()), e.ultimo.guardado, e.ultimo.color ?? "");
           vibrar([60, 40, 60, 40, 220]); // the catch sounds from the SERVER (pesca-cobrar), for everyone nearby, me too
         } else if (e.aviso && !/^Has recogido/.test(e.aviso)) {
-          mostrarResultado("escapado", "Se ha escapado", e.aviso.replace(/\.$/, ""), "Vuelve a lanzar la caña");
+          mostrarResultado("escapado", tx("It got away", "Se ha escapado"), e.aviso.replace(/\.$/, ""), tx("Cast the rod again", "Vuelve a lanzar la caña"));
           vibrar(120); // an escape is silent: the slack line and the panel say it
         }
       }
@@ -145,7 +147,7 @@ export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud
     if (e.arrancada === "aviso" && arrancada !== "aviso") vibrar(30);
     arrancada = e.arrancada;
     const texto = consejo(e); // N4: what to do now, not just the phase («¡Afloja, que se rompe el sedal!»)
-    que.textContent = texto || TEXTO[e.fase].replace("{pez}", e.pez);
+    que.textContent = texto || TEXTO(e.fase).replace("{pez}", e.pez);
     pista.textContent = pistaDe();
     que.classList.toggle("picada", e.fase === "picada");
     barras.hidden = e.fase !== "pelea";
@@ -164,7 +166,7 @@ export function montarPesca(o: { pesca: Pesca; view: Vista; session: Sesion; hud
   });
   // v3: my fish (after it flew to the camera, or popped at the hand in VR) is in the Inventario: the Bolsa button pulses with a «+1»;
   // in VR the page's own note says it too (view.vr.nota is the existing wrist/VR note path; nothing new is built there)
-  o.view.pesca.alGuardar((c) => { avisarRecibido("+1"); if (c.vr) o.view.vr.nota?.(`${c.pez} → a tu Inventario`); hud.dataset.guardados = String(Number(hud.dataset.guardados ?? 0) + 1); });
+  o.view.pesca.alGuardar((c) => { avisarRecibido("+1"); if (c.vr) o.view.vr.nota?.(tx(`${c.pez} → to your Inventory`, `${c.pez} → a tu Inventario`)); hud.dataset.guardados = String(Number(hud.dataset.guardados ?? 0) + 1); });
   o.view.pesca.sitios(o.pesca.sitios()); o.view.pesca.flotadores(o.pesca.flotadores(), yo()); o.view.pesca.capturas(o.pesca.capturas(), yo()); pintar();
 
   // the big button: hold = reel, let go = rest (pointer capture so a finger that slides off still lets go)

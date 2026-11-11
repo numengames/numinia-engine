@@ -121,3 +121,23 @@ test("cambiarIdioma still applies when storage fails", () => {
   assert.equal(cambiarIdioma("es", { guardado: roto, documento: d }), "es");
   assert.equal(d.documentElement.lang, "es");
 });
+
+test("order: stored choice > world language > navigator > English", () => {
+  const g = (v: string | null) => ({ leer: () => v });
+  const nav = { languages: ["es-ES"], language: "es-ES" };
+  assert.equal(detectarIdioma({ guardado: g(null), navegador: nav, mundo: "en" }), "en", "world beats a Spanish browser");
+  assert.equal(detectarIdioma({ guardado: g("es"), navegador: { languages: ["en-US"] }, mundo: "en" }), "es", "stored choice beats the world");
+  assert.equal(detectarIdioma({ guardado: g(null), navegador: nav }), "es", "no world language: the browser");
+  assert.equal(detectarIdioma({ guardado: g(null), navegador: nav, mundo: "pt-br" }), "es", "an unsupported world language is ignored");
+  assert.equal(detectarIdioma({ guardado: g(null), navegador: { languages: ["fr"] } }), "en", "nothing known: English");
+});
+
+test("the «E: …» prompts of the features read in English, the name stays the world's", async () => {
+  const { promptVisible } = await import("../packages/client/src/movil.ts");
+  assert.equal(promptVisible("hablar con Brainiac", "en"), "talk to Brainiac");
+  assert.equal(promptVisible("sentarte", "en"), "sit down");
+  assert.equal(promptVisible("usar el contador", "en"), "use the counter");
+  assert.equal(promptVisible("usar Pantalla del evento", "en"), "use Pantalla del evento");
+  assert.equal(promptVisible("algo que no conozco", "en"), "algo que no conozco");
+  assert.equal(promptVisible("hablar con Brainiac", "es"), "hablar con Brainiac");
+});

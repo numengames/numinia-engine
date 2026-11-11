@@ -4,6 +4,7 @@
 // N18: wear a good (llevar: in a hand or on the head; every page draws what each person wears through view.lleva), and
 // bring a receipt from another world (traer: checked here first, then the server says whether this world trusts its
 // signer; the ones that stay «de otro mundo» are remembered in this browser, `otros`).
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg } from "../../packages/feature/src/index.ts";
 import { bienes as decl, unir, PIEZA } from "./feature.ts";
@@ -23,7 +24,7 @@ export const OTROS_GUARDA = "numinia.bienes.otros", OTROS_MAX = 24;
 type Guarda = { load(): string | null; save(t: string): void };
 const guardaLocal = (): Guarda | null => { try { const l = globalThis.localStorage; return l ? { load: () => l.getItem(OTROS_GUARDA), save: (t) => l.setItem(OTROS_GUARDA, t) } : null; } catch { return null; } };
 type Res = { ok: true } | { ok: false; why: string };
-const SIN: Res = { ok: false, why: "la función bienes no está en este servidor" };
+const SIN: Res = { ok: false, get why() { return tx("the goods feature is not on this server", "la función bienes no está en este servidor"); } }; // a getter: read in the language of that moment
 export { comprobar };
 
 /** The file a player downloads: the receipt plus what a person reads in it (the receipt alone is what counts). */
@@ -31,7 +32,7 @@ export function ficheroRecibo(b: BienVista): { nombre: string; texto: string } {
   const limpio = b.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "bien";
   return {
     nombre: `recibo-${limpio}-${b.id.slice(0, 8)}.json`,
-    texto: JSON.stringify({ formato: "numinia-recibo@1", que: b.nombre, de: b.mundo, mision: b.mision, cuando: b.instante, licencia: b.licencia || "sin indicar", recibo: b.recibo, nota: "El recibo (nb1.…) lo firmó el mundo con su clave Ed25519; cualquiera lo comprueba con la clave que lleva dentro (npm run bienes -- verificar <fichero>). Tener el objeto no da los derechos de su arte: mira su licencia." }, null, 2) + "\n",
+    texto: JSON.stringify({ formato: "numinia-recibo@1", que: b.nombre, de: b.mundo, mision: b.mision, cuando: b.instante, licencia: b.licencia || tx("not stated", "sin indicar"), recibo: b.recibo, nota: tx("The receipt (nb1.…) was signed by the world with its Ed25519 key; anyone can check it with the key it carries (npm run bienes -- verificar <file>). Owning the item does not give the rights to its art: see its licence.", "El recibo (nb1.…) lo firmó el mundo con su clave Ed25519; cualquiera lo comprueba con la clave que lleva dentro (npm run bienes -- verificar <fichero>). Tener el objeto no da los derechos de su arte: mira su licencia.") }, null, 2) + "\n",
   };
 }
 /** The receipt inside whatever a player brings: the downloaded file's JSON, or the bare «nb1.…» text. "" = none. */
@@ -70,12 +71,15 @@ export function crearCliente(o: { guarda?: Guarda | null } = {}) {
     comprobar: async (texto: string): Promise<Presentado> => {
       const r = reciboDe(texto);
       const fin = (p: Presentado) => { ultimo = p; avisar(); return p; };
-      if (!r) return fin({ ok: false, nombre: "", mundo: "", nuestro: false, tuyo: false, motivo: "Eso no lleva un recibo de Numinia (un fichero recibo-….json o un texto que empiece por «nb1.»)." });
+      if (!r) return fin({ ok: false, nombre: "", mundo: "", nuestro: false, tuyo: false, motivo: tx("That carries no Numinia receipt (a recibo-….json file or a text starting with «nb1.»).", "Eso no lleva un recibo de Numinia (un fichero recibo-….json o un texto que empiece por «nb1.»).") });
       const c = await comprobar(r);
       if (!c.ok) return fin({ ok: false, nombre: "", mundo: "", nuestro: false, tuyo: false, motivo: `Ese recibo no vale: ${c.motivo}.` });
       const nuestro = !!emisor && c.recibo.emisor === emisor, tuyo = [...lista.values()].some((b) => b.recibo === r);
       const n = c.recibo.objeto.nombre;
-      return fin({ ok: true, nombre: n, mundo: c.recibo.mundo, nuestro, tuyo, motivo: tuyo && !nuestro ? `Auténtico: «${n}», del mundo ${c.recibo.mundo}. Este mundo confía en quien lo firmó y aquí es tuyo.` : tuyo ? `Auténtico: «${n}» es tuyo, firmado por este mundo.` : nuestro ? `Auténtico: «${n}», firmado por este mundo, pero no está en tu inventario (es de otro invitado).` : `Auténtico: «${n}», firmado por el mundo ${c.recibo.mundo}. Aquí solo se comprueba que es real, no que sea tuyo.` });
+      return fin({ ok: true, nombre: n, mundo: c.recibo.mundo, nuestro, tuyo, motivo: tuyo && !nuestro ? tx(`Genuine: «${n}», from the world ${c.recibo.mundo}. This world trusts whoever signed it and here it is yours.`, `Auténtico: «${n}», del mundo ${c.recibo.mundo}. Este mundo confía en quien lo firmó y aquí es tuyo.`)
+        : tuyo ? tx(`Genuine: «${n}» is yours, signed by this world.`, `Auténtico: «${n}» es tuyo, firmado por este mundo.`)
+        : nuestro ? tx(`Genuine: «${n}», signed by this world, but it is not in your inventory (it belongs to another guest).`, `Auténtico: «${n}», firmado por este mundo, pero no está en tu inventario (es de otro invitado).`)
+        : tx(`Genuine: «${n}», signed by the world ${c.recibo.mundo}. Here we only check that it is real, not that it is yours.`, `Auténtico: «${n}», firmado por el mundo ${c.recibo.mundo}. Aquí solo se comprueba que es real, no que sea tuyo.`) });
     },
     ficheroRecibo,
     /** N18: wear one of your goods (its id) in a hand or on your head; everyone near sees it. The server checks it is yours. */

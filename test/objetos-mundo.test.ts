@@ -1,6 +1,8 @@
 // MIS-241: «Objetos del mundo» in the builder — the list, the search, where a press takes you (apps/plaza/objetos-mundo.ts).
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // Spanish text asserted below
 import { readFileSync } from "node:fs";
 import { encuadreDe, filasDeObjetos, filtrarObjetos, firmaDeLista, frase, LISTA_OBJETOS_MAX, piezasDe, recortarLista, resumenLista, sitioJunto, yaJunto } from "../apps/plaza/objetos-mundo.ts";
 import type { ObjetoMundo } from "../apps/plaza/objetos-mundo.ts";

@@ -15,6 +15,7 @@
 import type { CondicionesMensaje } from "../../packages/net/src/index.ts";
 import type { OpcionesCondiciones } from "./condiciones.ts";
 import { crearPuerta } from "./puerta.ts";
+import { tx, ligar } from "../../packages/feature/src/idioma.ts";
 
 type Real = ReturnType<typeof import("./condiciones.ts").montarCondiciones>;
 export type CondicionesPuerta = Real;
@@ -53,12 +54,12 @@ export function montarCondicionesPuerta(o: OpcionesCondiciones, traer: () => Pro
       capa.id = "condiciones-espera"; capa.setAttribute("role", "alert");
       capa.style.cssText = "position:fixed;inset:0;z-index:45;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(10,8,6,.82);color:#F9EBDC;font:15px/1.5 Geist,system-ui,sans-serif;touch-action:none;";
       texto = document.createElement("p"); reintento = document.createElement("button");
-      reintento.type = "button"; reintento.textContent = "Reintentar"; reintento.hidden = true;
+      reintento.type = "button"; ligar(reintento, "textContent", "Try again", "Reintentar"); reintento.hidden = true;
       reintento.style.cssText = "font:inherit;padding:8px 18px;border-radius:999px;border:1px solid currentColor;background:transparent;color:inherit;cursor:pointer;";
       reintento.addEventListener("click", cargar);
       capa.append(texto, reintento); document.body.appendChild(capa);
     }
-    if (texto) texto.textContent = fallo ? "No se han podido cargar las normas del mundo. Comprueba la conexión." : "Cargando las normas del mundo…";
+    if (texto) texto.textContent = fallo ? tx("Could not load the world's rules. Check your connection.", "No se han podido cargar las normas del mundo. Comprueba la conexión.") : tx("Loading the world's rules…", "Cargando las normas del mundo…");
     if (reintento) reintento.hidden = !fallo;
   }
 

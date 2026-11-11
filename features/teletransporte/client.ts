@@ -2,6 +2,7 @@
 // world allows it, whether you may switch it, whether you let yourself be found) and the light's moments (`sale`,
 // `llega`) for the view to draw. It only asks: the server decides. The panel is the page's (apps/plaza/gente.ts); the
 // light is packages/render/src/teletransporte.ts; agents and tests use the controller below.
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, Msg } from "../../packages/feature/src/index.ts";
 import { teletransporte, MUNDO } from "./feature.ts";
@@ -26,7 +27,7 @@ export function crearCliente() {
   const oyentes = new Set<(que: Cambio) => void>();
   const luces = new Set<(d: Destello) => void>();
   const avisar = (q: Cambio) => { for (const f of oyentes) { try { f(q); } catch { /* a page's listener must not stop the rest */ } } };
-  const enviar = (intent: string, msg: Msg) => api?.send(intent, msg) ?? { ok: false as const, why: "la página aún no ha arrancado" };
+  const enviar = (intent: string, msg: Msg) => api?.send(intent, msg) ?? { ok: false as const, why: tx("the page has not started yet", "la página aún no ha arrancado") };
   const mundo = () => api?.state.get(MUNDO);
   const ctl = {
     estado,
@@ -41,7 +42,7 @@ export function crearCliente() {
     /** Go next to someone by name, as /ir does (the first of the list whose name starts so). */
     irCon: (nombre: string) => {
       const n = nombre.toLowerCase().trim(), p = estado.gente.find((g) => g.nombre.toLowerCase() === n) ?? estado.gente.find((g) => g.nombre.toLowerCase().startsWith(n));
-      return p ? ctl.ir(p.quien) : { ok: false as const, why: `«${nombre}» no está en la lista: pide la lista de Gente primero` };
+      return p ? ctl.ir(p.quien) : { ok: false as const, why: tx(`«${nombre}» is not on the list: ask for the People list first`, `«${nombre}» no está en la lista: pide la lista de Gente primero`) };
     },
     encontrable: (si: boolean) => enviar("encontrable", { si }),
     permitir: (si: boolean) => enviar("permitir", { si }),

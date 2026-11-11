@@ -1,14 +1,15 @@
 // burbuja (burbujas v1): the small label that stays up while you are inside a voice bubble («En La mesa: solo te oyen los de la mesa»).
 // The notice that you entered or left comes from the feature's event (the notices region, which screen readers read); this keeps
 // the state visible. Nothing is decided here: the server's relay is what makes the bubble.
+import { tx } from "../../packages/feature/src/idioma.ts";
 export type PaginaBurbuja = {
   mia(): { etiqueta: string; modo: "aislada" | "abierta" } | null;
   alCambiar(fn: () => void): () => void;
 };
 /** The text of the label for a bubble (kept in step with the server's notice). Pure. */
 export const textoCartel = (b: { etiqueta: string; modo: "aislada" | "abierta" }): string => {
-  const e = b.etiqueta ? b.etiqueta[0].toLowerCase() + b.etiqueta.slice(1) : "la burbuja";
-  return b.modo === "abierta" ? `En ${b.etiqueta}: te oyen los de ${e} y quien esté cerca` : `En ${b.etiqueta}: solo te oyen los de ${e}`;
+  const e = b.etiqueta ? b.etiqueta[0].toLowerCase() + b.etiqueta.slice(1) : tx("the bubble", "la burbuja");
+  return b.modo === "abierta" ? tx(`In ${b.etiqueta}: ${e} and anyone nearby can hear you`, `En ${b.etiqueta}: te oyen los de ${e} y quien esté cerca`) : tx(`In ${b.etiqueta}: only ${e} can hear you`, `En ${b.etiqueta}: solo te oyen los de ${e}`);
 };
 export function montarBurbuja(o: { burbujas: PaginaBurbuja; cartel: HTMLElement }): void {
   const pintar = (): void => {

@@ -4,6 +4,7 @@
 // (constructor.ts lends the drawer's body as `padre`; one drawer open at a time, so it no longer covers the world as a
 // panel of its own), shown only to builders while building. It only asks: the server decides (features/entorno,
 // features/elementos). main.ts passes the controllers (only composition roots import features/).
+import { alCambiarIdioma, idiomaActivo, ligar, tx } from "../../packages/feature/src/idioma.ts";
 import { filasFunciones, textoCambio, tituloGrupo } from "../../features/funciones/panel.ts";
 import type { FilaFuncion } from "../../features/funciones/panel.ts";
 import type { Funcion } from "../../features/funciones/feature.ts";
@@ -41,8 +42,11 @@ type Vista = {
   sueloBajo?: (x: number, y: number) => { x: number; y?: number; z: number } | null;
 };
 
-const PRESET_NOMBRE: Record<string, string> = { día: "Día", amanecer: "Amanecer", atardecer: "Atardecer", noche: "Noche", niebla: "Niebla", tormenta: "Tormenta", nublado: "Nublado", jardín: "Jardín" };
-const ELEMENTO_NOMBRE: Record<string, string> = { agua: "Agua", fuego: "Fuego", humo: "Humo", polvo: "Polvo" };
+type Par = () => string; // text in the active language (a tx() call), re-read on every language change
+const lig = (el: { setAttribute(k: string, v: string): void; textContent: string | null }, campo: string, p: Par): void => { alCambiarIdioma(() => { if (campo === "textContent") el.textContent = p(); else el.setAttribute(campo, p()); }); };
+const PRESET_NOMBRE: Record<string, Par> = { día: () => tx("Day", "Día"), amanecer: () => tx("Dawn", "Amanecer"), atardecer: () => tx("Sunset", "Atardecer"), noche: () => tx("Night", "Noche"), niebla: () => tx("Fog", "Niebla"), tormenta: () => tx("Storm", "Tormenta"), nublado: () => tx("Overcast", "Nublado"), jardín: () => tx("Garden", "Jardín") };
+const ELEMENTO_NOMBRE: Record<string, Par> = { agua: () => tx("Water", "Agua"), fuego: () => tx("Fire", "Fuego"), humo: () => tx("Smoke", "Humo"), polvo: () => tx("Dust", "Polvo") };
+const nomPar = (tabla: Record<string, Par>, k: string): Par => tabla[k] ?? (() => k);
 const CSS = `
 #panel-entorno { font: 13px/1.45 "Geist", system-ui, sans-serif; }
 #panel-entorno h3 { margin: 12px 0 4px; font-size: 14px; }
@@ -74,29 +78,29 @@ const CSS = `
 export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu?: Naturaleza, padre?: HTMLElement, base?: Base, objetos?: Objetos, piezas: Pieza[] = [], funcs?: Funciones, fondos?: Fondos): void {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const panel = document.createElement("section");
-  panel.id = "panel-entorno"; panel.hidden = true; panel.setAttribute("aria-label", "Entorno y elementos");
+  panel.id = "panel-entorno"; panel.hidden = true; ligar(panel, "aria-label", "Environment and elements", "Entorno y elementos");
   (padre ?? document.body).appendChild(panel);
   const estado = document.createElement("p"); estado.className = "estado"; estado.setAttribute("role", "status");
-  const decir = (r: Res) => { estado.textContent = r.ok ? "Hecho." : `No: ${r.why}`; };
-  const boton = (texto: string, titulo: string, fn: () => Res) => {
-    const b = document.createElement("button"); b.type = "button"; b.textContent = texto; b.title = titulo;
+  const decir = (r: Res) => { estado.textContent = r.ok ? tx("Done.", "Hecho.") : `No: ${r.why}`; };
+  const boton = (texto: Par, titulo: Par, fn: () => Res) => {
+    const b = document.createElement("button"); b.type = "button"; lig(b, "textContent", texto); lig(b, "title", titulo);
     b.addEventListener("click", () => { decir(fn()); b.blur(); }); // blur: Space (jump) must not press it again
     return b;
   };
-  const fila = (etiqueta: string, ...hijos: HTMLElement[]) => { const d = document.createElement("div"); d.className = "fila"; d.setAttribute("role", "group"); d.setAttribute("aria-label", etiqueta); d.append(...hijos); return d; };
-  const titulo = (nivel: "h2" | "h3", t: string) => { const h = document.createElement(nivel); h.textContent = t; return h; };
+  const fila = (etiqueta: Par, ...hijos: HTMLElement[]) => { const d = document.createElement("div"); d.className = "fila"; d.setAttribute("role", "group"); lig(d, "aria-label", etiqueta); d.append(...hijos); return d; };
+  const titulo = (nivel: "h2" | "h3", t: Par) => { const h = document.createElement(nivel); lig(h, "textContent", t); return h; };
 
   // presets
-  const presets = amb.presets.map((p) => { const b = boton(PRESET_NOMBRE[p] ?? p, `Poner el entorno «${PRESET_NOMBRE[p] ?? p}» (el suelo se queda)`, () => amb.preset(p)); b.dataset.preset = p; return b; });
+  const presets = amb.presets.map((p) => { const b = boton(nomPar(PRESET_NOMBRE, p), () => tx(`Set the environment «${nomPar(PRESET_NOMBRE, p)()}» (the ground stays)`, `Poner el entorno «${nomPar(PRESET_NOMBRE, p)()}» (el suelo se queda)`), () => amb.preset(p)); b.dataset.preset = p; return b; });
   // sliders: each one changes one field; sent at most every 150 ms while dragging, and once more on release
   type Deslizador = { campo: string; input: HTMLInputElement; salida: HTMLOutputElement; formato: (v: number) => string };
   const deslizadores: Deslizador[] = [];
-  const deslizador = (texto: string, campo: string, min: number, max: number, paso: number, formato: (v: number) => string) => {
+  const deslizador = (texto: Par, campo: string, min: number, max: number, paso: number, formato: (v: number) => string) => {
     const label = document.createElement("label");
-    const span = document.createElement("span"); span.textContent = texto;
+    const span = document.createElement("span"); lig(span, "textContent", texto);
     const salida = document.createElement("output");
     const input = document.createElement("input"); input.type = "range"; input.min = String(min); input.max = String(max); input.step = String(paso);
-    input.setAttribute("aria-label", texto);
+    lig(input, "aria-label", texto);
     let ultimo = 0, espera: ReturnType<typeof setTimeout> | null = null;
     const enviar = () => { espera = null; ultimo = performance.now(); decir(amb.ajustar({ [campo]: Number(input.value) })); };
     input.addEventListener("input", () => {
@@ -109,18 +113,18 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
     return label;
   };
   const suelo = document.createElement("select");
-  suelo.setAttribute("aria-label", "Suelo");
+  ligar(suelo, "aria-label", "Ground", "Suelo");
   for (const s of amb.suelos) { const o = document.createElement("option"); o.value = s.id; o.textContent = s.nombre; suelo.appendChild(o); }
   suelo.addEventListener("change", () => decir(amb.ajustar({ suelo: suelo.value })));
   // H4b — fine environment: sky kind, four colours, fog near, sun strength, and the sky picture / HDR light (library or upload).
-  const cieloTipo = document.createElement("select"); cieloTipo.setAttribute("aria-label", "Tipo de cielo");
+  const cieloTipo = document.createElement("select"); ligar(cieloTipo, "aria-label", "Sky type", "Tipo de cielo");
   for (const [id, nombre] of Object.entries(CIELO_NOMBRE)) { const o = document.createElement("option"); o.value = id; o.textContent = nombre; cieloTipo.appendChild(o); }
   cieloTipo.addEventListener("change", () => decir(amb.ajustar({ cielo: cieloTipo.value })));
-  const cieloLabel = document.createElement("label"); const cieloSpan = document.createElement("span"); cieloSpan.textContent = "Cielo"; cieloLabel.append(cieloSpan, cieloTipo);
+  const cieloLabel = document.createElement("label"); const cieloSpan = document.createElement("span"); ligar(cieloSpan, "textContent", "Sky", "Cielo"); cieloLabel.append(cieloSpan, cieloTipo);
   const colores = COLORES.map((c) => {
     const label = document.createElement("label"); label.className = "color";
-    const span = document.createElement("span"); span.textContent = c.texto;
-    const input = document.createElement("input"); input.type = "color"; input.id = `entorno-color-${c.campo}`; input.setAttribute("aria-label", `${c.texto} / ${c.en}`);
+    const span = document.createElement("span"); ligar(span, "textContent", c.en, c.texto);
+    const input = document.createElement("input"); input.type = "color"; input.id = `entorno-color-${c.campo}`; ligar(input, "aria-label", c.en, c.texto);
     let espera: ReturnType<typeof setTimeout> | null = null;
     const enviar = () => { espera = null; const cambio = cambioColor(c.campo, input.value); if (cambio) decir(amb.ajustar(cambio)); };
     input.addEventListener("input", () => { if (!espera) espera = setTimeout(enviar, 150); }); // dragging in the picker: at most every 150 ms
@@ -128,16 +132,16 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
     label.append(span, input);
     return { campo: c.campo, input, label };
   });
-  const nieblaAuto = boton("Niebla del color del cielo", "La niebla toma el color del horizonte del cielo (vuelve a seguir al cielo). / The fog takes the sky horizon's colour again.", () => amb.ajustar({ nieblaAuto: true }));
+  const nieblaAuto = boton(() => tx("Fog in the sky's colour", "Niebla del color del cielo"), () => tx("The fog takes the sky horizon's colour again.", "La niebla toma el color del horizonte del cielo (vuelve a seguir al cielo)."), () => amb.ajustar({ nieblaAuto: true }));
   nieblaAuto.id = "entorno-niebla-auto";
   // D-076: this world lets players see the real sun where they are (each player still has to switch it on in their settings and accept the browser's question)
   let solRealOfrecido = false;
-  const solRealBtn = boton("Ofrecer el sol real", "Los jugadores de este mundo podrán elegir (en sus ajustes) ver el sol de verdad donde están; el navegador les pregunta su ubicación y solo se usa en su navegador. / Players here may choose to see the real sun where they are.", () => amb.ajustar({ solReal: !solRealOfrecido }));
+  const solRealBtn = boton(() => tx("Offer the real sun", "Ofrecer el sol real"), () => tx("Players here may choose (in their settings) to see the real sun where they are; the browser asks for their location and it is only used in their browser.", "Los jugadores de este mundo podrán elegir (en sus ajustes) ver el sol de verdad donde están; el navegador les pregunta su ubicación y solo se usa en su navegador."), () => amb.ajustar({ solReal: !solRealOfrecido }));
   solRealBtn.id = "entorno-sol-real";
-  const fondoFila = (campo: CampoFondo, texto: string, ayuda: string) => {
+  const fondoFila = (campo: CampoFondo, texto: Par, ayuda: Par) => {
     const caja = document.createElement("div"); caja.className = "fondo"; caja.dataset.campo = campo;
-    const select = document.createElement("select"); select.id = `entorno-${campo}`; select.setAttribute("aria-label", texto);
-    select.title = ayuda;
+    const select = document.createElement("select"); select.id = `entorno-${campo}`; lig(select, "aria-label", texto);
+    lig(select, "title", ayuda);
     let pintado = "";
     const pintar = (actual: string) => {
       const clave = `${actual}|${amb.cielos?.length ?? 0}`;
@@ -148,22 +152,22 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
     };
     select.addEventListener("change", () => decir(amb.ajustar({ [campo]: select.value })));
     const entrada = document.createElement("input"); entrada.type = "file"; entrada.accept = ACEPTA_FONDO[campo]; entrada.hidden = true; entrada.id = `entorno-${campo}-fichero`;
-    const subir = boton("Subir…", `${ayuda} Sube un fichero tuyo (CC0 o tuyo) y lo pone. / Upload your own file and use it.`, () => { entrada.click(); return { ok: true }; });
+    const subir = boton(() => tx("Upload…", "Subir…"), () => tx(`${ayuda()} Upload your own file (CC0 or yours) and it is used.`, `${ayuda()} Sube un fichero tuyo (CC0 o tuyo) y lo pone.`), () => { entrada.click(); return { ok: true }; });
     subir.id = `entorno-${campo}-subir`; subir.hidden = !fondos;
     entrada.addEventListener("change", () => {
       const f = entrada.files?.[0]; entrada.value = "";
       if (!f || !fondos) return;
-      estado.textContent = `Subiendo «${f.name}»…`;
+      estado.textContent = tx(`Uploading «${f.name}»…`, `Subiendo «${f.name}»…`);
       void fondos.subir(f, campo).then((r) => { if (!r.ok) { estado.textContent = `No: ${r.why}`; return; } decir(amb.ajustar({ [campo]: r.nombre })); }).catch((e: unknown) => { estado.textContent = `No: ${(e as Error)?.message ?? e}`; });
     });
-    const t = document.createElement("span"); t.textContent = texto; t.style.gridColumn = "1 / 3";
+    const t = document.createElement("span"); lig(t, "textContent", texto); t.style.gridColumn = "1 / 3";
     caja.append(t, select, subir, entrada);
     return { campo, caja, select, pintar };
   };
-  const fondoImagen = fondoFila("imagen", "Fondo del cielo (imagen)", "Una imagen de 360° (.hdr, .png, .jpg, .webp) en lugar del cielo de colores.");
-  const fondoHdr = fondoFila("hdr", "Luz del cielo (HDR)", "Un fichero .hdr que da la luz y los reflejos en lugar del propio cielo.");
+  const fondoImagen = fondoFila("imagen", () => tx("Sky background (image)", "Fondo del cielo (imagen)"), () => tx("A 360° image (.hdr, .png, .jpg, .webp) instead of the coloured sky.", "Una imagen de 360° (.hdr, .png, .jpg, .webp) en lugar del cielo de colores."));
+  const fondoHdr = fondoFila("hdr", () => tx("Sky light (HDR)", "Luz del cielo (HDR)"), () => tx("An .hdr file that gives the light and reflections instead of the sky itself.", "Un fichero .hdr que da la luz y los reflejos en lugar del propio cielo."));
   const notaFondo = document.createElement("p"); notaFondo.className = "nota"; notaFondo.id = "entorno-nota-nivel";
-  const sueloLabel = document.createElement("label"); const sueloSpan = document.createElement("span"); sueloSpan.textContent = "Suelo"; sueloLabel.append(sueloSpan, suelo);
+  const sueloLabel = document.createElement("label"); const sueloSpan = document.createElement("span"); ligar(sueloSpan, "textContent", "Ground", "Suelo"); sueloLabel.append(sueloSpan, suelo);
 
   // elements: in front of where the camera looks (or 3 m in front of you)
   const delante = (): { x: number; z: number } | undefined => {
@@ -177,10 +181,10 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
   // Interruptor «Naturaleza» (R-1): a phone-style switch, only for whoever may build (amb.estado.puede = the server's
   // «construir»). Clicking only asks; the switch follows the server's state (the file it wrote), never its own click.
   const filaNat = document.createElement("div"); filaNat.className = "interruptor"; filaNat.hidden = true;
-  const natTexto = document.createElement("span"); natTexto.id = "naturaleza-etiqueta"; natTexto.textContent = "Naturaleza";
+  const natTexto = document.createElement("span"); natTexto.id = "naturaleza-etiqueta"; ligar(natTexto, "textContent", "Nature", "Naturaleza");
   const natBoton = document.createElement("button"); natBoton.type = "button"; natBoton.id = "naturaleza-interruptor";
   natBoton.setAttribute("role", "switch"); natBoton.setAttribute("aria-checked", "false"); natBoton.setAttribute("aria-labelledby", "naturaleza-etiqueta");
-  natBoton.title = "Encender o apagar la naturaleza de este mundo (relieve, árboles, hierba, agua, fauna) para todos. Se pinta sobre el relieve del espacio base: pueden estar encendidas las dos a la vez. Se guarda en naturaleza.json. / Turn this world's nature (trees, grass, water, fauna) on or off for everyone. It is painted on the base space's relief: both can be on together.";
+  ligar(natBoton, "title", "Turn this world's nature (trees, grass, water, fauna) on or off for everyone. It is painted on the base space's relief: both can be on together. Saved in naturaleza.json.", "Encender o apagar la naturaleza de este mundo (relieve, árboles, hierba, agua, fauna) para todos. Se pinta sobre el relieve del espacio base: pueden estar encendidas las dos a la vez. Se guarda en naturaleza.json.");
   let natEsperando: boolean | null = null;
   natBoton.addEventListener("click", () => {
     if (!natu) return;
@@ -188,16 +192,16 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
     const r = natu.poner(quiero);
     natEsperando = r.ok ? quiero : null;
     natBoton.setAttribute("aria-busy", String(r.ok));
-    estado.textContent = r.ok ? (quiero ? "Encendiendo la naturaleza…" : "Apagando la naturaleza…") : `No: ${r.why}`;
+    estado.textContent = r.ok ? (quiero ? tx("Turning nature on…", "Encendiendo la naturaleza…") : tx("Turning nature off…", "Apagando la naturaleza…")) : `No: ${r.why}`;
     natBoton.blur();
   });
   filaNat.append(natTexto, natBoton);
   // Interruptor «Espacio base» (H8, same pattern): the empty night world; only for builders; follows the server's state.
   const filaBase = document.createElement("div"); filaBase.className = "interruptor"; filaBase.hidden = true;
-  const baseTexto = document.createElement("span"); baseTexto.id = "espacio-base-etiqueta"; baseTexto.textContent = "Espacio base";
+  const baseTexto = document.createElement("span"); baseTexto.id = "espacio-base-etiqueta"; ligar(baseTexto, "textContent", "Base space", "Espacio base");
   const baseBoton = document.createElement("button"); baseBoton.type = "button"; baseBoton.id = "espacio-base-interruptor";
   baseBoton.setAttribute("role", "switch"); baseBoton.setAttribute("aria-checked", "false"); baseBoton.setAttribute("aria-labelledby", "espacio-base-etiqueta");
-  baseBoton.title = "Encender o apagar el espacio base de este mundo (el lienzo en blanco: de noche, suelo de líneas luminosas, sin árboles ni hierba) para todos. Es el suelo de todo: la naturaleza se pinta encima, y las dos pueden estar encendidas. Se guarda en espacio-base.json. / Turn the blank base space (night, glowing line ground) on or off for everyone. It is the floor of everything: nature is painted on top and both can be on together.";
+  ligar(baseBoton, "title", "Turn the blank base space (night, glowing line ground) on or off for everyone. It is the floor of everything: nature is painted on top and both can be on together. Saved in espacio-base.json.", "Encender o apagar el espacio base de este mundo (el lienzo en blanco: de noche, suelo de líneas luminosas, sin árboles ni hierba) para todos. Es el suelo de todo: la naturaleza se pinta encima, y las dos pueden estar encendidas. Se guarda en espacio-base.json.");
   let baseEsperando: boolean | null = null;
   baseBoton.addEventListener("click", () => {
     if (!base) return;
@@ -205,42 +209,42 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
     const r = base.poner(quiero);
     baseEsperando = r.ok ? quiero : null;
     baseBoton.setAttribute("aria-busy", String(r.ok));
-    estado.textContent = r.ok ? (quiero ? "Encendiendo el espacio base…" : "Apagando el espacio base…") : `No: ${r.why}`;
+    estado.textContent = r.ok ? (quiero ? tx("Turning the base space on…", "Encendiendo el espacio base…") : tx("Turning the base space off…", "Apagando el espacio base…")) : `No: ${r.why}`;
     baseBoton.blur();
   });
   filaBase.append(baseTexto, baseBoton);
   const nota = document.createElement("p"); nota.className = "nota"; nota.hidden = true;
-  nota.textContent = "Espacio base: el lienzo en blanco, de noche. Naturaleza: árboles, hierba y agua que se pintan sobre el relieve del espacio base. Pueden estar encendidas las dos a la vez. / Base space: the blank canvas, at night. Nature: trees, grass and water painted on the base space's relief. Both can be on together.";
+  ligar(nota, "textContent", "Base space: the blank canvas, at night. Nature: trees, grass and water painted on the base space's relief. Both can be on together.", "Espacio base: el lienzo en blanco, de noche. Naturaleza: árboles, hierba y agua que se pintan sobre el relieve del espacio base. Pueden estar encendidas las dos a la vez.");
   // «Restaurar el mundo»: two steps (ask, then confirm); it empties what was built and puts the world back in the espacio base.
-  const confirmar = document.createElement("div"); confirmar.className = "fila"; confirmar.hidden = true; confirmar.setAttribute("role", "group"); confirmar.setAttribute("aria-label", "Confirmar restaurar el mundo");
-  const restaurarBoton = boton("Restaurar el mundo", "Borrar todo lo construido y volver al espacio base (la hoja en blanco). Pide confirmación. / Delete everything built and go back to the base space. Asks first.", () => ({ ok: true }));
+  const confirmar = document.createElement("div"); confirmar.className = "fila"; confirmar.hidden = true; confirmar.setAttribute("role", "group"); ligar(confirmar, "aria-label", "Confirm restoring the world", "Confirmar restaurar el mundo");
+  const restaurarBoton = boton(() => tx("Restore the world", "Restaurar el mundo"), () => tx("Delete everything built and go back to the base space (the blank sheet). Asks first.", "Borrar todo lo construido y volver al espacio base (la hoja en blanco). Pide confirmación."), () => ({ ok: true }));
   restaurarBoton.id = "mundo-restaurar";
-  const sino = document.createElement("span"); sino.textContent = "Se borra todo lo construido y vuelves al espacio base. No se puede deshacer. / Everything built is deleted and you go back to the base space. It cannot be undone.";
-  const si = document.createElement("button"); si.type = "button"; si.id = "mundo-restaurar-si"; si.className = "peligro"; si.textContent = "Sí, restaurar el mundo";
-  const no = document.createElement("button"); no.type = "button"; no.id = "mundo-restaurar-no"; no.textContent = "No, dejarlo como está";
+  const sino = document.createElement("span"); ligar(sino, "textContent", "Everything built is deleted and you go back to the base space. It cannot be undone.", "Se borra todo lo construido y vuelves al espacio base. No se puede deshacer.");
+  const si = document.createElement("button"); si.type = "button"; si.id = "mundo-restaurar-si"; si.className = "peligro"; ligar(si, "textContent", "Yes, restore the world", "Sí, restaurar el mundo");
+  const no = document.createElement("button"); no.type = "button"; no.id = "mundo-restaurar-no"; ligar(no, "textContent", "No, leave it as it is", "No, dejarlo como está");
   confirmar.append(sino, si, no);
   let arrepentirse: ReturnType<typeof setTimeout> | null = null;
   const cerrarConfirmar = () => { if (arrepentirse) clearTimeout(arrepentirse); arrepentirse = null; confirmar.hidden = true; restaurarBoton.hidden = false; };
   restaurarBoton.addEventListener("click", () => { restaurarBoton.hidden = true; confirmar.hidden = false; si.focus(); arrepentirse = setTimeout(cerrarConfirmar, 10000); });
-  no.addEventListener("click", () => { cerrarConfirmar(); estado.textContent = "Dejado como estaba."; restaurarBoton.focus(); });
+  no.addEventListener("click", () => { cerrarConfirmar(); estado.textContent = tx("Left as it was.", "Dejado como estaba."); restaurarBoton.focus(); });
   si.addEventListener("click", () => {
     cerrarConfirmar();
     const fallos: string[] = [];
     if (natu?.activa()) natu.poner(false); // «Restore» goes back to the blank canvas: the nature is turned off too (it is a choice, not an exclusion)
     for (const r of [base?.restaurar(), objetos?.reiniciar(), elem.vaciar?.()]) if (r && !r.ok) fallos.push(r.why);
-    estado.textContent = fallos.length ? `No del todo: ${fallos[0]}` : "Mundo restaurado: vuelves al espacio base.";
+    estado.textContent = fallos.length ? tx(`Not quite: ${fallos[0]}`, `No del todo: ${fallos[0]}`) : tx("World restored: you are back in the base space.", "Mundo restaurado: vuelves al espacio base.");
   });
-  const filaRestaurar = document.createElement("div"); filaRestaurar.hidden = true; filaRestaurar.append(fila("Restaurar el mundo", restaurarBoton), confirmar);
+  const filaRestaurar = document.createElement("div"); filaRestaurar.hidden = true; filaRestaurar.append(fila(() => tx("Restore the world", "Restaurar el mundo"), restaurarBoton), confirmar);
   // Seed of the espacio base (H8): a number and two buttons, no file to edit. Live for everyone; the logo and the moñoni stay where they are.
-  const filaSemilla = document.createElement("div"); filaSemilla.className = "fila"; filaSemilla.hidden = true; filaSemilla.setAttribute("role", "group"); filaSemilla.setAttribute("aria-label", "Semilla del espacio base / Base space seed");
+  const filaSemilla = document.createElement("div"); filaSemilla.className = "fila"; filaSemilla.hidden = true; filaSemilla.setAttribute("role", "group"); ligar(filaSemilla, "aria-label", "Base space seed", "Semilla del espacio base");
   const semEtiqueta = document.createElement("label"); semEtiqueta.style.display = "flex"; semEtiqueta.style.gap = "6px"; semEtiqueta.style.alignItems = "center";
-  const semTexto = document.createElement("span"); semTexto.textContent = "Semilla / Seed";
+  const semTexto = document.createElement("span"); ligar(semTexto, "textContent", "Seed", "Semilla");
   const semInput = document.createElement("input"); semInput.type = "number"; semInput.id = "espacio-base-semilla"; semInput.min = "0"; semInput.max = "2147483647"; semInput.step = "1"; semInput.style.width = "9em";
-  semInput.title = "El relieve de alrededor de la meseta: el mismo número da el mismo relieve. / The relief around the plateau: the same number gives the same relief.";
+  ligar(semInput, "title", "The relief around the plateau: the same number gives the same relief.", "El relieve de alrededor de la meseta: el mismo número da el mismo relieve.");
   semEtiqueta.append(semTexto, semInput);
-  const semIr = (n: number) => { const r = base?.ponerSemilla(n) ?? { ok: false as const, why: "no hay espacio base" }; estado.textContent = r.ok ? `Semilla ${n}…` : `No: ${r.why}`; };
-  const semAplicar = boton("Aplicar", "Usar esta semilla / Use this seed", () => { const n = Number(semInput.value); if (!Number.isInteger(n) || n < 0 || n > 2147483647) return { ok: false, why: "un número entero entre 0 y 2147483647" }; semIr(n); return { ok: true }; });
-  const semAzar = boton("Otra al azar", "Probar otra semilla al azar / Try a random seed", () => { const n = Math.floor(Math.random() * 1_000_000); semInput.value = String(n); semIr(n); return { ok: true }; });
+  const semIr = (n: number) => { const r = base?.ponerSemilla(n) ?? { ok: false as const, why: tx("there is no base space", "no hay espacio base") }; estado.textContent = r.ok ? tx(`Seed ${n}…`, `Semilla ${n}…`) : `No: ${r.why}`; };
+  const semAplicar = boton(() => tx("Apply", "Aplicar"), () => tx("Use this seed", "Usar esta semilla"), () => { const n = Number(semInput.value); if (!Number.isInteger(n) || n < 0 || n > 2147483647) return { ok: false, why: tx("a whole number between 0 and 2147483647", "un número entero entre 0 y 2147483647") }; semIr(n); return { ok: true }; });
+  const semAzar = boton(() => tx("Another at random", "Otra al azar"), () => tx("Try a random seed", "Probar otra semilla al azar"), () => { const n = Math.floor(Math.random() * 1_000_000); semInput.value = String(n); semIr(n); return { ok: true }; });
   filaSemilla.append(semEtiqueta, semAplicar, semAzar);
   // Interruptores de piezas (Pablo, 2026-10-21: toda pieza es un interruptor): same pattern, but the row is shown to who may DIRIGIR
   // or rule (the server's `permiso`), not only to builders; the switch follows the server's state, never its own click.
@@ -254,7 +258,7 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
       const quiero = !pz.interruptor.activa(), r = pz.interruptor.poner(quiero);
       esperando = r.ok ? quiero : null;
       boton.setAttribute("aria-busy", String(r.ok));
-      estado.textContent = r.ok ? `${quiero ? "Encendiendo" : "Apagando"}: ${pz.etiqueta}…` : `No: ${r.why}`;
+      estado.textContent = r.ok ? `${quiero ? tx("Turning on", "Encendiendo") : tx("Turning off", "Apagando")}: ${pz.etiqueta}…` : `No: ${r.why}`;
       boton.blur();
     });
     fila.append(texto, boton);
@@ -263,8 +267,8 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
   // «Funciones de este mundo» (funciones/f3): one switch per function the world has (normas, dardos, pesca), the same shape as «Espacio base».
   // Which rows, what they say and whether they can be pressed is features/funciones/panel.ts (pure); here they are only drawn and follow the server.
   const grupoFunciones = document.createElement("div"); grupoFunciones.className = "funciones"; grupoFunciones.id = "funciones-mundo"; grupoFunciones.hidden = true;
-  grupoFunciones.setAttribute("role", "group"); grupoFunciones.setAttribute("aria-label", tituloGrupo("es") + " / " + tituloGrupo("en"));
-  const grupoTitulo = titulo("h3", tituloGrupo("es")); grupoTitulo.title = tituloGrupo("en");
+  grupoFunciones.setAttribute("role", "group"); lig(grupoFunciones, "aria-label", () => tituloGrupo(idiomaActivo()));
+  const grupoTitulo = titulo("h3", () => tituloGrupo(idiomaActivo()));
   grupoFunciones.append(grupoTitulo);
   const idioma = () => (typeof document !== "undefined" ? document.documentElement.lang : "");
   type FilaDom = { fila: HTMLElement; boton: HTMLButtonElement; notas: HTMLElement; clave: string };
@@ -328,32 +332,32 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
     filaSemilla,
     filaRestaurar,
     grupoFunciones,
-    fila("Entornos con nombre", ...presets),
-    titulo("h3", "Cielo, niebla y sol"),
+    fila(() => tx("Named environments", "Entornos con nombre"), ...presets),
+    titulo("h3", () => tx("Sky, fog and sun", "Cielo, niebla y sol")),
     cieloLabel,
     ...colores.map((c) => c.label),
-    deslizador("Altura del sol", "solAltura", -30, 90, 1, (v) => `${v}°`),
-    deslizador("Rumbo del sol", "solRumbo", -180, 180, 5, (v) => `${v}°`),
-    fila("Sol real", solRealBtn),
-    deslizador("Fuerza del sol", "solIntensidad", 0, 10, 0.1, (v) => v.toFixed(1)),
-    deslizador("Niebla (cerca)", "nieblaCerca", 0, 600, 5, (v) => `${v} m`),
-    deslizador("Niebla (lejos)", "nieblaLejos", 0, 600, 5, (v) => (v === 0 ? "sin niebla" : `${v} m`)),
-    fila("Niebla", nieblaAuto),
-    titulo("h3", "Fondo y luz del cielo"),
+    deslizador(() => tx("Sun height", "Altura del sol"), "solAltura", -30, 90, 1, (v) => `${v}°`),
+    deslizador(() => tx("Sun heading", "Rumbo del sol"), "solRumbo", -180, 180, 5, (v) => `${v}°`),
+    fila(() => tx("Real sun", "Sol real"), solRealBtn),
+    deslizador(() => tx("Sun strength", "Fuerza del sol"), "solIntensidad", 0, 10, 0.1, (v) => v.toFixed(1)),
+    deslizador(() => tx("Fog (near)", "Niebla (cerca)"), "nieblaCerca", 0, 600, 5, (v) => `${v} m`),
+    deslizador(() => tx("Fog (far)", "Niebla (lejos)"), "nieblaLejos", 0, 600, 5, (v) => (v === 0 ? tx("no fog", "sin niebla") : `${v} m`)),
+    fila(() => tx("Fog", "Niebla"), nieblaAuto),
+    titulo("h3", () => tx("Sky background and light", "Fondo y luz del cielo")),
     fondoImagen.caja,
     fondoHdr.caja,
     notaFondo,
-    deslizador("Viento", "vientoFuerza", 0, 25, 0.5, (v) => `${v} m/s`),
-    deslizador("Exposición", "exposicion", 0.2, 2.5, 0.05, (v) => v.toFixed(2)),
+    deslizador(() => tx("Wind", "Viento"), "vientoFuerza", 0, 25, 0.5, (v) => `${v} m/s`),
+    deslizador(() => tx("Exposure", "Exposición"), "exposicion", 0.2, 2.5, 0.05, (v) => v.toFixed(2)),
     sueloLabel,
-    fila("Entorno del mundo", boton("Restaurar el del mundo", "Volver al entorno con el que viene el mundo", () => amb.restaurar())),
-    titulo("h3", "Elementos"),
-    fila("Poner delante de ti", ...elem.tipos.map((t) => boton(`Poner ${(ELEMENTO_NOMBRE[t] ?? t).toLowerCase()}`, `Poner ${ELEMENTO_NOMBRE[t] ?? t} delante de ti`, () => elem.poner(t, delante())))),
+    fila(() => tx("World environment", "Entorno del mundo"), boton(() => tx("Restore the world's own", "Restaurar el del mundo"), () => tx("Go back to the environment the world comes with", "Volver al entorno con el que viene el mundo"), () => amb.restaurar())),
+    titulo("h3", () => tx("Elements", "Elementos")),
+    fila(() => tx("Place in front of you", "Poner delante de ti"), ...elem.tipos.map((t) => { const nom = nomPar(ELEMENTO_NOMBRE, t); return boton(() => tx(`Place ${nom().toLowerCase()}`, `Poner ${nom().toLowerCase()}`), () => tx(`Place ${nom()} in front of you`, `Poner ${nom()} delante de ti`), () => elem.poner(t, delante())); })),
     sel,
-    fila("Cambiar el elemento", boton("Más grande", "Agrandar un 25 %", () => elem.escalar(1.25)), boton("Más pequeño", "Reducir un 20 %", () => elem.escalar(0.8)),
-      boton("←", "Mover 1 m a la izquierda", () => elem.desplazar(-1, 0)), boton("→", "Mover 1 m a la derecha", () => elem.desplazar(1, 0)),
-      boton("↑", "Mover 1 m hacia el fondo", () => elem.desplazar(0, -1)), boton("↓", "Mover 1 m hacia ti", () => elem.desplazar(0, 1)),
-      boton("Quitar", "Quitar el elemento del mundo", () => elem.quitar())),
+    fila(() => tx("Change the element", "Cambiar el elemento"), boton(() => tx("Bigger", "Más grande"), () => tx("Enlarge by 25 %", "Agrandar un 25 %"), () => elem.escalar(1.25)), boton(() => tx("Smaller", "Más pequeño"), () => tx("Shrink by 20 %", "Reducir un 20 %"), () => elem.escalar(0.8)),
+      boton(() => tx("←", "←"), () => tx("Move 1 m left", "Mover 1 m a la izquierda"), () => elem.desplazar(-1, 0)), boton(() => tx("→", "→"), () => tx("Move 1 m right", "Mover 1 m a la derecha"), () => elem.desplazar(1, 0)),
+      boton(() => tx("↑", "↑"), () => tx("Move 1 m away from you", "Mover 1 m hacia el fondo"), () => elem.desplazar(0, -1)), boton(() => tx("↓", "↓"), () => tx("Move 1 m towards you", "Mover 1 m hacia ti"), () => elem.desplazar(0, 1)),
+      boton(() => tx("Remove", "Quitar"), () => tx("Remove the element from the world", "Quitar el elemento del mundo"), () => elem.quitar())),
     estado,
   );
 
@@ -376,13 +380,13 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
       for (const b of presets) b.setAttribute("aria-pressed", String(b.dataset.preset === v.preset));
     }
     const o = elem.seleccion();
-    sel.textContent = o ? `Elemento: ${String(o.nombre) || ELEMENTO_NOMBRE[String(o.tipo)] || String(o.tipo)} · ${o.id}` : "Ningún elemento seleccionado ni a menos de 12 m.";
+    { const nm = String(o?.nombre ?? "") || nomPar(ELEMENTO_NOMBRE, String(o?.tipo))() || String(o?.tipo); sel.textContent = o ? tx(`Element: ${nm} · ${o.id}`, `Elemento: ${nm} · ${o.id}`) : tx("No element selected or within 12 m.", "Ningún elemento seleccionado ni a menos de 12 m."); }
     if (natu) {
       filaNat.hidden = !amb.estado.puede;
       const on = natu.activa();
       natBoton.setAttribute("aria-checked", String(on));
       if (natEsperando !== null && (on === natEsperando || natu.estado.ultimoRechazo)) {
-        if (on === natEsperando) estado.textContent = on ? "Naturaleza encendida." : "Naturaleza apagada.";
+        if (on === natEsperando) estado.textContent = on ? tx("Nature is on.", "Naturaleza encendida.") : tx("Nature is off.", "Naturaleza apagada.");
         natEsperando = null; natBoton.setAttribute("aria-busy", "false");
       }
     }
@@ -393,7 +397,7 @@ export function montarEntorno(amb: Ambiente, elem: Elementos, vista: Vista, natu
       filaSemilla.hidden = !amb.estado.puede || !on;
       if (document.activeElement !== semInput) semInput.value = String(base.semilla());
       if (baseEsperando !== null && (on === baseEsperando || base.estado.ultimoRechazo)) {
-        if (on === baseEsperando) estado.textContent = on ? "Espacio base encendido." : "Espacio base apagado.";
+        if (on === baseEsperando) estado.textContent = on ? tx("Base space is on.", "Espacio base encendido.") : tx("Base space is off.", "Espacio base apagado.");
         baseEsperando = null; baseBoton.setAttribute("aria-busy", "false");
       }
     }

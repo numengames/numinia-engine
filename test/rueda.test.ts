@@ -170,7 +170,7 @@ test("J7b over the wire: a move reaches whoever is within 30 m; a VRM plays it, 
   assert.equal(A.g.hacer("bailar").ok, true);
   const r = A.g.hacer("bailar");
   assert.equal(r.ok, false);
-  if (!r.ok) assert.match(r.why, /Espera/);
+  if (!r.ok) assert.match(r.why, /Wait a moment/);
   W.pump(2);
   assert.ok(B.seen.includes(`mov ${A.s.entity} parar`));
   assert.ok(A.seen.includes(`bounce ${A.s.entity}`), "a dance hops on a capsule");

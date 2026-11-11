@@ -1,7 +1,7 @@
 // gente-ia (ia-visible S6/S7): the count «N personas · M IAs», the name without the mark, the card's model, and the texts of every language.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cuentaGente, sinMarca, respondeValor, fichaIA, subIA, textos, IDIOMAS } from "../apps/plaza/gente-ia.ts";
+import { ojosFicha, cuentaGente, sinMarca, respondeValor, fichaIA, subIA, textos, IDIOMAS } from "../apps/plaza/gente-ia.ts";
 import { es } from "../apps/plaza/gente-ia-es.ts";
 import { ojosDe } from "../features/ia/ojos.ts";
 import type { IAPublica } from "../features/ia/feature.ts";
@@ -78,4 +78,16 @@ test("gente-ia: «Gente» in the VR menu puts people first, then the AIs with th
   assert.equal(listaGenteVR(gente, 3, (q) => (q === 3 ? { ...ACTIVA, tamano: "medio" } : null), () => "").filas[2]!.detalle, "IA · Modelo medio · Activa", "a known size is said, shortly");
   assert.equal(listaGenteVR(gente, 3, () => null, () => "").cuenta, "3 personas", "no AIs: no AI part");
   assert.equal(listaGenteVR(gente, 9, () => null, () => "").cuenta, "9 personas", "the server's count wins when larger");
+});
+
+test("English: the same keys as Spanish, the count and the E prompt read in English", async () => {
+  const { en } = await import("../apps/plaza/gente-ia-en.ts");
+  assert.deepEqual(Object.keys(en).sort(), Object.keys(es).sort());
+  assert.ok(Object.values(en).every((v) => typeof v === "string" && v.length > 0));
+  assert.equal(textos("en"), en);
+  assert.equal(cuentaGente(3, 1, "en"), "3 people · 1 AI");
+  assert.equal(cuentaGente(1, 0, "en"), "1 person");
+  assert.equal(`${textos("en").promptHablar} Ada`, "talk to Ada");
+  assert.match(ojosFicha({ tamano: "medio" }, "en").texto, /Yellow round eyes/);
+  assert.equal(ojosFicha({ tamano: "medio" }, "es").texto, ojosDe("medio").texto);
 });

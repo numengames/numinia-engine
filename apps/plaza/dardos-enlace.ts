@@ -18,6 +18,7 @@ import { anfitrionDe, claveInvitado, direccionDeEstado, limpiarNombreMundo, nomb
 import type { EnlaceDardos } from "../../features/dardos/enlace.ts";
 import { montarDuelo } from "./dardos-duelo.ts";
 import type { DianaAR } from "../../packages/render/src/index.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 /** What the link is doing, in one word:
  *  - `cerrado`: nothing opened (or it was closed); - `conectando`: the socket or the identity is not there yet;
@@ -127,7 +128,7 @@ export function crearEnlaceDardos(o: OpcionesEnlace) {
     dec("estado");
     const url = direccionDeEnlace(o.enlace.servidor);
     let t: Abierto;
-    try { t = o.abrir ? o.abrir(url) : webSocketClient(url); } catch (e) { cerrarTodo("fallo", `no se pudo abrir ${anfitrionDe(o.enlace.servidor)}: ${(e as Error).message}`); return "error"; }
+    try { t = o.abrir ? o.abrir(url) : webSocketClient(url); } catch (e) { cerrarTodo("fallo", tx(`could not open ${anfitrionDe(o.enlace.servidor)}: ${(e as Error).message}`, `no se pudo abrir ${anfitrionDe(o.enlace.servidor)}: ${(e as Error).message}`)); return "error"; }
     transport = t;
     const S = new ClientSession(t, {
       features: parts,
@@ -135,11 +136,11 @@ export function crearEnlaceDardos(o: OpcionesEnlace) {
     });
     session = S;
     S.onCondiciones = (m) => { cond = m; dec("estado"); for (const f of [...oyentesCond]) { try { f(m); } catch { /* a listener must not break the link */ } } };
-    void t.closed?.then((c) => { if (transport === t) cerrarTodo(fase === "abriendo" ? "fallo" : "cerrada", c.code === 4004 ? "el mundo enlazado está lleno" : c.code === 4003 ? "el mundo enlazado no te deja entrar" : `conexión cerrada (${c.code})`); });
-    try { await t.opened; } catch (e) { if (transport === t) cerrarTodo("fallo", `no se pudo llegar a ${anfitrionDe(o.enlace.servidor)}`); return "error"; }
+    void t.closed?.then((c) => { if (transport === t) cerrarTodo(fase === "abriendo" ? "fallo" : "cerrada", c.code === 4004 ? tx("the linked world is full", "el mundo enlazado está lleno") : c.code === 4003 ? tx("the linked world will not let you in", "el mundo enlazado no te deja entrar") : tx(`connection closed (${c.code})`, `conexión cerrada (${c.code})`)); });
+    try { await t.opened; } catch (e) { if (transport === t) cerrarTodo("fallo", tx(`could not reach ${anfitrionDe(o.enlace.servidor)}`, `no se pudo llegar a ${anfitrionDe(o.enlace.servidor)}`)); return "error"; }
     if (transport !== t) return estado();
     fase = "abierta"; dec("estado");
-    timer = setTimeout(() => { if (transport === t && (!identificado || cond === null)) cerrarTodo("fallo", "el mundo enlazado no responde"); }, o.esperaMs ?? 10_000);
+    timer = setTimeout(() => { if (transport === t && (!identificado || cond === null)) cerrarTodo("fallo", tx("the linked world is not answering", "el mundo enlazado no responde")); }, o.esperaMs ?? 10_000);
     // identified → ask for the conditions (answered whether the gate is on or off): `listo` / `puerta` are only said once we know
     const vigila = setInterval(() => {
       if (transport !== t || !session) { clearInterval(vigila); return; }
@@ -166,17 +167,17 @@ export function crearEnlaceDardos(o: OpcionesEnlace) {
     if (estado() === "jugando") return { ok: true };
     if (estado() === "cerrado" || estado() === "error") await conectar();
     const e = estado();
-    if (e === "puerta") return { ok: false, why: `Primero hay que aceptar las normas de ${nombreDelEnlace(o.enlace, nombreServidor)}.` };
-    if (e !== "listo") return { ok: false, why: motivo || "El mundo enlazado no está disponible ahora." };
-    const v = o.view; if (!v) return { ok: false, why: "Esta página no puede abrir AR." };
-    if (v.ar.state !== undefined && v.ar.state !== "off") return { ok: false, why: "Ya estás en una sesión de AR." };
-    if (!ctl.sitios().length) return { ok: false, why: "La diana del mundo enlazado no está disponible." };
+    if (e === "puerta") return { ok: false, why: tx(`First you have to accept the rules of ${nombreDelEnlace(o.enlace, nombreServidor)}.`, `Primero hay que aceptar las normas de ${nombreDelEnlace(o.enlace, nombreServidor)}.`) };
+    if (e !== "listo") return { ok: false, why: motivo || tx("The linked world is not available right now.", "El mundo enlazado no está disponible ahora.") };
+    const v = o.view; if (!v) return { ok: false, why: tx("This page cannot open AR.", "Esta página no puede abrir AR.") };
+    if (v.ar.state !== undefined && v.ar.state !== "off") return { ok: false, why: tx("You are already in an AR session.", "Ya estás en una sesión de AR.") };
+    if (!ctl.sitios().length) return { ok: false, why: tx("The linked world's dartboard is not available.", "La diana del mundo enlazado no está disponible.") };
     duelo ??= montarDuelo({ dardos: ctl, entity: () => session?.entity ?? -1, hud: document.createElement("div"), fijarSitio: () => {}, avisar: decir, alTerminar: () => {} });
     duelo.preferir(o.enlace.diana);
     const base = duelo.opcionesAR({ alLanzar: () => { /* no board of the link to throw at: nothing to send */ } });
     const envolver = (j: DianaAR): DianaAR => { const w = base.envolver(j); return { ...w, fin() { w.fin(); arJuego = null; enPared = false; ctl.salir(); dec("estado"); } }; };
     arJuego = await v.dardosAR({ ...base, envolver, zona: ZONA_FUERZA.ar });
-    if (!arJuego) return { ok: false, why: "No se pudo abrir la sesión de AR." };
+    if (!arJuego) return { ok: false, why: tx("Could not open the AR session.", "No se pudo abrir la sesión de AR.") };
     enPared = true; arJuego.clavados(dardos.clavados(o.enlace.diana)); dec("estado");
     return { ok: true };
   }

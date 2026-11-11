@@ -6,6 +6,7 @@ import type { Aviso } from "../../packages/client/src/densidad.ts";
 import { alAnunciar, crearDialogo } from "./paneles.ts";
 import { icono } from "./iconos.ts";
 import { rotularBoton } from "./menu-secciones-ui.ts"; // v2 paridad: icon, name and tooltip from the one list of sections
+import { tx, ligar, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
 
 export function montarAvisos(): void {
   const caja = document.getElementById("avisos-pila");
@@ -29,7 +30,7 @@ export function montarAvisos(): void {
 
 // The notices' centre (key N): a bell in the top bar with an unread count, and a panel with the session's notices, filterable by kind.
 type Tipo = "mision" | "gente" | "combate" | "sistema" | "novedades";
-const FILTROS: Array<[string, Tipo | null]> = [["Todo", null], ["Misiones", "mision"], ["Gente", "gente"], ["Combate", "combate"], ["Sistema", "sistema"]];
+const FILTROS: Array<[() => string, Tipo | null]> = [[() => tx("All", "Todo"), null], [() => tx("Quests", "Misiones"), "mision"], [() => tx("People", "Gente"), "gente"], [() => tx("Combat", "Combate"), "combate"], [() => tx("System", "Sistema"), "sistema"]];
 const ICONO: Record<Tipo, string> = { mision: "scroll", gente: "users", combate: "target", sistema: "gear", novedades: "sparkle" };
 type Entrada = { texto: string; tipo: Tipo; ts: number; leido: boolean; titulo?: string; lineas?: string[]; alLeer?: () => void };
 
@@ -41,9 +42,9 @@ const fijosEnEspera: AvisoFijo[] = [];
 export function avisoFijo(a: AvisoFijo): void { if (meterFijo) meterFijo(a); else fijosEnEspera.push(a); }
 /** Kind of a notice, from its words (the announcements are plain text; there is no kind in them yet). */
 export function tipoDeAviso(t: string): Tipo {
-  if (/misi[oó]n|insignia|objetivo|recompensa/i.test(t)) return "mision";
-  if (/golpe|da[ñn]o|estado|derrot|criatura|combate|aturdi|confundi|colaps/i.test(t)) return "combate";
-  if (/ha llegado|se ha ido|se une|conectad|grupo|saluda|gente|silenci/i.test(t)) return "gente";
+  if (/misi[oó]n|insignia|objetivo|recompensa|quest|badge|reward/i.test(t)) return "mision";
+  if (/golpe|da[ñn]o|estado|derrot|criatura|combate|aturdi|confundi|colaps|\bhit\b|creature|critical|you are down|you fall|recover/i.test(t)) return "combate";
+  if (/ha llegado|se ha ido|se une|conectad|grupo|saluda|gente|silenci|has arrived|joined|waves|someone|people/i.test(t)) return "gente";
   return "sistema";
 }
 
@@ -55,26 +56,27 @@ function montarCentro(): void {
   const hist: Entrada[] = [];
   const leer = (h: Entrada) => { if (!h.leido) { h.leido = true; try { h.alLeer?.(); } catch { /* a reader never breaks the bell */ } } };
   let filtro: Tipo | null = null;
-  const panel = crearDialogo({ id: "avisos-centro", titulo: "Avisos", tecla: "KeyN", boton, alAbrir: () => { for (const h of hist) leer(h); pintar(); } });
-  const filtros = document.createElement("div"); filtros.className = "filtros"; filtros.setAttribute("role", "group"); filtros.setAttribute("aria-label", "Filtrar avisos");
-  const lista = document.createElement("ul"); lista.className = "avisos-lista"; lista.setAttribute("aria-label", "Avisos de esta sesión");
-  const marcar = document.createElement("button"); marcar.type = "button"; marcar.textContent = "Marcar leídos";
+  const panel = crearDialogo({ id: "avisos-centro", titulo: () => tx("Notices", "Avisos"), tecla: "KeyN", accion: "avisos", boton, alAbrir: () => { for (const h of hist) leer(h); pintar(); } });
+  const filtros = document.createElement("div"); filtros.className = "filtros"; filtros.setAttribute("role", "group"); ligar(filtros, "aria-label", "Filter notices", "Filtrar avisos");
+  const lista = document.createElement("ul"); lista.className = "avisos-lista"; ligar(lista, "aria-label", "Notices from this session", "Avisos de esta sesión");
+  const marcar = document.createElement("button"); marcar.type = "button"; ligar(marcar, "textContent", "Mark all read", "Marcar leídos");
   marcar.addEventListener("click", () => { for (const h of hist) leer(h); pintar(); });
   for (const [nombre, t] of FILTROS) {
-    const b = document.createElement("button"); b.type = "button"; b.textContent = nombre; b.setAttribute("aria-pressed", String(t === filtro));
+    const b = document.createElement("button"); b.type = "button"; alCambiarIdioma(() => { b.textContent = nombre(); }); b.setAttribute("aria-pressed", String(t === filtro));
     b.addEventListener("click", () => { filtro = t; for (const x of filtros.children) x.setAttribute("aria-pressed", String(x === b)); pintar(); });
     filtros.appendChild(b);
   }
   panel.cuerpo.append(filtros, lista, marcar);
   const insignia = boton.querySelector(".insignia-n") as HTMLElement;
+  alCambiarIdioma(() => { const h2 = document.getElementById("avisos-centro-titulo"); if (h2) h2.textContent = tx("Notices", "Avisos"); pintar(); }); // title and the open list follow the language
   function pintar(): void {
     const sin = hist.filter((h) => !h.leido).length;
     insignia.hidden = sin === 0; insignia.textContent = String(Math.min(sin, 99));
-    boton.setAttribute("aria-label", sin ? `Avisos, ${sin} sin leer` : "Avisos");
+    boton.setAttribute("aria-label", sin ? tx(`Notices, ${sin} unread`, `Avisos, ${sin} sin leer`) : tx("Notices", "Avisos"));
     if (!panel.abierto) return;
     lista.replaceChildren();
     const vis = hist.filter((h) => !filtro || h.tipo === filtro || (filtro === "sistema" && h.tipo === "novedades")).slice().reverse();
-    if (!vis.length) { const v = document.createElement("li"); v.className = "vacio"; v.textContent = "No hay avisos."; lista.appendChild(v); return; }
+    if (!vis.length) { const v = document.createElement("li"); v.className = "vacio"; v.textContent = tx("No notices.", "No hay avisos."); lista.appendChild(v); return; }
     for (const h of vis) {
       const li = document.createElement("li"); li.className = `aviso-${h.tipo}`;
       const ic = document.createElement("span"); ic.className = "ic"; ic.innerHTML = icono(ICONO[h.tipo], 18); // constants only

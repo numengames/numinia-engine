@@ -1,6 +1,7 @@
 // C3 + C4: the object card — when it shows, what it says, the link to the place, its tabs and the wires of an object.
 // (The DOM is covered by the e2e leg.)
 import { test } from "node:test";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
 import assert from "node:assert/strict";
 import { aplicarAccionVR, datosFicha, enlaceDeObjeto, ETIQUETAS_FICHA, FACTOR_MAS_VR, FACTOR_MENOS_VR, fichaVisible, logicaDeObjeto, PASO_GIRO_VR, seleccionarAlIr } from "../apps/plaza/ficha-objeto.ts";
 import type { AccionVR } from "../apps/plaza/ficha-objeto.ts";
@@ -21,6 +22,7 @@ test("«Ir» selects the object only when building is allowed, the builder is op
 });
 
 test("the card says name, type and the facts the model carries — never a maker it does not have", () => {
+  fijarIdioma("es"); // these assertions read the Spanish text; the English ones are in the test at the end of the file
   const d = datosFicha({ id: "o1", nombre: "Mesa", tipo: "sonido", x: 3.04, y: 0, z: -2, sx: 1, sy: 1, sz: 1, fijado: true });
   assert.equal(d.titulo, "Mesa");
   assert.equal(d.tipo, "Zona de sonido");
@@ -42,6 +44,7 @@ test("the link to an object is a #foto= place the photo mode can read back", () 
 });
 
 test("C4: the wires of an object — who shows or hides it (by id or name), what stands at it, locks and counters at the same spot", () => {
+  fijarIdioma("es"); // these assertions read the Spanish text; the English ones are in the test at the end of the file
   const mesa = { id: "o7", nombre: "Mesa", x: 10, y: 0, z: 10 };
   const w = {
     disparadores: [
@@ -96,6 +99,7 @@ test("VR panel: celdaEn maps the centre of each cell to 1..8 and the gaps, the t
 });
 
 test("VR actions run the builder's own verbs with fixed steps, say what happened, and report a refusal in words", () => {
+  fijarIdioma("es"); // these assertions read the Spanish text; the English ones are in the test at the end of the file
   const llamadas: string[] = [];
   const bien = { ok: true } as const;
   const c = {
@@ -136,4 +140,21 @@ test("the angle to the card: 0 on the line of sight, 90 at the side, 180 behind 
   const p = puntoFicha(ojo, mira); // after a 120° turn to the right, the card left where it opened is far outside the cone
   const a = (-120 * Math.PI) / 180;
   assert.ok(gradosDeLaMirada(ojo, { x: -Math.sin(a), y: 0, z: -Math.cos(a) }, p) > FICHA_SEGUIR_GRADOS);
+});
+
+import { afterEach } from "node:test";
+afterEach(() => { fijarIdioma("en"); });
+
+test("English first: the card, the wires and the VR line read in English by default, Spanish on request", () => {
+  fijarIdioma("en");
+  const d = datosFicha({ id: "o1", nombre: "Mesa", tipo: "sonido", x: 3.04, y: 0, z: -2, sx: 1, sy: 1, sz: 1, fijado: true });
+  assert.equal(d.tipo, "Sound zone");
+  assert.deepEqual(d.hechos, [["Position", "x 3 · z -2"], ["Scale", "1"], ["State", "anchored"]]);
+  assert.equal(datosFicha({ id: "o2" }).titulo, "(decor)");
+  assert.equal(ETIQUETAS_FICHA.cerrar, "Close");
+  const c = { modo: () => ({ ok: true }) } as never;
+  assert.match(aplicarAccionVR(c, "mover").dicho, /trigger/);
+  fijarIdioma("es");
+  assert.equal(ETIQUETAS_FICHA.cerrar, "Cerrar");
+  assert.equal(datosFicha({ id: "o2" }).titulo, "(decorado)");
 });
