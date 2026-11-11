@@ -38,6 +38,5 @@ test("sePuedeCompartir: getDisplayMedia must exist (desktop, iOS 27) and the pag
 });
 
 test("fraseInicio: says where your screen went, and who sees it", () => {
-  assert.equal(fraseInicio("Cine"), "Compartiendo tu pantalla en «Cine»: la ven quienes estén cerca.");
-  assert.match(fraseInicio(null), /^No hay ninguna pantalla cerca: la ves en una ventana/);
-});
+  assert.equal(fraseInicio("Cine"), "Sharing your screen on «Cine»: people nearby can see it.");
+  assert.match(fraseInicio(null), /^There is no screen nearby: you see it in a window/);});

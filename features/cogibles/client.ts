@@ -4,12 +4,13 @@
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg, PlacedObject } from "../../packages/feature/src/index.ts";
 import { cogibles as decl, NADIE } from "./feature.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 /** The house block (features/objetos/biblioteca.json «bloque», CC0) when a thing has no model of its own. */
 export const MODELO_CAJA = "32fce59977a24c3c15eb40084c700c1537e59853747f92ce1d01c6fd65958588";
 export type Cosa = { id: string; nombre: string; x: number; y: number; z: number; modelo: string; escala: number; radio: number; portador: number };
 type Res = { ok: true } | { ok: false; why: string };
-const SIN: Res = { ok: false, why: "la función cogibles no está en este servidor" };
+const sin = (): Res => ({ ok: false, why: tx("the cogibles feature is not on this server", "la función cogibles no está en este servidor") });
 
 /** How it lies on the floor. Pure. */
 export const enElSuelo = (v: Pick<Cosa, "x" | "y" | "z" | "modelo" | "escala">): PlacedObject =>
@@ -23,8 +24,8 @@ export function crearCliente() {
     lista: (): Cosa[] => (A ? A.state.keys().map((k) => ({ id: k, ...(A!.state.get(k) as Msg) }) as Cosa) : []),
     /** What this page's player carries now (ids). */
     mias: (): string[] => (A ? cogibles.lista().filter((c) => Number(c.portador) === A!.self()).map((c) => c.id) : []),
-    coger: (id: string): Res => (A ? A.send("coger", { cosa: id }) : SIN),
-    soltar: (id = ""): Res => (A ? A.send("soltar", { cosa: id }) : SIN),
+    coger: (id: string): Res => (A ? A.send("coger", { cosa: id }) : sin()),
+    soltar: (id = ""): Res => (A ? A.send("soltar", { cosa: id }) : sin()),
     alCambiar: (fn: (id: string) => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
   const parte: ClientPart = clientPart(decl, (api) => {
@@ -39,7 +40,7 @@ export function crearCliente() {
       for (const fn of oyentes) fn(key);
     });
     api.on("cambio", (m) => api.view.bounce(Number(m.quien), 300));
-    api.action({ id: "soltar", label: "Soltar", key: "KeyQ", describe: "Soltar lo que llevas en la mano", run: () => { if (cogibles.mias().length) cogibles.soltar(); } });
+    api.action({ id: "soltar", get label() { return tx("Drop", "Soltar"); }, key: "KeyQ", get describe() { return tx("Drop what you hold in your hand", "Soltar lo que llevas en la mano"); }, run: () => { if (cogibles.mias().length) cogibles.soltar(); } });
   });
   return { parts: [parte], cogibles };
 }

@@ -1,4 +1,5 @@
 // ux2-gente: the friends list kept in this browser (apps/plaza/amigos.ts) — pure, no page.
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { leerAmigos, escribirAmigos, anadir, quitar, esAmigo, fusionar, filtrar, haceTexto, fechaTexto, distanciaTexto, claveDe, leerMarcas, escribirMarcas, AMIGOS_MAX } from "../apps/plaza/amigos.ts";
@@ -53,6 +54,8 @@ test("amigos: merged with who is connected now — online first by name, offline
 });
 
 test("amigos: the search box, the times and the distances read like people talk", () => {
+  fijarIdioma("es");
+  try {
   assert.deepEqual(filtrar([lucia, marcos], "luc").map((p) => p.nombre), ["Lucía"]);
   assert.deepEqual(filtrar([lucia, marcos], "  ").length, 2);
   assert.equal(haceTexto(T0 - 30_000, T0), "hace un momento");
@@ -66,6 +69,14 @@ test("amigos: the search box, the times and the distances read like people talk"
   assert.equal(fechaTexto(new Date(2025, 0, 9, 12).getTime(), T0), "9 de enero de 2025");
   assert.equal(distanciaTexto(40.4), "a 40 m");
   assert.equal(distanciaTexto(1.2), "a tu lado");
+  } finally { fijarIdioma("en"); }
+  assert.equal(haceTexto(T0 - 5 * MIN, T0), "5 min ago");
+  assert.equal(haceTexto(T0 - 2 * DIA, T0), "2 days ago");
+  assert.equal(haceTexto(0, T0), "not seen yet");
+  assert.equal(fechaTexto(new Date(2026, 9, 3, 12).getTime(), T0), "October 3");
+  assert.equal(fechaTexto(new Date(2025, 0, 9, 12).getTime(), T0), "January 9, 2025");
+  assert.equal(distanciaTexto(40.4), "40 m away");
+  assert.equal(distanciaTexto(1.2), "right next to you");
 });
 
 test("amigos: muted and blocked marks keep the name they had, and junk reads as none", () => {

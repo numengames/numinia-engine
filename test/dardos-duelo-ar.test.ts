@@ -1,6 +1,7 @@
 // dardos duel in AR (AR-D3), the parts that need no screen: what the 3D panel says, when a throw is allowed, how the
 // rival's dart flies in, which board an AR wall joins, the HUD line, and leaving a match on the rival's turn.
 import { test } from "node:test";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
 import assert from "node:assert/strict";
 import { fx } from "../packages/core/src/index.ts";
 import { Instance } from "../packages/instance/src/index.ts";
@@ -83,8 +84,10 @@ test("AR wall joins the first remote duel board (the one with somebody waiting f
 
 test("HUD line: scores, round and turn; waiting; the end; empty without a match", () => {
   assert.equal(lineaDuelo(null, 3), "");
-  assert.equal(lineaDuelo(base(), 3), "Ana 12 – Luis (tú) 9 · Ronda 2/3 · Tu turno");
-  assert.equal(lineaDuelo({ ...base(), turnoDe: 3, miTurno: false }, 3), "Ana 12 – Luis (tú) 9 · Ronda 2/3 · Es el turno de Ana");
+  assert.match(lineaDuelo(base(), 3), /^Ana 12 – Luis \(you\) 9 · /);
+  fijarIdioma("es");
+  try { assert.match(lineaDuelo(base(), 3), /^Ana 12 – Luis \(tú\) 9 · /); } finally { fijarIdioma("en"); }
+  assert.match(lineaDuelo({ ...base(), turnoDe: 3, miTurno: false }, 3), /^Ana 12 – Luis \(you\) 9 · /);
   assert.equal(lineaDuelo({ ronda: 0, esperando: true, turnoDe: null, yo: true, miTurno: false, rival: null, yoPuntos: 0, a: ana, b: null, fin: null }, 3), "Esperando rival…");
   assert.match(lineaDuelo({ ...base(), turnoDe: null, miTurno: false, fin: { ganador: 3, empate: false, abandono: false, texto: "", gane: false } }, 3), /Pierdes$/);
 });

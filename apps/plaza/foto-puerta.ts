@@ -6,6 +6,7 @@
 import type { FotoOpts } from "./foto.ts";
 import { crearPuerta } from "./puerta.ts";
 import { icono } from "./iconos.ts";
+import { tx, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
 
 type Real = ReturnType<typeof import("./foto.ts").montarFoto>;
 export type FotoPuerta = Real;
@@ -13,9 +14,8 @@ export type FotoPuerta = Real;
 export function montarFotoPuerta(o: FotoOpts, loc: { hash: string } = location): FotoPuerta {
   const enlace = loc.hash.includes("foto="); // the same test as foto-nucleo's tomarSitioDeLaDireccion
   o.boton.classList.add("solo-icono");
-  o.boton.title = "Foto: la interfaz se esconde, encuadras y disparas";
-  // constants only: a fixed house glyph and a fixed word
-  o.boton.innerHTML = `${icono("camera")}<span class="solo-lector">Foto</span>`;
+  // constants only: a fixed house glyph and a fixed word, in the language of the moment
+  alCambiarIdioma(() => { o.boton.title = tx("Photo: the interface hides, you frame and shoot", "Foto: la interfaz se esconde, encuadras y disparas"); o.boton.innerHTML = `${icono("camera")}<span class="solo-lector">${tx("Photo", "Foto")}</span>`; });
   const alClic = (): void => ya((r) => r.abrir());
   const puerta = crearPuerta<Real>(async () => {
     const m = await import("./foto.ts");

@@ -11,6 +11,7 @@
 // and 3 thicknesses while you paint (menu-paleta.ts, drawn by menu-invocado.ts); a press calls `ajustar`, the next stroke is written with that colour and
 // width in its `trazo@1` file (everyone sees it), the choice is kept in this browser (`numinia.pincel`) for the next time, and «Deshacer» asks the
 // builder's undo (the server takes back your last change). Changing the brush costs nothing in the scene: the tip marker takes the new colour's shared material. Nothing here decides anything: the server places the stroke, or says why not (permission to build).
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { GROSORES_M, opcionesValidas, type Opciones } from "./pincel.ts";
 import type { Pintar } from "./pintar.ts";
 
@@ -31,16 +32,19 @@ export type VistaPintarVR = {
 export const CIERRA = 0.6, ABRE = 0.3;
 /** A tap that moved less than this (m) is a slip of the finger, not a line: it is dropped without a word. */
 export const RECORRIDO_MIN_M = 0.01;
-export const NOTA_ENTRAR = "Pintar: aprieta el gatillo derecho y mueve la mano. Menú > Construir: colores y grosor. B: tirar el trazo o dejar de pintar.";
-export const NOTA_DEJADO = "Has dejado de pintar.";
-export const NOTA_TIRADO = "Trazo tirado.";
+// Functions read the language of the moment; the constants keep the old names (value at import time).
+export const notaEntrar = (): string => tx("Paint: squeeze the right trigger and move your hand. Menu > Build: colours and thickness. B: throw the stroke away or stop painting.", "Pintar: aprieta el gatillo derecho y mueve la mano. Menú > Construir: colores y grosor. B: tirar el trazo o dejar de pintar.");
+export const notaDejado = (): string => tx("You stopped painting.", "Has dejado de pintar.");
+export const notaTirado = (): string => tx("Stroke thrown away.", "Trazo tirado.");
+export const NOTA_ENTRAR = notaEntrar(), NOTA_DEJADO = notaDejado(), NOTA_TIRADO = notaTirado();
 
 /** The trigger's value as the line's pressure: 0 at the opening level, 1 fully down (a tracked hand: 0.5, the neutral width). */
 export const presionDe = (gatillo: number, mano: boolean): number => (mano ? 0.5 : Math.min(1, Math.max(0, (gatillo - ABRE) / (1 - ABRE))));
 
 /** Where the brush's choice (colour, thickness) is kept between visits: this browser only, two numbers, never sent anywhere. */
 export const CLAVE_PINCEL = "numinia.pincel";
-export const NOTA_SIN_DESHACER = "Aquí no se puede deshacer.";
+export const notaSinDeshacer = (): string => tx("Nothing to undo here.", "Aquí no se puede deshacer.");
+export const NOTA_SIN_DESHACER = notaSinDeshacer();
 
 export function montarPintarVR(o: { pintar: Pintar; view: VistaPintarVR; puede(): boolean; lado?: Lado; deshacer?(): Res; guardado?: { getItem(k: string): string | null; setItem(k: string, v: string): void } | null }) {
   const { pintar, view } = o, lado: Lado = o.lado ?? "der";
@@ -68,7 +72,7 @@ export function montarPintarVR(o: { pintar: Pintar; view: VistaPintarVR; puede()
     const r = pintar.punto({ x: q[0], y: q[1], z: q[2], presion: q[3] });
     if (!r.ok) return;
     if (inicio) recorrido = Math.max(recorrido, Math.hypot(h.x - inicio.x, h.y - inicio.y, h.z - inicio.z));
-    if (r.r === "primero" || r.r === "añadido") vivo?.anadir(q);
+    if (r.r === "primero" || r.r === "añadido" /* i18n-ok: sim result code */) vivo?.anadir(q);
     else if (r.r === "lleno") { // the 600th point: pintar.ts sent that stroke and began another at this same place; the live tube does the same
       vivo?.anadir(q); vivo?.terminar(); vivo?.empezar(op.color, op.grosor); vivo?.anadir(q);
       cuenta.trazos++; view.manos.vibrar(lado, 0.4, 30);
@@ -105,15 +109,15 @@ export function montarPintarVR(o: { pintar: Pintar; view: VistaPintarVR; puede()
   // until it opens); with the hand free it leaves the mode. The menu's own B (closing it) comes first: vr.ts calls these only when no menu was open.
   view.vr.onAtras?.(() => {
     if (!modo) return;
-    if (pintando) { tirar(); bloqueado = true; cuenta.tirados++; view.vr.nota?.(NOTA_TIRADO); } else { apagar(); view.vr.nota?.(NOTA_DEJADO); }
+    if (pintando) { tirar(); bloqueado = true; cuenta.tirados++; view.vr.nota?.(notaTirado()); } else { apagar(); view.vr.nota?.(notaDejado()); }
   });
 
   return {
     activo: (): boolean => modo,
     /** Turn the brush on (the VR menu's «Pintar con el mando»); refused outside VR or without the role to build. */
     entrar(): Res {
-      if (!view.vr.active) return { ok: false, why: "Pintar con el mando solo funciona dentro de VR." };
-      if (!o.puede()) return { ok: false, why: "No tienes permiso para construir en este mundo, y pintar es construir." };
+      if (!view.vr.active) return { ok: false, why: tx("Painting with the controller only works inside VR.", "Pintar con el mando solo funciona dentro de VR.") };
+      if (!o.puede()) return { ok: false, why: tx("You do not have permission to build in this world, and painting is building.", "No tienes permiso para construir en este mundo, y pintar es construir.") };
       modo = true; bloqueado = true; cargar(); // blocked until the trigger opens: the press that chose the menu's row must not start a line
       return { ok: true };
     },
@@ -121,15 +125,15 @@ export function montarPintarVR(o: { pintar: Pintar; view: VistaPintarVR; puede()
     /** Colour 0–7 (the engine palette) and thickness in metres (0.003–0.06); the palette in the VR menu (story 5) calls this. */
     ajustar(nuevo: Opciones): Res {
       const v = opcionesValidas(nuevo);
-      if (!v) return { ok: false, why: "color de 0 a 7 y grosor en metros" };
-      if (pintando) return { ok: false, why: "espera a soltar el trazo" };
+      if (!v) return { ok: false, why: tx("colour 0 to 7 and thickness in metres", "color de 0 a 7 y grosor en metros") };
+      if (pintando) return { ok: false, why: tx("wait until you release the stroke", "espera a soltar el trazo") };
       op = v; try { mem?.setItem(CLAVE_PINCEL, JSON.stringify(op)); } catch { /* private mode / full: the choice lives until the page closes */ }
       return { ok: true };
     },
     /** «Deshacer» of the palette: the builder's undo (the server takes back YOUR last change: a stroke or a thing you moved). Never mid-stroke. */
     deshacer(): Res {
-      if (pintando) return { ok: false, why: "espera a soltar el trazo" };
-      if (!o.deshacer) { view.vr.nota?.(NOTA_SIN_DESHACER); return { ok: false, why: NOTA_SIN_DESHACER }; }
+      if (pintando) return { ok: false, why: tx("wait until you release the stroke", "espera a soltar el trazo") };
+      if (!o.deshacer) { view.vr.nota?.(notaSinDeshacer()); return { ok: false, why: notaSinDeshacer() }; }
       return o.deshacer();
     },
     opciones: (): Opciones => ({ ...op }),

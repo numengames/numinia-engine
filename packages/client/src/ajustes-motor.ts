@@ -1,3 +1,4 @@
+// i18n-ok-file: the Spanish tables of the settings menu (guarded by test/menu-idiomas.test.ts)
 // ajustes-motor (N2): the engine's own settings, as data. The page attaches what each one does (apps/plaza/menu-ajustes.ts);
 // features add theirs with `ajustes` in defineFeature, worlds with their JSON (docs/extender/anadir-un-ajuste.md).
 // Defaults by tier follow limits.json and H12 (phones and headsets start cool: no shadows, no HDR, few particles);

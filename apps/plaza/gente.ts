@@ -23,6 +23,7 @@ import { montarTarjeta } from "./gente-tarjeta.ts";
 import { el, botonCon, crearBotonGente, luzEl, ojosEl, retrato, insigniaBaculo, insigniaBurbuja, type Res, type Mirada, type Elegido, type Acciones } from "./gente-comun.ts";
 import type { IAPublica } from "../../features/ia/feature.ts";
 import { cuentaGente, fichaIA, luzEscucha, sinMarca, subIA, textos } from "./gente-ia.ts";
+import { tx, ligar, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
 export type { Res, Mirada, Elegido, Acciones };
 
 type Orden = (texto: string) => Res;
@@ -71,7 +72,7 @@ export function montarGente(o: OpcionesGente) {
   const { viajar } = o;
   const ahora = o.ahora ?? (() => Date.now());
   const base = o.retratos ?? "/retratos/";
-  const mundo = () => o.mundo?.() || "este mundo";
+  const mundo = () => o.mundo?.() || tx("this world", "este mundo");
   // ---- what this browser keeps: friends, and whom you silenced or blocked (by the same key as a friend) ----
   const leer = (k: string): string | null => { try { return localStorage.getItem(k); } catch { return null; } };
   const escribir = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode: only for this visit */ } };
@@ -83,12 +84,14 @@ export function montarGente(o: OpcionesGente) {
   const boton = o.boton ?? crearBotonGente(o.barra); // t_45ef2f70: the façade (gente-puerta.ts) makes the button at once and hands it over
 
   let reloj = 0;
-  const panel = crearDialogo({ id: "gente", titulo: "Gente", tecla: "Tab", accion: "gente", boton,
+  const panel = crearDialogo({ id: "gente", titulo: () => tx("People", "Gente"), tecla: "Tab", accion: "gente", boton,
     alAbrir: () => { pintar(); pedir(); reloj = window.setInterval(pedir, REFRESCO_MS); },
     alCerrar: () => { clearInterval(reloj); } });
   // header: «Añadir amigo» next to the title, before «Cerrar»
   const cabeza = panel.dialog.querySelector("header")!;
-  const anadirB = botonCon("user-plus", "Añadir amigo", "gente-anadir");
+  const anadirB = botonCon("user-plus", "", "gente-anadir");
+  ligar(anadirB.querySelector("span")!, "textContent", "Add friend", "Añadir amigo");
+  alCambiarIdioma(() => { const h2 = document.getElementById("gente-titulo"); if (h2) h2.textContent = tx("People", "Gente"); }); // the panel title follows the language
   anadirB.id = "gente-anadir";
   cabeza.querySelector(".cerrar")!.before(anadirB);
 
@@ -96,27 +99,28 @@ export function montarGente(o: OpcionesGente) {
   type Pestana = "amigos" | "aqui";
   let pestana: Pestana = amigos.length ? "amigos" : "aqui";
   const tabs = el("div", { className: "gente-pestanas" });
-  tabs.setAttribute("role", "tablist"); tabs.setAttribute("aria-label", "Listas de gente");
+  tabs.setAttribute("role", "tablist"); ligar(tabs, "aria-label", "People lists", "Listas de gente");
   const tab = (id: Pestana) => { const b = el("button", { type: "button", id: `gente-tab-${id}` }); b.setAttribute("role", "tab"); b.addEventListener("click", () => { pestana = id; pintar(); }); return b; };
   const tabAmigos = tab("amigos"), tabAqui = tab("aqui");
   tabs.append(tabAmigos, tabAqui);
 
   // left: search, list, options, small print
-  const buscarI = el("input", { type: "search", id: "gente-buscar", placeholder: "Buscar", autocomplete: "off" });
-  buscarI.setAttribute("aria-label", "Buscar por nombre");
+  const buscarI = el("input", { type: "search", id: "gente-buscar", autocomplete: "off" });
+  ligar(buscarI, "placeholder", "Search", "Buscar"); ligar(buscarI, "aria-label", "Search by name", "Buscar por nombre");
   buscarI.maxLength = 40;
   const buscarC = el("label", { className: "gente-buscar" }); buscarC.innerHTML = icono("magnifying-glass", 18); buscarC.append(buscarI); // constants only
   const lista = el("div", { className: "gente-lista" });
   lista.setAttribute("role", "list");
   const encontrable = el("input", { type: "checkbox", id: "gente-encontrable" });
   const permitir = el("input", { type: "checkbox", id: "gente-permitir" });
-  const filaPermitir = el("label", { className: "opcion" }, permitir, " Permitir ir junto a otros en este mundo");
+  const filaPermitir = el("label", { className: "opcion" }, permitir, ligar(el("span"), "textContent", " Allow going next to others in this world", " Permitir ir junto a otros en este mundo"));
   filaPermitir.htmlFor = "gente-permitir";
-  const filaEncontrable = el("label", { className: "opcion" }, encontrable, " Dejarme encontrar");
+  const filaEncontrable = el("label", { className: "opcion" }, encontrable, ligar(el("span"), "textContent", " Let people find me", " Dejarme encontrar"));
   filaEncontrable.htmlFor = "gente-encontrable";
-  filaEncontrable.title = "Salir en la lista «Aquí ahora» de los demás";
-  const letra = el("p", { className: "gente-letra", textContent: "Tus amigos se guardan en este navegador." });
-  letra.title = "En otro navegador, o en una ventana privada, la lista empieza vacía.";
+  ligar(filaEncontrable, "title", "Appear in everyone else's «Here now» list", "Salir en la lista «Aquí ahora» de los demás");
+  const letra = el("p", { className: "gente-letra" });
+  ligar(letra, "textContent", "Your friends are kept in this browser.", "Tus amigos se guardan en este navegador.");
+  ligar(letra, "title", "In another browser, or a private window, the list starts empty.", "En otro navegador, o en una ventana privada, la lista empieza vacía.");
   const izq = el("div", { className: "gente-izq" }, buscarC, lista, filaEncontrable, filaPermitir, letra);
 
   // right: the person you picked
@@ -131,7 +135,7 @@ export function montarGente(o: OpcionesGente) {
   const pedir = () => { const r = viajar.pedirGente(); if (!r.ok && r.why) estadoP.textContent = r.why; };
 
   // ---- people ----
-  const tx = () => textos(o.idioma?.());
+  const txIA = () => textos(o.idioma?.());
   const iaDe = (quien: number): IAPublica | null => o.ia?.de(quien) ?? null;
   const conectados = (): Conectado[] => viajar.estado.gente.map((p) => ({ quien: p.quien, nombre: p.nombre, huella: p.huella || undefined, avatar: o.mirada?.avatar(p.quien)?.id ?? null }));
   const deConectado = (p: Conectado): Elegido => ({ quien: p.quien, nombre: p.nombre, huella: p.huella, avatar: o.mirada?.avatar(p.quien) ?? (p.avatar ? { id: p.avatar, nombre: "" } : null), ia: iaDe(p.quien) });
@@ -155,7 +159,7 @@ export function montarGente(o: OpcionesGente) {
     return off ? { quien: null, nombre: off.nombre, avatar: off.avatar ? { id: off.avatar, nombre: "" } : null } : null;
   }
   const claveDeElegido = (p: Elegido): string => { const a = buscar(amigos, p); return a ? a.clave : claveDe(p); };
-  const noEsta = (p: Elegido): Res => ({ ok: false, why: `${p.nombre} no está conectado ahora.` });
+  const noEsta = (p: Elegido): Res => ({ ok: false, why: tx(`${p.nombre} is not online right now.`, `${p.nombre} no está conectado ahora.`) });
 
   // ---- the actions (the panel's buttons and the card's) ----
   const acciones: Acciones = {
@@ -165,24 +169,24 @@ export function montarGente(o: OpcionesGente) {
     ir(p) {
       if (p.quien === null) return noEsta(p);
       if (p.ia && !viajar.activo()) { // an AI where trips are off: a beacon at its place, to walk there
-        const b = o.baliza?.(p.quien, sinMarca(p.nombre)) ?? { ok: false, why: tx().sinPosicion };
-        decir(b.ok ? `${tx().vasConBaliza}: ${sinMarca(p.nombre)}.` : (b.why ?? tx().sinPosicion));
+        const b = o.baliza?.(p.quien, sinMarca(p.nombre)) ?? { ok: false, why: txIA().sinPosicion };
+        decir(b.ok ? `${txIA().vasConBaliza}: ${sinMarca(p.nombre)}.` : (b.why ?? txIA().sinPosicion));
         if (b.ok) { panel.cerrar(); tarjeta.cerrar(); }
         return b;
       }
       const r = viajar.ir(p.quien);
-      if (!r.ok) { decir(r.why ?? "No se pudo."); return r; }
-      decir(`Vas con ${p.nombre}…`); panel.cerrar(); tarjeta.cerrar();
+      if (!r.ok) { decir(r.why ?? tx("Could not do it.", "No se pudo.")); return r; }
+      decir(tx(`Going to ${p.nombre}…`, `Vas con ${p.nombre}…`)); panel.cerrar(); tarjeta.cerrar();
       return r;
     },
     puedeHablar: (p) => p.quien !== null && !!p.ia && !!o.llamar?.puede(p.quien),
     hablar(p) {
-      if (p.quien === null || !p.ia || !o.llamar) return { ok: false, why: tx().noSePuede };
+      if (p.quien === null || !p.ia || !o.llamar) return { ok: false, why: txIA().noSePuede };
       panel.cerrar(); tarjeta.cerrar();
       return o.llamar.hablar(p.quien);
     },
     mensaje(p) {
-      if (!o.chat) return { ok: false, why: "No hay chat en esta página." };
+      if (!o.chat) return { ok: false, why: tx("There is no chat on this page.", "No hay chat en esta página.") };
       panel.cerrar(); tarjeta.cerrar();
       o.chat(`@${p.nombre} `);
       return { ok: true };
@@ -190,16 +194,16 @@ export function montarGente(o: OpcionesGente) {
     saludar(p) {
       if (p.quien === null || !o.saludar) return noEsta(p);
       const r = o.saludar(p.quien);
-      decir(r.ok ? `Saludas a ${p.nombre}.` : (r.why ?? "No se pudo."));
+      decir(r.ok ? tx(`You wave at ${p.nombre}.`, `Saludas a ${p.nombre}.`) : (r.why ?? tx("Could not do it.", "No se pudo.")));
       return r;
     },
     anadir(p) {
       if (buscar(amigos, p)) return { ok: true };
-      if (p.quien === null) return { ok: false, why: "Solo puedes añadir a alguien conectado." };
-      if (p.ia) return { ok: false, why: "Una IA no se guarda en los amigos." };
+      if (p.quien === null) return { ok: false, why: tx("You can only add someone who is online.", "Solo puedes añadir a alguien conectado.") };
+      if (p.ia) return { ok: false, why: tx("An AI cannot be saved as a friend.", "Una IA no se guarda en los amigos.") };
       amigos = anadir(amigos, { quien: p.quien, nombre: p.nombre, huella: p.huella, avatar: p.avatar?.id ?? null }, ahora());
       guardarAmigos();
-      decir(`${p.nombre} está en tus amigos (en este navegador).`);
+      decir(tx(`${p.nombre} is now in your friends (in this browser).`, `${p.nombre} está en tus amigos (en este navegador).`));
       if (elegido && elegido.quien === p.quien) elegido.clave = claveDe(p);
       pintar(); tarjeta.repintar();
       return { ok: true };
@@ -207,7 +211,7 @@ export function montarGente(o: OpcionesGente) {
     quitar(p) {
       const a = buscar(amigos, p); if (!a) return { ok: true };
       amigos = quitar(amigos, a.clave); guardarAmigos();
-      decir(`${p.nombre} ya no está en tus amigos.`);
+      decir(tx(`${p.nombre} is no longer in your friends.`, `${p.nombre} ya no está en tus amigos.`));
       if (p.quien === null) elegido = null; else if (elegido) elegido.clave = claveDe(p);
       pintar(); tarjeta.repintar();
       return { ok: true };
@@ -218,18 +222,18 @@ export function montarGente(o: OpcionesGente) {
       o.voz?.silenciar(p.quien, !esta);
       if (esta) silenciados.delete(k); else silenciados.set(k, p.nombre);
       guardarMarcas();
-      decir(esta ? `Vuelves a oír la voz de ${p.nombre}.` : `Ya no oyes la voz de ${p.nombre} (solo tú; no se le avisa).`);
+      decir(esta ? tx(`You hear ${p.nombre}'s voice again.`, `Vuelves a oír la voz de ${p.nombre}.`) : tx(`You no longer hear ${p.nombre}'s voice (only you; they are not told).`, `Ya no oyes la voz de ${p.nombre} (solo tú; no se le avisa).`));
       pintar(); tarjeta.repintar();
       return { ok: true };
     },
     bloquear(p) {
       if (p.quien === null || !o.orden) return noEsta(p);
       const k = claveDeElegido(p), esta = bloqueados.has(k);
-      const r = o.orden(`/${esta ? "desbloquear" : "bloquear"} ${p.nombre}`);
-      if (!r.ok) { decir(r.why ?? "No se pudo."); return r; }
+      const r = o.orden(`/${esta ? "desbloquear" : "bloquear"} ${p.nombre}`); // i18n-ok: chat command, not text
+      if (!r.ok) { decir(r.why ?? tx("Could not do it.", "No se pudo.")); return r; }
       if (esta) bloqueados.delete(k); else bloqueados.set(k, p.nombre);
       guardarMarcas();
-      decir(esta ? `Vuelves a leer y oír a ${p.nombre}.` : `Ya no lees ni oyes a ${p.nombre}; los demás sí. No se le avisa.`);
+      decir(esta ? tx(`You read and hear ${p.nombre} again.`, `Vuelves a leer y oír a ${p.nombre}.`) : tx(`You no longer read or hear ${p.nombre}; others still do. They are not told.`, `Ya no lees ni oyes a ${p.nombre}; los demás sí. No se le avisa.`));
       pintar(); tarjeta.repintar();
       return { ok: true };
     },
@@ -248,17 +252,17 @@ export function montarGente(o: OpcionesGente) {
   const den = el("dialog", { id: "gente-denuncia", className: "panel-j5" });
   den.setAttribute("aria-labelledby", "gente-denuncia-titulo");
   const denT = el("h2", { id: "gente-denuncia-titulo" });
-  const denTexto = el("textarea", { id: "gente-denuncia-motivo", rows: 3, maxLength: MOTIVO_MAX, placeholder: "Qué ha pasado" });
-  denTexto.setAttribute("aria-label", "Qué ha pasado");
-  const denEnviar = botonCon("flag", "Enviar aviso", "peligro"); denEnviar.id = "gente-denuncia-enviar";
-  const denCancelar = el("button", { type: "button", textContent: "Cancelar" });
-  const denNota = el("p", { className: "gente-letra", textContent: "Lo lee quien modera este mundo: ahora si está conectado y, si no, al entrar. A la otra persona no se le avisa." });
+  const denTexto = el("textarea", { id: "gente-denuncia-motivo", rows: 3, maxLength: MOTIVO_MAX });
+  ligar(denTexto, "placeholder", "What happened", "Qué ha pasado"); ligar(denTexto, "aria-label", "What happened", "Qué ha pasado");
+  const denEnviar = botonCon("flag", "", "peligro"); ligar(denEnviar.querySelector("span")!, "textContent", "Send report", "Enviar aviso"); denEnviar.id = "gente-denuncia-enviar";
+  const denCancelar = ligar(el("button", { type: "button" }), "textContent", "Cancel", "Cancelar");
+  const denNota = ligar(el("p", { className: "gente-letra" }), "textContent", "Whoever moderates this world reads it: now if they are online, otherwise when they next join. The other person is not told.", "Lo lee quien modera este mundo: ahora si está conectado y, si no, al entrar. A la otra persona no se le avisa.");
   const denEstado = el("p", { className: "estado" }); denEstado.setAttribute("role", "status");
   den.append(el("header", {}, denT), el("div", { className: "cuerpo" }, denTexto, denNota, el("div", { className: "gente-botones" }, denEnviar, denCancelar), denEstado));
   document.body.appendChild(den);
   let denuncia: Elegido | null = null;
   function abrirDenuncia(p: Elegido): void {
-    denuncia = p; denT.textContent = `Denunciar a ${p.nombre}`; denTexto.value = ""; denEstado.textContent = "";
+    denuncia = p; denT.textContent = tx(`Report ${p.nombre}`, `Denunciar a ${p.nombre}`); denTexto.value = ""; denEstado.textContent = "";
     tarjeta.cerrar();
     den.showModal(); denTexto.focus();
   }
@@ -266,10 +270,10 @@ export function montarGente(o: OpcionesGente) {
   denEnviar.addEventListener("click", () => {
     const motivo = denTexto.value.replace(/\s+/g, " ").trim();
     if (!denuncia || !o.orden) return;
-    if (!motivo) { denEstado.textContent = "Escribe qué ha pasado."; denTexto.focus(); return; }
+    if (!motivo) { denEstado.textContent = tx("Write what happened.", "Escribe qué ha pasado."); denTexto.focus(); return; }
     const r = o.orden(`/denunciar ${denuncia.nombre} ${motivo}`);
-    if (!r.ok) { denEstado.textContent = r.why ?? "No se pudo enviar."; return; }
-    den.close(); decir(`Aviso enviado sobre ${denuncia.nombre}. Gracias.`);
+    if (!r.ok) { denEstado.textContent = r.why ?? tx("Could not send it.", "No se pudo enviar."); return; }
+    den.close(); decir(tx(`Report sent about ${denuncia.nombre}. Thank you.`, `Aviso enviado sobre ${denuncia.nombre}. Gracias.`));
   });
   den.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
 
@@ -288,9 +292,9 @@ export function montarGente(o: OpcionesGente) {
     const b = el("button", { type: "button", className: `gente-fila${conectado ? "" : " fuera"}` });
     const sel = !!elegido && (elegido.clave === clave || (p.quien !== null && elegido.quien === p.quien));
     b.setAttribute("aria-current", sel ? "true" : "false");
-    b.setAttribute("aria-label", `${p.ia ? `${sinMarca(p.nombre)}, ${tx().marca}` : p.nombre}, ${conectado ? "conectado" : "desconectado"}, ${sub}`);
+    b.setAttribute("aria-label", `${p.ia ? `${sinMarca(p.nombre)}, ${txIA().marca}` : p.nombre}, ${conectado ? tx("online", "conectado") : tx("offline", "desconectado")}, ${sub}`);
     // an AI: its name without the server's « · IA» and the chip that says it; asleep, its portrait goes dim
-    const nombreL = p.ia ? el("span", { className: "nombre-ia" }, el("b", { textContent: sinMarca(p.nombre) }), el("span", { className: "marca-ia", textContent: tx().marca })) : el("b", { textContent: p.nombre });
+    const nombreL = p.ia ? el("span", { className: "nombre-ia" }, el("b", { textContent: sinMarca(p.nombre) }), el("span", { className: "marca-ia", textContent: txIA().marca })) : el("b", { textContent: p.nombre });
     const conBaculo = conectado && p.quien !== null && !!o.mirada?.baculo?.(p.quien);
     const enBurbuja = conectado && p.quien !== null ? o.mirada?.burbuja?.(p.quien) ?? null : null;
     const textosL = el("span", { className: "textos" }, conBaculo || enBurbuja ? el("span", { className: "gente-nombre-linea" }, nombreL, ...(conBaculo ? [insigniaBaculo()] : []), ...(enBurbuja ? [insigniaBurbuja(enBurbuja)] : [])) : nombreL, el("span", { className: "sub", textContent: sub }));
@@ -305,42 +309,43 @@ export function montarGente(o: OpcionesGente) {
     return li;
   }
   const seccion = (t: string) => el("div", { className: "gente-seccion", textContent: t });
-  const donde = (quien: number): string => { const d = o.mirada?.distancia(quien); return `${mundo()}${d === null || d === undefined ? "" : ` · ${distanciaTexto(d)}`}`; };
+  const donde = (quien: number): string => { const d = o.mirada?.distancia(quien); return `${mundo()}${d === null || d === undefined ? "" : ` · ${distanciaTexto(d)}`}`; }; // i18n-ok: composed from translated parts
 
   function pintarLista(): void {
     const q = buscarI.value, t = ahora();
     const f = fusionar(amigos, conectados(), t);
     if (f.cambio) { amigos = f.lista; guardarAmigos(); }
     const g = viajar.estado.gente;
-    tabAmigos.textContent = `Amigos · ${amigos.length}`;
+    tabAmigos.textContent = tx(`Friends · ${amigos.length}`, `Amigos · ${amigos.length}`);
     // «Aquí ahora · 5 personas · 2 IAs»: the AIs are counted apart (and left out when there are none)
     const nIAs = g.filter((p) => iaDe(p.quien)).length;
-    tabAqui.textContent = `Aquí ahora · ${cuentaGente(Math.max(viajar.estado.todos, g.length) - nIAs, nIAs, o.idioma?.())}`;
+    const nPers = Math.max(viajar.estado.todos, g.length) - nIAs;
+    tabAqui.textContent = tx(`Here now · ${nPers} ${nPers === 1 ? "person" : "people"}${nIAs ? ` · ${nIAs} ${nIAs === 1 ? "AI" : "AIs"}` : ""}`, `Aquí ahora · ${cuentaGente(nPers, nIAs, "es")}`);
     for (const [b, id] of [[tabAmigos, "amigos"], [tabAqui, "aqui"]] as const) { b.setAttribute("aria-selected", String(pestana === id)); b.tabIndex = pestana === id ? 0 : -1; }
     const filas: HTMLElement[] = [];
     if (pestana === "amigos") {
       const on = filtrar(f.conectados.map((x) => ({ ...x, nombre: x.persona.nombre })), q), off = filtrar(f.desconectados, q);
-      if (!amigos.length) filas.push(el("p", { className: "vacio", textContent: "Aún no tienes amigos guardados. Elige a alguien en «Aquí ahora» y pulsa «Añadir amigo»." }));
-      if (on.length) { filas.push(seccion("Conectados")); for (const x of on) filas.push(fila(deConectado(x.persona), donde(x.persona.quien), true, x.amigo.clave)); }
-      if (off.length) { filas.push(seccion("Desconectados")); for (const a of off) filas.push(fila({ quien: null, nombre: a.nombre, avatar: a.avatar ? { id: a.avatar, nombre: "" } : null }, haceTexto(a.visto, t), false, a.clave)); }
-      if (amigos.length && !on.length && !off.length) filas.push(el("p", { className: "vacio", textContent: "Nadie se llama así." }));
+      if (!amigos.length) filas.push(el("p", { className: "vacio", textContent: tx("You have no saved friends yet. Pick someone in «Here now» and press «Add friend».", "Aún no tienes amigos guardados. Elige a alguien en «Aquí ahora» y pulsa «Añadir amigo».") }));
+      if (on.length) { filas.push(seccion(tx("Online", "Conectados"))); for (const x of on) filas.push(fila(deConectado(x.persona), donde(x.persona.quien), true, x.amigo.clave)); }
+      if (off.length) { filas.push(seccion(tx("Offline", "Desconectados"))); for (const a of off) filas.push(fila({ quien: null, nombre: a.nombre, avatar: a.avatar ? { id: a.avatar, nombre: "" } : null }, haceTexto(a.visto, t), false, a.clave)); }
+      if (amigos.length && !on.length && !off.length) filas.push(el("p", { className: "vacio", textContent: tx("Nobody has that name.", "Nadie se llama así.") }));
     } else {
       const lst = filtrar(conectados(), q);
-      if (!g.length) filas.push(el("p", { className: "vacio", textContent: "No hay nadie más conectado ahora en este mundo." }));
-      else if (!lst.length) filas.push(el("p", { className: "vacio", textContent: "Nadie se llama así." }));
+      if (!g.length) filas.push(el("p", { className: "vacio", textContent: tx("There is nobody else online in this world right now.", "No hay nadie más conectado ahora en este mundo.") }));
+      else if (!lst.length) filas.push(el("p", { className: "vacio", textContent: tx("Nobody has that name.", "Nadie se llama así.") }));
       // people first, then the AIs in their own section
       const personas = lst.filter((p) => !iaDe(p.quien)), ias = lst.filter((p) => iaDe(p.quien));
       for (const p of personas) {
         const a = buscar(amigos, p);
-        filas.push(fila(deConectado(p), a ? `En tus amigos · ${donde(p.quien)}` : donde(p.quien), true, a ? a.clave : claveDe(p)));
+        filas.push(fila(deConectado(p), a ? tx(`Your friend · ${donde(p.quien)}`, `En tus amigos · ${donde(p.quien)}`) : donde(p.quien), true, a ? a.clave : claveDe(p)));
       }
-      if (ias.length) filas.push(seccion(tx().seccionIA));
+      if (ias.length) filas.push(seccion(txIA().seccionIA));
       for (const p of ias) {
         const a = buscar(amigos, p), d = o.mirada?.distancia(p.quien);
         const sub = subIA(iaDe(p.quien)!, d === null || d === undefined ? "" : distanciaTexto(d), o.idioma?.());
-        filas.push(fila(deConectado(p), a ? `En tus amigos · ${sub}` : sub, true, a ? a.clave : claveDe(p)));
+        filas.push(fila(deConectado(p), a ? tx(`Your friend · ${sub}`, `En tus amigos · ${sub}`) : sub, true, a ? a.clave : claveDe(p)));
       }
-      if (viajar.estado.todos > g.length) filas.push(el("p", { className: "vacio", textContent: `Y ${viajar.estado.todos - g.length} más.` }));
+      if (viajar.estado.todos > g.length) filas.push(el("p", { className: "vacio", textContent: tx(`And ${viajar.estado.todos - g.length} more.`, `Y ${viajar.estado.todos - g.length} más.`) }));
     }
     poner(lista, ...filas);
   }
@@ -348,15 +353,15 @@ export function montarGente(o: OpcionesGente) {
   function pintarFicha(): void {
     const p = actual();
     if (!p) {
-      poner(der, el("div", { className: "gente-nadie" }, el("p", { textContent: pestana === "amigos" && !amigos.length ? "Tus amigos aparecerán aquí." : "Elige a alguien de la lista para ver su ficha." })));
+      poner(der, el("div", { className: "gente-nadie" }, el("p", { textContent: pestana === "amigos" && !amigos.length ? tx("Your friends will appear here.", "Tus amigos aparecerán aquí.") : tx("Pick someone from the list to see their card.", "Elige a alguien de la lista para ver su ficha.") })));
       return;
     }
-    const amigo = buscar(amigos, p), con = p.quien !== null, t = tx(), ia = p.ia ? fichaIA(p.nombre, p.ia, o.idioma?.()) : null;
-    const volver = el("button", { type: "button", className: "gente-volver", textContent: "‹ Volver a la lista" });
+    const amigo = buscar(amigos, p), con = p.quien !== null, t = txIA(), ia = p.ia ? fichaIA(p.nombre, p.ia, o.idioma?.()) : null;
+    const volver = el("button", { type: "button", className: "gente-volver", textContent: tx("‹ Back to the list", "‹ Volver a la lista") });
     volver.addEventListener("click", () => { vista = "lista"; pintar(); });
-    const chip = el("span", { className: `chip${con ? " ok" : ""}` });
-    if (con) chip.append(el("span", { className: "punto" }), `En ${mundo()}`); else chip.append("Desconectado");
-    const linea = [amigo ? `En tus amigos desde el ${fechaTexto(amigo.desde, ahora())}` : "", p.avatar?.nombre ?? ""].filter(Boolean).join(" · ");
+    const chip = el("span", { className: `chip${con ? " ok" : ""}` }); // i18n-ok: class names
+    if (con) chip.append(el("span", { className: "punto" }), tx(`In ${mundo()}`, `En ${mundo()}`)); else chip.append(tx("Offline", "Desconectado"));
+    const linea = [amigo ? tx(`Your friend since ${fechaTexto(amigo.desde, ahora())}`, `En tus amigos desde el ${fechaTexto(amigo.desde, ahora())}`) : "", p.avatar?.nombre ?? ""].filter(Boolean).join(" · ");
     // an AI: the «IA» chip and its state instead of «En <mundo>»; who answers for it and what it may do under the name
     const chipIA = ia ? el("span", { className: "marca-ia", textContent: ia.marca }) : null;
     const chipEstado = ia ? el("span", { className: `chip${ia.estado === "activa" ? " ok" : ""}` }, ...(ia.estado === "activa" ? [el("span", { className: "punto" })] : []), ia.estadoTexto) : null;
@@ -366,43 +371,43 @@ export function montarGente(o: OpcionesGente) {
       datos.append(el("p", { className: "ia-dato" }, el("span", { className: "k", textContent: ia.respondeEtiqueta }), el("b", { textContent: ia.respondeValor })), el("p", { className: `ia-dato${ia.construye ? "" : " no"}`, textContent: ia.construyeTexto }), ojosEl(ia.ojos, true), luzEl(luz));
     }
     // «Ahora»: what they do (when the page knows) and how far
-    const ahoraS = el("section", { className: "gente-ahora" }, el("h4", { textContent: "Ahora" }));
+    const ahoraS = el("section", { className: "gente-ahora" }, el("h4", { textContent: tx("Now", "Ahora") }));
     if (con) {
       const que = o.mirada?.actividad(p.quien!), d = o.mirada?.distancia(p.quien!);
-      const dist = d === null || d === undefined ? "" : d < 2 ? "a tu lado" : `a ${Math.round(d)} m de ti`;
-      ahoraS.append(el("p", { textContent: [que, dist].filter(Boolean).join(" · ") || `En ${mundo()}` }));
-    } else ahoraS.append(el("p", { textContent: amigo ? `Desconectado · visto ${haceTexto(amigo.visto, ahora())}` : "Desconectado" }));
+      const dist = d === null || d === undefined ? "" : d < 2 ? tx("right next to you", "a tu lado") : tx(`${Math.round(d)} m from you`, `a ${Math.round(d)} m de ti`);
+      ahoraS.append(el("p", { textContent: [que, dist].filter(Boolean).join(" · ") || tx(`In ${mundo()}`, `En ${mundo()}`) }));
+    } else ahoraS.append(el("p", { textContent: amigo ? tx(`Offline · seen ${haceTexto(amigo.visto, ahora())}`, `Desconectado · visto ${haceTexto(amigo.visto, ahora())}`) : tx("Offline", "Desconectado") }));
     // the main actions
-    const ir = botonCon("navigation-arrow", ia ? t.ir : "Ir a su lado", "principal"); ir.id = "gente-ir";
+    const ir = botonCon("navigation-arrow", ia ? t.ir : tx("Go to them", "Ir a su lado"), "principal"); ir.id = "gente-ir";
     ir.disabled = !con || (!viajar.activo() && !ia); // an AI always has the beacon to fall back on
-    ir.title = !con ? "No está conectado ahora" : ia ? (viajar.activo() ? t.irTitulo : t.irBaliza) : viajar.activo() ? `Ir junto a ${p.nombre}` : "En este mundo no se puede ir junto a otros: lo han apagado";
-    ir.setAttribute("aria-label", ia ? `${t.irAria} ${ia.nombre}` : `Ir junto a ${p.nombre}`);
+    ir.title = !con ? tx("Not online right now", "No está conectado ahora") : ia ? (viajar.activo() ? t.irTitulo : t.irBaliza) : viajar.activo() ? tx(`Go next to ${p.nombre}`, `Ir junto a ${p.nombre}`) : tx("Going next to others is turned off in this world", "En este mundo no se puede ir junto a otros: lo han apagado");
+    ir.setAttribute("aria-label", ia ? `${t.irAria} ${ia.nombre}` : tx(`Go next to ${p.nombre}`, `Ir junto a ${p.nombre}`));
     ir.addEventListener("click", () => acciones.ir(p));
-    const msg = botonCon("chat-text", "Mensaje"); msg.id = "gente-mensaje"; msg.disabled = !o.chat || !con;
-    msg.title = "Abre el chat con su nombre escrito (el chat lo leen quienes están cerca)";
+    const msg = botonCon("chat-text", tx("Message", "Mensaje")); msg.id = "gente-mensaje"; msg.disabled = !o.chat || !con;
+    msg.title = tx("Opens the chat with their name written in (people nearby read the chat)", "Abre el chat con su nombre escrito (el chat lo leen quienes están cerca)");
     msg.addEventListener("click", () => acciones.mensaje(p));
-    const sal = botonCon("hand-waving", "Saludar"); sal.id = "gente-saludar"; sal.disabled = !o.saludar || !con;
-    sal.title = "Te giras hacia esa persona y saludas con la mano";
+    const sal = botonCon("hand-waving", tx("Wave", "Saludar")); sal.id = "gente-saludar"; sal.disabled = !o.saludar || !con;
+    sal.title = tx("You turn towards them and wave", "Te giras hacia esa persona y saludas con la mano");
     sal.addEventListener("click", () => acciones.saludar(p));
     const hab = ia && acciones.puedeHablar?.(p) ? botonCon("chat-circle-dots", t.hablar, "principal") : null;
     if (hab) { hab.id = "gente-hablar"; hab.title = t.hablarTitulo; hab.setAttribute("aria-label", `${t.hablarAria} ${ia!.nombre}`); hab.addEventListener("click", () => acciones.hablar?.(p)); ir.classList.remove("principal"); }
     const principales = el("div", { className: "gente-botones" }, ...(ia ? [...(hab ? [hab] : []), ir, sal] : [ir, msg, sal])); // nothing reads a private note to an AI yet: no «Mensaje»
     // apart: the delicate ones
     const s = acciones.silenciado(p), b = acciones.bloqueado(p);
-    const sil = botonCon("speaker-simple-slash", s ? "Oír su voz" : "Silenciar", "fantasma"); sil.id = "gente-silenciar";
+    const sil = botonCon("speaker-simple-slash", s ? tx("Hear their voice", "Oír su voz") : tx("Mute", "Silenciar"), "fantasma"); sil.id = "gente-silenciar";
     sil.setAttribute("aria-pressed", String(s)); sil.disabled = !con || !o.voz;
-    sil.title = "Su voz deja de oírse solo para ti (no se le avisa)";
+    sil.title = tx("Their voice stops being heard, only for you (they are not told)", "Su voz deja de oírse solo para ti (no se le avisa)");
     sil.addEventListener("click", () => acciones.silenciar(p));
-    const blo = botonCon("prohibit", b ? "Desbloquear" : "Bloquear", "fantasma"); blo.id = "gente-bloquear";
+    const blo = botonCon("prohibit", b ? tx("Unblock", "Desbloquear") : tx("Block", "Bloquear"), "fantasma"); blo.id = "gente-bloquear";
     blo.setAttribute("aria-pressed", String(b)); blo.disabled = !con || !o.orden;
-    blo.title = "Dejas de leer su chat y de oír su voz (solo tú; no se le avisa)";
+    blo.title = tx("You stop reading their chat and hearing their voice (only you; they are not told)", "Dejas de leer su chat y de oír su voz (solo tú; no se le avisa)");
     blo.addEventListener("click", () => acciones.bloquear(p));
-    const deN = botonCon("flag", "Denunciar", "peligro-texto"); deN.id = "gente-denunciar"; deN.disabled = !con || !o.orden;
-    deN.title = "Avisa a quien modera este mundo";
+    const deN = botonCon("flag", tx("Report", "Denunciar"), "peligro-texto"); deN.id = "gente-denunciar"; deN.disabled = !con || !o.orden;
+    deN.title = tx("Tells whoever moderates this world", "Avisa a quien modera este mundo");
     deN.addEventListener("click", () => acciones.denunciar(p));
     const delicados = el("div", { className: "gente-delicados" }, sil, blo, deN);
     if (amigo) {
-      const q = botonCon("x", "Quitar de amigos", "fantasma empuja"); q.id = "gente-quitar";
+      const q = botonCon("x", tx("Remove from friends", "Quitar de amigos"), "fantasma empuja"); q.id = "gente-quitar";
       q.addEventListener("click", () => acciones.quitar(p));
       delicados.append(q);
     }
@@ -415,7 +420,7 @@ export function montarGente(o: OpcionesGente) {
     pintarFicha();
     cuerpoG.dataset.vista = elegido ? vista : "lista";
     const p = actual();
-    anadirB.title = p && p.quien !== null && !p.ia && !buscar(amigos, p) ? `Añadir a ${p.nombre} a tus amigos` : "Elige a alguien de «Aquí ahora» para añadirle";
+    anadirB.title = p && p.quien !== null && !p.ia && !buscar(amigos, p) ? tx(`Add ${p.nombre} to your friends`, `Añadir a ${p.nombre} a tus amigos`) : tx("Pick someone from «Here now» to add them", "Elige a alguien de «Aquí ahora» para añadirle");
     encontrable.checked = viajar.estado.encontrable;
     filaPermitir.hidden = !viajar.estado.puede;
     permitir.checked = viajar.activo();
@@ -424,7 +429,7 @@ export function montarGente(o: OpcionesGente) {
     const p = actual();
     if (p && p.quien !== null && !p.ia && !buscar(amigos, p)) { acciones.anadir(p); return; }
     pestana = "aqui"; elegido = null; vista = "lista"; pintar(); buscarI.focus();
-    decir("Elige a alguien de la lista y pulsa «Añadir amigo».");
+    decir(tx("Pick someone from the list and press «Add friend».", "Elige a alguien de la lista y pulsa «Añadir amigo»."));
   });
   buscarI.addEventListener("input", () => pintarLista());
   tabs.addEventListener("keydown", (e) => { if (e.key === "ArrowRight" || e.key === "ArrowLeft") { pestana = pestana === "amigos" ? "aqui" : "amigos"; pintar(); (pestana === "amigos" ? tabAmigos : tabAqui).focus(); } });
@@ -437,6 +442,7 @@ export function montarGente(o: OpcionesGente) {
   // silenced voices come back silenced: whenever the list says who is who, the marks find their entity again
   const reaplicar = () => { if (!o.voz || !silenciados.size) return; for (const p of conectados()) if (silenciados.has(claveDe(p)) || silenciados.has(`n:${normal(p.nombre)}`)) o.voz.silenciar(p.quien, true); };
   reaplicar(); // t_45ef2f70: the panel now mounts after the first frame, so the list may have arrived already: put the silenced voices back at once
+  alCambiarIdioma(() => { if (panel.abierto) pintar(); tarjeta.repintar(); }); // a language change redraws what is open
   o.ia?.alCambiar(() => { if (panel.abierto) pintar(); tarjeta.repintar(); }); // an AI came, went, fell asleep or woke up
   viajar.alCambiar((q) => {
     if (q === "viaje" && viajar.estado.viaje) { estadoP.textContent = viajar.estado.viaje.texto; if (!panel.abierto && !viajar.estado.viaje.ok) anunciar(viajar.estado.viaje.texto); }

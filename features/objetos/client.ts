@@ -10,6 +10,7 @@ import type { Tipo, Colision } from "./feature.ts";
 /** U10: which kind of thing a file extension makes (glb → modelo, png → imagen, mp4 → video, mp3 → sonido), or null. */
 export const tipoDe = (ext: string): Tipo | null => TIPOS.find((t) => EXTENSIONES[t].includes(ext.toLowerCase())) ?? null;
 import biblioteca from "./biblioteca.json" with { type: "json" };
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 export const aDibujo = (v: Msg): PlacedObject => ({
   model: String(v.modelo), x: Number(v.x), y: Number(v.y), z: Number(v.z), rx: Number(v.rx), ry: Number(v.ry), rz: Number(v.rz),
@@ -49,7 +50,7 @@ export function crearCliente() {
   const estado = { puede: false, seleccionado: "", seleccionados: [] as string[], ultimoRechazo: "", modo: "" as Modo };
   const oyentes = new Set<(que: string) => void>();
   const avisar = (que: string) => { for (const fn of oyentes) { try { fn(que); } catch { /* a listener's error is its own */ } } };
-  const enviar = (intent: string, msg: Msg): Res => api?.send(intent, msg) ?? { ok: false as const, why: "la página aún no ha arrancado" };
+  const enviar = (intent: string, msg: Msg): Res => api?.send(intent, msg) ?? { ok: false as const, why: tx("the page has not started yet", "la página aún no ha arrancado") };
   const aqui = () => api?.view.here?.() ?? { x: 0, y: 0, z: 0 };
   const lista = () => (api ? api.state.keys().map((id) => ({ id, ...api!.state.get(id)! })) : []);
   /** B7: the holes, read from the state once per change (huecos.cerca asks five times a second; a template has hundreds
@@ -76,7 +77,7 @@ export function crearCliente() {
     for (const id of api.state.keys()) { const o = api.state.get(id)!, d = (Number(o.x) - p.x) ** 2 + (Number(o.z) - p.z) ** 2; if (d <= d2) { d2 = d; mejor = id; } }
     return mejor === null ? null : { id: mejor, ...api.state.get(mejor)! };
   };
-  const conSeleccion = (fn: (o: Msg & { id: string }) => ReturnType<typeof enviar>) => { const o = seleccion(); return o ? fn(o) : { ok: false as const, why: "no hay nada seleccionado ni cerca" }; };
+  const conSeleccion = (fn: (o: Msg & { id: string }) => ReturnType<typeof enviar>) => { const o = seleccion(); return o ? fn(o) : { ok: false as const, why: tx("nothing is selected or nearby", "no hay nada seleccionado ni cerca") }; };
   const transformar = (o: Msg & { id: string }, cambio: Partial<Donde>) =>
     enviar("mover", { id: o.id, ...acotarDonde({ ...dondeDe(o), ...cambio }) });
   const acotar = (v: number) => entre(v, LIMITES.escala);
@@ -100,14 +101,14 @@ export function crearCliente() {
     /** Put a library model 3 m in front of you (the camera looks along -z), named after the model. */
     colocar: (id: string) => {
       const m = biblioteca.modelos.find((x) => x.id === id);
-      if (!m) return { ok: false as const, why: `no hay «${id}» en la biblioteca` };
+      if (!m) return { ok: false as const, why: tx(`there is no «${id}» in the library`, `no hay «${id}» en la biblioteca`) };
       const p = aqui();
       return enviar("colocar", { modelo: m.modelo, x: p.x, y: 0, z: p.z - 3, ry: 0, nombre: m.nombre, decorado: false });
     },
     /** M22: put a library model at a point (where the pointer is), turned `ry` degrees. */
     colocarEn: (id: string, p: { x: number; y: number; z: number }, ry = 0) => {
       const m = biblioteca.modelos.find((x) => x.id === id);
-      if (!m) return { ok: false as const, why: `no hay «${id}» en la biblioteca` };
+      if (!m) return { ok: false as const, why: tx(`there is no «${id}» in the library`, `no hay «${id}» en la biblioteca`) };
       return enviar("colocar", { modelo: m.modelo, x: entre(p.x, LIMITES.x), y: entre(p.y, LIMITES.y), z: entre(p.z, LIMITES.z), ry: envolver(ry), nombre: m.nombre, decorado: false });
     },
     girar: (grados: number) => conSeleccion((o) => enviar("girar", { id: o.id, grados })),
@@ -134,7 +135,7 @@ export function crearCliente() {
     /** U10: put a file uploaded to this server (by its sha256) in front of you or at a point: an image, a video, a sphere of sound. */
     colocarFichero: (sha: string, ext: string, nombre: string, p?: { x: number; y?: number; z: number }) => {
       const tipo = tipoDe(ext);
-      if (!tipo) return { ok: false as const, why: `.${ext} no es un tipo que se pueda poner en el mundo` };
+      if (!tipo) return { ok: false as const, why: tx(`.${ext} is not a type that can be placed in the world`, `.${ext} no es un tipo que se pueda poner en el mundo`) };
       const a = p ?? (() => { const h = aqui(); return { x: h.x, z: h.z - 3 }; })();
       const y = p?.y ?? (tipo === "imagen" || tipo === "video" ? 1.2 : 0); // pictures and screens at eye height
       return enviar("colocar", { modelo: sha, x: entre(a.x, LIMITES.x), y: entre(y, LIMITES.y), z: entre(a.z, LIMITES.z), ry: 0, nombre, decorado: false, tipo, ext });
@@ -166,7 +167,7 @@ export function crearCliente() {
     /** M22: select a thing by its id ("" = nothing). The page's gizmo and inspector follow. M22c: also replaces
      * the multi-selection with just this one (shift+click/drag-box add to it instead — ver seleccionarVarios). */
     seleccionar: (id: string): Res => {
-      if (id && !api?.state.get(id)) return { ok: false, why: `no hay ningún objeto «${id}»` };
+      if (id && !api?.state.get(id)) return { ok: false, why: tx(`there is no object «${id}»`, `no hay ningún objeto «${id}»`) };
       elegirVarios(id ? [id] : []);
       return { ok: true };
     },
@@ -175,7 +176,7 @@ export function crearCliente() {
     seleccionarVarios: (ids: string[]): Res => { elegirVarios(ids); return { ok: true }; },
     /** M22c: add/remove one id from the multi-selection (shift+click), keeping the rest; `id` becomes primary if added. */
     alternarSeleccion: (id: string): Res => {
-      if (!api?.state.get(id)) return { ok: false, why: `no hay ningún objeto «${id}»` };
+      if (!api?.state.get(id)) return { ok: false, why: tx(`there is no object «${id}»`, `no hay ningún objeto «${id}»`) };
       const ya = estado.seleccionados.includes(id);
       elegirVarios(ya ? estado.seleccionados.filter((x) => x !== id) : [...estado.seleccionados, id]);
       return { ok: true };
@@ -184,15 +185,15 @@ export function crearCliente() {
      * `lote` (opcional) agrupa esta llamada con otras del mismo lote en un solo paso de deshacer (ver nuevoLote). */
     transformar: (id: string, cambio: Partial<Donde>, lote = ""): Res => {
       const o = api?.state.get(id);
-      if (!o) return { ok: false, why: `no hay ningún objeto «${id}»` };
-      for (const [k, v] of Object.entries(cambio)) if (!(CAMPOS as readonly string[]).includes(k) || !Number.isFinite(v)) return { ok: false, why: `«${k}» no es un número de x y z rx ry rz sx sy sz` };
+      if (!o) return { ok: false, why: tx(`there is no object «${id}»`, `no hay ningún objeto «${id}»`) };
+      for (const [k, v] of Object.entries(cambio)) if (!(CAMPOS as readonly string[]).includes(k) || !Number.isFinite(v)) return { ok: false, why: tx(`«${k}» is not a number of x y z rx ry rz sx sy sz`, `«${k}» no es un número de x y z rx ry rz sx sy sz`) };
       const d = acotarDonde({ ...dondeDe(o), ...cambio });
       return enviar("mover", { id, ...d, lote });
     },
     /** M22c: borrar/fijar por id (no por selección): para operar un grupo entero como una unidad, con un `lote`
      * común para que el servidor lo deshaga de un solo paso (ver nuevoLote). */
-    borrarId: (id: string, lote = ""): Res => (api?.state.get(id) ? enviar("borrar", { id, lote }) : { ok: false, why: `no hay ningún objeto «${id}»` }),
-    fijarId: (id: string, fijado: boolean, lote = ""): Res => (api?.state.get(id) ? enviar("fijar", { id, fijado, lote }) : { ok: false, why: `no hay ningún objeto «${id}»` }),
+    borrarId: (id: string, lote = ""): Res => (api?.state.get(id) ? enviar("borrar", { id, lote }) : { ok: false, why: tx(`there is no object «${id}»`, `no hay ningún objeto «${id}»`) }),
+    fijarId: (id: string, fijado: boolean, lote = ""): Res => (api?.state.get(id) ? enviar("fijar", { id, fijado, lote }) : { ok: false, why: tx(`there is no object «${id}»`, `no hay ningún objeto «${id}»`) }),
     /** M22c: un identificador corto para una acción de grupo (mover/borrar/fijar varios a la vez): úsalo como `lote`
      * en cada llamada de ESA acción; el servidor las junta en un solo paso de deshacer mientras llegan seguidas. */
     nuevoLote: (): string => Math.random().toString(36).slice(2, 10),

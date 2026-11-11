@@ -9,6 +9,7 @@
 // turns it on (`entrar`); «Dejar de construir» or leaving VR turns it off. Tracked hands are not read here yet (M22b-4); a
 // delete button needs a face/panel to press (J18's wrist menu, or a wrist panel row) — out of this slice, see
 // docs/BACKLOG.md M22b-3/M22b-4 and PROGRESO-M22b3.md.
+import { tx } from "../../packages/feature/src/idioma.ts";
 import type { Donde } from "../../packages/render/src/index.ts";
 import type { AccionFichaVR, DatosFichaVR } from "../../packages/render/src/vr-ficha.ts"; // types only
 import { aplicarAccionVR, datosFicha, fichaVisible } from "./ficha-objeto.ts";
@@ -42,8 +43,9 @@ type Editor = {
 };
 type Vista = { vr: { active: boolean; nota?(t: string): void; ficha?(d: DatosFichaVR | null): void; onFicha?(fn: (a: AccionFichaVR) => void): unknown; onAtras?(fn: () => void): unknown }; editor: Editor; manos?: Manos };
 /** v13: what the notes say about leaving, so nobody is left inside the mode without knowing the way out. */
-export const NOTA_SIGUES = "Ficha cerrada. Sigues construyendo: B para dejar de construir.";
-export const NOTA_DEJADO = "Has dejado de construir.";
+export const notaSigues = (): string => tx("Card closed. You are still building: B to stop building.", "Ficha cerrada. Sigues construyendo: B para dejar de construir.");
+export const notaDejado = (): string => tx("You stopped building.", "Has dejado de construir.");
+export const NOTA_SIGUES = notaSigues(), NOTA_DEJADO = notaDejado();
 
 /** Held past this long (ms) on the already-selected thing: it is taken at the ray's end, not just re-selected. */
 export const PRENSION_MS = 180;
@@ -136,14 +138,14 @@ export function montarConstructorVR(c: Builder, view: Vista) {
             cogido[lado] = { key, desfase: { x: antes.x - p0.x, z: antes.z - p0.z } };
             view.editor.sostener(key);
             m.vibrar(lado, 0.6, 60);
-            view.vr.nota?.(`${String(c.objeto(key)?.nombre ?? "objeto")} cogido: suelta el gatillo para posarlo.`);
+            view.vr.nota?.(tx(`${String(c.objeto(key)?.nombre ?? "object")} picked up: release the trigger to put it down.`, `${String(c.objeto(key)?.nombre ?? "objeto")} cogido: suelta el gatillo para posarlo.`));
           }
         }
         if (!gatillo) gatilloDesde[lado] = 0;
         // squeeze on the selection (not while holding it): duplicate, like Shift+D on the desktop
         if (agarre && !agarreAntes[lado] && key && key === c.estado.seleccionado) {
           const r = c.duplicar();
-          view.vr.nota?.(r.ok ? "Duplicado: apúntalo y mantén el gatillo para moverlo." : `No: ${r.why}`);
+          view.vr.nota?.(r.ok ? tx("Duplicated: point at it and hold the trigger to move it.", "Duplicado: apúntalo y mantén el gatillo para moverlo.") : tx(`No: ${r.why}`, `No: ${r.why}`));
           if (r.ok) m.vibrar(lado, 0.6, 60);
         }
       }
@@ -158,8 +160,8 @@ export function montarConstructorVR(c: Builder, view: Vista) {
     activo: (): boolean => modo,
     /** Turns the builder's hands on (the VR menu's «Construir → Empezar»); refused outside VR or without the role. */
     entrar(): Res {
-      if (!view.vr.active) return { ok: false, why: "El modo construir con el rayo solo funciona dentro de VR." };
-      if (!c.estado.puede) return { ok: false, why: "No tienes permiso para construir en este mundo." };
+      if (!view.vr.active) return { ok: false, why: tx("Building with the ray only works inside VR.", "El modo construir con el rayo solo funciona dentro de VR.") };
+      if (!c.estado.puede) return { ok: false, why: tx("You do not have permission to build in this world.", "No tienes permiso para construir en este mundo.") };
       modo = true; return { ok: true };
     },
     /** Turns them off: lets go of what a hand holds and drops the selection (the computer's Escape). */

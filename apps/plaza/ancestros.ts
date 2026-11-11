@@ -5,6 +5,7 @@
 // announcement line already reads the words to a screen reader, so the panel is aria-hidden to it.
 import type { Holograma, Dicho, Que } from "../../features/ancestros/client.ts";
 import { escribiendo } from "./interactuar.ts";
+import { tx, ligar } from "../../packages/feature/src/idioma.ts";
 
 type Ancestros = {
   hologramas(): Holograma[]; muros(): { id: string; x0: number; y0: number; z0: number; x1: number; y1: number; z1: number }[];
@@ -19,7 +20,7 @@ type Vista = {
 /** How long the panel stays open on its own (ms); Esc or «Cerrar» close it before. */
 export const PANEL_MS = 20000;
 /** The second line under the hologram's name: what it is, said at first sight. */
-export const SUBTITULO = "Holograma · dramatización";
+export const subtitulo = (): string => tx("Hologram · dramatization", "Holograma · dramatización");
 /** Where the two panels go: behind the hologram (against the back wall), one each side, at reading height. */
 export const PANEL_ATRAS_M = 3.4, PANEL_LADO_M = 1.45, PANEL_ALTO_M = 1.9;
 
@@ -40,7 +41,7 @@ export function montarAncestros(o: { ancestros: Ancestros; view: Vista }): { abi
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const panel = document.createElement("section"); panel.id = "ancestros-panel"; panel.hidden = true; panel.setAttribute("aria-hidden", "true");
   const titulo = document.createElement("h2"), ley = document.createElement("p"), lema = document.createElement("p"), nuestra = document.createElement("p"), aviso = document.createElement("p"), cerrar = document.createElement("button");
-  ley.className = "ley"; lema.className = "lema"; nuestra.className = "nuestra"; aviso.className = "aviso"; cerrar.type = "button"; cerrar.textContent = "Cerrar (Esc)";
+  ley.className = "ley"; lema.className = "lema"; nuestra.className = "nuestra"; aviso.className = "aviso"; cerrar.type = "button"; ligar(cerrar, "textContent", "Close (Esc)", "Cerrar (Esc)");
   lema.textContent = a.textos.lema; aviso.textContent = a.textos.aviso;
   panel.append(titulo, ley, lema, nuestra, aviso, cerrar);
   panel.addEventListener("pointerdown", (ev) => ev.stopPropagation()); // a tap here is not a joystick touch
@@ -61,11 +62,11 @@ export function montarAncestros(o: { ancestros: Ancestros; view: Vista }): { abi
     const paneles: Parameters<Vista["ancestros"]["paneles"]>[0] = [];
     for (const h of hs) {
       nombres.add(h.id);
-      view.tag(`ancestros:${h.id}`, { text: h.nombre, sub: SUBTITULO, x: h.x, y: h.y + 2.0, z: h.z });
+      view.tag(`ancestros:${h.id}`, { text: h.nombre, sub: subtitulo(), x: h.x, y: h.y + 2.0, z: h.z });
       const r = (h.rumbo * Math.PI) / 180, fx = Math.sin(r), fz = Math.cos(r); // where it faces when asleep; the panels go behind
       const bx = h.x - fx * PANEL_ATRAS_M, bz = h.z - fz * PANEL_ATRAS_M, lx = fz, lz = -fx;
-      paneles.push({ id: `${h.id}-leyes`, titulo: "Las Tres Leyes de la Robótica · Asimov, 1942", lineas: [...a.textos.leyes], pie: a.textos.aviso.split(".")[0] + ".", x: bx - lx * PANEL_LADO_M, y: h.y + PANEL_ALTO_M, z: bz - lz * PANEL_LADO_M, rumbo: h.rumbo });
-      paneles.push({ id: `${h.id}-nuestras`, titulo: "Las nuestras, 80 años después · AGW (STD-050)", lineas: a.textos.nuestras.map((n) => `${n.id} — ${n.texto}`), pie: "Cuatro de las catorce reglas de una IA en un mundo de Numinia.", x: bx + lx * PANEL_LADO_M, y: h.y + PANEL_ALTO_M, z: bz + lz * PANEL_LADO_M, rumbo: h.rumbo });
+      paneles.push({ id: `${h.id}-leyes`, titulo: tx("The Three Laws of Robotics · Asimov, 1942", "Las Tres Leyes de la Robótica · Asimov, 1942"), lineas: [...a.textos.leyes], pie: a.textos.aviso.split(".")[0] + ".", x: bx - lx * PANEL_LADO_M, y: h.y + PANEL_ALTO_M, z: bz - lz * PANEL_LADO_M, rumbo: h.rumbo });
+      paneles.push({ id: `${h.id}-nuestras`, titulo: tx("Ours, 80 years later · AGW (STD-050)", "Las nuestras, 80 años después · AGW (STD-050)"), lineas: a.textos.nuestras.map((n) => `${n.id} — ${n.texto}`), pie: tx("Four of the fourteen rules of an AI in a Numinia world.", "Cuatro de las catorce reglas de una IA en un mundo de Numinia."), x: bx + lx * PANEL_LADO_M, y: h.y + PANEL_ALTO_M, z: bz + lz * PANEL_LADO_M, rumbo: h.rumbo });
     }
     view.ancestros.paneles(paneles); panelesPuestos = paneles.length;
   };
@@ -74,7 +75,7 @@ export function montarAncestros(o: { ancestros: Ancestros; view: Vista }): { abi
     view.ancestros.dice(d.pnj, d.texto);
     if (!d.mia) return;
     const h = a.hologramas().find((x) => x.id === d.pnj);
-    titulo.textContent = `${h?.nombre ?? "Holograma"} · Ley ${d.ley} de 3`;
+    titulo.textContent = tx(`${h?.nombre ?? "Hologram"} · Law ${d.ley} of 3`, `${h?.nombre ?? "Holograma"} · Ley ${d.ley} de 3`);
     ley.textContent = d.texto;
     nuestra.replaceChildren(Object.assign(document.createElement("b"), { textContent: `${d.regla}: ` }), d.nuestra);
     panel.hidden = false;

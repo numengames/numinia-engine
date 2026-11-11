@@ -143,7 +143,7 @@ test("pesca peces: through MUNDO_DIR the world's fish replace the house table �
   assert.deepEqual(W.evs(B, "fin").at(-1), { quien: A.s.entity, sitio: "lago", resultado: "captura", pez: pez.nombre, cm: Number(c.cm), rareza: "comun", color: pez.color.toUpperCase() });
   assert.equal(A.p.estado().ultimo?.color, pez.color.toUpperCase(), "the «¡Pescado!» panel reads it from here");
   assert.equal(A.p.estado().ultimo?.pez, pez.nombre);
-  assert.match(A.p.estado().aviso, new RegExp(`^Has pescado: ${pez.nombre}`));
+  assert.match(A.p.estado().aviso, new RegExp(`^You caught: ${pez.nombre}`));
   for (const P of [A, B]) assert.deepEqual([P.p.capturas()[0]?.pez, P.p.capturas()[0]?.color], [pez.nombre, pez.color.toUpperCase()], "the fish in the hand is drawn in its own colour");
   assert.equal(A.p.estado().cesta.mejor, pez.nombre, "the basket keeps the world's fish");
 });

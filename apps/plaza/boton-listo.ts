@@ -3,14 +3,17 @@
 // permanent states (sound, near animations) and would never empty. The wait has a ceiling (6 s, as entrada-estable.ts):
 // after it the buttons enable anyway, so a world that never settles cannot lock the entry. Sticky: once active, they stay
 // active (a later model load must not grey the button out while you are about to press it).
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 /** How long the entry buttons may wait for the world before they enable anyway (the same 6 s as entrada-estable.ts). */
 export const TECHO_LISTO_MS = 6000;
 
-/** The text of a button that waits (announced in text; the colour alone says nothing). */
-export const TEXTO_PREPARANDO = "Preparando…";
-/** Why it waits: the button's tooltip and the line the page says when it is pressed too early. */
-export const MOTIVO_PREPARANDO = "Preparando el mundo: la entrada se activa cuando termine de cargar.";
+/** The text of a button that waits (announced in text; the colour alone says nothing), in the active language. */
+export const textoPreparando = (): string => tx("Preparing…", "Preparando…");
+/** Why it waits: the button's tooltip and the line the page says when it is pressed too early, in the active language. */
+export const motivoPreparando = (): string => tx("Preparing the world: entry turns on when loading ends.", "Preparando el mundo: la entrada se activa cuando termine de cargar.");
+/** @deprecated English snapshot kept so main.ts still imports; it does not follow the language: use motivoPreparando(). */
+export const MOTIVO_PREPARANDO = "Preparing the world: entry turns on when loading ends.";
 
 export type Listo = {
   /** Call on every tick with the world's gate (`cargando`) and a monotonic clock (ms). True once the entry may be offered; sticky. */
@@ -34,5 +37,5 @@ export function crearListo(techoMs: number = TECHO_LISTO_MS): Listo {
 
 /** What a waiting entry button shows: its text, aria-disabled, and its tooltip (empty when it is active). */
 export function aspectoBoton(listo: boolean, texto: string): { texto: string; ariaDisabled: boolean; titulo: string } {
-  return listo ? { texto, ariaDisabled: false, titulo: "" } : { texto: TEXTO_PREPARANDO, ariaDisabled: true, titulo: MOTIVO_PREPARANDO };
+  return listo ? { texto, ariaDisabled: false, titulo: "" } : { texto: textoPreparando(), ariaDisabled: true, titulo: motivoPreparando() };
 }

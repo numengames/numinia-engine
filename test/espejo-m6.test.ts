@@ -16,6 +16,8 @@ import { FRASES_DEFECTO, MAX_FRASE, aparecerCerca, fraseDe, seguir, siguienteZon
 import { cortar, detalleDe } from "../features/espejo/client.ts";
 import { acortar, anchoTexto, sinAcentos } from "../packages/render/src/formas-extra.ts";
 import { readFileSync } from "node:fs";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // these checks read the Spanish second language
 
 const PLANTILLA = JSON.parse(readFileSync(new URL("../plantillas/hermes/entorno/espejo.json", import.meta.url), "utf8"));
 const OK = [ORIGEN_DEFECTO];

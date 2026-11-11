@@ -2,6 +2,7 @@
 // points, the last dart) and, for every board near you, the darts stuck in it right now (anyone's: they stay until that
 // turn ends), plus your scoreboard and, in a duel board, the match (`duelo()`: whose turn, both scores, how it ended). One small controller for the page (apps/plaza/dardos.ts: the throwing view on a
 // flat screen, the board on your wall in AR) and for agents. It only asks: the server decides where each dart lands.
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg } from "../../packages/feature/src/index.ts";
 import { dardos as decl, DARDOS_TURNO, FUERZA_IDEAL } from "./feature.ts";
@@ -55,8 +56,8 @@ export type Que = "estado" | "sitios" | "clavados" | "duelo";
 export const DUELO_FIN_MS = 30000, DUELO_DARDOS_MS = 6000;
 type DatosDuelo = { sitio: string; ronda: number; turnoDe: number; a: Jugador; b: Jugador | null; fin: FinDuelo | null; equipos: Jugador[]; max: number; turnoEq: number; retirando: boolean };
 type Res = { ok: true } | { ok: false; why: string };
-const SIN: Res = { ok: false, why: "la función dardos no está en este servidor" };
-const APAGADA: Res = { ok: false, why: "los dardos están apagados en este mundo" };
+const SIN: Res = { ok: false, get why() { return tx("the darts feature is not on this server", "la función dardos no está en este servidor"); } }; // a getter: read in the language of that moment
+const APAGADA: Res = { ok: false, get why() { return tx("darts are turned off in this world", "los dardos están apagados en este mundo"); } };
 const ahora = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 const r3 = (v: number) => Math.round(v * 1000) / 1000; // Q16.16 on the wire: 0.12 arrives as 0.11999…
 
@@ -117,7 +118,7 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
       if (!A) return SIN;
       if (apagada()) return APAGADA;
       const id = sitio ?? dardos.sitios().find((s) => !s.ocupado)?.id;
-      if (!id) return { ok: false, why: "no hay ninguna diana cerca" };
+      if (!id) return { ok: false, why: tx("there is no dartboard nearby", "no hay ninguna diana cerca") };
       return A.send("jugar", desde === "pared" || desde === "lejos" ? { sitio: id, desde, ...(mundo ? { mundo } : {}), ...(nombre ? { nombre } : {}) } : { sitio: id });
     },
     /** Throw: aim (x, y) on the face in board radii, strength 0-1. Without a turn the server starts one. v4: `via` = how it was
@@ -126,16 +127,16 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
       if (!A) return SIN;
       if (apagada()) return APAGADA;
       const id = sitio ?? (e.sitio || dardos.sitios()[0]?.id);
-      if (!id) return { ok: false, why: "no hay ninguna diana cerca" };
+      if (!id) return { ok: false, why: tx("there is no dartboard nearby", "no hay ninguna diana cerca") };
       const c = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Number.isFinite(v) ? v : 0));
       return A.send("lanzar", { sitio: id, x: r3(c(x, -3, 3)), y: r3(c(y, -3, 3)), fuerza: r3(c(fuerza, 0, 1)), ...(via ? { via } : {}) });
     },
     // in a live match you can leave on the rival's turn too (the server hands them the win)
-    salir: (): Res => (A ? (e.sitio || (D && !D.fin && soyDe(D)) ? A.send("salir", {}) : { ok: false, why: "no estás tirando" }) : SIN),
+    salir: (): Res => (A ? (e.sitio || (D && !D.fin && soyDe(D)) ? A.send("salir", {}) : { ok: false, why: tx("you are not throwing", "no estás tirando") }) : SIN),
     /** v3: hand the dice over (my turn only): the first press opens «retirando», the next one changes the turn. */
-    cambiar: (): Res => (A ? (D && !D.fin && soyDe(D) ? A.send("cambiar", { sitio: D.sitio }) : { ok: false, why: "no estás en un duelo" }) : SIN),
+    cambiar: (): Res => (A ? (D && !D.fin && soyDe(D) ? A.send("cambiar", { sitio: D.sitio }) : { ok: false, why: tx("you are not in a duel", "no estás en un duelo") }) : SIN),
     /** v3: the host starts the match (at least 2 teams seated). */
-    empezar: (): Res => (A ? (D && !D.fin && soyDe(D) ? A.send("empezar", { sitio: D.sitio }) : { ok: false, why: "no estás en un duelo" }) : SIN),
+    empezar: (): Res => (A ? (D && !D.fin && soyDe(D) ? A.send("empezar", { sitio: D.sitio }) : { ok: false, why: tx("you are not in a duel", "no estás en un duelo") }) : SIN),
     alCambiar: (fn: (que: Que) => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
 

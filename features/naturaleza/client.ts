@@ -7,6 +7,7 @@
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi } from "../../packages/feature/src/index.ts";
 import { naturaleza, MUNDO } from "./feature.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 /** One per page (tests make one per client). */
 export function crearCliente() {
@@ -17,7 +18,7 @@ export function crearCliente() {
     /** Is the world's nature on, as the server last said (no state = a world without nature = off). */
     activa: (): boolean => api?.state.get(MUNDO)?.activa === true,
     /** Ask the server to turn it on (true) or off (false). */
-    poner: (activa: boolean) => api?.send("encender", { activa }) ?? { ok: false as const, why: "la página aún no ha arrancado" },
+    poner: (activa: boolean) => api?.send("encender", { activa }) ?? { ok: false as const, why: tx("the page has not started yet", "la página aún no ha arrancado") },
   };
   const part = clientPart(naturaleza, (a) => {
     api = a;

@@ -7,6 +7,7 @@ import { teclas } from "./teclas.ts";
 import { MARCOS_PLAZA, NOMBRES_DENSIDAD, SEGUNDOS_AL_CAMBIAR, nivelDensidad, siguienteDensidad } from "../../packages/client/src/densidad.ts";
 import type { Densidad } from "../../packages/client/src/densidad.ts";
 import { escribiendo } from "./escribiendo.ts";
+import { tx, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
 import { anunciar } from "./paneles.ts";
 import { esTactil } from "./perfil-aparato.ts"; // U25: the page's one answer to «touch controls or not»
 
@@ -44,7 +45,7 @@ export function montarDensidad(a: Registro): { nivel(): Densidad; poner(d: Densi
     if (!boton) return;
     const min = nivel === "minimo";
     boton.hidden = !(min || tactil);
-    boton.textContent = min ? (nuevos ? `Chat · ${nuevos} ${nuevos === 1 ? "nuevo" : "nuevos"} · Intro` : "Chat · Intro") : "Chat";
+    boton.textContent = min ? (nuevos ? tx(`Chat · ${nuevos} new · Enter`, `Chat · ${nuevos} ${nuevos === 1 ? "nuevo" : "nuevos"} · Intro`) : tx("Chat · Enter", "Chat · Intro")) : "Chat";
   };
   const reciente = () => { // al_cambiar: the list shows with each new line and fades after N s
     if (!lista) return;
@@ -67,6 +68,7 @@ export function montarDensidad(a: Registro): { nivel(): Densidad; poner(d: Densi
     if (d !== "minimo") nuevos = 0;
     pastilla();
   };
+  alCambiarIdioma(() => pastilla()); // the pill text follows the language
   a.alAplicar("interfaz.densidad", (v) => poner(nivelDensidad(v)));
   poner(nivel);
 
@@ -75,7 +77,7 @@ export function montarDensidad(a: Registro): { nivel(): Densidad; poner(d: Densi
     if (!teclas.es(e, "densidad") || e.repeat || e.ctrlKey || e.altKey || e.metaKey || escribiendo(e) || document.querySelector("dialog[open]")) return;
     const sig = siguienteDensidad(nivel);
     a.set("interfaz.densidad", sig);
-    anunciar(`Densidad de interfaz: ${NOMBRES_DENSIDAD[sig]}.`);
+    anunciar(tx(`Interface density: ${NOMBRES_DENSIDAD[sig]}.`, `Densidad de interfaz: ${NOMBRES_DENSIDAD[sig]}.`));
   });
   return { nivel: () => nivel, poner: (d) => { a.set("interfaz.densidad", d); } };
 }

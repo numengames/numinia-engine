@@ -21,6 +21,7 @@ import type { Progreso } from "../features/misiones/maquina.ts";
 import { misiones as misionesDecl } from "../features/misiones/feature.ts";
 import { crearMisiones } from "../features/misiones/server.ts";
 import { crearCliente } from "../features/misiones/client.ts";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
 
 const adios = { texto: "Adiós.", accion: { tipo: "despedir" } };
 const da = (mision: string) => ({ entradas: [{ nodo: "pide" }], nodos: { pide: { texto: "¿Nos ayuda?", opciones: [{ texto: "Acepto.", accion: { tipo: "dar_mision", mision } }, adios] } } });
@@ -398,7 +399,11 @@ test("machine: with `fases` the card shows the quest's time and the time of each
 
 test("page: the foot of the end card names the «J» key only where there is a keyboard — on a touch screen it names none (P13 b)", async () => {
   const { pieDeTarjeta } = await import("../apps/plaza/evaluacion-tarjeta.ts");
+  assert.match(pieDeTarjeta(false), /quest book \(J\)\.$/);
+  assert.equal(pieDeTarjeta(true), "You can see it again from the quest book.");
+  fijarIdioma("es");
   assert.match(pieDeTarjeta(false), /libro de misiones \(J\)\.$/);
   assert.equal(pieDeTarjeta(true), "Puede volver a verla desde el libro de misiones.");
+  fijarIdioma("en");
   assert.doesNotMatch(pieDeTarjeta(true), /\(J\)|\bJ\b/);
 });

@@ -10,7 +10,9 @@ export const PALETA = {
 
 /** A colour matrix: 3 rows (r g b out) of 4 numbers (× r, × g, × b, + offset), all in 0..1 units. */
 export type Matriz = readonly [readonly number[], readonly number[], readonly number[]];
-export type Filtro = { id: string; nombre: string; describe: string; matriz: Matriz | null };
+export type Filtro = { id: string; readonly nombre: string; readonly describe: string; matriz: Matriz | null };
+
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 const LUMA = [0.2126, 0.7152, 0.0722];
 const u = (c: readonly number[]) => c.map((v) => v / 255);
@@ -23,10 +25,10 @@ function duotono(a: readonly number[], b: readonly number[], k: number): Matriz 
 
 /** The filters, in the order of the buttons. «Natural» changes nothing. */
 export const FILTROS: readonly Filtro[] = [
-  { id: "natural", nombre: "Natural", describe: "La foto tal cual", matriz: null },
-  { id: "ambar", nombre: "Ámbar", describe: "Cálida, de tarde: sombras de la noche de la casa, luces de ámbar", matriz: duotono(PALETA.fondo, mezcla(PALETA.ambar, PALETA.texto, 0.45), 0.7) },
-  { id: "verdemar", nombre: "Verdemar", describe: "Fría, de madrugada: de la noche al verdemar", matriz: duotono(PALETA.fondo, PALETA.verdemar, 0.85) },
-  { id: "tinta", nombre: "Tinta", describe: "Blanco y negro sobre papel", matriz: duotono(PALETA.fondo, PALETA.texto, 1) },
+  { id: "natural", get nombre() { return tx("Natural", "Natural"); }, get describe() { return tx("The photo as it is", "La foto tal cual"); }, matriz: null },
+  { id: "ambar", get nombre() { return tx("Amber", "Ámbar"); }, get describe() { return tx("Warm, afternoon: the house night shadows, amber lights", "Cálida, de tarde: sombras de la noche de la casa, luces de ámbar"); }, matriz: duotono(PALETA.fondo, mezcla(PALETA.ambar, PALETA.texto, 0.45), 0.7) },
+  { id: "verdemar", get nombre() { return tx("Sea green", "Verdemar"); }, get describe() { return tx("Cool, early morning: from night to sea green", "Fría, de madrugada: de la noche al verdemar"); }, matriz: duotono(PALETA.fondo, PALETA.verdemar, 0.85) },
+  { id: "tinta", get nombre() { return tx("Ink", "Tinta"); }, get describe() { return tx("Black and white on paper", "Blanco y negro sobre papel"); }, matriz: duotono(PALETA.fondo, PALETA.texto, 1) },
 ];
 function mezcla(a: readonly number[], b: readonly number[], t: number): number[] { return a.map((v, i) => Math.round(v + (b[i] - v) * t)); }
 
@@ -62,9 +64,9 @@ export function marco(w: number, h: number): { borde: number; banda: number; let
 
 /** A world's name fit for a file name: lower case, ASCII letters, digits and dashes (accents dropped). */
 export function nombreArchivo(mundo: string, cuando: Date): string {
-  const base = mundo.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "mundo";
+  const base = mundo.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || tx("world", "mundo");
   const d = (n: number) => String(n).padStart(2, "0");
-  return `${base}-${cuando.getFullYear()}${d(cuando.getMonth() + 1)}${d(cuando.getDate())}-${d(cuando.getHours())}${d(cuando.getMinutes())}${d(cuando.getSeconds())}.png`;
+  return `${base}-${cuando.getFullYear()}${d(cuando.getMonth() + 1)}${d(cuando.getDate())}-${d(cuando.getHours())}${d(cuando.getMinutes())}${d(cuando.getSeconds())}.png`; // i18n-ok: file name pattern, not text
 }
 
 /** MIS-265: a world's cover (its card on numinia.com, a link's preview) is the photo redrawn as a JPEG this long on its

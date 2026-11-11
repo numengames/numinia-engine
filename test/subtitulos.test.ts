@@ -2,6 +2,7 @@
 // near/far with hysteresis, who leaves when there is no room, how long a box stays, and the line for the screen reader.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
 import { SECTORES, anguloRelativo, aLaVista, esLejos, frase, ordenar, permanenciaMs, quienSale, recortarNombre, sectorDe } from "../apps/plaza/subtitulos-logica.ts";
 
 const G = Math.PI / 180;
@@ -17,6 +18,7 @@ test("the camera frame: looking along -z (yaw 0), +x is to the right, +z is behi
 });
 
 test("the 8 sectors, clockwise from ahead, with words and reader phrases", () => {
+  fijarIdioma("es");
   const esperado = ["delante", "delante dcha.", "derecha", "detrás dcha.", "detrás", "detrás izq.", "izquierda", "delante izq."];
   assert.deepEqual(SECTORES.map((s) => s.palabra), esperado);
   for (let i = 0; i < 8; i++) assert.equal(sectorDe(i * 45 * G), i, `centre of ${esperado[i]}`);
@@ -25,6 +27,10 @@ test("the 8 sectors, clockwise from ahead, with words and reader phrases", () =>
   assert.equal(sectorDe(-179 * G), 4);
   assert.equal(SECTORES[6].lector, "a tu izquierda");
   assert.equal(SECTORES[5].lector, "detrás de ti a la izquierda");
+  fijarIdioma("en");
+  assert.equal(SECTORES[6].lector, "to your left");
+  assert.deepEqual(SECTORES.map((s) => s.palabra).slice(0, 3), ["ahead", "ahead right", "right"]);
+  fijarIdioma("es");
 });
 
 test("the sector holds for 8° past the border and then changes (it does not tremble)", () => {
@@ -73,6 +79,7 @@ test("order: the stage on top, then by arrival (newest at the bottom)", () => {
 });
 
 test("the screen reader line carries name, direction only when out of sight, far and stage", () => {
+  fijarIdioma("es");
   assert.equal(frase({ nombre: "Ana", escenario: false, texto: "habla." }), "Ana: habla.");
   assert.equal(frase({ nombre: "Leo", escenario: false, escrito: true, sector: 6, texto: "hola." }), "Leo, escrito, a tu izquierda: hola.");
   assert.equal(frase({ nombre: "Marta", escenario: false, sector: 5, lejos: true, texto: "habla." }), "Marta, detrás de ti a la izquierda, lejos: habla.");

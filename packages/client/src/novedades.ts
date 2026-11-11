@@ -1,3 +1,4 @@
+import { tx } from "../../feature/src/idioma.ts";
 // «Qué hay de nuevo» (t_bdc2c2db): a new version must be felt on screen, not just in the number (Pablo, 2026-10-18:
 // «que lo nuevo SE NOTE en la interfaz»). Pure, testable logic: picking the last diary entries from docs/RUNLOG.md
 // (a changelog reads the same way) and deciding whether this is a version nobody on this browser has seen yet.
@@ -42,7 +43,7 @@ export function novedadesDeRunlog(texto: string, n = 3): string[] {
 export function avisoDeNovedades(version: string, lineas: readonly string[]): { titulo: string; lineas: string[]; texto: string } | null {
   const l = lineas.map((x) => x.trim()).filter(Boolean);
   if (!l.length) return null;
-  const titulo = `Novedades en v${version}`;
+  const titulo = tx(`What's new in v${version}`, `Novedades en v${version}`);
   return { titulo, lineas: l, texto: `${titulo}: ${l.join(" ")}` };
 }
 

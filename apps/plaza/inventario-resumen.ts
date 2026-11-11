@@ -21,10 +21,12 @@ export function avisarRecibido(texto = "+1"): void {
   document.body.appendChild(chip);
   setTimeout(() => chip.remove(), 1700);
 }
+import { tx } from "../../packages/feature/src/idioma.ts";
 /** What the sheet says: «3 objetos (1 contigo) · Semillas: 4 puntos de Prestigio». */
 export function resumenTexto(r: { objetos: number; portados: number; prestigio: number }): string {
-  if (!r.objetos) return "No llevas nada todavía.";
-  return `${r.objetos} ${r.objetos === 1 ? "objeto" : "objetos"}${r.portados ? ` (${r.portados} contigo)` : ""}${r.prestigio ? ` · Semillas: ${r.prestigio} ${r.prestigio === 1 ? "punto" : "puntos"} de Prestigio` : ""}`;
+  if (!r.objetos) return tx("You are not carrying anything yet.", "No llevas nada todavía.");
+  return tx(`${r.objetos} ${r.objetos === 1 ? "item" : "items"}${r.portados ? ` (${r.portados} with you)` : ""}${r.prestigio ? ` · Seeds: ${r.prestigio} Prestige ${r.prestigio === 1 ? "point" : "points"}` : ""}`,
+    `${r.objetos} ${r.objetos === 1 ? "objeto" : "objetos"}${r.portados ? ` (${r.portados} contigo)` : ""}${r.prestigio ? ` · Semillas: ${r.prestigio} ${r.prestigio === 1 ? "punto" : "puntos"} de Prestigio` : ""}`);
 }
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, texto = "", clase = ""): HTMLElementTagNameMap[K] => {

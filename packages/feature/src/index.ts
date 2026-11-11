@@ -12,6 +12,7 @@ import { defineSchema, validate } from "../../schema/src/index.ts";
 import type { Field, Schema } from "../../schema/src/index.ts";
 import { MSG, BitWriter, BitReader, writeFields, readFields } from "../../net/src/index.ts";
 import type { Fields } from "../../net/src/index.ts";
+import { AVISOS_EN } from "./avisos-en.ts";
 import { validarAjustes } from "./ajustes.ts";
 import type { AjusteDecl } from "./ajustes.ts";
 export type { AjusteDecl } from "./ajustes.ts"; // N2: the settings a feature declares (format and validation: ajustes.ts)
@@ -1071,7 +1072,8 @@ export type PlacedObject = { model: string; x: number; y: number; z: number; rx:
 export type Vida = { id: string; reposo: boolean; mira: number; atiende?: boolean; camina?: boolean; andando?: boolean };
 export const NO_VIEW: ViewHooks = { label() {}, bounce() {} };
 /** An event as a person hears and reads it (V1). `at` in metres; `who` = the entity it is about. */
-export type Announcement = { feature: string; event: string; text: string; sound: Sound; importance: Importance; at?: { x: number; z: number }; who?: number };
+export type Announcement = { feature: string; event: string; text: string; sound: Sound; importance: Importance; at?: { x: number; z: number }; who?: number;
+  /** The English of `text` when the source text is Spanish (avisos-en.ts), filled in. Not enumerable: the log and the tests see only the source. */ readonly en?: string };
 /** A thing in the world as a screen reader or an agent reads it (V1). */
 export type CardView = { feature: string; key: string; role: Role; name: string; description?: string; importance: Importance; actions: string[]; at?: { x: number; z: number } };
 /** J4: a thing in reach as the page offers it: «E: <prompt>»; `use(feature, key)` sends its intent.
@@ -1156,7 +1158,7 @@ export class ClientRuntime {
         keys: () => [...(this.mirror.get(otra)?.keys() ?? [])],
         onChange: (fn) => { this.changes.set(otra, [...(this.changes.get(otra) ?? []), fn]); },
       }),
-      action: (a) => { this.acts.push({ ...a, feature: id }); },
+      action: (a) => { this.acts.push(Object.defineProperty(Object.defineProperties({} as Action, Object.getOwnPropertyDescriptors(a)), "feature", { value: id, enumerable: true, writable: true, configurable: true })); }, // descriptors, not a spread: a `get label()` stays live, so the bar re-reads it when the language changes
       self: () => host.self(),
       lugar: (key, p) => this.ponerLugar(id, key, p),
       get view() { return host.view ?? NO_VIEW; }, // read on each use: the page may attach its view later
@@ -1263,6 +1265,7 @@ export class ClientRuntime {
         const a: Announcement = { feature: e.feature, event: e.name, text: fillTemplate(an.text, msg), sound: an.sound, importance: an.importance ?? 1 };
         if (an.at) a.at = { x: Number(msg[an.at[0]]), z: Number(msg[an.at[1]]) };
         if (an.who) a.who = Number(msg[an.who]);
+        const ingles = AVISOS_EN[`${e.feature}.${e.name}`]; if (ingles) Object.defineProperty(a, "en", { value: fillTemplate(ingles, msg), enumerable: false });
         this.announcements.push(a); if (this.announcements.length > 32) this.announcements.shift();
         try { this.host.view?.announce?.(a); } catch { this.stats.errors++; }
       }

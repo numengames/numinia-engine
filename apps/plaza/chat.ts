@@ -5,12 +5,17 @@
 import { escribiendo } from "./escribiendo.ts";
 import { esTactil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
 import { anunciar } from "./paneles.ts"; // F1: an answer only for you («te han silenciado») also reaches the status region when the chat is closed
+import { tx, ligar, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
 
 type Linea = { tipo: "cerca" | "zona" | "antes" | "aviso"; quien: number; nombre: string; texto: string; tuyo: boolean };
 type Res = { ok: true } | { ok: false; why: string };
 type Chat = { lineas: readonly Linea[]; alLlegar(fn: (l: Linea) => void): void; decir(texto: string, canal?: "cerca" | "zona"): Res };
 export const LISTA_MAX = 30;
-const CANAL = { cerca: { texto: "Cerca", titulo: "Te leen quienes están a menos de 20 m. Pulsa para hablar a toda la zona." }, zona: { texto: "Zona", titulo: "Te lee toda la zona (un mensaje cada 5 s). Pulsa para hablar solo a quien está cerca." } };
+// read in the language of that moment (never frozen at import)
+const CANAL = {
+  get cerca() { return { texto: tx("Near", "Cerca"), titulo: tx("People within 20 m can read you. Press to talk to the whole area.", "Te leen quienes están a menos de 20 m. Pulsa para hablar a toda la zona.") }; },
+  get zona() { return { texto: tx("Area", "Zona"), titulo: tx("The whole area reads you (one message every 5 s). Press to talk only to people nearby.", "Te lee toda la zona (un mensaje cada 5 s). Pulsa para hablar solo a quien está cerca.") }; },
+};
 
 export function montarChat(chat: Chat, raiz: HTMLElement) {
   const $ = <T extends HTMLElement>(sel: string) => raiz.querySelector(sel) as T;
@@ -20,14 +25,14 @@ export function montarChat(chat: Chat, raiz: HTMLElement) {
   let canal: "cerca" | "zona" = "cerca";
   let silencio: ReturnType<typeof setTimeout> | undefined;
 
-  const pintarCanal = () => { canalBtn.textContent = CANAL[canal].texto; canalBtn.title = CANAL[canal].titulo; canalBtn.setAttribute("aria-label", `A quién le llega: ${CANAL[canal].texto}. ${CANAL[canal].titulo}`); };
+  const pintarCanal = () => { canalBtn.textContent = CANAL[canal].texto; canalBtn.title = CANAL[canal].titulo; canalBtn.setAttribute("aria-label", tx(`Who receives it: ${CANAL[canal].texto}. ${CANAL[canal].titulo}`, `A quién le llega: ${CANAL[canal].texto}. ${CANAL[canal].titulo}`)); };
   const pintar = (l: Linea) => {
     const li = document.createElement("li");
     li.className = l.tipo;
     if (l.tipo === "aviso") { li.textContent = l.texto; if (form.hidden) anunciar(l.texto); }
     else {
       const quien = document.createElement("b");
-      quien.textContent = (l.tuyo ? "Tú" : l.nombre) + (l.tipo === "zona" ? " (a la zona)" : l.tipo === "antes" ? " (antes)" : "");
+      quien.textContent = (l.tuyo ? tx("You", "Tú") : l.nombre) + (l.tipo === "zona" ? tx(" (to the area)", " (a la zona)") : l.tipo === "antes" ? tx(" (earlier)", " (antes)") : "");
       li.append(quien, document.createTextNode(`: ${l.texto}`));
     }
     if (l.tipo === "antes") { // the zone's history: shown, not read aloud line by line
@@ -59,14 +64,14 @@ export function montarChat(chat: Chat, raiz: HTMLElement) {
 
   for (const l of chat.lineas) pintar(l);
   chat.alLlegar(pintar);
-  pintarCanal();
+  pintarCanal(); alCambiarIdioma(() => pintarCanal());
   canalBtn.addEventListener("click", () => { canal = canal === "cerca" ? "zona" : "cerca"; pintarCanal(); input.focus(); });
   input.addEventListener("keydown", (e) => {
     if (e.isComposing) return;
     if (e.key === "Enter") { e.preventDefault(); enviar(); }
     else if (e.key === "Escape") { e.preventDefault(); cerrar(); }
   });
-  input.addEventListener("input", () => { const n = new TextEncoder().encode(input.value).length; estado.textContent = n > 160 ? `${n} de 200 bytes` : ""; });
+  input.addEventListener("input", () => { const n = new TextEncoder().encode(input.value).length; estado.textContent = n > 160 ? tx(`${n} of 200 bytes`, `${n} de 200 bytes`) : ""; });
   // Enter (or «/») anywhere in the world opens the box; never while typing in another box or when a button has focus
   addEventListener("keydown", (e) => {
     if (escribiendo(e) || e.repeat || (e.key !== "Enter" && e.key !== "/")) return;
@@ -76,7 +81,7 @@ export function montarChat(chat: Chat, raiz: HTMLElement) {
     e.preventDefault();
     abrir(e.key === "/" ? "/" : "");
   });
-  if (tactil) { boton.hidden = false; input.placeholder = "Escribe aquí…"; } // U24: a phone says no «pulsa Enter»
+  if (tactil) { boton.hidden = false; ligar(input, "placeholder", "Type here…", "Escribe aquí…"); } // U24: a phone says no «pulsa Enter»
   boton.addEventListener("click", () => (form.hidden ? abrir() : cerrar()));
   raiz.addEventListener("pointerdown", (e) => e.stopPropagation()); // a touch on the chat is not a joystick
   return { abrir, cerrar, get abierto() { return !form.hidden; } };

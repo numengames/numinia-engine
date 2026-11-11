@@ -2,16 +2,24 @@
 // sends with it, which files may be a sky picture or an HDR light, and what the library offers. No DOM, no engine: the page
 // (apps/plaza/entorno.ts) only draws and sends; the server (features/entorno) still decides and validates every value.
 
+import { tx } from "../../packages/feature/src/idioma.ts";
+
 export type Valores = Record<string, unknown>;
-/** The four colours of the panel: the field of the environment each picker writes, its label (es / en). */
+/** The four colours of the panel: the field of the environment each picker writes, its label (`texto` answers in the active language
+ * each time it is read; `en` is always the English one). */
+const color = (campo: string, en: string, es: string) => ({ campo, get texto(): string { return tx(en, es); }, en });
 export const COLORES: { campo: string; texto: string; en: string }[] = [
-  { campo: "cieloArriba", texto: "Color del cielo (arriba)", en: "Sky colour (top)" },
-  { campo: "cieloHorizonte", texto: "Color del cielo (horizonte)", en: "Sky colour (horizon)" },
-  { campo: "nieblaColor", texto: "Color de la niebla", en: "Fog colour" },
-  { campo: "solColor", texto: "Color del sol", en: "Sun colour" },
+  color("cieloArriba", "Sky colour (top)", "Color del cielo (arriba)"), // i18n-ok: the Spanish half of color(en, es)
+  color("cieloHorizonte", "Sky colour (horizon)", "Color del cielo (horizonte)"), // i18n-ok: the Spanish half of color(en, es)
+  color("nieblaColor", "Fog colour", "Color de la niebla"), // i18n-ok: the Spanish half of color(en, es)
+  color("solColor", "Sun colour", "Color del sol"), // i18n-ok: the Spanish half of color(en, es)
 ];
-/** Sky kinds (features/entorno CIELOS) with a name a person reads. */
-export const CIELO_NOMBRE: Record<string, string> = { atmosfera: "Atmósfera (cielo vivo)", degradado: "Degradado de dos colores", color: "Un solo color" };
+/** Sky kinds (features/entorno CIELOS) with a name a person reads (getters: each read answers in the active language). */
+export const CIELO_NOMBRE: Record<string, string> = {
+  get atmosfera() { return tx("Atmosphere (living sky)", "Atmósfera (cielo vivo)"); },
+  get degradado() { return tx("Two-colour gradient", "Degradado de dos colores"); },
+  get color() { return tx("Single colour", "Un solo color"); },
+};
 
 /** 0xRRGGBB → "#rrggbb" (what <input type="color"> speaks). */
 export const aHex = (n: number): string => `#${(Math.max(0, Math.min(0xffffff, Math.round(Number(n) || 0))) >>> 0).toString(16).padStart(6, "0")}`;
@@ -37,17 +45,17 @@ export const NOMBRE_FICHERO = /^[0-9a-f]{64}\.(hdr|png|jpg|webp)$/;
 export function fondoAceptable(campo: CampoFondo, fichero: string): { ok: true; ext: string } | { ok: false; why: string } {
   const e = fichero.split(".").pop()?.toLowerCase() ?? "", ext = e === "jpeg" ? "jpg" : e;
   if (EXTENSIONES[campo].includes(ext)) return { ok: true, ext };
-  return { ok: false, why: campo === "hdr" ? "la luz del cielo es un fichero .hdr" : "el fondo es una imagen .hdr, .png, .jpg o .webp" };
+  return { ok: false, why: campo === "hdr" ? tx("the sky light is an .hdr file", "la luz del cielo es un fichero .hdr") : tx("the background is an .hdr, .png, .jpg or .webp image", "el fondo es una imagen .hdr, .png, .jpg o .webp") };
 }
 
 /** The options of a library list: «none», the house skies, and the current value when it is neither (an upload). */
 export function opcionesFondo(campo: CampoFondo, actual: string, casa: { id: string; nombre: string; hdr: string }[]): { valor: string; texto: string }[] {
-  const lista = [{ valor: "", texto: campo === "hdr" ? "Ninguna (la luz sale del propio cielo)" : "Ninguno (el cielo de arriba)" }, ...casa.map((c) => ({ valor: c.hdr, texto: `${c.nombre} (la casa, CC0)` }))];
-  if (actual && !lista.some((o) => o.valor === actual)) lista.push({ valor: actual, texto: `Subido: ${actual.slice(0, 8)}…${actual.slice(actual.lastIndexOf("."))}` });
+  const lista = [{ valor: "", texto: campo === "hdr" ? tx("None (the light comes from the sky itself)", "Ninguna (la luz sale del propio cielo)") : tx("None (the sky above)", "Ninguno (el cielo de arriba)") }, ...casa.map((c) => ({ valor: c.hdr, texto: tx(`${c.nombre} (the house, CC0)`, `${c.nombre} (la casa, CC0)`) }))];
+  if (actual && !lista.some((o) => o.valor === actual)) { const f = `${actual.slice(0, 8)}…${actual.slice(actual.lastIndexOf("."))}`; lista.push({ valor: actual, texto: tx(`Uploaded: ${f}`, `Subido: ${f}`) }); }
   return lista;
 }
 
 /** The sentence under the controls for the tier the page runs on: where the big HDR is not fetched. */
 export function notaNivel(nivel: string): string {
-  return nivel === "A" ? "" : "En este aparato (móvil o gafas) no se carga el HDR grande: se ve el cielo de colores y su luz. / On this device (phone or headset) the big HDR is not fetched: the colour sky and its light show.";
+  return nivel === "A" ? "" : tx("On this device (phone or headset) the big HDR is not fetched: the colour sky and its light show.", "En este aparato (móvil o gafas) no se carga el HDR grande: se ve el cielo de colores y su luz.");
 }

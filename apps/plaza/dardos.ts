@@ -15,6 +15,7 @@
 //   (AR)» (joins when the board hangs on the wall). The server decides who may join.
 // Everything asked goes through the controller (features/dardos/client.ts): the server decides where each dart lands.
 import { escribiendo } from "./escribiendo.ts";
+import { tx, ligar } from "../../packages/feature/src/idioma.ts";
 import { pintarDiana, caraAPixel, pixelACara, potenciaDe, PINTADA } from "../../packages/render/src/index.ts";
 import type { DianaAR } from "../../packages/render/src/index.ts";
 import { esTactil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
@@ -57,7 +58,7 @@ export const FLICK_MIN = 0.12;
 /** Strength of a flick (0-1) from its upward speed in canvas heights per second. Pure. */
 export const fuerzaDeFlick = (alturasPorSegundo: number): number => Math.max(0, Math.min(1, alturasPorSegundo / FLICK_LLENO));
 
-const CSS = `
+const CSS = ` /* i18n-ok: stylesheet */
 #dardos-hud { position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); z-index: 30; width: min(94vw, 380px); padding: 8px 10px 10px; border-radius: 14px; background: rgba(20, 24, 30, .97); box-shadow: 0 6px 24px rgba(0,0,0,.45); color: #eef2f6; font: 14px/1.35 system-ui, sans-serif; display: grid; gap: 6px; justify-items: center; }
 #dardos-hud[hidden] { display: none; }
 #dardos-hud .cabeza { width: 100%; display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
@@ -96,24 +97,32 @@ const CSS = `
 export function montarDardos(o: { dardos: Dardos; view: Vista; session: { entity: number }; hud: HTMLElement }) {
   const { dardos, view, hud } = o;
   if (!document.getElementById("dardos-css")) { const st = document.createElement("style"); st.id = "dardos-css"; st.textContent = CSS; document.head.appendChild(st); }
-  hud.setAttribute("aria-label", "Dardos");
+  ligar(hud, "aria-label", "Darts", "Dardos");
   hud.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch, nor a camera drag
   hud.innerHTML = /* static markup, no data in it: every text below goes in with textContent */ `<div class="cabeza"><span class="nombre"></span><span class="cuenta"></span></div>
-    <div class="mesa"><div class="tablero"><canvas class="diana" width="680" height="680" aria-label="Diana: apunta y lanza"></canvas></div>
-      <div class="guia" hidden><canvas class="barra" width="80" height="680" role="img" aria-label="Barra de fuerza: suelta con la barra dentro de la zona dorada"></canvas><div class="rotulos"><span class="fuerte">FUERTE ↑</span><span class="medio">PERFECTO</span><span class="flojo">FLOJO ↓</span><p class="suelta" role="status" aria-live="assertive" hidden></p></div></div></div>
+    <div class="mesa"><div class="tablero"><canvas class="diana" width="680" height="680" ></canvas></div>
+      <div class="guia" hidden><canvas class="barra" width="80" height="680" role="img" ></canvas><div class="rotulos"><span class="fuerte"></span><span class="medio"></span><span class="flojo"></span><p class="suelta" role="status" aria-live="assertive" hidden></p></div></div></div>
     <p class="resultado" role="status" aria-live="polite"></p>
     <p class="pista"></p><p class="marcador"></p>
-    <div class="botones"><button type="button" class="unirse" hidden>Jugar desde aquí</button><button type="button" class="ar" hidden>En tu pared (AR)</button><button type="button" class="salir">Dejarlo</button></div>`;
+    <div class="botones"><button type="button" class="unirse" hidden></button><button type="button" class="ar" hidden></button><button type="button" class="salir"></button></div>`;
   const $ = <T extends HTMLElement>(s: string) => hud.querySelector(s) as T;
+  // the markup above carries no text (it is built once): every label is bound so it flips with the language
+  ligar($("canvas.diana"), "aria-label", "Dartboard: aim and throw", "Diana: apunta y lanza");
+  ligar($("canvas.barra"), "aria-label", "Strength bar: release with the bar inside the gold zone", "Barra de fuerza: suelta con la barra dentro de la zona dorada");
+  ligar($(".fuerte"), "textContent", "TOO HARD ↑", "FUERTE ↑"); ligar($(".medio"), "textContent", "PERFECT", "PERFECTO"); ligar($(".flojo"), "textContent", "TOO SOFT ↓", "FLOJO ↓");
+  ligar($(".unirse"), "textContent", "Play from here", "Jugar desde aquí"); ligar($(".salir"), "textContent", "Leave it", "Dejarlo");
   const canvas = $<HTMLCanvasElement>("canvas.diana"), barraC = $<HTMLCanvasElement>("canvas.barra"), bctx = barraC.getContext("2d")!, guia = $<HTMLDivElement>(".guia"), tablero = $<HTMLDivElement>(".tablero"), ctx = canvas.getContext("2d")!;
   const fondo = document.createElement("canvas"); fondo.width = fondo.height = canvas.width; pintarDiana(fondo.getContext("2d")!, fondo.width);
   const PX = canvas.width;
   const tactil = esTactil();
   // PC: the bar beside the board (28 css px, the board's height); a phone has none (the flick's speed is the strength)
   hud.classList.toggle("pc", !tactil); guia.hidden = tactil;
-  $<HTMLParagraphElement>(".pista").textContent = tactil
+  const pista = $<HTMLParagraphElement>(".pista");
+  ligar(pista, "textContent", tactil
+    ? "Put your finger on the board and flick it upward: the faster, the harder."
+    : "Mouse: aim, hold and release with the bar in the gold zone. Keyboard: arrows or WASD aim (Shift = fine step), Space holds and releases, Esc leaves.", tactil
     ? "Pon el dedo en la diana y lánzalo hacia arriba: cuanto más rápido, más fuerte."
-    : "Ratón: apunta, mantén pulsado y suelta con la barra en la zona dorada. Teclado: flechas o WASD apuntan (Mayús = paso fino), Espacio mantiene y suelta, Esc sale.";
+    : "Ratón: apunta, mantén pulsado y suelta con la barra en la zona dorada. Teclado: flechas o WASD apuntan (Mayús = paso fino), Espacio mantiene y suelta, Esc sale.");
   /** The bar's canvas row for a strength p (0-1), as a fraction of its height from the bottom: the same maths draws the marks and places the words. */
   const BORDE = 6, fraccion = (p: number) => (BORDE + p * (barraC.height - 2 * BORDE)) / barraC.height;
   const rotulos = $<HTMLDivElement>(".rotulos"), medio = $<HTMLSpanElement>(".rotulos .medio"), etiqueta = $<HTMLParagraphElement>("p.suelta");
@@ -217,7 +226,7 @@ export function montarDardos(o: { dardos: Dardos; view: Vista; session: { entity
   let arSoportado = false;
   void view.arSupported().then((ok) => { arSoportado = ok; botonAR.hidden = !ok; });
   /** The AR button says what it does NOW (leave AR / hang the board): repainted whenever the session starts or ends, not only on the next state change. */
-  const pintarBotonAR = (): void => { botonAR.textContent = view.ar.jugando ? "Salir de AR" : "En tu pared (AR)"; };
+  const pintarBotonAR = (): void => { botonAR.textContent = view.ar.jugando ? tx("Leave AR", "Salir de AR") : tx("On your wall (AR)", "En tu pared (AR)"); };
   botonAR.onclick = async () => {
     if (view.ar.jugando) { await view.ar.exit(); pintarBotonAR(); return; }
     if (lobby) duelo.preferir(lobby); // the board of the lobby is the one the wall joins
@@ -248,10 +257,10 @@ export function montarDardos(o: { dardos: Dardos; view: Vista; session: { entity
     if (!lobby) return;
     const s = dardos.sitios().find((x) => x.id === lobby), e = dardos.estado();
     const est = s ? estadoEntrada(s) : null;
-    $<HTMLSpanElement>(".nombre").textContent = s?.nombre ?? "Dardos";
-    $<HTMLSpanElement>(".cuenta").textContent = est?.texto ?? "esta diana ya no está";
+    $<HTMLSpanElement>(".nombre").textContent = s?.nombre ?? tx("Darts", "Dardos");
+    $<HTMLSpanElement>(".cuenta").textContent = est?.texto ?? tx("this dartboard is gone", "esta diana ya no está");
     $<HTMLParagraphElement>(".resultado").textContent = e.aviso && e.aviso !== avisoBase ? e.aviso
-      : !s ? "Esa diana ya no está en el mundo." : !est?.libre ? "Ahora no hay sitio: espera a que acabe la partida." : arSoportado ? "Siéntate desde esta pantalla o cuelga la diana en tu pared (AR)." : "Siéntate desde esta pantalla: tiras desde aquí.";
+      : !s ? tx("That dartboard is no longer in the world.", "Esa diana ya no está en el mundo.") : !est?.libre ? tx("No room right now: wait for the game to end.", "Ahora no hay sitio: espera a que acabe la partida.") : arSoportado ? tx("Sit from this screen or hang the board on your wall (AR).", "Siéntate desde esta pantalla o cuelga la diana en tu pared (AR).") : tx("Sit from this screen: you throw from here.", "Siéntate desde esta pantalla: tiras desde aquí.");
     botonUnirse.disabled = !est?.libre;
     pintarBotonAR();
   }
@@ -337,14 +346,14 @@ export function montarDardos(o: { dardos: Dardos; view: Vista; session: { entity
   function cerrar(): void { abierto = false; lobby = null; hud.classList.remove("lobby"); botonUnirse.hidden = true; hud.hidden = true; cargando = false; toque = null; suelto = null; etiqueta.hidden = true; rotulos.classList.remove("con-suelta"); }
   function pintarTexto(): void {
     const e = dardos.estado(), s = sitioActual();
-    $<HTMLSpanElement>(".nombre").textContent = s?.nombre ?? "Dardos";
-    $<HTMLSpanElement>(".cuenta").textContent = e.sitio ? `Dardo ${Math.min(3, e.dardos + 1)}/3 · ${e.tirada} pts` : e.fin ? `Tirada: ${e.fin.puntos} pts` : "";
+    $<HTMLSpanElement>(".nombre").textContent = s?.nombre ?? tx("Darts", "Dardos");
+    $<HTMLSpanElement>(".cuenta").textContent = e.sitio ? tx(`Dart ${Math.min(3, e.dardos + 1)}/3 · ${e.tirada} pts`, `Dardo ${Math.min(3, e.dardos + 1)}/3 · ${e.tirada} pts`) : e.fin ? tx(`Round: ${e.fin.puntos} pts`, `Tirada: ${e.fin.puntos} pts`) : "";
     const res = $<HTMLParagraphElement>(".resultado");
     const u = e.ultimo;
     if (e.aviso && (!u || performance.now() - u.cuando > 300)) { res.textContent = e.aviso; res.className = "resultado"; }
-    else if (u) { res.textContent = e.fin && !e.sitio ? `${u.texto} — tirada ${e.fin.puntos}` : u.texto; res.className = `resultado${u.anillo === "dobleBull" ? " diana" : u.anillo === "triple" ? " triple" : u.anillo === "doble" ? " doble" : u.puntos >= 40 ? " alto" : ""}`; }
+    else if (u) { res.textContent = e.fin && !e.sitio ? `${u.texto} — ${tx("round", "tirada")} ${e.fin.puntos}` : u.texto; res.className = `resultado${u.anillo === "dobleBull" ? " diana" : u.anillo === "triple" ? " triple" : u.anillo === "doble" ? " doble" : u.puntos >= 40 ? " alto" : ""}`; }
     const m = e.marcador;
-    $<HTMLParagraphElement>(".marcador").textContent = m.dardos ? `Marcador: ${m.dardos} dardos · ${m.puntos} pts · mejor tirada ${m.mejorTirada} · mejor dardo ${m.mejorDardo}${m.dianas ? ` · dianas ${m.dianas}` : ""}` : "";
+    $<HTMLParagraphElement>(".marcador").textContent = m.dardos ? tx(`Score: ${m.dardos} darts · ${m.puntos} pts · best round ${m.mejorTirada} · best dart ${m.mejorDardo}${m.dianas ? ` · boards ${m.dianas}` : ""}`, `Marcador: ${m.dardos} dardos · ${m.puntos} pts · mejor tirada ${m.mejorTirada} · mejor dardo ${m.mejorDardo}${m.dianas ? ` · dianas ${m.dianas}` : ""}`) : "";
     pintarBotonAR();
     pintarLobby();
   }

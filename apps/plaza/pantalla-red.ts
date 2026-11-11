@@ -5,6 +5,7 @@
 // same `pantallaEnVivo` the local share already uses — the video screen cannot tell a local share from a far one. No library, no service.
 // Where WebCodecs does not exist (older Safari, Quest Browser before its update) the page does not send and does not decode: the screen keeps
 // its file and the sharer is told once. Nothing is stored anywhere; stopping stops every track and closes every encoder and decoder.
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { PANTALLA_FPS, Montador } from "../../packages/net/src/index.ts";
 import type { PantallaEstado, PantallaTrama } from "../../packages/net/src/index.ts";
 import { CODEC_CADENA, CODECS_ORDEN, EsperaClave, bitrateEmision, debeSaltar, fraseFin, pideClave, tamanoEmision } from "./pantalla-red-logica.ts";
@@ -45,13 +46,13 @@ export function montarPantallaRed(o: { session: Sesion; view: Vista; decir(t: st
   async function empezar(key: string, stream: MediaStream): Promise<void> {
     if (emi?.key === key) return;
     parar(false);
-    if (!hayWebCodecs()) { if (!estado.error) o.decir("Tu navegador no puede enviar la pantalla a los demás (falta WebCodecs): la ves solo tú."); estado.error = "sin-webcodecs"; return; }
+    if (!hayWebCodecs()) { if (!estado.error) o.decir(tx("Your browser cannot send the screen to others (WebCodecs is missing): only you see it.", "Tu navegador no puede enviar la pantalla a los demás (falta WebCodecs): la ves solo tú.")); estado.error = "sin-webcodecs"; return; }
     const pista = stream.getVideoTracks()[0];
     if (!pista) return;
     const ajustes = pista.getSettings();
     const { ancho, alto } = tamanoEmision(ajustes.width ?? 1280, ajustes.height ?? 720);
     const elegido = await elegirCodec(ancho, alto);
-    if (!elegido) { estado.error = "sin-codec"; o.decir("Tu navegador no tiene un codec de vídeo para enviar la pantalla: la ves solo tú."); return; }
+    if (!elegido) { estado.error = "sin-codec"; o.decir(tx("Your browser has no video codec to send the screen: only you see it.", "Tu navegador no tiene un codec de vídeo para enviar la pantalla: la ves solo tú.")); return; }
     if (emi || !stream.active) return; // something else started (or the share ended) while the codec was being asked for
     const video = document.createElement("video"); video.muted = true; video.playsInline = true; video.srcObject = new MediaStream([pista]);
     try { await video.play(); } catch { /* a muted video plays; if not, the first frames are just black */ }
@@ -64,7 +65,7 @@ export function montarPantallaRed(o: { session: Sesion; view: Vista; decir(t: st
         const ts = Math.round((performance.now() - e.t0)) >>> 0;
         if (s.pantallaTrama(e.seq++, chunk.type === "key", ts, datos)) { estado.tramasEnviadas++; estado.bytesEnviados += datos.length; } else estado.saltadas++;
       },
-      error: (err) => { estado.error = String(err?.message ?? err); if (emi === e) { parar(true); o.decir("Se cortó el envío de tu pantalla: la ves solo tú."); } },
+      error: (err) => { estado.error = String(err?.message ?? err); if (emi === e) { parar(true); o.decir(tx("Sending your screen was cut off: only you see it.", "Se cortó el envío de tu pantalla: la ves solo tú.")); } },
     });
     e.enc.configure(elegido.config);
     if (!s.pantallaEmpezar(key, elegido.codec, ancho, alto)) { e.enc.close(); return; }
@@ -132,7 +133,7 @@ export function montarPantallaRed(o: { session: Sesion; view: Vista; decir(t: st
       return;
     }
     pendientes.delete(e.id);
-    o.decir(`${v.nombre ? `«${v.nombre}»` : "Una pantalla"}: alguien está compartiendo su pantalla.`);
+    o.decir(tx(`${v.nombre ? `«${v.nombre}»` : "A screen"}: someone is sharing their screen.`, `${v.nombre ? `«${v.nombre}»` : "Una pantalla"}: alguien está compartiendo su pantalla.`));
   }
 
   s.onPantallaEstado = (e) => {

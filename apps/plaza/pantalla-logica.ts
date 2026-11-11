@@ -2,6 +2,7 @@
 // (test/pantalla.test.ts). Which video screen of the world gets your shared screen (the nearest within 30 m), and
 // whether this browser can share at all (getDisplayMedia exists only on desktop browsers and iPhone with iOS 27; never on
 // Android Chrome, Firefox Android or the Quest Browser — and only over https or localhost).
+import { tx } from "../../packages/feature/src/idioma.ts";
 export type Punto = { x: number; y?: number; z: number };
 export type Pantalla = { key: string; x: number; y: number; z: number };
 
@@ -28,5 +29,5 @@ export function sePuedeCompartir(nav: Navegador, loc: Direccion): boolean {
 
 /** The sentence said when the share starts: on a screen of the world, or in a floating window. */
 export function fraseInicio(nombre: string | null): string {
-  return nombre === null ? "No hay ninguna pantalla cerca: la ves en una ventana (solo la ves tú)." : `Compartiendo tu pantalla en «${nombre}»: la ven quienes estén cerca.`;
+  return nombre === null ? tx("There is no screen nearby: you see it in a window (only you can see it).", "No hay ninguna pantalla cerca: la ves en una ventana (solo la ves tú).") : tx(`Sharing your screen on «${nombre}»: people nearby can see it.`, `Compartiendo tu pantalla en «${nombre}»: la ven quienes estén cerca.`);
 }

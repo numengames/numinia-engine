@@ -1,6 +1,7 @@
 // entorno — client part (H4): hand the zone's environment to the view (view.entorno) with the ground's files resolved
 // (suelos.json), and a small controller the builder panel (apps/plaza/entorno.ts) and agents use. It only asks:
 // the server decides and every page applies the result.
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, Msg } from "../../packages/feature/src/index.ts";
 import { entorno, PRESETS, SUELOS, ZONA } from "./feature.ts";
@@ -25,7 +26,7 @@ export const CIELOS_CASA: { id: string; nombre: string; hdr: string }[] = Object
 export function crearCliente() {
   let api: ClientApi | null = null;
   const estado = { puede: false, ultimoRechazo: "", cambios: 0 };
-  const enviar = (intent: string, msg: Msg) => api?.send(intent, msg) ?? { ok: false as const, why: "la página aún no ha arrancado" };
+  const enviar = (intent: string, msg: Msg) => api?.send(intent, msg) ?? { ok: false as const, why: tx("the page has not started yet", "la página aún no ha arrancado") };
   const valores = (): Msg | undefined => api?.state.get(ZONA);
   /** H4b: the message of `ajustar` carries the WHOLE environment, built from the last state the server echoed. Two quick edits (a colour,
    * then a slider, inside the round trip) would each start from the same old state and the second would undo the first. What this page
@@ -46,14 +47,14 @@ export function crearCliente() {
     valores,
     /** A named environment: día, amanecer, atardecer, noche, niebla, tormenta, nublado, jardín («dia», «jardin» work too). */
     preset: (nombre: string) => {
-      const n = nombre === "dia" ? "día" : nombre === "jardin" ? "jardín" : nombre;
+      const n = nombre === "dia" ? "día" : nombre === "jardin" ? "jardín" : nombre; // i18n-ok: preset ids
       recientes.clear();
-      return (PRESETS as readonly string[]).includes(n) ? enviar("preset", { nombre: n }) : { ok: false as const, why: `no hay ningún entorno «${nombre}» (hay: ${PRESETS.join(", ")})` };
+      return (PRESETS as readonly string[]).includes(n) ? enviar("preset", { nombre: n }) : { ok: false as const, why: tx(`there is no environment «${nombre}» (there are: ${PRESETS.join(", ")})`, `no hay ningún entorno «${nombre}» (hay: ${PRESETS.join(", ")})`) };
     },
     /** Change some values and keep the rest (the message carries the whole environment). Marked «propio» unless `preset` comes in. */
     ajustar: (cambios: Msg) => {
       const v = valores();
-      if (!v) return { ok: false as const, why: "todavía no ha llegado el entorno de la zona" };
+      if (!v) return { ok: false as const, why: tx("the zone's environment has not arrived yet", "todavía no ha llegado el entorno de la zona") };
       const todo = { ...conRecientes(v), preset: "propio", ...cambios };
       const r = enviar("ajustar", todo);
       if (r.ok) { const hasta = Date.now() + RECIENTE_MS; for (const k of Object.keys(cambios)) recientes.set(k, { valor: cambios[k], hasta }); recientes.set("preset", { valor: "propio", hasta }); }

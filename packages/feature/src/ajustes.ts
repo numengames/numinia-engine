@@ -118,7 +118,8 @@ export function validarDefecto(d: AjusteDecl, def: unknown, ruta: string): Issue
   return out;
 }
 
-const texto = (t: unknown, max: number, ruta: string, que: string, out: Issue[]) => {
+const texto = (t0: unknown, max: number, ruta: string, que: string, out: Issue[]) => {
+  const t = typeof t0 === "object" && t0 !== null ? (t0 as { en?: unknown }).en : t0; // a { en, es } text is checked in English (the source); the Spanish half is checked by test/menu-idiomas.test.ts
   if (typeof t !== "string" || !t.trim() || t.length > max) out.push({ path: ruta, message: `${que}: 1-${max} characters` });
 };
 

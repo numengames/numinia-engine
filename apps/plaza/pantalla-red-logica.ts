@@ -1,5 +1,6 @@
 // pantalla-red-logica (M18 trozo 3): the decisions behind sending and watching a shared screen, with no DOM, no WebCodecs and no socket so node:test
 // can run them (test/pantalla-red.test.ts). pantalla-red.ts does the browser's part and asks these.
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { PANTALLA_VP8, PANTALLA_H264, PANTALLA_LADO_MAX, PANTALLA_FPS, PANTALLA_CLAVE_S, PANTALLA_MOTIVO } from "../../packages/net/src/index.ts";
 
 /** The WebCodecs codec strings per wire codec: VP8 first (every Chromium and Firefox), H.264 baseline level 3.1 where that is what the browser encodes (Safari). */
@@ -31,23 +32,23 @@ export function pideClave(frames: number, msDesdeUltima: number, pedida: boolean
 
 /** What the viewer's page says when a share it watched ends or is refused (null = nothing to say). */
 export function fraseFin(motivo: number, nombre: string, esPropia: boolean): string | null {
-  const donde = nombre ? `«${nombre}»` : "la pantalla";
+  const donde = nombre ? `«${nombre}»` : tx("the screen", "la pantalla");
   const M = PANTALLA_MOTIVO;
   if (esPropia) {
     switch (motivo) {
-      case M.ocupada: return `${donde} ya la está usando otra persona: tu pantalla se ve en una ventana.`;
-      case M.lejos: return `Estás demasiado lejos de ${donde}: tu pantalla se ve en una ventana.`;
-      case M.moderacion: return `Alguien con permiso ha detenido tu pantalla compartida.`;
-      case M.noPermitido: return "Aquí no puedes mostrar tu pantalla a los demás: la ves solo tú, en una ventana.";
-      case M.noExiste: case M.borrada: return `${donde} ya no existe: tu pantalla se ve en una ventana.`;
+      case M.ocupada: return tx(`${donde} is already used by someone else: your screen shows in a window.`, `${donde} ya la está usando otra persona: tu pantalla se ve en una ventana.`);
+      case M.lejos: return tx(`You are too far from ${donde}: your screen shows in a window.`, `Estás demasiado lejos de ${donde}: tu pantalla se ve en una ventana.`);
+      case M.moderacion: return tx("Someone with permission stopped your shared screen.", "Alguien con permiso ha detenido tu pantalla compartida.");
+      case M.noPermitido: return tx("You cannot show your screen to others here: only you see it, in a window.", "Aquí no puedes mostrar tu pantalla a los demás: la ves solo tú, en una ventana.");
+      case M.noExiste: case M.borrada: return tx(`${donde} no longer exists: your screen shows in a window.`, `${donde} ya no existe: tu pantalla se ve en una ventana.`);
       default: return null; // fin: you asked for it, the page already said it
     }
   }
   switch (motivo) {
     case M.fueraDeAlcance: return null; // walking away is not news
-    case M.seFue: case M.fin: case M.lejos: return `Han dejado de compartir su pantalla en ${donde}.`;
-    case M.moderacion: return `Han detenido la pantalla compartida de ${donde}.`;
-    case M.borrada: return `${donde} ha desaparecido.`;
+    case M.seFue: case M.fin: case M.lejos: return tx(`They stopped sharing their screen on ${donde}.`, `Han dejado de compartir su pantalla en ${donde}.`);
+    case M.moderacion: return tx(`The shared screen of ${donde} was stopped.`, `Han detenido la pantalla compartida de ${donde}.`);
+    case M.borrada: return tx(`${donde} has disappeared.`, `${donde} ha desaparecido.`);
     default: return null;
   }
 }

@@ -71,6 +71,6 @@ test("the chunk cannot be fetched: the page stays closed, says so and can retry"
   await new Promise((r) => setTimeout(r, 5));
   assert.equal(c.cerrada(), true, "fails closed");
   const l = capa.el as unknown as { children: Array<{ hidden: boolean; textContent: string }> };
-  assert.match(l.children[0].textContent, /No se han podido/);
+  assert.match(l.children[0].textContent, /Could not load/);
   assert.equal(l.children[1].hidden, false, "«Reintentar» is offered");
 });

@@ -70,8 +70,8 @@ test("out → recording → kept: the clip has its duration, its sound and a nam
   assert.equal(clip.blob.size, 1024);
   assert.equal(gr.estado.fase, "guardado");
   assert.deepEqual(cambios, ["despertando", "grabando", "guardado", "guardado"]);
-  assert.ok(avisos.some((a) => a.texto.includes("graba lo que ves y oyes")));
-  assert.ok(avisos.some((a) => a.texto.includes("Clip de 42 s guardado")));
+  assert.ok(avisos.some((a) => a.texto.includes("is recording what you see and hear")));
+  assert.ok(avisos.some((a) => a.texto.includes("42 s clip saved")));
   assert.equal(gr.segundos(), 0);
 });
 
@@ -87,7 +87,7 @@ test("the hard cap cuts by itself: a 60 s cap never gives a longer clip, and the
   const clip = await gr.guardar(); // waits for the closing recorder, returns the clip
   assert.ok(clip);
   assert.equal(clip.duracionS, 60);
-  assert.ok(avisos.some((a) => a.texto.startsWith("Tope alcanzado")));
+  assert.ok(avisos.some((a) => a.texto.startsWith("Limit reached")));
 });
 
 test("a 30 s cap cuts at 30; changing the cap applies to the next clip and is clamped", async () => {
@@ -108,7 +108,7 @@ test("keeping it early still gives the clip, marked short for the mission", asyn
   const clip = await gr.guardar();
   assert.ok(clip);
   assert.equal(clip.corto, true);
-  assert.ok(avisos.some((a) => a.texto.includes("la misión pide 30 s")));
+  assert.ok(avisos.some((a) => a.texto.includes("the mission asks for 30 s")));
 });
 
 test("without a microphone the clip is marked silent and the person is told", async () => {
@@ -117,14 +117,14 @@ test("without a microphone the clip is marked silent and the person is told", as
   reloj.ms += 31_000;
   const clip = await gr.guardar();
   assert.equal(clip?.conSonido, false);
-  assert.ok(avisos.some((a) => a.texto.includes("sin sonido")));
+  assert.ok(avisos.some((a) => a.texto.includes("without sound")));
 });
 
 test("a recorder that will not start leaves the Graboso kept, with the reason", async () => {
   const { gr, avisos } = montar({ falla: "captureStream no existe" });
   assert.equal(await gr.sacar(), false);
   assert.equal(gr.estado.fase, "guardado");
-  assert.match(gr.estado.error, /no despierta: captureStream no existe/);
+  assert.match(gr.estado.error, /will not wake: captureStream no existe/);
   assert.equal(avisos.at(-1)?.importancia, 2);
 });
 
@@ -132,7 +132,7 @@ test("a browser with no recordable format refuses before touching the recorder",
   const { gr, llamadas } = montar({ tipo: "" });
   assert.equal(await gr.sacar(), false);
   assert.deepEqual(llamadas, []);
-  assert.match(gr.estado.error, /no sabe grabar/);
+  assert.match(gr.estado.error, /cannot record video/);
 });
 
 test("an empty recording keeps the previous clip and says so; the last clip replaces the one before", async () => {
@@ -141,12 +141,12 @@ test("an empty recording keeps the previous clip and says so; the last clip repl
   assert.ok(primero);
   await gr.sacar(); reloj.ms += 40_000; const segundo = await gr.guardar();
   assert.equal(segundo?.duracionS, 40);
-  assert.ok(avisos.some((a) => a.texto.includes("se sustituye")));
+  assert.ok(avisos.some((a) => a.texto.includes("is replaced")));
   gr.quitarClip();
   assert.equal(gr.estado.clip, null);
   const { gr: vacio } = montar({ bytes: 0 });
   await vacio.sacar(); assert.equal(await vacio.guardar(), null);
-  assert.match(vacio.estado.error, /no retuvo nada/);
+  assert.match(vacio.estado.error, /kept nothing/);
 });
 
 test("alternar is the one key: out, kept, out again; nothing while it wakes", async () => {

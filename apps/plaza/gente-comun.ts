@@ -2,6 +2,7 @@
 // person as both show them, the actions, the portrait (or a silhouette, never a hole) and a button with an icon.
 // innerHTML only ever receives the house icons (constants); every name goes in with textContent.
 import { icono } from "./iconos.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { rotularBoton } from "./menu-secciones-ui.ts"; // v2 paridad: icon, name and tooltip from the one list of sections
 import type { Amigo } from "./amigos.ts";
 import type { IAPublica } from "../../features/ia/feature.ts";
@@ -24,15 +25,15 @@ export type Mirada = {
 };
 /** The voice-bubble icon (a microphone): the mark next to the name of whoever is inside one. The label says which. */
 export const insigniaBurbuja = (etiqueta: string): HTMLElement => {
-  const s = el("span", { className: "insignia-burbuja", title: `En ${etiqueta}: solo se oyen con los de dentro` });
-  s.setAttribute("role", "img"); s.setAttribute("aria-label", `En ${etiqueta}`);
+  const s = el("span", { className: "insignia-burbuja", title: tx(`In ${etiqueta}: only those inside hear each other`, `En ${etiqueta}: solo se oyen con los de dentro`) });
+  s.setAttribute("role", "img"); s.setAttribute("aria-label", tx(`In ${etiqueta}`, `En ${etiqueta}`));
   s.innerHTML = icono("microphone", 14); // constants only
   return s;
 };
 /** The staff badge (a medal): the small mark next to the name of whoever holds the Director's staff. */
 export const insigniaBaculo = (): HTMLElement => {
-  const s = el("span", { className: "insignia-baculo", title: "Tiene el báculo: dirige la partida" });
-  s.setAttribute("role", "img"); s.setAttribute("aria-label", "Tiene el báculo");
+  const s = el("span", { className: "insignia-baculo", title: tx("Holds the staff: leads the game", "Tiene el báculo: dirige la partida") });
+  s.setAttribute("role", "img"); s.setAttribute("aria-label", tx("Holds the staff", "Tiene el báculo"));
   s.innerHTML = icono("medal", 14); // constants only
   return s;
 };

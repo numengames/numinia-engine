@@ -26,7 +26,8 @@ type Vista = { renderer: { domElement: HTMLElement }; pickThing?(x: number, y: n
 /** True while the person types in a text box: global keys must not fire (J3's one rule, apps/plaza/escribiendo.ts). */
 import { escribiendo } from "./escribiendo.ts";
 import { esTactil, perfil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
-import { glifoDe } from "../../packages/client/src/movil.ts"; // U24: the glyph each device names (touch: none)
+import { glifoDe, promptVisible } from "../../packages/client/src/movil.ts"; // U24: the glyph each device names (touch: none)
+import { tx, idiomaActivo } from "../../packages/feature/src/idioma.ts";
 export { escribiendo };
 /** Building: the build panel is open or the camera is in build mode (there clicks select things and digits are tools). */
 export const construyendo = (view: Vista): boolean => !(document.getElementById("panel-construir")?.hidden ?? true) || view.cam?.modo?.() === "construir";
@@ -40,9 +41,9 @@ export function montarInteraccion(o: {
   persona?: (clientX: number, clientY: number) => boolean;
 }) {
   const tactil = esTactil();
-  let actual: Cerca | null = null, ultimo: Res | null = null;
+  let actual: Cerca | null = null, ultimo: Res | null = null; let idiomaPintado = idiomaActivo();
   let manteniendo: { c: Cerca; desde: number } | null = null;
-  const usar = (c: Cerca | null): Res => (ultimo = !c ? { ok: false, why: "no hay nada al alcance" } : c.local ? c.local() : o.session.features.use(c.feature, c.key));
+  const usar = (c: Cerca | null): Res => (ultimo = !c ? { ok: false, why: tx("nothing within reach", "no hay nada al alcance") } : c.local ? c.local() : o.session.features.use(c.feature, c.key));
   const libre = () => o.session.entity >= 0 && !construyendo(o.view) && !o.ocupado();
   const cancelarMantener = () => { if (!manteniendo) return; manteniendo = null; o.boton.classList.remove("manteniendo"); o.boton.style.removeProperty("--progreso"); };
   const empezarMantener = (c: Cerca) => { if (manteniendo?.c === c) return; manteniendo = { c, desde: performance.now() }; o.boton.classList.add("manteniendo"); o.boton.style.setProperty("--progreso", "0"); };
@@ -72,10 +73,11 @@ export function montarInteraccion(o: {
     const antes = actual;
     actual = c;
     pieza?.marcar(c, pies);
-    if (c?.feature === antes?.feature && c?.key === antes?.key && c?.prompt === antes?.prompt) return;
+    const idiomaAhora = idiomaActivo(), mismoIdioma = idiomaAhora === idiomaPintado; idiomaPintado = idiomaAhora; // the prompt is written again when the language changes
+    if (mismoIdioma && c?.feature === antes?.feature && c?.key === antes?.key && c?.prompt === antes?.prompt) return;
     if (!c) cancelarMantener();
     o.boton.hidden = !c;
-    if (c) pieza?.pintar(c.prompt, glifoDe(perfil().clase, "interactuar"));
+    if (c) pieza?.pintar(promptVisible(c.prompt), glifoDe(perfil().clase, "interactuar"));
   };
   setInterval(mirar, 200);
   addEventListener("keydown", (e) => {

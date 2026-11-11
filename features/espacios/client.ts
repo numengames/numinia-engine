@@ -4,11 +4,12 @@
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg } from "../../packages/feature/src/index.ts";
 import { espacios as decl } from "./feature.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 export type Espacio = { id: string; nombre: string; x: number; y: number; z: number; radio: number; estado: "libre" | "privado"; duenoNombre: string; cosas: number; tope: number; invitados: number };
 export type Que = "lista" | "aviso" | "concedido" | "rechazado";
 type Res = { ok: true } | { ok: false; why: string };
-const SIN: Res = { ok: false, why: "la función espacios no está en este servidor" };
+const SIN = (): Res => ({ ok: false, why: tx("the spaces feature is not on this server", "la función espacios no está en este servidor") });
 
 export function crearCliente() {
   let A: ClientApi | null = null;
@@ -16,7 +17,7 @@ export function crearCliente() {
   const oyentes = new Set<(que: Que) => void>();
   const avisar = (que: Que) => { for (const fn of oyentes) fn(que); };
   const leer = (k: string, m: Msg): Espacio => ({ id: k, nombre: String(m.nombre), x: Number(m.x), y: Number(m.y), z: Number(m.z), radio: Number(m.radio), estado: m.estado === "privado" ? "privado" : "libre", duenoNombre: String(m.duenoNombre ?? ""), cosas: Number(m.cosas), tope: Number(m.tope), invitados: Number(m.invitados) });
-  const enviar = (intent: string, msg: Msg): Res => (A ? A.send(intent, msg) : SIN);
+  const enviar = (intent: string, msg: Msg): Res => (A ? A.send(intent, msg) : SIN());
   const espacios = {
     /** The spaces this page knows (within their area of interest), as last published. */
     lista: (): Espacio[] => (A ? A.state.keys().map((k) => leer(k, A!.state.get(k) as Msg)) : []),

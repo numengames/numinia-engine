@@ -1,3 +1,4 @@
+import { idiomaActivo, type Idioma } from "../../packages/feature/src/idioma.ts";
 // MVL3 step 1: the 2D "Cargando" screen (moon + running dots) is plain HTML + CSS in index.html, so it
 // paints before any script runs — no black flash while the engine boots. This file only gives main.ts a
 // typed handle to fade it out once the first frame is drawn. The 3D build-up sequence for heavy loads
@@ -40,18 +41,18 @@ export const TRAMO_PIEZAS = { desde: ETAPAS.bienvenida, hasta: 0.97 } as const;
 export type Piezas = { listas: number; total: number; /** M16: bytes in of the bytes the manifest says the zone needs to play. */ bytes?: { listos: number; total: number } };
 
 /** «3,2 de 8,1 MB»-style text for the loading screen: what is in (bytes) of what the zone needs to play. Empty without a manifest. */
-export function textoBytes(listos: number, total: number): string {
+export function textoBytes(listos: number, total: number, idioma: Idioma = idiomaActivo()): string {
   if (!(total > 0)) return "";
-  const mb = (n: number) => (n / 1048576).toFixed(n >= 10 * 1048576 ? 0 : 1).replace(".", ",");
-  return `${mb(Math.min(listos, total))} de ${mb(total)} MB`;
+  const mb = (n: number) => (n / 1048576).toFixed(n >= 10 * 1048576 ? 0 : 1).replace(".", idioma === "es" ? "," : ".");
+  return `${mb(Math.min(listos, total))} ${idioma === "es" ? "de" : "of"} ${mb(total)} MB`;
 }
 
-/** C: the text of the count — «120 de 146 piezas»; empty when there are none (a bare world says nothing). */
-export function textoPiezas(p: Piezas | null): string {
+/** C: the text of the count — «120 of 146 pieces» / «120 de 146 piezas»; empty when there are none (a bare world says nothing). */
+export function textoPiezas(p: Piezas | null, idioma: Idioma = idiomaActivo()): string {
   if (!p || p.total <= 0) return "";
   const listas = Math.max(0, Math.min(p.listas, p.total));
-  const mb = p.bytes ? textoBytes(p.bytes.listos, p.bytes.total) : "";
-  return `${listas} de ${p.total} ${p.total === 1 ? "pieza" : "piezas"}${mb ? ` · ${mb}` : ""}`;
+  const mb = p.bytes ? textoBytes(p.bytes.listos, p.bytes.total, idioma) : "";
+  return idioma === "es" ? `${listas} de ${p.total} ${p.total === 1 ? "pieza" : "piezas"}${mb ? ` · ${mb}` : ""}` : `${listas} of ${p.total} ${p.total === 1 ? "piece" : "pieces"}${mb ? ` · ${mb}` : ""}`;
 }
 
 /**

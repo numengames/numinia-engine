@@ -5,6 +5,7 @@
 //   llamarPagina.llamar(ia, texto)   → { ok } | { ok:false, why }   (the intent `llamar`; refused here when the text is longer than 190 bytes)
 // The server answers the caller with its own `aviso` («Has llamado a Ada.» or why not), which the page announces like any notice.
 // The same entries are in `session.features.stateOf("llamar")` for agents and tests. Exposed on the page as `__numinia.llamar`.
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi } from "../../packages/feature/src/index.ts";
 import { TEXTO_MAX, cortar, linea, llamar } from "./feature.ts";
@@ -34,8 +35,8 @@ export function crearLlamarPagina() {
     puedeBoton: (quien: number): boolean => ctl.de(quien)?.boton === true,
     llamar(ia: number, crudo: string): Res {
       const p = prepararTexto(crudo);
-      if (p.largo) return { ok: false, why: `Demasiado largo: ${p.bytes} de ${TEXTO_MAX} bytes. Acórtalo.` };
-      return api?.send("llamar", { ia, texto: p.texto }) ?? { ok: false, why: "la página aún no ha arrancado" };
+      if (p.largo) return { ok: false, why: tx(`Too long: ${p.bytes} of ${TEXTO_MAX} bytes. Shorten it.`, `Demasiado largo: ${p.bytes} de ${TEXTO_MAX} bytes. Acórtalo.`) };
+      return api?.send("llamar", { ia, texto: p.texto }) ?? { ok: false, why: tx("the page has not started yet", "la página aún no ha arrancado") };
     },
   };
   const part = clientPart(llamar, (a) => { api = a; });

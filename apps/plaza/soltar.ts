@@ -13,10 +13,11 @@ import { sePuedeReproducir } from "../../packages/render/src/medios.ts";
 import { HUECO_PX_PAGINA } from "../../features/objetos/feature.ts";
 import { fondoAceptable } from "./entorno-fino-logica.ts";
 import type { CampoFondo } from "./entorno-fino-logica.ts";
+import { tx, ligar } from "../../packages/feature/src/idioma.ts";
 
 /** U10: what each file becomes in the world (features/objetos `tipo`). */
 const CLASE: Record<string, "modelo" | "imagen" | "video" | "sonido"> = { glb: "modelo", png: "imagen", jpg: "imagen", webp: "imagen", mp4: "video", webm: "video", mp3: "sonido", ogg: "sonido" };
-const QUE: Record<string, string> = { modelo: "el modelo", imagen: "la imagen", video: "la pantalla de vídeo", sonido: "la zona de sonido" };
+const QUE = (clase: string): string => ({ modelo: tx("the model", "el modelo"), imagen: tx("the image", "la imagen"), video: tx("the video screen", "la pantalla de vídeo"), sonido: tx("the sound zone", "la zona de sonido") } as Record<string, string>)[clase] ?? clase;
 /** The file picker's filter: every kind it can place (the kind is read from the extension, as on a drop). */
 const ACEPTA = ".glb,.png,.jpg,.jpeg,.webp,.mp4,.webm,.mp3,.ogg";
 
@@ -35,7 +36,7 @@ export type OpcionesSoltar = {
   billete(): string | null;  // the guest token the page keeps (localStorage numinia.invitado)
 };
 
-const CSS = `
+const CSS = ` // i18n-ok: CSS, not text
 #soltar { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 10; pointer-events: none;
   background: rgba(201, 182, 255, .28); border: 4px dashed #6b4fd8; color: #23303b; font-size: 22px; font-weight: 600; }
 #soltar.activo { display: flex; }
@@ -51,7 +52,7 @@ export function nombreDeFichero(fichero: string): string {
   const enc = new TextEncoder();
   let out = "";
   for (const ch of base) { if (enc.encode(out + ch).length > 60) break; out += ch; }
-  return out.trim() || "Modelo subido";
+  return out.trim() || tx("Uploaded model", "Modelo subido");
 }
 
 /** Where a file goes once it is on the server: a point of the ground (null = 3 m in front of you) or a hole (U12). */
@@ -84,21 +85,21 @@ export async function prepararImagen(file: File, max = HUECO_PX_PAGINA): Promise
   } catch { return file; } finally { URL.revokeObjectURL(url); }
 }
 
-const POR_ESTADO: Record<number, string> = {
-  0: "no llego al servidor (¿se cortó la conexión?)",
-  401: "el servidor no sabe quién eres: recarga la página",
-  403: "no puedes construir aquí",
-  413: "es demasiado grande",
-  415: "ese tipo de fichero no se puede subir",
-  422: "el fichero no vale",
-  503: "hay otras subidas en marcha; prueba en unos segundos",
-  507: "el servidor no tiene sitio para más subidas",
-};
+const POR_ESTADO = (estado: number): string | undefined => ({
+  0: tx("can't reach the server (did the connection drop?)", "no llego al servidor (¿se cortó la conexión?)"),
+  401: tx("the server doesn't know who you are: reload the page", "el servidor no sabe quién eres: recarga la página"),
+  403: tx("you can't build here", "no puedes construir aquí"),
+  413: tx("it is too big", "es demasiado grande"),
+  415: tx("that kind of file can't be uploaded", "ese tipo de fichero no se puede subir"),
+  422: tx("the file isn't valid", "el fichero no vale"),
+  503: tx("other uploads are in progress; try again in a few seconds", "hay otras subidas en marcha; prueba en unos segundos"),
+  507: tx("the server has no room for more uploads", "el servidor no tiene sitio para más subidas"),
+} as Record<number, string>)[estado];
 
 export function montarSoltar(o: OpcionesSoltar) {
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const capa = document.createElement("div"); capa.id = "soltar"; capa.setAttribute("aria-hidden", "true");
-  capa.innerHTML = "<span>Suelta para subir tu modelo, imagen, vídeo o sonido</span>";
+  const rotulo = document.createElement("span"); capa.append(rotulo); ligar(rotulo, "textContent", "Drop to upload your model, image, video or sound", "Suelta para subir tu modelo, imagen, vídeo o sonido");
   const linea = document.createElement("p"); linea.id = "subida-estado"; linea.setAttribute("role", "status"); linea.setAttribute("aria-live", "polite");
   document.body.append(capa, linea);
   const cuenta = { subidas: 0, yaEstaban: 0, colocadas: 0, rechazadas: 0, huecos: 0 };
@@ -108,7 +109,7 @@ export function montarSoltar(o: OpcionesSoltar) {
     clearTimeout(borrar);
     if (!quedarse && texto) borrar = setTimeout(() => decir(""), 8000);
   };
-  const no = (fichero: string, por: string) => { cuenta.rechazadas++; decir(`No se pudo subir «${fichero}»: ${por}.`); };
+  const no = (fichero: string, por: string) => { cuenta.rechazadas++; decir(tx(`Could not upload "${fichero}": ${por}.`, `No se pudo subir «${fichero}»: ${por}.`)); };
 
   const huella = async (b: Uint8Array): Promise<string> => {
     const sutil = (globalThis.crypto as Crypto | undefined)?.subtle; // only in secure contexts (https, localhost)
@@ -135,7 +136,7 @@ export function montarSoltar(o: OpcionesSoltar) {
       const f = o.session.features, nuevos = f.stats.events - desde;
       const e = nuevos > 0 ? f.log.slice(-Math.min(nuevos, f.log.length)).find((x) => x.feature === "objetos" && (x.event === "rechazado" || (x.event === "hecho" && x.msg.accion === accion))) : undefined;
       if (e) return ok({ ok: e.event === "hecho", texto: String(e.msg.motivo ?? e.msg.id ?? "") });
-      if (performance.now() - t0 > 8000) return ok({ ok: false, texto: "el servidor no contestó" });
+      if (performance.now() - t0 > 8000) return ok({ ok: false, texto: tx("the server did not answer", "el servidor no contestó") });
       setTimeout(mirar, 100);
     };
     mirar();
@@ -146,50 +147,50 @@ export function montarSoltar(o: OpcionesSoltar) {
   async function subir(original: File, destino: Destino): Promise<void> {
     const hueco = "hueco" in destino ? destino.hueco : null;
     const fichero = original.name, clase0 = CLASE[extensionDe(fichero)];
-    if (!o.puede()) return no(fichero, "no puedes construir aquí");
-    if (hueco && clase0 !== "imagen") return no(fichero, "en un hueco va una imagen .png, .jpg o .webp");
-    if (hueco) decir(`Preparando «${fichero}» para el hueco…`, true);
+    if (!o.puede()) return no(fichero, tx("you can't build here", "no puedes construir aquí"));
+    if (hueco && clase0 !== "imagen") return no(fichero, tx("a hole takes a .png, .jpg or .webp image", "en un hueco va una imagen .png, .jpg o .webp"));
+    if (hueco) decir(tx(`Preparing "${fichero}" for the hole…`, `Preparando «${fichero}» para el hueco…`), true);
     const file = hueco ? await prepararImagen(original) : original;
     const tipo = extensionDe(file.name), clase = CLASE[tipo];
-    if (!clase) return no(fichero, "se colocan modelos .glb, imágenes .png .jpg .webp, vídeos .mp4 .webm y sonidos .mp3 .ogg");
-    if ((clase === "video" || clase === "sonido") && !sePuedeReproducir(tipo)) return no(fichero, `este navegador no sabe reproducir .${tipo}; prueba con ${clase === "sonido" ? ".mp3" : ".mp4"}`);
-    if (file.size > topeBytes(tipo)) return no(fichero, `pasa de ${TOPES_MB[tipo]} MB, el tope para .${tipo}`);
+    if (!clase) return no(fichero, tx("you can place .glb models, .png .jpg .webp images, .mp4 .webm videos and .mp3 .ogg sounds", "se colocan modelos .glb, imágenes .png .jpg .webp, vídeos .mp4 .webm y sonidos .mp3 .ogg"));
+    if ((clase === "video" || clase === "sonido") && !sePuedeReproducir(tipo)) return no(fichero, tx(`this browser can't play .${tipo}; try ${clase === "sonido" ? ".mp3" : ".mp4"}`, `este navegador no sabe reproducir .${tipo}; prueba con ${clase === "sonido" ? ".mp3" : ".mp4"}`));
+    if (file.size > topeBytes(tipo)) return no(fichero, tx(`over ${TOPES_MB[tipo]} MB, the cap for .${tipo}`, `pasa de ${TOPES_MB[tipo]} MB, el tope para .${tipo}`));
     const billete = o.billete();
-    if (!billete) return no(fichero, "aún no sé quién eres; espera un segundo y vuelve a probar");
-    decir(`Leyendo «${fichero}»…`, true);
+    if (!billete) return no(fichero, tx("I don't know who you are yet; wait a second and try again", "aún no sé quién eres; espera un segundo y vuelve a probar"));
+    decir(tx(`Reading "${fichero}"…`, `Leyendo «${fichero}»…`), true);
     const bytes = new Uint8Array(await file.arrayBuffer());
     const valido = comprobarFichero(tipo, bytes);
     if (!valido.ok) return no(fichero, motivo(valido.issues).replace(/\.$/, ""));
     const sha = await huella(bytes), url = `${o.origen}/a/${sha}.${tipo}`;
-    decir(`Comprobando si «${fichero}» ya está en el servidor…`, true);
+    decir(tx(`Checking whether "${fichero}" is already on the server…`, `Comprobando si «${fichero}» ya está en el servidor…`), true);
     const ya = await fetch(url, { method: "HEAD", cache: "no-store" }).then((r) => r.status === 200, () => false);
     if (ya) cuenta.yaEstaban++;
     else {
-      const r = await put(url, bytes, billete, fichero, TIPOS[tipo], (f) => decir(`Subiendo «${fichero}»… ${Math.round(f * 100)} %`, true));
-      if (r.status !== 200 && r.status !== 201) return no(fichero, r.error.replace(/\.$/, "") || POR_ESTADO[r.status] || `el servidor dijo ${r.status}`);
+      const r = await put(url, bytes, billete, fichero, TIPOS[tipo], (f) => decir(tx(`Uploading "${fichero}"… ${Math.round(f * 100)} %`, `Subiendo «${fichero}»… ${Math.round(f * 100)} %`), true));
+      if (r.status !== 200 && r.status !== 201) return no(fichero, r.error.replace(/\.$/, "") || POR_ESTADO(r.status) || tx(`the server said ${r.status}`, `el servidor dijo ${r.status}`));
       cuenta.subidas++;
     }
     const nombre = nombreDeFichero(fichero);
     const desde = o.session.features.stats.events;
     if (hueco) { // U12: the server measures the picture and fits it into the frame
-      decir(`${ya ? "Ya estaba en el servidor. " : "Subida. "}Encajando «${nombre}» en el hueco…`, true);
+      decir(tx(`${ya ? "Already on the server. " : "Uploaded. "}Fitting "${nombre}" into the hole…`, `${ya ? "Ya estaba en el servidor. " : "Subida. "}Encajando «${nombre}» en el hueco…`), true);
       const s = o.session.features.send("objetos", "rellenar", { id: hueco, modelo: sha, ext: tipo, nombre });
       if (!s.ok) return no(fichero, s.why);
       const r = await respuesta(desde, "rellenar");
       if (!r.ok) return no(fichero, r.texto.replace(/\.$/, ""));
       cuenta.huecos++;
-      return decir(`Colgada en el hueco: «${nombre}».`);
+      return decir(tx(`Hung in the hole: "${nombre}".`, `Colgada en el hueco: «${nombre}».`));
     }
     const sitio = ("donde" in destino ? destino.donde : null) ?? delante();
     const acota = (v: number) => Math.max(-2000, Math.min(2000, v));
-    decir(`${ya ? "Ya estaba en el servidor: no hace falta subirlo. " : "Subido. "}Colocando ${QUE[clase]} «${nombre}»…`, true);
+    decir(tx(`${ya ? "Already on the server: no need to upload it. " : "Uploaded. "}Placing ${QUE(clase)} "${nombre}"…`, `${ya ? "Ya estaba en el servidor: no hace falta subirlo. " : "Subido. "}Colocando ${QUE(clase)} «${nombre}»…`), true);
     const alto = clase === "imagen" || clase === "video" ? 1.2 : 0; // pictures and screens stand at eye height
     const s = o.session.features.send("objetos", "colocar", { modelo: sha, x: acota(sitio.x), y: alto, z: acota(sitio.z), ry: 0, nombre, decorado: false, tipo: clase, ext: tipo });
     if (!s.ok) return no(fichero, s.why);
     const r = await respuesta(desde);
     if (!r.ok) return no(fichero, r.texto.replace(/\.$/, ""));
     cuenta.colocadas++;
-    decir(`${ya ? "Ya estaba en el servidor: no se volvió a subir. " : ""}Colocado: «${nombre}».`);
+    decir(tx(`${ya ? "Already on the server: not uploaded again. " : ""}Placed: "${nombre}".`, `${ya ? "Ya estaba en el servidor: no se volvió a subir. " : ""}Colocado: «${nombre}».`));
   }
   /** H4b: a sky picture or an HDR light for the environment panel. The same checks and the same /a/ door as a model (kind, cap,
    * the file reads, sha256, no second upload), but nothing is placed: resolves with «<sha256>.<ext>» for the panel to write
@@ -198,22 +199,22 @@ export function montarSoltar(o: OpcionesSoltar) {
     const fichero = file.name, ac = fondoAceptable(campo, fichero);
     if (!ac.ok) return { ok: false, why: ac.why };
     const tipo = ac.ext;
-    if (!o.puede()) return { ok: false, why: "no puedes construir aquí" };
-    if (file.size > topeBytes(tipo)) return { ok: false, why: `pasa de ${TOPES_MB[tipo]} MB, el tope para .${tipo}` };
+    if (!o.puede()) return { ok: false, why: tx("you can't build here", "no puedes construir aquí") };
+    if (file.size > topeBytes(tipo)) return { ok: false, why: tx(`over ${TOPES_MB[tipo]} MB, the cap for .${tipo}`, `pasa de ${TOPES_MB[tipo]} MB, el tope para .${tipo}`) };
     const billete = o.billete();
-    if (!billete) return { ok: false, why: "aún no sé quién eres; espera un segundo y vuelve a probar" };
-    decir(`Leyendo «${fichero}»…`, true);
+    if (!billete) return { ok: false, why: tx("I don't know who you are yet; wait a second and try again", "aún no sé quién eres; espera un segundo y vuelve a probar") };
+    decir(tx(`Reading "${fichero}"…`, `Leyendo «${fichero}»…`), true);
     const bytes = new Uint8Array(await file.arrayBuffer());
     const valido = comprobarFichero(tipo, bytes);
     if (!valido.ok) { decir(""); return { ok: false, why: motivo(valido.issues).replace(/\.$/, "") }; }
     const sha = await huella(bytes), url = `${o.origen}/a/${sha}.${tipo}`;
     const ya = await fetch(url, { method: "HEAD", cache: "no-store" }).then((r) => r.status === 200, () => false);
     if (!ya) {
-      const r = await put(url, bytes, billete, fichero, TIPOS[tipo], (f) => decir(`Subiendo «${fichero}»… ${Math.round(f * 100)} %`, true));
-      if (r.status !== 200 && r.status !== 201) { decir(""); return { ok: false, why: r.error.replace(/\.$/, "") || POR_ESTADO[r.status] || `el servidor dijo ${r.status}` }; }
+      const r = await put(url, bytes, billete, fichero, TIPOS[tipo], (f) => decir(tx(`Uploading "${fichero}"… ${Math.round(f * 100)} %`, `Subiendo «${fichero}»… ${Math.round(f * 100)} %`), true));
+      if (r.status !== 200 && r.status !== 201) { decir(""); return { ok: false, why: r.error.replace(/\.$/, "") || POR_ESTADO(r.status) || tx(`the server said ${r.status}`, `el servidor dijo ${r.status}`) }; }
       cuenta.subidas++;
     } else cuenta.yaEstaban++;
-    decir(ya ? `«${fichero}» ya estaba en el servidor.` : `«${fichero}» subido.`);
+    decir(ya ? tx(`"${fichero}" was already on the server.`, `«${fichero}» ya estaba en el servidor.`) : tx(`"${fichero}" uploaded.`, `«${fichero}» subido.`));
     return { ok: true, nombre: `${sha}.${tipo}` };
   }
   let cola = Promise.resolve();
@@ -231,14 +232,14 @@ export function montarSoltar(o: OpcionesSoltar) {
    * there is no file picker (apps/plaza/obra-vr.ts). The server still checks the file is there, measures it and fits it. */
   const rellenarYa = (id: string, sha: string, ext: string, nombre: string): Promise<{ ok: boolean; texto: string }> => {
     const hecho = cola.then(async () => {
-      if (!o.puede()) { decir("No puedes construir aquí."); return { ok: false, texto: "no puedes construir aquí" }; }
-      decir(`Encajando «${nombre}» en el hueco…`, true);
+      if (!o.puede()) { decir(tx("You can't build here.", "No puedes construir aquí.")); return { ok: false, texto: tx("you can't build here", "no puedes construir aquí") }; }
+      decir(tx(`Fitting "${nombre}" into the hole…`, `Encajando «${nombre}» en el hueco…`), true);
       const desde = o.session.features.stats.events;
       const s = o.session.features.send("objetos", "rellenar", { id, modelo: sha, ext, nombre });
-      if (!s.ok) { decir(`No se pudo: ${s.why}.`); return { ok: false, texto: s.why }; }
+      if (!s.ok) { decir(tx(`Could not: ${s.why}.`, `No se pudo: ${s.why}.`)); return { ok: false, texto: s.why }; }
       const r = await respuesta(desde, "rellenar");
-      if (!r.ok) { decir(`No se pudo poner «${nombre}»: ${r.texto.replace(/\.$/, "")}.`); return { ok: false, texto: r.texto }; }
-      cuenta.huecos++; decir(`Colgada en el hueco: «${nombre}».`);
+      if (!r.ok) { decir(tx(`Could not put "${nombre}": ${r.texto.replace(/\.$/, "")}.`, `No se pudo poner «${nombre}»: ${r.texto.replace(/\.$/, "")}.`)); return { ok: false, texto: r.texto }; }
+      cuenta.huecos++; decir(tx(`Hung in the hole: "${nombre}".`, `Colgada en el hueco: «${nombre}».`));
       return { ok: true, texto: "" };
     });
     cola = hecho.then(() => undefined, () => undefined);

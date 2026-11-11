@@ -19,6 +19,7 @@ import { escribiendo } from "./escribiendo.ts";
 import { icono } from "./iconos.ts";
 import "./foto.css";
 import { pideFoto } from "../../features/misiones/foto.ts"; // P10: pure; it travels with this chunk
+import { idiomaActivo, ligar, tx } from "../../packages/feature/src/idioma.ts";
 import { esTactil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
 
 type Punto = { x: number; y: number; z: number };
@@ -71,7 +72,7 @@ export function montarFoto(o: FotoOpts) {
   let activo = false, filtroId = "natural", conMarco = false, hecha: { blob: Blob; url: string; nombre: string; ancho: number; alto: number; enlace: string } | null = null;
   let sinNombres: Blob | null = null; // MIS-265: the same picture drawn without name plates, kept only for who may set a cover
   let deVR = false, estabaEnVR = false; // the picture on hand was taken inside VR and has not been shown yet / VR was on a moment ago
-  let mundo = () => document.title || "Mundo";
+  let mundo = () => document.title || tx("World", "Mundo");
 
   // ---- the filters as SVG colour matrices (the live preview: the same numbers the PNG gets) ----
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -81,29 +82,29 @@ export function montarFoto(o: FotoOpts) {
 
   // ---- the photo interface (the only thing on screen in photo mode; never in the picture: it reads the canvas) ----
   const raiz = document.createElement("section");
-  raiz.id = "foto"; raiz.hidden = true; raiz.setAttribute("aria-label", "Modo foto");
+  raiz.id = "foto"; raiz.hidden = true; ligar(raiz, "aria-label", "Photo mode", "Modo foto");
   raiz.innerHTML = /* static markup: only this file's constants (FILTROS, icons); the world's name goes in with textContent */ `
     <div id="foto-marco" hidden aria-hidden="true"><span class="nombre"></span><span class="fecha"></span></div>
     <div id="foto-destello" aria-hidden="true"></div>
     <p class="foto-ayuda" role="note"></p>
-    <div class="foto-barra" role="toolbar" aria-label="Modo foto">
-      <div class="foto-filtros" role="group" aria-label="Filtro">${FILTROS.map((f, i) => `<button type="button" data-filtro="${f.id}" aria-pressed="${f.id === "natural"}" title="${f.describe} (${i + 1})">${f.nombre}</button>`).join("")}</div>
-      <button type="button" class="foto-con-marco" aria-pressed="false" title="Marco con el nombre del mundo (F)">Marco</button>
-      <button type="button" class="foto-disparar" title="Hacer la foto (Intro)">${icono("camera", 28)}<span class="solo-lector">Hacer la foto</span></button>
-      <button type="button" class="foto-salir" title="Salir del modo foto (Esc)">${icono("x", 18)}<span class="solo-lector">Salir del modo foto</span></button>
+    <div class="foto-barra" role="toolbar">
+      <div class="foto-filtros" role="group">${FILTROS.map((f, i) => `<button type="button" data-filtro="${f.id}" aria-pressed="${f.id === "natural"}" title="${f.describe} (${i + 1})">${f.nombre}</button>`).join("")}</div>
+      <button type="button" class="foto-con-marco" aria-pressed="false"></button>
+      <button type="button" class="foto-disparar">${icono("camera", 28)}<span class="solo-lector"></span></button>
+      <button type="button" class="foto-salir">${icono("x", 18)}<span class="solo-lector"></span></button>
     </div>
-    <div class="foto-hecha" role="dialog" aria-label="Tu foto" hidden>
+    <div class="foto-hecha" role="dialog" hidden>
       <img alt="" />
       <p class="estado" role="status" aria-live="polite"></p>
       <div class="fila">
-        <button type="button" class="foto-compartir" hidden>${icono("share-network", 18)}<span>Compartir</span></button>
-        <button type="button" class="foto-guardar">${icono("download-simple", 18)}<span>Guardar</span></button>
-        <button type="button" class="foto-copiar-imagen" hidden>${icono("copy", 18)}<span>Copiar imagen</span></button>
-        <button type="button" class="foto-copiar-enlace">${icono("copy", 18)}<span>Copiar enlace</span></button>
-        <button type="button" class="foto-portada" hidden title="La imagen del mundo: la que se ve mientras carga y en su tarjeta de numinia.com">${icono("image-square", 18)}<span>Usar de portada</span></button>
-        <button type="button" class="foto-otra">Otra foto</button>
+        <button type="button" class="foto-compartir" hidden>${icono("share-network", 18)}<span></span></button>
+        <button type="button" class="foto-guardar">${icono("download-simple", 18)}<span></span></button>
+        <button type="button" class="foto-copiar-imagen" hidden>${icono("copy", 18)}<span></span></button>
+        <button type="button" class="foto-copiar-enlace">${icono("copy", 18)}<span></span></button>
+        <button type="button" class="foto-portada" hidden>${icono("image-square", 18)}<span></span></button>
+        <button type="button" class="foto-otra"></button>
       </div>
-      <input class="foto-enlace" type="text" readonly hidden aria-label="Enlace a este sitio del mundo" />
+      <input class="foto-enlace" type="text" readonly hidden />
     </div>`;
   document.body.appendChild(raiz);
   const $ = <T extends HTMLElement>(s: string) => raiz.querySelector(s) as T;
@@ -113,13 +114,25 @@ export function montarFoto(o: FotoOpts) {
   const bCompartir = $<HTMLButtonElement>(".foto-compartir"), bGuardar = $<HTMLButtonElement>(".foto-guardar"), bCopiarImg = $<HTMLButtonElement>(".foto-copiar-imagen");
   const bEnlace = $<HTMLButtonElement>(".foto-copiar-enlace"), campoEnlace = $<HTMLInputElement>(".foto-enlace");
   const bPortada = $<HTMLButtonElement>(".foto-portada");
+  // the markup holds no words: they are bound here so they follow the language (built once)
+  ligar($<HTMLElement>(".foto-barra"), "aria-label", "Photo mode", "Modo foto"); ligar($<HTMLElement>(".foto-filtros"), "aria-label", "Filter", "Filtro");
+  ligar(bMarco, "textContent", "Frame", "Marco"); ligar(bMarco, "title", "Frame with the world's name (F)", "Marco con el nombre del mundo (F)");
+  ligar(bDisparar, "title", "Take the photo (Enter)", "Hacer la foto (Intro)"); ligar($<HTMLElement>(".foto-disparar .solo-lector"), "textContent", "Take the photo", "Hacer la foto");
+  ligar($<HTMLElement>(".foto-salir"), "title", "Leave photo mode (Esc)", "Salir del modo foto (Esc)"); ligar($<HTMLElement>(".foto-salir .solo-lector"), "textContent", "Leave photo mode", "Salir del modo foto");
+  ligar(panel, "aria-label", "Your photo", "Tu foto");
+  ligar($<HTMLElement>(".foto-compartir span"), "textContent", "Share", "Compartir"); ligar($<HTMLElement>(".foto-guardar span"), "textContent", "Save", "Guardar");
+  ligar($<HTMLElement>(".foto-copiar-imagen span"), "textContent", "Copy image", "Copiar imagen"); ligar($<HTMLElement>(".foto-copiar-enlace span"), "textContent", "Copy link", "Copiar enlace");
+  ligar(bPortada, "title", "The world's image: the one shown while it loads and on its numinia.com card", "La imagen del mundo: la que se ve mientras carga y en su tarjeta de numinia.com");
+  ligar($<HTMLElement>(".foto-portada span"), "textContent", "Use as cover", "Usar de portada"); ligar($<HTMLElement>(".foto-otra"), "textContent", "Another photo", "Otra foto");
+  ligar(campoEnlace, "aria-label", "Link to this place in the world", "Enlace a este sitio del mundo");
   raiz.addEventListener("pointerdown", (e) => e.stopPropagation()); // a press on the photo bar is never the page's joystick
   raiz.addEventListener("wheel", (e) => e.stopPropagation());
 
   // ---- the button in the top bar (U11: an icon, the words for screen readers) ----
   o.boton.classList.add("solo-icono");
-  o.boton.title = "Foto: la interfaz se esconde, encuadras y disparas";
-  o.boton.innerHTML = `${icono("camera")}<span class="solo-lector">Foto</span>`;
+  ligar(o.boton, "title", "Photo: the interface hides, you frame and shoot", "Foto: la interfaz se esconde, encuadras y disparas");
+  o.boton.innerHTML = `${icono("camera")}<span class="solo-lector"></span>`;
+  ligar(o.boton.querySelector(".solo-lector") as HTMLElement, "textContent", "Photo", "Foto");
   o.boton.addEventListener("click", () => (activo ? cerrar() : abrir()));
   setInterval(() => {
     const vr = view.vr.active, x = vr || view.ar.state !== "off"; if (o.boton.hidden !== x) o.boton.hidden = x; // no free-camera button in XR
@@ -144,8 +157,8 @@ export function montarFoto(o: FotoOpts) {
     return f;
   }
   function ponerMarco(on: boolean): void { conMarco = on; bMarco.setAttribute("aria-pressed", String(on)); pintarMarco(); }
-  for (const b of raiz.querySelectorAll<HTMLButtonElement>("[data-filtro]")) b.addEventListener("click", () => { const f = elegirFiltro(b.dataset.filtro!); o.decir(`Filtro: ${f.nombre}.`); });
-  bMarco.addEventListener("click", () => { ponerMarco(!conMarco); o.decir(conMarco ? "Marco con el nombre del mundo." : "Sin marco."); });
+  for (const b of raiz.querySelectorAll<HTMLButtonElement>("[data-filtro]")) b.addEventListener("click", () => { const f = elegirFiltro(b.dataset.filtro!); o.decir(tx(`Filter: ${f.nombre}.`, `Filtro: ${f.nombre}.`)); });
+  bMarco.addEventListener("click", () => { ponerMarco(!conMarco); o.decir(conMarco ? tx("Frame with the world's name.", "Marco con el nombre del mundo.") : tx("No frame.", "Sin marco.")); });
   bDisparar.addEventListener("click", () => { void disparar(); });
   $<HTMLButtonElement>(".foto-salir").addEventListener("click", () => cerrar());
   $<HTMLButtonElement>(".foto-otra").addEventListener("click", () => volverAEncuadrar());
@@ -154,20 +167,20 @@ export function montarFoto(o: FotoOpts) {
   // ---- in and out ----
   function abrir(): boolean {
     if (activo) return true;
-    if (view.vr.active || view.ar.state !== "off") { o.decir("En VR o AR no hay modo foto todavía."); return false; }
-    if (view.cam.modo() === "construir") { o.decir("Sal de construir para hacer fotos."); return false; }
+    if (view.vr.active || view.ar.state !== "off") { o.decir(tx("There is no photo mode in VR or AR yet.", "En VR o AR no hay modo foto todavía.")); return false; }
+    if (view.cam.modo() === "construir") { o.decir(tx("Leave build mode to take photos.", "Sal de construir para hacer fotos.")); return false; }
     (document.activeElement as HTMLElement | null)?.blur?.();
     activo = true;
     view.cam.modo("foto");
     document.body.classList.add("modo-foto");
     raiz.hidden = false; panel.hidden = true;
     ayuda.textContent = tactil()
-      ? "Un dedo: encuadrar · dos dedos: acercar y mover · el botón redondo hace la foto"
-      : "Arrastra: encuadrar · rueda: acercar · WASD: mover · Q E: bajar, subir · 1-4: filtro · F: marco · Intro: foto · Esc: salir";
+      ? tx("One finger: frame · two fingers: zoom and move · the round button takes the photo", "Un dedo: encuadrar · dos dedos: acercar y mover · el botón redondo hace la foto")
+      : tx("Drag: frame · wheel: zoom · WASD: move · Q E: down, up · 1-4: filter · F: frame · Enter: photo · Esc: leave", "Arrastra: encuadrar · rueda: acercar · WASD: mover · Q E: bajar, subir · 1-4: filtro · F: marco · Intro: foto · Esc: salir");
     ayuda.classList.remove("se-va"); void ayuda.offsetWidth; ayuda.classList.add("se-va");
     elegirFiltro(filtroId); pintarMarco();
     bDisparar.focus({ preventScroll: true });
-    o.decir("Modo foto: la interfaz se esconde; encuadra y haz la foto. Esc para salir.");
+    o.decir(tx("Photo mode: the interface hides; frame and take the photo. Esc to leave.", "Modo foto: la interfaz se esconde; encuadra y haz la foto. Esc para salir."));
     return true;
   }
   function cerrar(): void {
@@ -178,7 +191,7 @@ export function montarFoto(o: FotoOpts) {
     raiz.hidden = true; panel.hidden = true; raiz.classList.remove("con-foto"); lienzo.style.filter = "";
     soltarHecha();
     (o.volverA?.() ?? o.boton).focus({ preventScroll: true });
-    o.decir("Fuera del modo foto.");
+    o.decir(tx("Out of photo mode.", "Fuera del modo foto."));
   }
   function volverAEncuadrar(): void { panel.hidden = true; raiz.classList.remove("con-foto"); pintarMarco(); soltarHecha(); bDisparar.focus({ preventScroll: true }); }
   function soltarHecha(): void { if (hecha) URL.revokeObjectURL(hecha.url); hecha = null; sinNombres = null; deVR = false; img.removeAttribute("src"); campoEnlace.hidden = true; }
@@ -204,7 +217,7 @@ export function montarFoto(o: FotoOpts) {
   async function componer(c: HTMLCanvasElement, f: Filtro, conElMarco = conMarco): Promise<void> {
     const ctx = c.getContext("2d")!, w = c.width, h = c.height;
     const datos = ctx.getImageData(0, 0, w, h);
-    if (vacia(datos.data)) throw new Error("el navegador no dejó leer la imagen del mundo");
+    if (vacia(datos.data)) throw new Error(tx("the browser did not let the world's image be read", "el navegador no dejó leer la imagen del mundo"));
     if (f.matriz) { aplicarMatriz(datos.data, f.matriz); ctx.putImageData(datos, 0, 0); }
     if (!conElMarco) return;
     const m = marco(w, h), fondo = css("--n-fondo", "#14110F");
@@ -230,10 +243,10 @@ export function montarFoto(o: FotoOpts) {
   /** Keeps a finished picture as «the last one» (blob, link, name) and offers the buttons the browser can use. */
   async function guardarHecha(c: HTMLCanvasElement, enlaceDe: string): Promise<{ blob: Blob; archivo: File }> {
     const blob = await new Promise<Blob | null>((ok) => c.toBlob(ok, "image/png"));
-    if (!blob) throw new Error("no se pudo guardar como PNG");
+    if (!blob) throw new Error(tx("could not save as PNG", "no se pudo guardar como PNG"));
     soltarHecha();
     hecha = { blob, url: URL.createObjectURL(blob), nombre: nombreArchivo(mundo(), new Date()), ancho: c.width, alto: c.height, enlace: enlaceDe };
-    img.src = hecha.url; img.alt = `Tu foto de ${mundo()}`;
+    img.src = hecha.url; img.alt = tx(`Your photo of ${mundo()}`, `Tu foto de ${mundo()}`);
     const archivo = new File([blob], hecha.nombre, { type: "image/png" });
     bCompartir.hidden = !(typeof navigator.share === "function" && (navigator.canShare?.({ files: [archivo] }) ?? false));
     bCopiarImg.hidden = tactil() || typeof ClipboardItem === "undefined" || !navigator.clipboard?.write;
@@ -245,7 +258,7 @@ export function montarFoto(o: FotoOpts) {
     bPortada.hidden = !o.portada?.puede(); bPortada.disabled = false;
     (bCompartir.hidden ? bGuardar : bCompartir).focus({ preventScroll: true });
     deVR = false;
-    o.decir("Foto hecha. Puedes compartirla, guardarla o copiar el enlace a este sitio.");
+    o.decir(tx("Photo taken. You can share it, save it or copy the link to this place.", "Foto hecha. Puedes compartirla, guardarla o copiar el enlace a este sitio."));
   }
   function resultado(c: HTMLCanvasElement, extra: Partial<Resultado> = {}): Resultado {
     return { ok: true, ancho: c.width, alto: c.height, bytes: hecha!.blob.size, nombre: hecha!.nombre, enlace: hecha!.enlace, ...extra };
@@ -264,7 +277,7 @@ export function montarFoto(o: FotoOpts) {
     return l > 0 ? { x: m[12], y: m[13], z: m[14], fx: -m[8] / l, fy: -m[9] / l, fz: -m[10] / l, fov: c.fov, aspecto: c.aspect } : null;
   }
   async function dispararVR(): Promise<Resultado> {
-    if (!view.fotoVR) return { ok: false, error: "este motor no saca fotos dentro de VR" };
+    if (!view.fotoVR) return { ok: false, error: tx("this engine takes no photos inside VR", "este motor no saca fotos dentro de VR") };
     try {
       const c = await view.fotoVR.sacar();
       await componer(c, filtro("natural"), true);
@@ -273,17 +286,17 @@ export function montarFoto(o: FotoOpts) {
       deVR = true; o.registrar?.({ detalle: "vr" });
       if (c.pose) alFoto(c.pose); // P10
       try { const a = document.createElement("a"); a.href = hecha!.url; a.download = hecha!.nombre; document.body.appendChild(a); a.click(); a.remove(); } catch { /* the picture waits on the page */ }
-      o.decir("Foto hecha en VR: al salir la tienes en la página para compartirla.");
+      o.decir(tx("Photo taken in VR: when you leave, it is on the page to share.", "Foto hecha en VR: al salir la tienes en la página para compartirla."));
       return resultado(c, { deVR: true });
     } catch (e) {
-      const t = `No pude hacer la foto en VR: ${(e as Error)?.message ?? e}.`;
+      const t = tx(`Could not take the photo in VR: ${(e as Error)?.message ?? e}.`, `No pude hacer la foto en VR: ${(e as Error)?.message ?? e}.`);
       o.decir(t); console.warn(`[foto] ${t}`);
       return { ok: false, error: String((e as Error)?.message ?? e), deVR: true };
     }
   }
   async function disparar(): Promise<Resultado> {
     if (view.vr.active) return dispararVR(); // the headset's view is not this page's canvas
-    if (!activo && !abrir()) return { ok: false, error: "no hay modo foto aquí" };
+    if (!activo && !abrir()) return { ok: false, error: tx("there is no photo mode here", "no hay modo foto aquí") };
     try {
       if (!document.documentElement.classList.contains("menos-movimiento")) { destello.classList.remove("ya"); void destello.offsetWidth; destello.classList.add("ya"); }
       const c = capturar();
@@ -298,7 +311,7 @@ export function montarFoto(o: FotoOpts) {
       if (pose) alFoto(pose); // P10
       return resultado(c);
     } catch (e) {
-      const t = `No pude hacer la foto: ${(e as Error)?.message ?? e}.`;
+      const t = tx(`Could not take the photo: ${(e as Error)?.message ?? e}.`, `No pude hacer la foto: ${(e as Error)?.message ?? e}.`);
       o.decir(t); console.warn(`[foto] ${t}`);
       return { ok: false, error: String((e as Error)?.message ?? e) };
     }
@@ -313,47 +326,47 @@ export function montarFoto(o: FotoOpts) {
     if (!hecha) return;
     const a = document.createElement("a");
     a.href = hecha.url; a.download = hecha.nombre; document.body.appendChild(a); a.click(); a.remove();
-    estado.textContent = `Guardada: ${hecha.nombre}`;
+    estado.textContent = tx(`Saved: ${hecha.nombre}`, `Guardada: ${hecha.nombre}`);
   });
   bCompartir.addEventListener("click", async () => {
     if (!hecha) return;
     const archivo = new File([hecha.blob], hecha.nombre, { type: "image/png" });
     try {
-      await navigator.share({ files: [archivo], title: mundo(), text: `${mundo()} · ven a este sitio: ${hecha.enlace}`, url: hecha.enlace });
-      estado.textContent = "Compartida.";
-    } catch (e) { if ((e as Error)?.name !== "AbortError") estado.textContent = "No se pudo compartir: guárdala o copia el enlace."; }
+      await navigator.share({ files: [archivo], title: mundo(), text: tx(`${mundo()} · come to this place: ${hecha.enlace}`, `${mundo()} · ven a este sitio: ${hecha.enlace}`), url: hecha.enlace });
+      estado.textContent = tx("Shared.", "Compartida.");
+    } catch (e) { if ((e as Error)?.name !== "AbortError") estado.textContent = tx("Could not share: save it or copy the link.", "No se pudo compartir: guárdala o copia el enlace."); }
   });
   bCopiarImg.addEventListener("click", async () => {
     if (!hecha) return;
-    try { await navigator.clipboard.write([new ClipboardItem({ "image/png": hecha.blob })]); estado.textContent = "Imagen copiada: pégala donde quieras."; }
-    catch { estado.textContent = "No se pudo copiar la imagen: guárdala."; }
+    try { await navigator.clipboard.write([new ClipboardItem({ "image/png": hecha.blob })]); estado.textContent = tx("Image copied: paste it wherever you like.", "Imagen copiada: pégala donde quieras."); }
+    catch { estado.textContent = tx("Could not copy the image: save it.", "No se pudo copiar la imagen: guárdala."); }
   });
   /** MIS-265: the picture on hand as the world's cover (a JPEG of at most PORTADA_PX); says how it went. */
   async function usarDePortada(): Promise<{ ok: true; bytes: number } | { ok: false; why: string }> {
-    if (!hecha) return { ok: false, why: "aún no hay foto" };
-    if (!o.portada?.puede()) return { ok: false, why: "solo quien cuida el mundo puede cambiar su portada" };
+    if (!hecha) return { ok: false, why: tx("there is no photo yet", "aún no hay foto") };
+    if (!o.portada?.puede()) return { ok: false, why: tx("only whoever looks after the world can change its cover", "solo quien cuida el mundo puede cambiar su portada") };
     const bmp = await createImageBitmap(sinNombres ?? hecha.blob); // no names when the world could draw it so
     const m = medidaPortada(bmp.width, bmp.height), c = document.createElement("canvas");
     c.width = m.ancho; c.height = m.alto;
     const ctx = c.getContext("2d")!;
     ctx.imageSmoothingQuality = "high"; ctx.drawImage(bmp, 0, 0, m.ancho, m.alto); bmp.close();
     const jpg = await new Promise<Blob | null>((ok) => c.toBlob(ok, "image/jpeg", PORTADA_CALIDAD));
-    if (!jpg) return { ok: false, why: "el navegador no pudo hacer el JPEG" };
+    if (!jpg) return { ok: false, why: tx("the browser could not make the JPEG", "el navegador no pudo hacer el JPEG") };
     const r = await o.portada.usar(new File([jpg], hecha.nombre.replace(/\.png$/, "-portada.jpg"), { type: "image/jpeg" }));
     return r.ok ? { ok: true, bytes: jpg.size } : r;
   }
   bPortada.addEventListener("click", async () => {
-    bPortada.disabled = true; estado.textContent = "Poniendo la portada…";
+    bPortada.disabled = true; estado.textContent = tx("Setting the cover…", "Poniendo la portada…");
     let r: Awaited<ReturnType<typeof usarDePortada>>;
     try { r = await usarDePortada(); } catch (e) { r = { ok: false, why: String((e as Error)?.message ?? e) }; }
     bPortada.disabled = false;
-    estado.textContent = r.ok ? "Es la portada del mundo: la verás al cargar y en su tarjeta de numinia.com." : `No se puso de portada: ${r.why}.`;
+    estado.textContent = r.ok ? tx("It is the world's cover: you will see it while loading and on its numinia.com card.", "Es la portada del mundo: la verás al cargar y en su tarjeta de numinia.com.") : tx(`Could not set as cover: ${r.why}.`, `No se puso de portada: ${r.why}.`);
     o.decir(estado.textContent);
   });
   bEnlace.addEventListener("click", async () => {
     const t = hecha?.enlace ?? enlace();
-    try { await navigator.clipboard.writeText(t); estado.textContent = "Enlace copiado: quien lo abra llega a este sitio."; }
-    catch { campoEnlace.hidden = false; campoEnlace.value = t; campoEnlace.focus(); campoEnlace.select(); estado.textContent = "Copia el enlace de la caja."; }
+    try { await navigator.clipboard.writeText(t); estado.textContent = tx("Link copied: whoever opens it arrives at this place.", "Enlace copiado: quien lo abra llega a este sitio."); }
+    catch { campoEnlace.hidden = false; campoEnlace.value = t; campoEnlace.focus(); campoEnlace.select(); estado.textContent = tx("Copy the link from the box.", "Copia el enlace de la caja."); }
   });
 
   // ---- keys: in photo mode the photo owns the keyboard (the world's keys would walk, jump, open the mic...) ----
@@ -402,7 +415,7 @@ export function montarFoto(o: FotoOpts) {
       if (guiaEstado === "esperando" && o.aparecer && !pedida) {
         const p = o.aparecer.puede();
         if (p === null && vueltas < 5) return;
-        if (p) { guiaEstado = "apareciendo"; vueltas = 0; pedida = true; o.aparecer.pedir(guia); o.decir("Te han pasado una foto de este mundo: apareces donde se hizo."); return; }
+        if (p) { guiaEstado = "apareciendo"; vueltas = 0; pedida = true; o.aparecer.pedir(guia); o.decir(tx("Someone sent you a photo of this world: you appear where it was taken.", "Te han pasado una foto de este mundo: apareces donde se hizo.")); return; }
       }
       if (guiaEstado === "apareciendo" && Math.hypot(yo.x - guia.x, yo.z - guia.z) > LLEGADA_M) {
         if (vueltas < 10) return; // ~4 s: the light takes 0.6 s; more = the server found no room
@@ -410,14 +423,14 @@ export function montarFoto(o: FotoOpts) {
       }
       if (guiaEstado === "esperando") {
         guiaEstado = "en-camino";
-        if (o.mapa?.marcarDestino) o.mapa.marcarDestino({ id: "foto", nombre: "el sitio de la foto", x: guia.x, z: guia.z }); else view.waypoint?.(guia.x, guia.z, "Aquí se hizo la foto");
+        if (o.mapa?.marcarDestino) o.mapa.marcarDestino({ id: "foto", nombre: tx("the photo's place", "el sitio de la foto"), x: guia.x, z: guia.z }); else view.waypoint?.(guia.x, guia.z, tx("The photo was taken here", "Aquí se hizo la foto"));
         view.cam.mirarHacia(rumboHacia(yo.x, yo.z, guia.x, guia.z));
-        o.decir("Te han pasado una foto de este mundo: sigue la luz hasta el sitio donde se hizo.");
+        o.decir(tx("Someone sent you a photo of this world: follow the light to where it was taken.", "Te han pasado una foto de este mundo: sigue la luz hasta el sitio donde se hizo."));
       }
       if (Math.hypot(yo.x - guia.x, yo.z - guia.z) <= LLEGADA_M) {
         guiaEstado = "llegado"; clearInterval(t);
         view.cam.mirarHacia(guia.yaw, guia.pitch);
-        o.decir("Estás donde se hizo la foto.");
+        o.decir(tx("You are where the photo was taken.", "Estás donde se hizo la foto."));
       }
     }, 400);
   }
@@ -440,8 +453,8 @@ export function montarFoto(o: FotoOpts) {
   };
 }
 
-function fecha(d: Date): string {
-  const m = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"][d.getMonth()];
+function fecha(d: Date, idioma: string = idiomaActivo()): string {
+  const m = (idioma === "es" ? ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"] : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])[d.getMonth()];
   return `${d.getDate()} ${m} ${d.getFullYear()}`;
 }
 function recortar(ctx: CanvasRenderingContext2D, t: string, max: number): string {

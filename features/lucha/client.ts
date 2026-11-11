@@ -13,6 +13,8 @@ import type { Estado } from "./estados.ts";
 import { CARGA_MAX } from "./habilidades.ts";
 import { intermedios } from "./persecucion.ts";
 import { crearPeso, DESTELLO_MS, SONIDO_GOLPE } from "./peso.ts";
+import { tx, idiomaActivo } from "../../packages/feature/src/idioma.ts";
+import type { Idioma } from "../../packages/feature/src/idioma.ts";
 import biblioteca from "../objetos/biblioteca.json" with { type: "json" };
 
 const BLOQUE = biblioteca.modelos.find((m) => m.id === "bloque")?.modelo ?? "";
@@ -24,9 +26,10 @@ export const COLOR_CRITICO = "#ffd24a";
 export const COLOR_ATAQUE = "#e5503f";
 /** A step of a walking creature (0,2 s apart) is drawn as this many in-between positions, one every PASO_MS: smooth, and nothing runs while it stands. */
 export const SUAVIZAR_PASOS = 4, PASO_MS = 50;
-export const textoDano = (dano: number, critico: boolean): string => (critico ? `  ¡CRÍTICO! −${dano}` : `  −${dano}`);
-/** The Estado rungs as the character HUD names them (index = rung, 0 = ninguno → no name = stable). */
-export const NOMBRE_ESTADO = ["", "Desestabilizado", "Confundido", "Colapsado", "Aletargado"] as const;
+export const textoDano = (dano: number, critico: boolean, idioma: Idioma = idiomaActivo()): string => (critico ? `  ${idioma === "es" ? "¡CRÍTICO!" : "CRITICAL!"} −${dano}` : `  −${dano}`);
+/** The Estado rungs by their canonical name (index = rung, 0 = ninguno → no name = stable). This is a KEY, not display text: apps/plaza/hud-personaje.ts
+ * maps it back with ESCALERA.indexOf and translates the label itself. */
+export const NOMBRE_ESTADO = ["", "Desestabilizado", "Confundido", "Colapsado", "Aletargado"] as const; // i18n-ok: canonical ladder key read by the HUD (ESCALERA.indexOf), not shown as is
 /** The rung the page SHOWS, from the last one the server announced (`nivel`, at `desde` ms) and the clock (pure; display only).
  * The server forgets one rung per CALMA_TICKS of calm without saying so, so the page counts the same calm; Aletargado is only left by
  * `reaparece`. The server stays the authority: the next `estado` event overwrites whatever this guessed. */
@@ -40,11 +43,18 @@ const GRIS = [0x6e, 0x6e, 0x6e];
 /** How long a person's Estado label stays over them (ms) before it fades; each new blow renews it. */
 export const ESTADO_MS = 8000, REAPARECE_MS = 2500;
 /** The icon + word over a person at each rung (same pattern as the creatures' coherence tint: by state, flat text, no new 3D). */
-export const ROTULO: Record<Estado, string> = { ninguno: "", desestabilizado: "≈ Desestabilizado", confundido: "? Confundido", colapsado: "‼ Colapsado", aletargado: "☾ Aletargado" };
+// getters: the word is read in the active language each time it is shown
+export const ROTULO: Record<Estado, string> = {
+  ninguno: "",
+  get desestabilizado() { return `≈ ${tx("Destabilised", "Desestabilizado")}`; },
+  get confundido() { return `? ${tx("Confused", "Confundido")}`; },
+  get colapsado() { return `‼ ${tx("Collapsed", "Colapsado")}`; },
+  get aletargado() { return `☾ ${tx("Lethargic", "Aletargado")}`; },
+};
 
 export type Criatura = { key: string; nombre: string; especie: string; x: number; y: number; z: number; radio: number; coherencia: number; coherenciaMax: number; modo: string; solido: boolean };
 type Res = { ok: true } | { ok: false; why: string };
-const SIN: Res = { ok: false, why: "la función lucha no está en este servidor" };
+const SIN = (): Res => ({ ok: false, why: tx("fighting is not on this server", "la función lucha no está en este servidor") });
 
 /** «#rrggbb» mixed towards grey by (1 − coherencia/max) (pure; tests use it). */
 export function tinte(color: string, coherencia: number, max: number): string {
@@ -104,17 +114,17 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void, reloj: (
     /** The last line worth showing (a rejection). */
     aviso: () => ultimo,
     golpear: (objetivo?: string): Res => {
-      if (!A) return SIN;
+      if (!A) return SIN();
       const key = objetivo ?? lucha.criaturas().find((c) => c.modo !== "disuelta")?.key;
-      if (!key) return { ok: false, why: "no hay ninguna criatura cerca" };
+      if (!key) return { ok: false, why: tx("no creature nearby", "no hay ninguna criatura cerca") };
       A.send("golpear", { objetivo: key });
       return { ok: true };
     },
     /** Ask the server to use an ability of the kit on a creature (default: the first one standing). The server decides. */
     habilidad: (cual: string, objetivo?: string): Res => {
-      if (!A) return SIN;
+      if (!A) return SIN();
       const key = objetivo ?? lucha.criaturas().find((c) => c.modo !== "disuelta")?.key;
-      if (!key) return { ok: false, why: "no hay ninguna criatura cerca" };
+      if (!key) return { ok: false, why: tx("no creature nearby", "no hay ninguna criatura cerca") };
       A.send("habilidad", { objetivo: key, cual });
       return { ok: true };
     },
@@ -168,7 +178,7 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void, reloj: (
       limpiar(key);
       const flash = peso.destello();                // Y25: the same rules as a blow's flash
       if (flash) brillo(key, v, COLOR_ATAQUE, FLASH_MS * 2);
-      rotulo(key, v, "  ¡ataca!");
+      rotulo(key, v, `  ${tx("attacks!", "¡ataca!")}`);
     });
     a.on("aire", (m) => { espia?.("aire", m); });
     a.on("estado", (m) => {                          // my own rung feeds the HUD; every rung heard also puts the icon over that person
@@ -183,7 +193,7 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void, reloj: (
     a.on("reaparece", (m) => {
       espia?.("reaparece", m);
       const e = Number(String(m.objetivo).slice(2));
-      if (Number.isInteger(e)) { estados.delete(e); a.view.label(e, "Reaparece", REAPARECE_MS); }
+      if (Number.isInteger(e)) { estados.delete(e); a.view.label(e, tx("Respawns", "Reaparece"), REAPARECE_MS); }
       if (String(m.objetivo) === `p:${a.self()}`) { rung = { nivel: 0, desde: reloj() }; avisar(); }
     });
     a.on("disuelta", (m) => { espia?.("disuelta", m); limpiar(String(m.objetivo)); });
