@@ -7,7 +7,8 @@
 // from the start (V7). Not named «ajustes.ts»: dev:lan proxies every path that starts with /a to the server.
 import { acciones } from "./acciones-informe.ts"; // session log: VR body and speed changes
 import { crearAjustes, crearCapacidades, leerNavegador, AJUSTES_MOTOR, CONSULTAS, NIVELES, hayMando, AJUSTE_IDIOMA, ID_IDIOMA, ESQUEMA_MUNDO, enlazarIdioma } from "../../packages/client/src/ajustes.ts";
-import { detectarIdioma, IDIOMA_DEFECTO } from "../../packages/client/src/idioma.ts"; // i18n 2/5: English first, Español second
+import { detectarIdioma, idiomaActivo, IDIOMA_DEFECTO } from "../../packages/client/src/idioma.ts"; // i18n 2/5: English first, Español second
+import { traducirDocumento, traducirGrupo, traducirVista } from "../../packages/client/src/ajustes-motor.ts"; // i18n 3/5: the menu and index.html in both languages
 import type { Ajustes, Grupo, Lectura, Nivel, Valor, Vista } from "../../packages/client/src/ajustes.ts";
 import type { ClientSession } from "../../packages/client/src/index.ts";
 import type { ClientPart } from "../../packages/feature/src/index.ts";
@@ -78,6 +79,12 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
     escribir: (k: string, t: string) => { localStorage.setItem(k, t); },
   };
   const a = crearAjustes({ capacidades: caps, guardado, mundo: mundoPlaza.mundo, registro: (l) => console.warn(l) });
+  // i18n 3/5: the registry resolves the {en, es} names and descriptions itself; the group names, the options' names and the notes
+  // are plain strings in the shared format (packages/feature), so what the menu and agents read goes through the engine's Spanish
+  // table (ajustes-motor.ts) in the active language. English (the declaration) is what a missing Spanish text reads.
+  const listaDe = a.lista.bind(a), gruposDe = a.grupos.bind(a);
+  a.lista = () => listaDe().map((v) => traducirVista(v));
+  a.grupos = () => gruposDe().map((g) => traducirGrupo(g));
   a.declarar(AJUSTES_MOTOR);
   // i18n 2/5: «Language / Idioma» (interfaz). What the person chose wins; else the browser's language; else English. The
   // browser's pick is the setting's default (so «Restablecer» returns to it). Its applier makes the language active and sets
@@ -203,7 +210,17 @@ export function montarAjustes(o: { view: View; session: ClientSession; params: U
   };
   boton?.addEventListener("click", alBoton);
   Object.assign(o.numinia, { ajustes: api, capacidades: caps.valores });
+  // i18n 3/5: the fixed text of index.html (data-en / data-es pairs) follows the language, now and at every change. The help line
+  // also carries a menu hint on desktop: take it off before the swap (the swap only touches a text that is still its own), put it back after.
   const help = $("help");
-  if (help && !caps.valores.punteroGrueso) help.textContent += " · O menú (ajustes, pantalla completa) · U densidad";
+  const AYUDA_EXTRA = { en: " · O menu (settings, full screen) · U density", es: " · O menú (ajustes, pantalla completa) · U densidad" };
+  const pagina = (): void => {
+    const extra = !caps.valores.punteroGrueso;
+    if (help && extra) for (const x of Object.values(AYUDA_EXTRA)) if (help.textContent?.endsWith(x)) help.textContent = help.textContent.slice(0, -x.length);
+    traducirDocumento(document);
+    if (help && extra && help.textContent === help.getAttribute(idiomaActivo() === "es" ? "data-es" : "data-en")) help.textContent += AYUDA_EXTRA[idiomaActivo()];
+  };
+  pagina();
+  a.alCambiar((id) => { if (id === ID_IDIOMA) pagina(); });
   return api;
 }
