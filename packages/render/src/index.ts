@@ -112,7 +112,7 @@ export type { Calidad, Nivel } from "./calidad.ts";
 import { decidirLOD } from "./lod-politica.ts";
 import { personaEn, type Proyectada } from "./gente-politica.ts";
 import { REACCION_MS, reaccionDe } from "./reaccion.ts"; // lote 5: the hop of a clicked thing
-import { FUNDIDO_GESTO_S, GIRO_HACIA_S, GIRO_VUELTA_S, LEJOS_REPOSO_M, caminaPaso, envuelve, esClipCamina, esClipHabla, esClipReposo, faseDe, gestoDe, gestoDisponible, giraHacia, noto, nuevoReposo, reposoDe, rumboHacia, vaACaminar } from "./vida.ts"; // P2: people who live
+import { duracionHabla, FUNDIDO_GESTO_S, GIRO_HACIA_S, GIRO_VUELTA_S, LEJOS_REPOSO_M, caminaPaso, envuelve, esClipCamina, esClipHabla, esClipReposo, faseDe, gestoDe, gestoDisponible, giraHacia, noto, nuevoReposo, reposoDe, rumboHacia, vaACaminar } from "./vida.ts"; // P2: people who live
 import type { Gesto } from "./vida.ts";
 import type { Fase, Giro, Reposo, Vida } from "./vida.ts";
 export { decidirLOD, LOD_LEJOS_M, LOD_HISTERESIS_M } from "./lod-politica.ts";
@@ -272,7 +272,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   selfMesh.visible = false;
   world.add(selfMesh);
   const others = new Map<number, THREE.Mesh>();
-  const cuerposPropios = new Map<number, { marcha: Marcha }>(), sinCuerpo = new Map<number, THREE.Mesh>(); let antesPropios = -1; // habitante@1 `apariencia`: who wears a .glb of the world, and the others for the VRM pass
+  const cuerposPropios = new Map<number, { marcha: Marcha; rumboFijo?: number }>(), sinCuerpo = new Map<number, THREE.Mesh>(); let antesPropios = -1; // habitante@1 `apariencia`: who wears a .glb of the world, and the others for the VRM pass
+  const hablaHasta = new Map<number, number>(); // Pablo 11-11: until when an entity's words are being said (its bubble), for a body's talking clip
   // N1: the camera (mouse, keys, touch, gamepad; play and build modes) — packages/render/src/camara.ts
   const cam = createCamara(camera, renderer.domElement, { enXR: () => renderer.xr.isPresenting });
   const feet = { x: 0, y: 0, z: 0 };
@@ -1506,7 +1507,11 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
           if (!k) { k = { marcha: nuevaMarcha() }; cuerposPropios.set(id, k); }
           seguir(k.marcha, m.position.x, m.position.z, dtC);
           m.layers.mask = 0; // the capsule's way of saying «something else draws this one» (avatares.ts does the same)
-          this.place(`cuerpo:${id}`, { model: c.sha, x: m.position.x, y: m.position.y - 0.85, z: m.position.z, rx: 0, ry: k.marcha.rumbo / RAD, rz: 0, sx: c.escala, sy: c.escala, sz: c.escala, animate: false });
+          // Pablo 11-11: a body of its own lives like a person of the world (vida.ts): its idle clip (respira/idle), its talking clip
+          // (habla/talk) while its words are on screen, its walking clip (camina/walk) while it moves; a model without clips stays still.
+          const anda = k.marcha.velocidad > 0.3, ry = (!anda && k.rumboFijo !== undefined ? k.rumboFijo : k.marcha.rumbo) / RAD;
+          this.place(`cuerpo:${id}`, { model: c.sha, x: m.position.x, y: m.position.y - 0.85, z: m.position.z, rx: 0, ry, rz: 0, sx: c.escala, sy: c.escala, sz: c.escala, animate: true,
+            vida: { id: `cuerpo:${id}`, reposo: true, mira: 0, atiende: (hablaHasta.get(id) ?? 0) > now, andando: anda } });
         }
         for (const [id, k] of cuerposPropios) {
           const m = others.get(id);
@@ -1803,11 +1808,17 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** t_3f0e5846: fetch the clips of the move the person is pointing at in the wheel; nothing at world entry. */
     precargarMovimientos(clips: readonly string[]): void { avs.precargar(clips); },
     /** asiento: a standing avatar faces `rumbo` (radians, atan2(dx, dz)); `undefined` = walk-driven again. */
-    orientar(t: Target, rumbo: number | undefined): void { avs.orientar(t === "self" ? "yo" : t, rumbo); },
+    orientar(t: Target, rumbo: number | undefined): void {
+      avs.orientar(t === "self" ? "yo" : t, rumbo);
+      const k = typeof t === "number" ? cuerposPropios.get(t) : undefined; if (k) k.rumboFijo = rumbo; // a body of its own (.glb) faces the person too
+    },
     /** J3: the name over an avatar (`null` takes it away); drawn for the nearest 32 within 24 m, never over yourself. */
     nameTag(t: Target, text: string | null): void { nombres.nameTag(t, text); },
     /** J3: a speech bubble over an avatar for `ms` (wrapped, up to 6 lines); the latest replaces the one before. */
-    bubble(t: Target, text: string, ms: number): void { nombres.bubble(t, text, ms); },
+    bubble(t: Target, text: string, ms: number): void {
+      nombres.bubble(t, text, ms);
+      if (typeof t === "number") hablaHasta.set(t, performance.now() + duracionHabla(text, ms)); // a body of its own moves its mouth while it says it
+    },
     /** J3: where names, bubbles and labels sit — world y of the top of the drawn avatar. Default: the capsule's top
      * (centre y + 0.85); VRM avatars (J1) pass their head bone's height. */
     setHeadTop(fn: (t: Target, avatar: THREE.Object3D) => number): void { nombres.setTop(fn); },
@@ -1842,6 +1853,8 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     /** ia-llamar S9 (for checks): who has a bubble (shape, radius, visibility, drawn or not, level) and how much the bubbles share. */
     burbujas() { return { lista: burbujas.lista(), ...burbujas.compartidos() }; },
     bubbles() { return nombres.bubbles(); },
+    /** For checks: which of its own clips a living thing plays now (reposo / habla / camina), or null (no clips, not loaded). */
+    gestoDe(k: string): string | null { return things.get(k)?.vida?.gestos?.actual ?? null; },
     /** condiciones/c5: this avatar is (`true`) or is no longer (`false`: it accepted, it bursts) inside a bubble reading the world's norms; its plate says so
      * («<name> · <etiqueta>»). Cheap: one shared sphere and material; nothing is drawn for a world with nobody reading. */
     leyendo(entidad: number, si: boolean, etiqueta?: string): void { nombres.leyendo(entidad, si, etiqueta); pompas.poner(entidad, si, performance.now()); rotulosPendiente = true; },
