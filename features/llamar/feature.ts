@@ -45,6 +45,8 @@ export const llamar = defineFeature({
   id: "llamar",
   version: 1,
   describe: "Llamar a una IA: por su nombre en el chat cercano, con /nombre mensaje (nadie más lo lee), con su frase clave o con el botón «Hablar con ella». Cada IA tiene sus casillas (nombre, barra, botón, frase, solo desde dentro de su burbuja). El servidor decide a quién llega, con un límite de una llamada cada 10 s por persona y 30 por hora por IA, y la entrega solo a la IA.",
+  // N2: the setting of this piece (menu group «llamar»); a world changes its default in mundo.ajustes.json `defectos`. The page reads it with view.ajuste.
+  ajustes: [{ id: "abrirAlEntrar", tipo: "bool", nombre: "Hablar al entrar en la burbuja", describe: "Al entrar en la burbuja de una IA se abre sola la caja para hablarle, una vez por visita. Fuera de la burbuja no pasa nada. La tecla E sigue valiendo.", defecto: true }],
   state: {
     describe: "Por entidad de IA conectada (clave = su entidad; desaparece al desconectar): cómo se la llama aquí. nombre/barra/boton = si se la puede llamar por su nombre, con /nombre o con el botón; dentro = solo desde dentro de su burbuja (si no, hasta 20 m); frase = su frase clave, vacía si no tiene. Las páginas lo leen para la tarjeta y el aviso «E: hablar con…»; no deciden nada.",
     fields: CAMPOS,
