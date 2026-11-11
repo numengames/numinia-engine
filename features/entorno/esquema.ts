@@ -27,7 +27,7 @@ export const RUTAS: [campo: string, ruta: string, color?: true][] = [
   ["solReal", "sol.sigueAlReal"], ["solAltura", "sol.altura"], ["solRumbo", "sol.rumbo"], ["solIntensidad", "sol.intensidad"], ["solColor", "sol.color", true],
   ["nieblaCerca", "niebla.cerca"], ["nieblaLejos", "niebla.lejos"], ["nieblaColor", "niebla.color", true], ["nieblaAuto", "niebla.delCielo"],
   ["vientoRumbo", "viento.rumbo"], ["vientoFuerza", "viento.fuerza"],
-  ["suelo", "suelo.tipo"], ["sueloColor", "suelo.color", true], ["sueloEscala", "suelo.escala"],
+  ["suelo", "suelo.tipo"], ["sueloColor", "suelo.color", true], ["sueloEscala", "suelo.escala"], ["sueloForma", "suelo.forma"], ["sueloRadio", "suelo.radio"],
   ["tono", "tono.curva"], ["exposicion", "tono.exposicion"],
   ["hitos", "hitos"], ["rejilla", "rejilla"],
   ["mapaCorte", "mapa.corte"],

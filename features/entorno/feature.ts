@@ -10,6 +10,8 @@ import type { Fields } from "../../packages/feature/src/index.ts";
 export const PRESETS = ["día", "amanecer", "atardecer", "noche", "niebla", "tormenta", "nublado", "jardín"] as const;
 /** «ninguno» = a world with no ground at all (floating islands): no plane, no grid, the sky above AND below, no flat floor in the simulation
  * (a fall ends in the void of `sueloMinimo`, 100 m down if the world says none). Last, so the default stays «hierba». */
+export const FORMAS_SUELO = ["plano", "disco"] as const;
+export const RADIO_SUELO_MAX = 2000;
 export const SUELOS = ["hierba", "tierra", "arena", "roca", "nieve", "liso", "ninguno"] as const;
 export const CIELOS = ["atmosfera", "degradado", "color"] as const;
 /** P1: the views a person may start in. «tercera» first: it is the house's, and an enum's default is its first value. */
@@ -55,6 +57,9 @@ export const CAMPOS: Fields = {
   suelo: { kind: "enum", values: SUELOS, default: "hierba" },
   sueloColor: { ...COLOR, default: 0xffffff },
   sueloEscala: { kind: "fixed", min: 0.1, max: 20, step: 0.05, default: 1 },
+  // `suelo.forma: "disco"` + `suelo.radio` (m): the ground is drawn as a disc around the origin with a visible edge (render only; the simulation floor is unchanged).
+  sueloForma: { kind: "enum", values: FORMAS_SUELO, default: "plano" },
+  sueloRadio: { kind: "fixed", min: 0, max: RADIO_SUELO_MAX, step: 0.5, default: 0 },
   tono: { kind: "enum", values: TONOS, default: "neutro" },
   exposicion: { kind: "fixed", min: 0.05, max: 8, step: 0.01, default: 1 },
   hitos: { kind: "bool", default: true },
