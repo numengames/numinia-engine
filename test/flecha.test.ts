@@ -41,3 +41,14 @@ test("«Probar» of one cable (cable-probar-<id>): itself, else the Cable drawer
   assert.equal(objetivoDeFlecha("cable-probar-boton-rojo", ve("construir")), "construir");
   assert.equal(padreDeBoton("cable-probar-boton-rojo"), "dock-cable");
 });
+
+test("mission 3 and 4: the tool and the «se ve al jugar» row, else the drawer button that leads to them, else Construir", () => {
+  assert.equal(objetivoDeFlecha("herr-mover", ve("herr-mover", "dock-precision", "construir")), "herr-mover");
+  assert.equal(objetivoDeFlecha("herr-girar", ve("dock-precision", "construir")), "dock-precision");
+  assert.equal(objetivoDeFlecha("herr-girar", ve("construir")), "construir");
+  assert.equal(objetivoDeFlecha("inspector-visible", ve("inspector-visible", "dock-inspector", "construir")), "inspector-visible");
+  assert.equal(objetivoDeFlecha("inspector-visible", ve("dock-inspector", "construir")), "dock-inspector");
+  assert.equal(padreDeBoton("herr-mover"), "dock-precision");
+  assert.equal(padreDeBoton("inspector-visible"), "dock-inspector");
+  assert.equal(padreDeBoton("dock-precision"), "construir");
+});

@@ -2,7 +2,7 @@
   "formato": "mision@1",
   "id": "pon-un-farolillo",
   "titulo": "Place a lantern",
-  "descripcion": "Open Add («Añadir») and place a lantern in the plaza.",
+  "descripcion": "Open Add and place a lantern in the plaza.",
   "requisitos": {
     "misiones": [
       "abre-el-taller"
@@ -12,7 +12,7 @@
     {
       "id": "coloca",
       "tipo": "hace",
-      "texto": "Open Add («Añadir») and drag a Lantern («Farolillo») into the plaza",
+      "texto": "Open Add and drag a Lantern into the plaza",
       "accion": "coloca",
       "modelo": "farolillo",
       "senala": "dock-anadir"

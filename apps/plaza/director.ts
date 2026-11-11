@@ -7,6 +7,7 @@ import type { Cambio, Convocatoria } from "../../features/director/client.ts";
 import { anunciar, escribiendo } from "./paneles.ts";
 import { icono } from "./iconos.ts";
 import { tx, ligar, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
+import { pintarCerrar } from "./cerrar.ts";
 
 type Director = {
   estado: { puede: boolean; escenas: { id: string; nombre: string; casa: boolean }[]; ultimoRechazo: string; narraciones: { texto: string; quien: string }[]; convocatorias: Convocatoria[]; respuestas: Map<number, { vienen: number; no: number }> };
@@ -74,7 +75,7 @@ export function montarDirector(o: { dj: Director; ambiente: Ambiente; view: Vist
   panel.addEventListener("pointerdown", (e) => e.stopPropagation());
   panel.addEventListener("wheel", (e) => e.stopPropagation());
   const titulo = ligar(el("h2", { id: "panel-director-titulo" }), "textContent", "Direct", "Dirigir");
-  const cerrarB = ligar(el("button", { type: "button", className: "cerrar" }), "textContent", "Close (K)", "Cerrar (K)");
+  const cerrarB = pintarCerrar(el("button", { type: "button", className: "cerrar" }), { tecla: "K" });
   const actualP = el("p", { className: "actual" });
   const escenasPropias = el("div", { className: "escenas" });
   const escenasCasa = el("div", { className: "escenas casa" });

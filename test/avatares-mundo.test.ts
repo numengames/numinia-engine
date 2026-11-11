@@ -225,10 +225,10 @@ test("E3 page: what /status tells becomes the picker's list — with the credit;
   assert.equal(escrituraDe("MIT"), null);
 });
 
-test("E3 house catalogue: unchanged — still the three CC0 avatars; the world's default avatar (ficha) still picks among the house ones", () => {
+test("E3 house catalogue: the Nomad first (the house default, Pablo 11-11), then the three 100Avatars, all CC0; the world's default avatar (ficha) still picks among the house ones", () => {
   const cat = JSON.parse(readFileSync("activos/avatares/catalogo.json", "utf8"));
-  assert.deepEqual(cat.modelos.map((m: { id: string }) => m.id), ["astrodisco", "skelly", "polybot"]);
+  assert.deepEqual(cat.modelos.map((m: { id: string }) => m.id), ["nomad-for-the-oracles", "astrodisco", "skelly", "polybot"]);
   for (const m of cat.modelos) assert.equal(info(new Uint8Array(readFileSync(m.fichero))).licencia.nombre, "CC0", m.id);
   assert.deepEqual(modelosDelMundo(cat.modelos, cat.modelos[1].id).map((m: { id: string }) => m.id), [cat.modelos[1].id]);
-  assert.equal(modelosDelMundo(cat.modelos).length, 3, "no world avatar is ever mixed into the house list");
+  assert.equal(modelosDelMundo(cat.modelos).length, 4, "no world avatar is ever mixed into the house list");
 });

@@ -19,9 +19,8 @@
     {
       "id": "prueba",
       "tipo": "hace",
-      "texto": "Pulsa el Botón rojo y mira qué enciende",
+      "texto": "Pulsa Probar en el Botón rojo y mira qué enciende",
       "accion": "dispara_cable",
-      "disparador": "boton-rojo",
       "senala": "cable-probar-boton-rojo"
     }
   ],

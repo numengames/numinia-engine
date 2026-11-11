@@ -1,0 +1,15 @@
+/* The house close control (cerrar.ts): X icon + «Close» + a small Esc key cap. The same everywhere. */
+button.cierre {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 8px 4px 6px; min-height: 30px;
+  font: inherit; font-size: 13px; line-height: 1; white-space: nowrap;
+  cursor: pointer;
+}
+button.cierre .icono { flex: none; width: 16px; height: 16px; }
+button.cierre .cierre-texto { display: inline; }
+button.cierre .cierre-tecla {
+  font: 600 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 2px 4px; border-radius: 4px;
+  border: 1px solid currentColor; opacity: .55;
+}
+html[data-aparato^="movil"] button.cierre .cierre-tecla { display: none; }

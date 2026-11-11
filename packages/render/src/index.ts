@@ -1184,11 +1184,17 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     const c = document.createElement("canvas"); c.width = ROT_ANCHO; c.height = arriba + ROT_NOMBRE + (sub ? ROT_SUB : 0);
     const g = c.getContext("2d")!;
     if (t.plano) { g.fillStyle = "#000000"; g.fillRect(0, arriba, ROT_ANCHO, c.height - arriba); g.strokeStyle = "#ffffff"; g.lineWidth = 8; g.strokeRect(4, arriba + 4, ROT_ANCHO - 8, c.height - arriba - 8); } // mundo-hermes: pure black plate, white outline (contrast on any ground)
-    else { g.fillStyle = "rgba(20,30,40,0.78)"; g.fillRect(0, arriba, ROT_ANCHO, c.height - arriba); }
-    g.textAlign = "center"; g.textBaseline = "middle";
-    g.fillStyle = "#ffffff"; g.font = "bold 44px sans-serif";
+    // Pablo 11-11: no plate behind a name (the «plano» look keeps its own); the letters carry a dark outline so they read anywhere
+    g.textAlign = "center"; g.textBaseline = "middle"; g.lineJoin = "round"; const contorno = !t.plano;
+    g.strokeStyle = "rgba(14,12,10,0.85)";
+    g.fillStyle = "#f9ebdc"; g.font = "600 44px system-ui, sans-serif"; g.lineWidth = 10;
+    if (contorno) g.strokeText(t.text.slice(0, 26), ROT_ANCHO / 2, arriba + (sub ? 46 : 50), ROT_ANCHO - 20);
     g.fillText(t.text.slice(0, 26), ROT_ANCHO / 2, arriba + (sub ? 46 : 50), ROT_ANCHO - 20);
-    if (sub) { g.fillStyle = t.plano ? "#ffffff" : "#e2edf6"; g.font = "36px sans-serif"; g.fillText(sub.slice(0, 40), ROT_ANCHO / 2, arriba + ROT_NOMBRE + 4, ROT_ANCHO - 24); }
+    if (sub) {
+      g.fillStyle = t.plano ? "#ffffff" : "#e2d6c8"; g.font = "36px system-ui, sans-serif"; g.lineWidth = 8;
+      if (contorno) g.strokeText(sub.slice(0, 40), ROT_ANCHO / 2, arriba + ROT_NOMBRE + 4, ROT_ANCHO - 24);
+      g.fillText(sub.slice(0, 40), ROT_ANCHO / 2, arriba + ROT_NOMBRE + 4, ROT_ANCHO - 24);
+    }
     if (mark) dibujarMarca(g, mark, ROT_ANCHO / 2, arriba / 2, arriba - 16);
     tagDibujos++;
     return c;
@@ -1658,6 +1664,15 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
       if (v.z > 1 || v.z < -1) return null;
       const d = selfXZ ? Math.hypot(m.position.x - selfXZ.x, m.position.z - selfXZ.z) : 0;
       return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height, m: d };
+    },
+    /** Pablo 11-11: where a point of the world is on the screen (CSS pixels), for a box that stays beside someone who is
+     * not a player (a person of the world, pnj); null when it is behind the camera. */
+    puntoEnPantalla(x: number, y: number, z: number): { x: number; y: number } | null {
+      const r = renderer.domElement.getBoundingClientRect();
+      camera.updateMatrixWorld();
+      const v = new THREE.Vector3(x, y, z).project(camera);
+      if (v.z > 1 || v.z < -1) return null;
+      return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
     },
     /** J5: a waypoint: a beacon that stays until `dropWaypoint(id)` and never keeps the page drawing. Returns its id. */
     waypoint(x: number, z: number, text: string): number { this.beacon(x, z, text, Infinity); waypoints.set(++waypointSeq, beacons.pop()!); return waypointSeq; },

@@ -2,7 +2,7 @@
   "formato": "mision@1",
   "id": "pon-un-farolillo",
   "titulo": "Pon un farolillo",
-  "descripcion": "Abre Añadir y coloca un farolillo en la plaza.",
+  "descripcion": "Arrastra un Farolillo desde Añadir hasta el suelo.",
   "requisitos": {
     "misiones": [
       "abre-el-taller"
@@ -12,7 +12,7 @@
     {
       "id": "coloca",
       "tipo": "hace",
-      "texto": "Abre Añadir y arrastra un Farolillo a la plaza",
+      "texto": "Arrastra un Farolillo desde Añadir hasta el suelo",
       "accion": "coloca",
       "modelo": "farolillo",
       "senala": "dock-anadir"

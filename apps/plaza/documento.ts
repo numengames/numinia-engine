@@ -11,6 +11,7 @@
 //     typed inside it: there the white «Cerrar» button is the way out (a page cannot listen to keys inside a foreign frame).
 import { direccionPermitida } from "../../features/espejo/origenes.ts";
 import { tx, ligar } from "../../packages/feature/src/idioma.ts";
+import { pintarCerrar } from "./cerrar.ts";
 
 export const ESPERA_MS = 6000;
 export const COMANDO = "hermes palace docs";
@@ -42,7 +43,7 @@ export function abrirVisor(o: Opciones): Abierto | { error: string } {
   d.getElementById("visor-doc")?.remove();
   const raiz = d.createElement("div"); raiz.id = "visor-doc"; raiz.setAttribute("role", "dialog"); raiz.setAttribute("aria-modal", "true"); ligar(raiz, "aria-label", "Documentation", "Documentación");
   const cab = d.createElement("header"), tit = d.createElement("h2"), cerrarB = d.createElement("button");
-  if (o.titulo) tit.textContent = o.titulo; else ligar(tit, "textContent", "Document", "Documento"); cerrarB.type = "button"; ligar(cerrarB, "textContent", "Close (Esc)", "Cerrar (Esc)"); cerrarB.dataset.verbo = "cerrar-visor";
+  if (o.titulo) tit.textContent = o.titulo; else ligar(tit, "textContent", "Document", "Documento"); cerrarB.type = "button"; pintarCerrar(cerrarB); cerrarB.dataset.verbo = "cerrar-visor";
   cab.append(tit, cerrarB);
   const cuerpo = d.createElement("div"); cuerpo.className = "cuerpo";
   const aviso = d.createElement("div"); aviso.className = "aviso"; aviso.setAttribute("role", "status"); aviso.hidden = false;

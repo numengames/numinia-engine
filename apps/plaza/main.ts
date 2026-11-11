@@ -84,7 +84,8 @@ import { llamarPagina } from "../../features/llamar/client.ts"; // ia-llamar S11
 import { montarLlamarIA } from "./llamar-ia.ts"; // ia-llamar S11: the notice and the box of «Hablar con ella», and the prompt «E: hablar con…»
 import { burbujaPagina } from "../../features/burbuja/client.ts"; // ia-llamar S9: the shape of each AI's action bubble and the «entras» that flashes it
 import { ojosDe } from "../../features/ia/ojos.ts"; // t_5096d6f4: the eyes of an AI by the size of its model
-import { montarPresencia } from "./ia-presencia.ts"; // an AI faces the person it is with (features/burbuja `mira`)
+import { montarPresencia } from "./ia-presencia.ts";
+import { anclar } from "./anclar.ts"; // Pablo 11-11: boxes beside someone in the world, never over another panel // an AI faces the person it is with (features/burbuja `mira`)
 import { iaPagina } from "../../features/ia/client.ts"; // ia-visible S3: the public card of each AI (state, who answers, what it may do)
 import { asiento, interruptor as interruptorAsiento } from "../../features/asiento/client.ts"; // asiento v1: sitting down for real
 import { burbujas, interruptor as interruptorBurbujas } from "../../features/burbujas/client.ts"; // burbujas v1: voice bubbles
@@ -537,7 +538,9 @@ view.manos.on((e) => { if (e.tipo === "soltar") acciones.registrar("soltar", { d
 { const tirar = dados.tirar.bind(dados); dados.tirar = (expresion, sitio, oculta) => { const r = tirar(expresion, sitio, oculta); if (r.ok) acciones.registrar("dados", { detalle: expresionDeDados(expresion), activo: oculta === true }); return r; }; }
 const xr = montarXR({ session, view, misiones, interaccion, enlaces, huecos }); // J4: + the ray points at things with a link and the trigger asks before opening // J10: hands in VR take, point and answer; what you took is in your hand
 let condicionesXR: { tick(): void } | null = null; // condiciones/c4: the bubble inside the headset — loaded with the VR chunk below, only where the browser can present VR
-montarDialogo(misiones, document.getElementById("dialogo")!, view);
+montarDialogo(misiones, document.getElementById("dialogo")!, view, { // Pablo 11-11: the box stays beside whoever talks to you
+  donde: (pnj) => { const v = session.features.stateOf("pnj").get(pnj); return v ? view.puntoEnPantalla(Number(v.x), Number(v.y ?? 0) + 1.7, Number(v.z)) : null; },
+});
 montarFlecha({ misiones }); // T3: idle costs nothing; with a step that points at a button it follows the button
 const nombres = montarVerNombres(view); // U22: Alt / «Nombres» button / gamepad Back: every name; otherwise only who you look at and who speaks
 misiones.alCambiar((que) => { if (que === "dialogo") view.hablando(misiones.dialogo() ? `pnj:${misiones.dialogo()!.pnj}` : null); }); // U22: the one you talk to shows its name
@@ -547,7 +550,22 @@ montarLibro(misiones, {
   oir: (fn) => session.features.tap(fn), ajuste: leerAjuste, // U14 (3): it opens by itself on accepting; a step done = a short sound
   banner: document.getElementById("mision-completada")!, // U14 (6): «Misión completada»
   evaluacion: document.getElementById("evaluacion")!, // P13: the end evaluation card
+  ahora: document.getElementById("mision-ahora")!, // H3: the quest card while building
 });
+{ // Pablo 11-11: the quest card stays beside the person who gives the quests (the nearest person of the world), never over a panel
+  const card = document.getElementById("mision-ahora")!;
+  const quien = (): { x: number; y: number } | null => {
+    const yo = session.entity >= 0 ? session.selfPosition(1) : null; let mejor: { x: number; y: number; z: number } | null = null, d2 = Infinity;
+    for (const v of session.features.stateOf("pnj").values()) {
+      const x = Number(v.x), z = Number(v.z), d = yo ? (x - yo.x) ** 2 + (z - yo.z) ** 2 : 0;
+      if (d < d2) { d2 = d; mejor = { x, y: Number(v.y ?? 0), z }; }
+    }
+    return mejor ? view.puntoEnPantalla(mejor.x, mejor.y + 1.7, mejor.z) : null;
+  };
+  const a = anclar(card, quien, () => !card.hidden);
+  new MutationObserver(() => { if (!card.hidden) a.seguir(); }).observe(card, { attributes: true, attributeFilter: ["hidden"] });
+  if (!card.hidden) a.seguir();
+}
 
 // ---- Y1: the Inventario panel (L, «Inventario»): what you carry and your Reserva; the sheet shows its summary ----
 const inventario = montarInventarioPuerta(inventarioCtl, document.getElementById("inventario-abrir") as HTMLButtonElement);

@@ -10,7 +10,7 @@ export type Tipo = (typeof TIPOS)[number];
 export const MODELO_MAX = 999;
 /** ia-visible S2: the house avatar every AI wears unless its pass picks another: Polybot, the green robot (index in
  * activos/avatares/catalogo.json; test/ia-cuerpo.test.ts pins it to the catalogue so a reorder fails loudly). */
-export const ROBOT_CASA = 2;
+export const ROBOT_CASA = 3; // 3 since the Nomad went first in the catalogue (Pablo 11-11): still Polybot
 export const SHA256 = /^[0-9a-f]{64}$/;
 
 const CAMPOS = {

@@ -9,3 +9,11 @@
 #flecha-guia[data-lado="arriba"] svg { --flecha-dy: -5px; }
 @keyframes flecha-latido { 0%, 100% { translate: 0 0; opacity: .85; } 50% { translate: 0 calc(var(--flecha-dy, 4px) * -1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { #flecha-guia svg { animation: none; } }
+
+/* Pablo 11-11: elegant guide — the button the step asks for glows in amber (a ring that breathes); the chevron is slim, no shaft */
+#flecha-guia { width: 20px; height: 20px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.6)); }
+#flecha-guia svg { fill: none; stroke: currentColor; }
+#flecha-guia[data-lado="arriba"] svg { transform: rotate(180deg); }
+[data-guia] { position: relative; box-shadow: 0 0 0 2px var(--n-ambar, #EFA517), 0 0 16px 3px rgba(239, 165, 23, .45) !important; border-radius: 6px; animation: guia-latido 1.6s ease-in-out infinite; }
+@keyframes guia-latido { 0%, 100% { box-shadow: 0 0 0 2px var(--n-ambar, #EFA517), 0 0 10px 1px rgba(239, 165, 23, .30); } 50% { box-shadow: 0 0 0 2px var(--n-ambar, #EFA517), 0 0 20px 5px rgba(239, 165, 23, .55); } }
+@media (prefers-reduced-motion: reduce) { [data-guia] { animation: none; } }

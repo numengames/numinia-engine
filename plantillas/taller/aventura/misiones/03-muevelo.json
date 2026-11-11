@@ -13,13 +13,15 @@
       "id": "mueve",
       "tipo": "hace",
       "texto": "Select the lantern and move it with the coloured arrows",
-      "accion": "mueve"
+      "accion": "mueve",
+      "senala": "herr-mover"
     },
     {
       "id": "gira",
       "tipo": "hace",
       "texto": "Turn it with the rotate tool",
-      "accion": "gira"
+      "accion": "gira",
+      "senala": "herr-girar"
     }
   ],
   "recompensas": [],

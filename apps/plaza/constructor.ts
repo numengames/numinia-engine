@@ -28,6 +28,7 @@ import { transformarGrupo } from "../../packages/render/src/grupo.ts";
 import { rectDesde, esCaja, idsEnRect, unirSeleccion, gestoDosDedos, aplicarGesto } from "./seleccion-caja.ts";
 import { esTactil } from "./perfil-aparato.ts"; // U25: the page's one answer to «touch controls or not»
 import { teclas } from "./teclas.ts"; // keymap v1: B builds (Yours or Default)
+import { hayAlgoAbierto } from "./cerrar.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 type Par = readonly [string, string]; // [English, Español]
@@ -159,7 +160,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     if (etiqueta) { d.setAttribute("role", "toolbar"); ligar(d, "aria-label", etiqueta[0], etiqueta[1]); }
     return d;
   };
-  const botonesHerr = HERRAMIENTAS.map(([m, t, k]) => { const b = boton2(t, [`${t[0]} (key ${k[0]})`, `${t[1]} (tecla ${k[1]})`], () => elegirModo(m)); b.dataset.modo = m; return b; });
+  const botonesHerr = HERRAMIENTAS.map(([m, t, k]) => { const b = boton2(t, [`${t[0]} (key ${k[0]})`, `${t[1]} (tecla ${k[1]})`], () => elegirModo(m)); b.dataset.modo = m; b.id = `herr-${m}`; return b; }); // T3/mission 3: the guide arrow finds the tool by this id
   const botonesEje = (["", "X", "Y", "Z"] as const).map((e) => { const b = boton2(e ? [e, e] : T("All", "Todos"), e ? T(`Only the ${e} axis (key ${e}; again: all)`, `Solo el eje ${e} (tecla ${e}; otra vez: todos)`) : T("All axes", "Todos los ejes"), () => elegirEje(e || null)); b.dataset.eje = e; return b; });
   const botonEspacio = boton2(T("World", "Mundo"), T("World or object axes (T)", "Ejes del mundo o del objeto (T)"), () => cambiarEspacio());
   const opciones = (s: HTMLSelectElement, vals: number[], txt: (v: number) => string, def: number) => { for (const v of vals) { const op = el("option", { value: String(v) }); alCambiarIdioma(() => { op.textContent = v ? txt(v) : tx("free", "libre"); }); s.append(op); } s.value = String(def); return s; };
@@ -188,6 +189,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   const volumen = el("input", { type: "range", min: "0", max: "1", step: "0.05" });
   const lSolido = el("label", {}, solido, rot(T(" solid (people bump into it)", " sólido (las personas chocan con él)")));
   const lVisible = el("label", {}, visible, rot(T(" visible while playing (if not, only while building)", " se ve al jugar (si no, solo al construir)")));
+  lVisible.id = "inspector-visible"; // mission 4: the guide arrow points at this row
   const lVolumen = el("label", {}, rot(T("Volume ", "Volumen ")), volumen);
   // U11: who hears it, and the bubble's radius in metres (a sphere's scale; a video's own bubble)
   const alcance = el("select");
@@ -266,7 +268,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     b.id = `dock-${id}`; b.dataset.cajon = id; b.setAttribute("aria-expanded", "false"); b.setAttribute("aria-controls", `cajon-${id}`);
     botonesCajon[id] = b;
     const h = el("h2", { id: `cajon-${id}-titulo` }); viva(() => { h.textContent = fila[2]; });
-    const cerrar = botonDock("x", () => tx("Close (Esc)", "Cerrar (Esc)"), () => abrirCajon("")); cerrar.classList.add("cerrar");
+    const cerrar = botonDock("x", () => tx("Close", "Cerrar"), () => abrirCajon("")); cerrar.classList.add("cerrar");
     const cuerpo = extra?.cuerpos?.[id] ?? el("div", { className: "cuerpo" });
     const s = el("section", { id: `cajon-${id}`, className: "cajon" }, el("div", { className: "cab" }, h, ligar(el("span", { className: "pista" }), "textContent", PISTA[id][0], PISTA[id][1]), cerrar), cuerpo);
     s.setAttribute("aria-labelledby", h.id); s.hidden = true;
@@ -647,7 +649,8 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
       case "fantasma": quitarFantasma(); return decir(tx("Cancelled.", "Cancelado."));
       case "agarre": return cancelarAgarre();
       case "cajon": return abrirCajon("");
-      default: c.seleccionar(""); decir(tx("Nothing selected.", "Nada seleccionado."));
+      case "seleccion": c.seleccionar(""); return decir(tx("Nothing selected.", "Nada seleccionado."));
+      default: abrir(false); decir(tx("Left build mode.", "Has salido de construir.")); // nothing left to undo: Escape leaves build mode (Pablo 2026-11-11: «que se queda ahí pillado»)
     }
   }
   /** M22c: delete the selection; with several, a shared `lote` joins them in a single undo step. */
@@ -797,7 +800,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
     if (mod || e.altKey) return null;
     const conGizmo = c.estado.modo === "mover" || c.estado.modo === "girar" || c.estado.modo === "escalar";
     switch (k) {
-      case "Escape": return () => escape();
+      case "Escape": return hayAlgoAbierto(panel) ? null : () => escape(); // a panel, card or dialog on top owns Escape; the builder waits its turn
       case "Digit1": case "Numpad1": return () => elegirModo("coger");
       case "Digit2": case "Numpad2": case "KeyG": return () => elegirModo("mover");
       case "Digit3": case "Numpad3": case "KeyR": return () => elegirModo("girar");
@@ -1051,7 +1054,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   };
   const fIcono = el("span", { className: "ico" }); fIcono.innerHTML = icono("package", 20);
   const fTitulo = el("h3");
-  const bCerrar = bIcono("x", T("Close the card (Esc)", "Cerrar la tarjeta (Esc)"), () => ETIQUETAS_FICHA.cerrar, () => { c.seleccionar(""); }, "cerrar");
+  const bCerrar = bIcono("x", T("Close the card", "Cerrar la tarjeta"), () => ETIQUETAS_FICHA.cerrar, () => { c.seleccionar(""); }, "cerrar");
   const fSel = el("span", { textContent: tx("Selected", "Seleccionado") });
   const herrTarjeta = ([["mover", "G", ["move", "mover"], ["Move (2 or G)", "Mover (2 o G)"]], ["girar", "R", ["rotate", "girar"], ["Rotate (3 or R)", "Girar (3 o R)"]], ["escalar", "4", ["scale", "escala"], ["Scale (4)", "Escalar (4)"]]] as const).map(([m, k, t, tit]) => {
     const b = boton2(["", ""], tit, () => elegirModo(m));

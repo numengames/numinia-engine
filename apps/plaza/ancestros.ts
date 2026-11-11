@@ -6,6 +6,7 @@
 import type { Holograma, Dicho, Que } from "../../features/ancestros/client.ts";
 import { escribiendo } from "./interactuar.ts";
 import { tx, ligar } from "../../packages/feature/src/idioma.ts";
+import { pintarCerrar } from "./cerrar.ts";
 
 type Ancestros = {
   hologramas(): Holograma[]; muros(): { id: string; x0: number; y0: number; z0: number; x1: number; y1: number; z1: number }[];
@@ -41,7 +42,7 @@ export function montarAncestros(o: { ancestros: Ancestros; view: Vista }): { abi
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const panel = document.createElement("section"); panel.id = "ancestros-panel"; panel.hidden = true; panel.setAttribute("aria-hidden", "true");
   const titulo = document.createElement("h2"), ley = document.createElement("p"), lema = document.createElement("p"), nuestra = document.createElement("p"), aviso = document.createElement("p"), cerrar = document.createElement("button");
-  ley.className = "ley"; lema.className = "lema"; nuestra.className = "nuestra"; aviso.className = "aviso"; cerrar.type = "button"; ligar(cerrar, "textContent", "Close (Esc)", "Cerrar (Esc)");
+  ley.className = "ley"; lema.className = "lema"; nuestra.className = "nuestra"; aviso.className = "aviso"; cerrar.type = "button"; pintarCerrar(cerrar);
   lema.textContent = a.textos.lema; aviso.textContent = a.textos.aviso;
   panel.append(titulo, ley, lema, nuestra, aviso, cerrar);
   panel.addEventListener("pointerdown", (ev) => ev.stopPropagation()); // a tap here is not a joystick touch

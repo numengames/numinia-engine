@@ -4,6 +4,7 @@
 // nothing typed, so it keeps the plain J4 flow (interactuar.ts sends `abrir` straight away). The server still checks
 // everything: this file only shows the digits typed and the server's answer.
 import { tx, ligar, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
+import { pintarCerrar } from "./cerrar.ts";
 type Res = { ok: true } | { ok: false; why: string };
 /** What interactuar.ts offers: a thing in reach whose use runs here, on the page (`local`), instead of an intent. */
 export type Oferta = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number; local: () => Res };
@@ -58,7 +59,7 @@ export function montarCerradura(o: OpcionesCerradura) {
   abrirBtn.type = "submit";
   rejilla.append(abrirBtn);
   const cerrar = document.createElement("button");
-  cerrar.type = "button"; ligar(cerrar, "textContent", "Close", "Cerrar"); ligar(cerrar, "title", "Close the keypad without opening", "Cerrar el teclado sin abrir");
+  cerrar.type = "button"; pintarCerrar(cerrar); ligar(cerrar, "title", "Close the keypad without opening", "Cerrar el teclado sin abrir");
   cerrar.style.marginTop = "10px";
   caja.append(titulo, pantalla, aviso, rejilla, cerrar);
   capa.append(caja);

@@ -86,11 +86,12 @@ export function createNombres(o: { world: THREE.Object3D; camera: THREE.Camera; 
     if (est) { g.font = chipFont; wChip = Math.ceil(g.measureText(est.chip).width) + 26; wLuna = est.luna ? 34 : 0; }
     const extra = est ? 14 + wChip + (wLuna ? 10 + wLuna : 0) : 0;
     c.width = Math.min(1024, wTexto + extra + 36); c.height = 60;
-    g.fillStyle = "rgba(20,26,34,0.78)"; roundRect(g, 0, 0, c.width, c.height, 18); g.fill();
-    if (est) { g.strokeStyle = est.borde; g.lineWidth = 5; roundRect(g, 2.5, 2.5, c.width - 5, c.height - 5, 16); g.stroke(); }
-    g.font = font; g.fillStyle = est?.tinta ?? "#f4f7fb"; g.textBaseline = "middle";
+    // Pablo 11-11: no card behind the name — the letters alone, with a dark outline so they read on sky, grass or night
+    g.font = font; g.textBaseline = "middle"; g.lineJoin = "round"; g.lineWidth = 9; g.strokeStyle = "rgba(14,12,10,0.85)";
     const x0 = (c.width - (wTexto + extra)) / 2; // the whole group (name, chip, moon) is centred on the plate
     g.textAlign = est ? "left" : "center";
+    g.strokeText(nombre, est ? x0 : c.width / 2, c.height / 2 + 2);
+    g.fillStyle = est?.tinta ?? "#f9ebdc"; // the green «IA» chip still says it is an AI; the name stays light to read
     g.fillText(nombre, est ? x0 : c.width / 2, c.height / 2 + 2);
     if (est) {
       let x = x0 + wTexto + 14;

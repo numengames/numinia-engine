@@ -2,7 +2,7 @@
   "formato": "mision@1",
   "id": "apagalo",
   "titulo": "Apágalo",
-  "descripcion": "En la ficha del farolillo, márcalo para que no se vea al jugar.",
+  "descripcion": "En el Inspector, desmarca «se ve al jugar».",
   "requisitos": {
     "misiones": [
       "muevelo"
@@ -12,14 +12,15 @@
     {
       "id": "oculta",
       "tipo": "hace",
-      "texto": "Abre su ficha y márcalo como oculto al jugar",
-      "accion": "oculta"
+      "texto": "En el Inspector, desmarca «se ve al jugar»",
+      "accion": "oculta",
+      "senala": "inspector-visible"
     }
   ],
   "recompensas": [],
   "textos": {
     "aceptada": "Tú lo sigues viendo al construir; quien juega, no.",
-    "completada": "Un objeto tiene ficha con propiedades. Esto prepara el truco de los cables."
+    "completada": "El Inspector muestra todos los campos de un objeto. Esto prepara el truco de los cables."
   },
   "repetible": false
 }

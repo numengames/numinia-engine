@@ -4,8 +4,7 @@
   "nombre": "Lumen",
   "descripcion": "The guardian of the workshop: she teaches you to build at night, one button at a time.",
   "apariencia": {
-    "modelo": "047f5e5fb3bb6d378bd1df16ca6137f2a596c99b3a1b5690b4020c05aaf6f319",
-    "escala": 0.5
+    "escala": 1.0
   },
   "posicion": {
     "x": 2.5,
@@ -126,7 +125,7 @@
     ],
     "nodos": {
       "da-1": {
-        "texto": "It is night and this plaza is dark. I am Lumen. I want the lantern to light up when you decide, and I will show you how. First: press Build («Construir»); I will point it out with an arrow.",
+        "texto": "It is night and this plaza is dark. I am Lumen. I want the lantern to light up when you decide, and I will show you how. First: press Build; I will point it out with an arrow.",
         "opciones": [
           {
             "texto": "Okay, let's go.",
@@ -144,7 +143,7 @@
         ]
       },
       "pista-1": {
-        "texto": "Carry on: Press the Build («Construir») button: the world has a build mode and a play mode.",
+        "texto": "Carry on: Press the Build button: the world has a build mode and a play mode.",
         "opciones": [
           {
             "texto": "Okay.",
@@ -155,7 +154,7 @@
         ]
       },
       "da-2": {
-        "texto": "Good. Now, in Add («Añadir») there is a library: drag a Lantern («Farolillo») into the plaza. You will learn to place things.",
+        "texto": "Good. Now, in Add there is a library: drag a Lantern into the plaza. You will learn to place things.",
         "opciones": [
           {
             "texto": "Okay, let's go.",
@@ -173,7 +172,7 @@
         ]
       },
       "pista-2": {
-        "texto": "Carry on: Open Add («Añadir») and place a lantern in the plaza.",
+        "texto": "Carry on: Open Add and place a lantern in the plaza.",
         "opciones": [
           {
             "texto": "Okay.",
@@ -242,7 +241,7 @@
         ]
       },
       "da-5": {
-        "texto": "There is a cable already made: open the Cable panel. «When THIS happens, THAT happens». Press Test («Probar») on the Red button.",
+        "texto": "There is a cable already made: open the Cable panel. «When THIS happens, THAT happens». Press Test on the Red button.",
         "opciones": [
           {
             "texto": "Okay, let's go.",
@@ -271,7 +270,7 @@
         ]
       },
       "da-6": {
-        "texto": "Now you do it: in the Cable panel, «+ New cable» («+ Nuevo cable»). You choose when and what.",
+        "texto": "Now you do it: in the Cable panel, «+ New cable». You choose when and what.",
         "opciones": [
           {
             "texto": "Okay, let's go.",
@@ -289,7 +288,7 @@
         ]
       },
       "pista-6": {
-        "texto": "Carry on: Create your first cable with «+ New cable» («+ Nuevo cable»).",
+        "texto": "Carry on: Create your first cable with «+ New cable».",
         "opciones": [
           {
             "texto": "Okay.",
@@ -475,5 +474,5 @@
       }
     }
   },
-  "notas": "Near the spawn point (0,0). She gives each mission when you talk to her after finishing the previous one; in the 11th she checks the challenge (no AI)."
+  "notas": "Near the spawn point (0,0). She gives each mission when you talk to her after finishing the previous one; in the 11th she checks the challenge (no AI). Lumen es el robot de la casa SIN `modelo`: con un hash propio el motor no aplica el factor 0,4 y el cartel (2,25 × escala) queda a media altura del cuerpo (el GLB mide 4,46 m a escala 1). Escala 1 ≈ 1,8 m (Pablo 2026-11-11: un 20 % más pequeña que la 1,25 de antes)."
 }

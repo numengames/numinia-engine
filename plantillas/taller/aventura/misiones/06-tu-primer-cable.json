@@ -2,7 +2,7 @@
   "formato": "mision@1",
   "id": "tu-primer-cable",
   "titulo": "Your first cable",
-  "descripcion": "Create your first cable with «+ New cable» («+ Nuevo cable»).",
+  "descripcion": "Create your first cable with «+ New cable».",
   "requisitos": {
     "misiones": [
       "mira-el-cable"
@@ -12,7 +12,7 @@
     {
       "id": "crea",
       "tipo": "hace",
-      "texto": "Press «+ New cable» («+ Nuevo cable») in the Cable panel",
+      "texto": "Press «+ New cable» in the Cable panel",
       "accion": "crea_cable",
       "senala": "cable-nuevo"
     }

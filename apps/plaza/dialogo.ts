@@ -3,27 +3,46 @@
 // a screen reader lands in it; the line itself reaches screen readers once, through the engine's announcements (the
 // polite #avisos region, V1), so the box does not repeat it. It only asks: features/misiones decides on the server.
 import { teclas } from "./teclas.ts";
+import { anclar } from "./anclar.ts";
+import { pintarCerrar } from "./cerrar.ts";
 import { escribiendo, construyendo } from "./interactuar.ts";
 import { perfil } from "./perfil-aparato.ts";
-import { conGlifo, esMovil } from "../../packages/client/src/movil.ts";
-import { tx, alCambiarIdioma } from "../../packages/feature/src/idioma.ts"; // U24: a phone names no key: «Despedirse», answers without a digit
+import { esMovil } from "../../packages/client/src/movil.ts"; // a phone names no key: answers without a digit
 
 type Res = { ok: true } | { ok: false; why: string };
 type Dialogo = { pnj: string; nombre: string; oficio?: string; texto: string; opciones: string[] };
 type Ctl = { dialogo(): Dialogo | null; elegir(n: number): Res; adios(): Res; estado: { ultimoRechazo: string }; alCambiar(fn: (que: "libro" | "dialogo" | "nota") => void): unknown };
 type Vista = { renderer: { domElement: HTMLElement }; cam?: { modo?(): string } };
+/** Pablo 11-11: the box stays beside the person who talks to you. `donde(pnj)` = that person's head on the screen (CSS px), or null
+ * (behind the camera, unknown: the box goes back to its place in the stylesheet). */
+type Anclaje = { donde(pnj: string): { x: number; y: number } | null };
+const ANCLA_HUECO = 56, ANCLA_MARGEN = 16; // px between the person and the box; px kept from the window's edges
 
-export function montarDialogo(c: Ctl, caja: HTMLElement, view: Vista): void {
+/** Where the box goes beside a person at `p` (screen px): on the side away from the centre (where your own character is), unless
+ * it does not fit there; its top a little over their head, kept inside the window. Pure, for tests. */
+export function sitioJunto(p: { x: number; y: number }, caja: { w: number; h: number }, ventana: { w: number; h: number }): { x: number; y: number } {
+  const derecha = p.x >= ventana.w / 2;
+  let x = derecha ? p.x + ANCLA_HUECO : p.x - ANCLA_HUECO - caja.w;
+  if (x + caja.w > ventana.w - ANCLA_MARGEN) x = p.x - ANCLA_HUECO - caja.w;
+  if (x < ANCLA_MARGEN) x = Math.min(p.x + ANCLA_HUECO, ventana.w - ANCLA_MARGEN - caja.w);
+  const y = Math.min(Math.max(p.y - 40, ANCLA_MARGEN), ventana.h - ANCLA_MARGEN - caja.h);
+  return { x: Math.round(Math.max(ANCLA_MARGEN, x)), y: Math.round(y) };
+}
+
+export function montarDialogo(c: Ctl, caja: HTMLElement, view: Vista, ancla?: Anclaje): void {
   const nombre = document.createElement("h2"), texto = document.createElement("p"), opciones = document.createElement("div");
   const estado = document.createElement("p"), adios = document.createElement("button");
   nombre.id = "dialogo-nombre"; texto.className = "texto"; opciones.className = "opciones"; estado.className = "estado";
-  adios.type = "button"; adios.className = "adios"; alCambiarIdioma(() => { adios.textContent = esMovil(perfil().clase) ? tx("Say goodbye", "Despedirse") : conGlifo(perfil().clase, "cerrar", tx("Goodbye", "Adiós")); });
+  adios.type = "button"; adios.className = "adios"; pintarCerrar(adios); // Pablo 11-11: the same X + Close + Esc as every panel
   caja.setAttribute("role", "dialog"); caja.setAttribute("aria-labelledby", "dialogo-nombre");
   caja.append(nombre, texto, opciones, estado, adios);
   caja.addEventListener("pointerdown", (ev) => ev.stopPropagation()); // a tap here is not a joystick touch
   adios.addEventListener("click", () => c.adios());
 
   let mostrado = "", rechazoVisto = "";
+  // Pablo 11-11: while a person talks to you the box stays beside them and never covers another panel (anclar.ts).
+  const anclaje = ancla ? anclar(caja, () => { const d = c.dialogo(); return d ? ancla.donde(d.pnj) : null; }, () => !!c.dialogo()) : null;
+  const seguir = (): void => anclaje?.seguir();
   const pintar = () => {
     const d = c.dialogo();
     if (!d) {
@@ -58,6 +77,7 @@ export function montarDialogo(c: Ctl, caja: HTMLElement, view: Vista): void {
       return b;
     }));
     caja.hidden = false;
+    seguir();
     ((opciones.firstElementChild as HTMLElement | null) ?? adios).focus({ preventScroll: true });
   };
   rechazoVisto = c.estado.ultimoRechazo;

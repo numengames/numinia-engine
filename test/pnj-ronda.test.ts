@@ -284,8 +284,8 @@ test("over the plug: a world WITHOUT `ronda` is as it was — no `ronda` event, 
   assert.deepEqual([d.x, d.z, d.ry, d.vida?.camina, d.vida?.andando], [30, 0, 90, true, undefined]);
   assert.equal(a.m.rondaDe("cosimo"), null);
   assert.equal(a.m.cuadro(), false, "nothing to do per frame");
-  assert.deepEqual(vidaPnj("x", { radio: 2.5 }), { id: "x", reposo: true, mira: 2.5 });
-  assert.deepEqual(vidaPnj("x", { radio: 2.5 }, false, false, false), { id: "x", reposo: true, mira: 2.5, andando: false });
+  assert.deepEqual(vidaPnj("x", { radio: 2.5 }), { id: "x", reposo: true, mira: 8 }); // 3 × 2.5 = 7.5 < the 8 m floor
+  assert.deepEqual(vidaPnj("x", { radio: 2.5 }, false, false, false), { id: "x", reposo: true, mira: 8, andando: false });
 });
 
 test("the declarations: pnj v6 adds the per-player event `ronda`, and leaves `sitio` exactly as it was", () => {

@@ -33,10 +33,14 @@ export function aspectoPnj(v: Msg, marca: Marca = "", vida?: Vida): { cuerpo: Pl
     nombre: { text: String(v.nombre), ...(oficio ? { sub: oficio } : {}), ...(marca ? { mark: marca } : {}), x: Number(v.x), y: y + ALTO_NOMBRE * Number(v.escala), z: Number(v.z) },
   };
 }
-/** P2: how a person lives on this page, from its state: it breathes unless `reposo` is false, turns toward you within its `radio` unless `mira`
- * is false (`mira: 0` = never), keeps facing you while you talk (`atiende`), and walks to a new place when the world moved it (`camina`). */
+/** Pablo, 2026-11-11: a person keeps looking at you as you walk away, not only inside her talking radius: she follows you with
+ * her eyes up to MIRA_VECES her `radio`, and never less than MIRA_MIN_M. */
+export const MIRA_VECES = 3, MIRA_MIN_M = 8;
+/** P2: how a person lives on this page, from its state: it breathes unless `reposo` is false, turns toward you (up to MIRA_VECES its
+ * `radio`, at least MIRA_MIN_M) unless `mira` is false (`mira: 0` = never), keeps facing you while you talk (`atiende`), and walks to a
+ * new place when the world moved it (`camina`). */
 export const vidaPnj = (id: string, v: Msg, atiende = false, camina = false, andando?: boolean): Vida =>
-  ({ id, reposo: v.reposo !== false, mira: v.mira === false ? 0 : Number(v.radio) || 0, ...(atiende ? { atiende: true } : {}), ...(camina ? { camina: true } : {}), ...(andando === undefined ? {} : { andando }) }); // P16: `andando` only for a person on a round: the page moves her every frame and says whether she is walking
+  ({ id, reposo: v.reposo !== false, mira: v.mira === false ? 0 : Math.max(MIRA_MIN_M, MIRA_VECES * (Number(v.radio) || 0)), ...(atiende ? { atiende: true } : {}), ...(camina ? { camina: true } : {}), ...(andando === undefined ? {} : { andando }) }); // P16: `andando` only for a person on a round: the page moves her every frame and says whether she is walking
 /** How a quest thing looks: its model, or the house block (a small crate); at its height (y) and in its colour. U14 (6):
  * `usada` = this player has used it (usadasDe): then its used look (cosa@1 apariencia.usada — the chest open), if any. */
 export const aspectoCosa = (v: Msg, usada = false): PlacedObject & { color?: string } => {

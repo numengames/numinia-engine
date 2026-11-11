@@ -21,7 +21,6 @@
       "tipo": "hace",
       "texto": "Press the Red button and see what it lights",
       "accion": "dispara_cable",
-      "disparador": "boton-rojo",
       "senala": "cable-probar-boton-rojo"
     }
   ],

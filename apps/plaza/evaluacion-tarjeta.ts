@@ -3,6 +3,7 @@
 // with the first frame: a world without `evaluacion` never downloads it (the start bundle has a cap). misiones.ts imports only the type of this file; what it needs
 // from the page (`escribiendo`) comes in through `crearTarjeta`, so this chunk imports nothing that would split a shared chunk off the start bundle.
 import { tx, ligar } from "../../packages/feature/src/idioma.ts"; // already in the start bundle: it splits nothing off
+import { pintarCerrar } from "./cerrar.ts";
 await import("./evaluacion-estilo.ts").catch(() => null); // the card's look (CSS) is in before this module is; where there is no CSS (the tests under node) it does not matter
 
 type Fila = { tipo: string; etiqueta: string; texto: string; resta: number };
@@ -23,7 +24,7 @@ export const pieDeTarjeta = (tactil: boolean): string => tx(`You can see it agai
  *  where it was. All text goes in through textContent (a world's words are never HTML). */
 export function crearTarjeta(tarjeta: HTMLElement, o: { tactil: boolean; libro(): Hecha[]; escribiendo(e: KeyboardEvent): boolean }) {
   let de = "";
-  const titulo = ligar(el("h2"), "textContent", "Evaluation", "Evaluación"), cerrar = ligar(el("button", "", "cerrar"), "textContent", "Close", "Cerrar"), cuerpo = el("div", "", "cuerpo");
+  const titulo = ligar(el("h2"), "textContent", "Evaluation", "Evaluación"), cerrar = pintarCerrar(el("button", "", "cerrar")), cuerpo = el("div", "", "cuerpo");
   const pintar = () => {
     if (tarjeta.hidden) return;
     const m = o.libro().find((x) => x.id === de), ev = m?.evaluacion;
