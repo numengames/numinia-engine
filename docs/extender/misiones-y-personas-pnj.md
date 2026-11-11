@@ -25,6 +25,13 @@ lo cuenta en el estado `avatar` (`tipo: "modelo"`, `sha`, `ext: "glb"`, `escala`
 persona del mundo; una persona nunca puede elegir ese tipo. Si el `.glb` no está en el servidor, vale el robot (nunca un
 cuerpo invisible). Hoy es un modelo quieto (sin animar al andar); lo animado queda para después.
 
+**Ocupar el sitio de un objeto plantado (`apariencia.objeto`)** — para que no haya dos cuerpos (el estático y el de la IA):
+`"apariencia": { "modelo": "…", "objeto": "Moñoni 1" }` (el nombre exacto del objeto plantado, hasta 60 bytes). Mientras
+la IA está conectada el servidor lo deja `oculto` (como la acción `oculta` del cable: quien construye lo sigue viendo) y
+hace lo mismo con su compañero `"<nombre> boca"` (la sonrisa de un moñoni); al desconectarse, o al reiniciar el servidor,
+vuelven a verse. Si ningún objeto se llama así, el servidor lo anota en el registro y no oculta nada. Sin el campo, todo
+igual que antes. Código: `sustituir` en `features/objetos/server.ts`, alimentado por el evento `roles.ia` (`cuerpoObjeto`).
+
 **`habitante@1` y lo que sabe (`cerebro.saber`, E2)** — una IA con cerebro (escalón 2 o 4) conoce quién es por su
 `cerebro.persona`, que no pasa de **1500 bytes**. Para lo que no cabe ahí (un programa de horarios, dónde está cada
 cosa, una lista de patrocinadores) el fichero del habitante puede llevar `"cerebro": { …, "saber": "saber/procyon.md" }`:
