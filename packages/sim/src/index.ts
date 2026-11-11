@@ -5,7 +5,7 @@ import { fx, fxMul, fxSqrt, fxDiv, fxClamp, fnv1a, rngNext, FX_ONE } from "../..
 import { defineSchema } from "../../schema/src/index.ts";
 import { World } from "../../ecs/src/index.ts";
 import type { Store } from "../../ecs/src/index.ts";
-import { rayBvh, boxBvh, triNormal, triAabb } from "./bvh.ts";
+import { triCrossesBox, rayBvh, boxBvh, triNormal, triAabb } from "./bvh.ts";
 import type { Bvh } from "./bvh.ts";
 export { buildBvh, combinarMallas, rayBvh, barridoMalla, bvhFingerprint, quantizeTriangles, BVH_UNIT, BVH_LEAF, TRI_STRIDE, NODE_STRIDE } from "./bvh.ts";
 export type { Bvh, Hit } from "./bvh.ts";
@@ -187,6 +187,9 @@ function blockedMesh(s: SimState, x: number, y: number, z: number): boolean {
     const t = triAabb(m, tri);
     if (y + BODY_HEIGHT <= t.y0) continue; // triangle above the head
     if (t.y1 <= y + STEP_UP) continue;      // low enough to step onto
+    // QA Simposio 2026-11-11: the triangle itself must cross the part of the body that cannot step over it (from STEP_UP
+    // to the head), not just its AABB: a long slanted triangle's AABB is mostly air and was an invisible wall.
+    if (!triCrossesBox(m, tri, x0, y + STEP_UP, z0, x1, y + BODY_HEIGHT, z1)) continue;
     return true;
   }
   return false;
