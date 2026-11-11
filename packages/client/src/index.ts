@@ -2,7 +2,7 @@
 // Own avatar: predicted with the SAME sim step the server runs, reconciled exactly on each snapshot.
 // Others: drawn slightly in the past, interpolated between snapshots.
 import { fxToFloat } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, combinarMallas, barridoMalla, PISO_SIN_SUELO, TICK_HZ } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, combinarMallas, barridoMalla, PISO_SIN_SUELO, sinSueloDelEstado, TICK_HZ } from "../../sim/src/index.ts";
 import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
 import { crearSueloTerreno } from "./suelo-terreno.ts";
 import type { ConstruirMallaCliente } from "./malla-glb.ts"; // type only: the .glb reader (and its decoder) is the PAGE's chunk, never the AI bridge's
@@ -84,7 +84,7 @@ export class ClientSession {
   private readonly construirGlb?: ConstruirMallaCliente;
   /** The GLB mesh and the terrain are ONE tree for the local sim, like `Instance.aplicarMalla`. */
   private aplicarMalla(): void {
-    setMesh(this.local, combinarMallas(this.mallaGlb, this.terreno?.bvh ?? null), this.terreno ? PISO_SIN_SUELO : 0);
+    setMesh(this.local, combinarMallas(this.mallaGlb, this.terreno?.bvh ?? null), this.terreno || this.sinSuelo ? PISO_SIN_SUELO : 0);
     // «in the air» is measured against the real floor: a world whose floor is only a collision GLB (no hills) has one too
     const bvh = this.terreno?.bvh ?? this.mallaGlb;
     this.suelo = bvh ? crearSueloTerreno(this.local, bvh) : null;
@@ -105,7 +105,10 @@ export class ClientSession {
   /** N5: follows the shared state's «naturaleza:mundo» like the server does (same function, same numbers → same triangles), so the
    * prediction walks over the same hills. The terrain code (noise, mesh) is a separate chunk of the page, asked for only the first time
    * a world says it has nature: a world without naturaleza.json never downloads it and its flat path is untouched. */
+  private sinSuelo = false;
   private sincronizarTerreno(): void {
+    const sin = sinSueloDelEstado(this.features.allState() as Iterable<[string, unknown]>);
+    if (sin !== this.sinSuelo) { this.sinSuelo = sin; this.aplicarMalla(); } // entorno `suelo: "ninguno"`: the same missing floor as the server
     let pide = false;
     for (const [k, v] of this.features.allState()) if (k === "naturaleza:mundo" || k === "espacio-base:mundo") { pide = (v as { activa?: boolean }).activa !== false; break; }
     if (!pide && !this.terreno) return;

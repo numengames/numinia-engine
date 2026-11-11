@@ -95,7 +95,13 @@ const MESH_FLOOR = fx(500);
  * is a wall or a ceiling, never a floor or a ramp to walk up. cos(50°) in Q16.16. */
 export const MAX_SLOPE_COS = 42126;
 /** Does the state have any geometry (solid boxes or a mesh) that the step must look at? */
-const hasGeometry = (s: SimState): boolean => s.solids.length > 0 || s.mesh !== null;
+const hasGeometry = (s: SimState): boolean => s.solids.length > 0 || s.mesh !== null || s.piso !== 0;
+/** A world that says `suelo: "ninguno"` (entorno@1) has no flat floor at y = 0: islands in the sky, a fall ends in D-045's void.
+ * Both the server and the page read it from the same shared state («entorno:zona»), so prediction and server agree. */
+export function sinSueloDelEstado(estado: Iterable<[string, unknown]>): boolean {
+  for (const [k, v] of estado) if (k === "entorno:zona") return (v as { suelo?: unknown } | null)?.suelo === "ninguno";
+  return false;
+}
 
 // ---- U10: solid things (a boolean on a placed thing). World geometry, like the ground: NOT part of the state's
 // fingerprint (both sides build it from the same shared state). Boxes are axis-aligned, Q16.16:

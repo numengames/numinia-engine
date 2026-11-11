@@ -354,7 +354,8 @@ export function crearEntorno(h: EntornoHooks) {
     direccion(0, n(v.vientoRumbo, 0), viento).multiplyScalar(n(v.vientoFuerza, 0));
     // landmarks and the grid
     for (const p of h.hitos) p.visible = v.hitos !== false;
-    grid.visible = v.rejilla === true;
+    const sinSuelo = String(v.suelo) === "ninguno"; // a world of islands: sky above AND below, no plane (the sky dome / cube / equirect already cover the whole sphere)
+    ground.visible = !sinSuelo; grid.visible = v.rejilla === true && !sinSuelo;
     suelo(v);
     // sky
     arribaU.value.setHex(n(v.cieloArriba, 0x5d8fc9)); horizonteU.value.setHex(n(v.cieloHorizonte, 0xc9d8e4));

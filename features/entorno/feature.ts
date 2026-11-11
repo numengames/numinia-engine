@@ -8,7 +8,7 @@ import type { Fields } from "../../packages/feature/src/index.ts";
 /** Named environments (presets.json). «propio» = adjusted by hand after a preset. */
 /** «jardín» is the house look (STD-023: the Mediterranean garden — Verdemar sky over an Arena horizon, a warm haze). */
 export const PRESETS = ["día", "amanecer", "atardecer", "noche", "niebla", "tormenta", "nublado", "jardín"] as const;
-export const SUELOS = ["hierba", "tierra", "arena", "roca", "nieve", "liso"] as const;
+export const SUELOS = ["hierba", "tierra", "arena", "roca", "nieve", "liso", "ninguno"] as const;
 export const CIELOS = ["atmosfera", "degradado", "color"] as const;
 /** P1: the views a person may start in. «tercera» first: it is the house's, and an enum's default is its first value. */
 export const CAMARA_INICIOS = ["tercera", "primera"] as const;

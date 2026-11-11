@@ -38,6 +38,11 @@
   para arenas o sitios en paz, `"zonasPvp": [{ "id", "x", "z", "radio", "pvp": true|false }]` (círculos en metros; una
   zona en `false` gana a una en `true`). Solo se golpea a otra persona (`objetivo: p:<entidad>`) si **las dos** están donde
   se puede; decide el servidor. Cada golpe sube un escalón de Estado de quien lo recibe (no le quita vida). Sin `pvp` ni zona en `true`, el servidor rechaza el golpe a una persona («Aquí no se lucha entre personas»); `alchemiststower` y los demás mundos no lo activan. La página pone encima de la persona golpeada un rótulo con icono y palabra (`ROTULO` en `features/lucha/client.ts`, por `view.label`: un solo plano por persona, a 8 s, y solo para quien está dentro de los 40 m del golpe); decidir, decide siempre el servidor.
+- Un mundo de islas flotantes **no tiene suelo**: `"suelo": { "tipo": "ninguno" }` en `entorno.json` (por defecto `hierba`)
+  esconde el plano verde y la rejilla, y quita también el suelo plano de la simulación en y = 0 (servidor y página leen
+  `entorno:zona`.suelo; nadie se queda parado en el aire sobre nada). El cielo ya es una esfera entera (atmósfera,
+  degradado, color o imagen equirectangular), así que mirar hacia abajo ve cielo. Combínalo con `sueloMinimo` y `vuelta`
+  (abajo) o quien salte de una isla cae hasta el límite del mundo (−500 m). Prueba: `test/sin-suelo.test.ts`.
 - El mismo `entorno.json` puede tener **vacío** (D-045, `features/suelo`): `"sueloMinimo": -4` (metros, −500…500) es
   la altura bajo la cual se ha caído; el servidor guarda cada medio segundo (`SEGURO_CADA` ticks) dónde pisaba suelo
   cada persona y, al bajar de ahí, la recoloca en ese sitio **dentro del paso de simulación** (una orden grabada con
