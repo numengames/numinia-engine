@@ -39,7 +39,7 @@ export const crearEntorno = (mundo?: unknown) => serverPart(entorno, (api) => {
   const puede = (from: number) => api.puede(from, "construir") || api.puede(from, "dirigir") || rechazar(from, "No puedes cambiar el entorno: el mundo está cerrado a construir (lo abre quien lo administra) y no diriges aquí.");
   const actual = (): Plano => (api.state.get(ZONA) as Plano | undefined) ?? base;
   // P1: the camera of the world and the arrival's heading are the world's file's (no panel moves them), like the map cut
-  const DE_ARCHIVO = ["camaraInicio", "camaraMax", "llegadaGira", "llegadaGiro"] as const;
+  const DE_ARCHIVO = ["camaraInicio", "camaraMax", "llegadaGira", "llegadaGiro", "movAndar", "movCorrer", "movFov"] as const;
   const delArchivo = (v: Msg): Msg => { const o: Msg = { ...v }; for (const k of DE_ARCHIVO) o[k] = base[k]; return o; };
   const poner = (v: Msg, avisar = true) => {
     const ok = api.state.set(ZONA, conSol(delArchivo(v)));

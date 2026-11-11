@@ -8,5 +8,6 @@
   "tono": { "curva": "neutro", "exposicion": 1 },
   "hitos": false,
   "tema": "black-and-white",
-  "aparicion": { "x": 0, "z": 3, "radio": 3 }
+  "aparicion": { "x": 0, "z": 3, "radio": 3 },
+  "movimiento": { "andar": 3, "correr": 6, "fov": 70 }
 }

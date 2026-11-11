@@ -204,6 +204,9 @@ export function createCamara(camera: THREE.PerspectiveCamera, dom: HTMLElement, 
         giro: v?.llegadaGira === true && Number.isFinite(giro) ? giro : null,
       };
       orbita.mundo(c);
+      // the world's field of view (`movFov`, degrees; 0 or missing = the house's 60). Not in VR: the headset owns it.
+      const fov = Number(v?.movFov), fovMundo = Number.isFinite(fov) && fov > 0 ? fov : CAMARA.fovCasa;
+      if (camera.fov !== fovMundo && !enXR()) { camera.fov = fovMundo; camera.updateProjectionMatrix(); }
       mundoVisto = true;
       if (llegadaPedida) { llegadaPedida = false; orbita.llegar(); }
     },
