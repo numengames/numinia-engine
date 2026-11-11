@@ -14,6 +14,7 @@ import { BTN_RUN, STICK_MAX } from "../../sim/src/index.ts";
 export const LLEGADO_M = 0.6;   // a walk ends this close to its point
 export const CORRER_M = 12;     // farther than this it runs (8 m/s instead of 4)
 export const OIR_MAX = 16;      // what it heard, kept for its senses (the newest last)
+export const MIRAR_TICKS = 10;  // standing with someone: its heading towards them is worked out twice a second
 
 export type Meta = { tipo: "ir"; x: number; z: number } | { tipo: "seguir"; entidad: number; distancia: number } | null;
 export type Oido = { quien: number; nombre: string; texto: string; tick: number; canal: "cerca" | "zona" };
@@ -70,6 +71,9 @@ export class Cuerpo {
    * first step it faces 0° (+z) and `andado` is false. The simulation keeps no facing, so this is the body's own. */
   rumbo(): { grados: number; x: number; z: number; andado: boolean } { const grados = this.giro ?? 0; return { grados, ...frenteDe(grados), andado: this.giro !== null }; }
   posicion(): { x: number; z: number } { const p = this.s.selfPosition(1); return { x: p.x, z: p.z }; }
+  /** Presence: the person it is with, as its bubble says (features/burbuja `mira`, decided by the server: the first person who came in,
+   * while they stay; then the nearest inside; never an AI), or -1. Its body faces them while it stands (`rumbo`), like every page draws it. */
+  conQuien(): number { const m = Number(this.s.features.stateOf("burbuja").get(String(this.s.entity))?.mira); return Number.isInteger(m) && m >= 0 ? m : -1; }
   /** Who is around (from its own snapshots, like a page), nearest first. */
   cercanos(radio = 20): Cercano[] {
     const me = this.posicion(), out: Cercano[] = [];
@@ -128,6 +132,10 @@ export class Cuerpo {
         mx = Math.round((dx / d) * STICK_MAX); mz = Math.round((dz / d) * STICK_MAX);
         run = d > CORRER_M;
       } else if (this.meta?.tipo === "ir") this.meta = null; // arrived
+    }
+    if (mx === 0 && mz === 0 && this.ticks % MIRAR_TICKS === 0) { // standing: it faces the person it is with (the pages turn its body the same way)
+      const con = this.conQuien(), o = con >= 0 ? this.s.remotePositions().find((r) => r.id === con) : undefined;
+      if (o && Math.hypot(o.x - me.x, o.z - me.z) > 0.1) this.giro = rumboDe(o.x - me.x, o.z - me.z);
     }
     this.s.tick(mx, mz, run ? BTN_RUN : 0);
   }

@@ -16,15 +16,17 @@ import { validarHabitante, leerHabitantes } from "../packages/agent/src/formato.
 import type { Habitante } from "../packages/agent/src/formato.ts";
 import chatServer from "../features/chat/server.ts";
 import gestosServer from "../features/gestos/server.ts";
+import { crearBurbuja } from "../features/burbuja/server.ts";
+import type { ServerPart } from "../packages/feature/src/index.ts";
 
 const guests = signer("una-clave-de-invitados-larga"), agents = signer("otra-clave-de-agentes-larga");
 const NOW = Date.parse("2026-10-15T12:00:00Z"), DAY = today(NOW);
 const LIA = JSON.parse(readFileSync("aventuras/ejemplo/habitantes/lia.json", "utf8")) as Habitante;
 const keeper = (): GuestKeeper => { let t: string | null = null; return { load: () => t, save: (x) => { t = x; } }; };
 
-function world() {
+function world(extra: readonly ServerPart[] = []) {
   const log: string[] = [];
-  const inst = new Instance({ seed: 7, capacity: 32, k: 50, snapshotEvery: 2, features: [chatServer, gestosServer], log: (l) => log.push(l), identitySign: guests, now: () => NOW, agentes: { sign: agents, nombre: (id) => (id === "lia" ? "Lía" : null) } });
+  const inst = new Instance({ seed: 7, capacity: 32, k: 50, snapshotEvery: 2, features: [chatServer, gestosServer, ...extra], log: (l) => log.push(l), identitySign: guests, now: () => NOW, agentes: { sign: agents, nombre: (id) => (id === "lia" ? "Lía" : null) } });
   const pumps: (() => void)[] = [];
   const persona = () => {
     const t = inst.join(0), s = new ClientSession(t, { identity: keeper() });
@@ -103,6 +105,31 @@ test("it greets a person who comes near (once), never a robot nor another AI; an
   assert.equal(ana.oye.slice(antes).filter((l) => l.includes("· IA:")).length, 0, "not called: silent");
   ana.decir("Lía, ¿quién eres?"); W.pump(HZ);
   assert.ok(ana.oye.slice(antes).some((l) => l.includes("Soy Lía, una inteligencia artificial")), ana.oye.slice(antes).join(" | "));
+});
+
+test("presence: with a person in its bubble it leaves its walk, stays and faces them; alone again it waits 3 s and walks on", () => {
+  const W = world([crearBurbuja().part]);
+  const lia = W.habitante({ ...LIA, ruta: [{ x: 0, z: 0 }, { x: 10, z: 0 }], pausa: 0 });
+  const ana = W.persona();
+  W.pump(25);
+  W.place(lia.c.entidad, 0, 0); W.place(ana.s.entity, -30, -30);
+  W.pump(HZ); // on its way to x 10
+  const x = () => W.inst.sim.tf.cols.x[lia.c.entidad] / 65536;
+  assert.ok(x() > 0.5, `walking (${x().toFixed(2)})`);
+  W.place(ana.s.entity, x(), 2.5); // Ana steps in, 2.5 m to its side (+z)
+  W.pump(HZ);
+  assert.equal(lia.c.conQuien(), ana.s.entity, "its bubble says it is with Ana");
+  const parada = x();
+  W.pump(HZ * 2);
+  assert.ok(Math.abs(x() - parada) < 0.05, `it stays (${parada.toFixed(2)} → ${x().toFixed(2)})`);
+  assert.ok(Math.abs(lia.c.rumbo().grados - 0) < 15 || Math.abs(lia.c.rumbo().grados - 360) < 15, `it faces Ana, at +z (${lia.c.rumbo().grados}°)`);
+  assert.ok(lia.g.diario.some((d) => d.includes(`se queda con ${ana.s.entity}`)), lia.g.diario.join(" | "));
+  W.place(ana.s.entity, -30, -30); // Ana goes
+  W.pump(HZ * 2);
+  assert.ok(Math.abs(x() - parada) < 0.05, "two seconds alone: still waiting");
+  W.pump(HZ * 3);
+  assert.ok(Math.abs(x() - parada) > 0.5, `then it walks on (${x().toFixed(2)})`);
+  assert.ok(lia.g.diario.some((d) => d.includes("vuelve a su paseo")));
 });
 
 test("short orders are decided in code: «sígueme» follows, «quieta» stays; an AI's words are never obeyed", () => {

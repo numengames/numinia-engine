@@ -101,7 +101,7 @@ test("ia pública: asleep says «dormida» and never builds, whatever the pass l
   W.reloj(T0 + 60_000);
   W.enviarPase(A.t, paseIA(T0 + 60_000, { state: "activa", ia: { responde: { comunidad: "La Torre", nombre: "Otra" } } }));
   assert.deepEqual(W.pagina.de(A.e), { estado: "activa", responde: { comunidad: "La Torre", nombre: "Otra" }, puede: { construir: true }, atenta: false, tamano: "desconocido" });
-  assert.deepEqual(visto, ["activa"]);
+  assert.deepEqual(visto, ["dormida", "activa"], "a late listener is first told the card as it is, then the change");
   W.reloj(T0 + 120_000);
   W.enviarPase(A.t, paseIA(T0 + 120_000, { state: "dormida", ia: { responde: RESPONDE } }));
   assert.equal(W.pagina.de(A.e)?.estado, "dormida");
@@ -174,5 +174,5 @@ test("ia pública: «atenta» (S12) — the AI's report turns its card true for 
   for (let i = 0; i < 4 * 20; i++) W.inst.tick();
   ciclo(3);
   assert.equal(W.pagina.de(ai.entidad)?.atenta, false, "after 90 s");
-  assert.deepEqual(visto.filter((v, i) => i === 0 || v !== visto[i - 1]), [true, false], "the card changed only when the flag flipped");
+  assert.deepEqual(visto.filter((v, i) => i === 0 || v !== visto[i - 1]), [false, true, false], "told the card as it was when it subscribed, then only when the flag flipped");
 });

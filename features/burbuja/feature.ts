@@ -3,7 +3,7 @@
 // The SERVER decides who is inside (every 10 ticks, from the positions it already has); the page only draws the shape (S9) from the
 // public state below. R-1: any world has it, nothing to switch on; a world with no AI does no work at all.
 //
-// Four shapes, radius 2..12 m (default sphere, 4 m, shown «al acercarte»). All edges inclusive. Measured in metres, from the AI's feet
+// Four shapes, radius 2..12 m (default dome, 4 m, shown «al acercarte»: Pablo, 2026-11-11). All edges inclusive. Measured in metres, from the AI's feet
 // (`A`) to a person's feet (`F`), the vertical rules being the only difference:
 //   esfera    centre at A + 1 m up (an AI standing or floating); a person counts by the chest (F + 1 m), so on one floor it is the
 //             plain distance between feet, and the sphere follows an AI that flies
@@ -11,6 +11,11 @@
 //   cilindro  horizontal distance ≤ R, from SUELO_TOL_M under A up to ALTO_M over it (a tower, a balcony: the whole height)
 //   caja      |dx| ≤ R and |dz| ≤ R, axis-aligned with the world, same height as the cylinder (a counter, a square plaza)
 // Pure geometry here so S9 draws exactly what S8 decides.
+//
+// Presence (Pablo, 2026-11-11: «cuando te metes dentro de su zona de acción, que te mire, que note tu presencia»): the state also says
+// whom the AI is with, `mira` = the entity of the PERSON it attends to (-1 = nobody). The server keeps the first person who came in for
+// as long as they stay; when they leave it turns to the nearest person still inside. Never another AI (no loops between agents). Pages
+// turn its body to face that person while it stands still; an inhabitant's script stops its walk while it has someone (guion.ts).
 import { defineFeature } from "../../packages/feature/src/index.ts";
 
 export const FORMAS = ["esfera", "cupula", "cilindro", "caja"] as const;
@@ -23,25 +28,27 @@ export const PECHO_M = 1;
 export const ALTO_M = 6;                // the cylinder's and the box's height over the AI's feet
 export const SUELO_TOL_M = 0.5;         // a dome, a cylinder or a box still holds someone this far under the AI's feet (a step, a slope)
 export const CADA_TICKS = 10;           // who is inside is reviewed every 10 ticks = 0.5 s (TICK_HZ = 20)
-export const DEFECTO: Burbuja = { forma: "esfera", radio: RADIO_DEFECTO_M, visible: "al-acercarte" };
+export const DEFECTO: Burbuja = { forma: "cupula", radio: RADIO_DEFECTO_M, visible: "al-acercarte" };
+export const NADIE = -1;                // `mira` when the AI attends to nobody
 
 export type Burbuja = { forma: Forma; radio: number; visible: Visible };
 export type Punto = { x: number; y: number; z: number };
 
 const CAMPOS = {
-  forma: { kind: "enum", values: FORMAS, default: "esfera" },
+  forma: { kind: "enum", values: FORMAS, default: "cupula" },
   radio: { kind: "int", min: RADIO_MIN_M, max: RADIO_MAX_M, default: RADIO_DEFECTO_M },
   visible: { kind: "enum", values: VISIBLES, default: "al-acercarte" },
+  mira: { kind: "int", min: NADIE, max: 65535, default: NADIE }, // v2: the person it is with (-1 = nobody)
 } as const;
 const QUIEN = { kind: "int", min: 0, max: 65535 } as const;
 const NOMBRE_MAX = 60;
 
 export const burbuja = defineFeature({
   id: "burbuja",
-  version: 1,
-  describe: "La burbuja de acción de cada IA conectada: su forma (esfera, cúpula, cilindro o caja), su radio (2 a 12 m) y cuándo se dibuja. El servidor decide cada medio segundo quién está dentro y lo avisa solo a la IA («entraEnBurbuja», «saleDeBurbuja») y a la persona («Entras en la burbuja de…»). Las páginas solo leen la forma para dibujarla.",
+  version: 2,
+  describe: "La burbuja de acción de cada IA conectada: su forma (cúpula por defecto, esfera, cilindro o caja), su radio (2 a 12 m), cuándo se dibuja y con quién está (la persona a la que mira). El servidor decide cada medio segundo quién está dentro y lo avisa solo a la IA («entraEnBurbuja», «saleDeBurbuja») y a la persona («Entras en la burbuja de…»). Las páginas solo leen la forma para dibujarla.",
   state: {
-    describe: "Por entidad de IA conectada (clave = su entidad; desaparece al desconectar). forma = esfera|cupula|cilindro|caja; radio = metros (2 a 12); visible = siempre|al-acercarte|nunca. Quién está dentro NO se publica: es del servidor y de la IA.",
+    describe: "Por entidad de IA conectada (clave = su entidad; desaparece al desconectar). forma = esfera|cupula|cilindro|caja; radio = metros (2 a 12); visible = siempre|al-acercarte|nunca; mira = la entidad de la persona con la que está (la primera que entró, mientras siga dentro; luego la más cercana; -1 = nadie; nunca otra IA): todos ven a quién mira. La lista de quién está dentro NO se publica: es del servidor y de la IA.",
     fields: CAMPOS,
   },
   events: {
