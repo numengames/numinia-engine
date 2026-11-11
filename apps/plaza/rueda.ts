@@ -5,6 +5,7 @@
 // browser), then one per group. Escape closes. While it is open the world keys (WASD, Space…) do nothing: walking
 // would end the move you are choosing. The arithmetic (slices, dead zone, favourites) is packages/client/src/rueda.ts.
 // main.ts passes the gestures of features/gestos/client.ts (only composition roots import features/).
+import { teclas } from "./teclas.ts";
 import "./rueda.css";
 import { PORCIONES, ZONA_MUERTA_PALANCA, alternarFavorito, anillos, centroDe, esToque, leerFavoritos, porcionDe, siguiente, trazoDe } from "../../packages/client/src/rueda.ts";
 import { escribiendo } from "./escribiendo.ts";
@@ -219,7 +220,7 @@ export function montarRueda(o: { gestos: Gestos; favoritosIniciales: readonly st
   addEventListener("keydown", (e) => {
     if (e.ctrlKey || e.altKey || e.metaKey) return;
     if (!abierta) {
-      if (e.code !== "KeyG" || escribiendo(e) || document.body.classList.contains("construyendo")) return; // building: G moves things
+      if (!teclas.es(e, "gestos") || escribiendo(e) || document.body.classList.contains("construyendo")) return; // building: G moves things
       if (e.repeat) return;
       gAbajo = performance.now();
       clearTimeout(gTemporizador);
@@ -242,13 +243,13 @@ export function montarRueda(o: { gestos: Gestos; favoritosIniciales: readonly st
       else if (marcada >= 0) hacer(marcada);
     } else if (k === "KeyF" && !e.repeat) alternar();
     else if (k === "Tab") { atrapar(e); usada = false; }
-    else if (k === "KeyG") { /* the held key itself */ }
+    else if (teclas.es(e, "gestos")) { /* the held key itself */ }
     else usada = false;
     if (usada) e.preventDefault();
     e.stopImmediatePropagation(); // no world key while choosing (walking would end the move)
   }, true);
   addEventListener("keyup", (e) => {
-    if (e.code !== "KeyG" || gAbajo < 0) return;
+    if (!teclas.es(e, "gestos") || gAbajo < 0) return;
     const abajo = gAbajo; gAbajo = -1; clearTimeout(gTemporizador);
     if (abierta && sujeta?.por === "tecla") { e.stopImmediatePropagation(); soltar(); return; }
     if (!abierta && esToque(abajo, performance.now()) && !escribiendo(e)) { const r = g.hacer("saludar"); if (!r.ok) o.aviso(r.why); }

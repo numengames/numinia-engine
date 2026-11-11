@@ -59,7 +59,7 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
   },
   {
     grupo: "graficos", id: "bateria", tipo: "bool", nombre: "Modo batería",
-    describe: "24 cuadros por segundo y resolución contenida: gasta y calienta menos. También con la tecla B.",
+    describe: "24 cuadros por segundo y resolución contenida: gasta y calienta menos.",
     defecto: { valor: false, si: [{ requiere: ["ahorroDatos"], valor: true }] },
   },
   {
@@ -182,7 +182,7 @@ export const AJUSTES_MOTOR: AjusteDecl[] = [
   },
   { grupo: "controles", id: "teclaAjustes", tipo: "tecla", soloVer: true, nombre: "Abrir y cerrar los ajustes", describe: "La tecla que abre este menú. Escape también lo cierra.", defecto: "KeyO" },
   { grupo: "controles", id: "teclaDensidad", tipo: "tecla", soloVer: true, nombre: "Cambiar la densidad de interfaz", describe: "La tecla que pasa de Mínimo a Normal, a Completo y vuelta.", defecto: "KeyU" },
-  { grupo: "controles", id: "teclaBateria", tipo: "tecla", soloVer: true, nombre: "Modo batería", describe: "La tecla que enciende y apaga el modo batería.", defecto: "KeyB" },
+  { grupo: "controles", id: "microfonoModo", tipo: "eleccion", nombre: "Microphone key", describe: "Hold the microphone key to talk (default), or press it once to open the microphone and again to close it. It never opens by itself.", opciones: [{ valor: "mantener", nombre: "Hold to talk" }, { valor: "alternar", nombre: "Press to open and close" }], defecto: "mantener" },
   // ---- Accesibilidad (V7, V11, V1): the system's preferences are the first defaults ----
   {
     grupo: "accesibilidad", id: "menosMovimiento", tipo: "bool", nombre: "Reducir movimiento",

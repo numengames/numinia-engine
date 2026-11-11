@@ -142,7 +142,7 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void) {
     api.on("rechazado", (m) => { e.aviso = String(m.motivo); avisar("estado"); });
     // the touch bar's button, the F key and the agents' list: a press reels for a moment (hooks at the bite); nothing while
     // not fishing. The page's HUD (apps/plaza/pesca.ts) turns a held F or a held button into recoger(true)…recoger(false).
-    api.action({ id: "recoger", label: "Recoger", key: "KeyF", describe: "Recoger el sedal mientras pescas (engancha el pez en la picada; en la pelea sube la tensión).", run: () => { if (e.fase !== "nada") pesca.pulsar(); } });
+    api.action({ id: "recoger", label: "Reel in", key: "KeyE", describe: "Reel the line in while fishing (hooks the fish on a bite; in the fight it raises the tension).", run: () => { if (e.fase !== "nada") pesca.pulsar(); } });
   });
 
   return { parts: [parte], pesca };

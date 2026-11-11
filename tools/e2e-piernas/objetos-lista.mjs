@@ -56,7 +56,7 @@ try {
   r.ids = [idNorte, idOeste, idSur];
   const total = (await objetos(a)).length;
   // the dock has the drawer; open it
-  await a.keyboard.press("KeyC");
+  await a.keyboard.press("KeyB");
   await a.waitForFunction(() => !document.getElementById("panel-construir").hidden, null, { timeout: 10000 });
   r.dock = await a.evaluate(() => [...document.querySelectorAll("#dock-construir button")].map((b) => b.id.replace("dock-", "")).join());
   await a.locator("#dock-objetos").click();
@@ -92,7 +92,7 @@ try {
   r.pulsar.enPantalla = await a.evaluate(() => { const s = globalThis.__numinia.view.editor.pantalla(25, 0.5, 28); return s ? { x: Math.round(s.x), y: Math.round(s.y), dentro: s.x > 20 && s.x < 930 && s.y > 90 && s.y < 700 } : null; }); // clear of the dock (top) and of the card (right, from x 944)
   await foto(a, "8-objetos-ir-y-editar");
   // the map: «Editar» only for a world object, and it opens Construir on it
-  await a.keyboard.press("KeyC"); // leave the builder: the map's button must bring it back
+  await a.keyboard.press("KeyB"); // leave the builder: the map's button must bring it back
   await a.waitForFunction(() => document.getElementById("panel-construir").hidden, null, { timeout: 5000 });
   await a.evaluate(() => globalThis.__numinia.mapa.abrir());
   await a.waitForSelector(`#mapa-grande li[data-id="c:objetos:${idOeste}"] .ver`, { state: "attached", timeout: 8000 });

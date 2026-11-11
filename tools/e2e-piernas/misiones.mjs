@@ -136,7 +136,7 @@ try {
   out.bienes = { emisor: await ctl(a, () => globalThis.__numinia.bienes.emisor()) };
   if (out.bienes.emisor) await esperar(a, () => globalThis.__numinia.bienes.lista().length > 0, null, 5000);
   out.bienes.novedad = await ctl(a, () => !!document.querySelector("[data-novedad]"));
-  await a.keyboard.press("KeyI");
+  await a.keyboard.press("KeyC");
   await esperar(a, () => document.getElementById("ficha")?.open, null, 3000);
   await a.locator("#ficha-pestana-reserva").click(); // «Tú»: the inventario section is on the Reserva tab
   if (out.bienes.emisor) await esperar(a, () => /Recibo firmado ✓/.test(document.querySelector("#ficha [data-seccion=inventario]")?.textContent ?? ""), null, 5000);
@@ -145,7 +145,7 @@ try {
   out.bienes.comprobado = out.bienes.emisor ? await ctl(a, async () => { const n = globalThis.__numinia.bienes; const b = n.lista()[0]; return (await n.comprobar(n.ficheroRecibo(b).texto)).motivo; }) : "";
   out.bienes.novedadTrasAbrir = await ctl(a, () => !!document.querySelector("[data-novedad]"));
   await foto(a, "4b-inventario");
-  await a.keyboard.press("KeyI");
+  await a.keyboard.press("KeyC");
   await esperar(a, () => !document.getElementById("ficha")?.open, null, 3000);
   nota("bienes");
   await a.keyboard.press("KeyJ");
@@ -163,7 +163,7 @@ try {
   // no «Llevar» button: tokens are not carried) and the sheet's summary; a token cannot be carried (refused with why)
   await a.keyboard.press("KeyJ");
   await esperar(a, () => (globalThis.__numinia.inventario?.lista?.() ?? []).some((o) => o.clase === "semilla" && o.color === "verde"), null, 5000);
-  await a.keyboard.press("KeyR");
+  await a.keyboard.press("KeyI");
   await esperar(a, () => document.getElementById("inventario")?.open === true && document.querySelectorAll("#inventario button.hueco:not(.vacio)").length > 0, null, 3000);
   out.inventario = await ctl(a, () => ({
     lista: globalThis.__numinia.inventario.lista().map((o) => ({ tipo: o.tipo, clase: o.clase, nombre: o.nombre, color: o.color, n: o.n, portado: o.portado })),
@@ -173,18 +173,18 @@ try {
     avisos: globalThis.__numinia.session.features.announcements.filter((x) => x.feature === "inventario").map((x) => x.text),
   }));
   await foto(a, "4b-inventario");
-  await a.keyboard.press("KeyR");
+  await a.keyboard.press("KeyI");
   await esperar(a, () => document.getElementById("inventario")?.open === false, null, 3000);
   nota("inventario cerrado");
   await ctl(a, () => globalThis.__numinia.inventario.equipar(globalThis.__numinia.inventario.lista()[0].id));
   await esperar(a, () => globalThis.__numinia.session.features.announcements.some((x) => x.feature === "inventario" && /tokens/.test(x.text)), null, 3000); // the panel announces the refusal and clears it
   nota("token rechazado");
-  await a.keyboard.press("KeyI");
+  await a.keyboard.press("KeyC");
   await esperar(a, () => document.getElementById("ficha")?.open === true, null, 3000);
   await a.locator("#ficha-pestana-reserva").click();
   out.inventario.ficha = await ctl(a, () => [...document.querySelectorAll("#ficha h3")].map((h) => h.textContent + ": " + (h.nextElementSibling?.textContent ?? "")).find((t) => t.startsWith("Reserva")));
   await foto(a, "4c-ficha");
-  await a.keyboard.press("KeyI");
+  await a.keyboard.press("KeyC");
   await esperar(a, () => document.getElementById("ficha")?.open === false, null, 3000);
   nota("inventario");
   // 5. tab B: another guest sees the people, never A's quest

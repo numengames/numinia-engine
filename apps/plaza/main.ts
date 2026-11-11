@@ -7,6 +7,7 @@ import { version as versionPaquete } from "../../package.json"; // only this fie
 import { hex } from "../../packages/core/src/index.ts";
 import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX, BTN_JUMP, BTN_RUN } from "../../packages/sim/src/index.ts";
 import { botonesDeVuelo } from "./vuelo-teclas.ts";
+import { teclas, filasDeTeclas, lineaDeAyuda } from "./teclas.ts";
 import { CIERRE_LLENO, CIERRE_SILENCIO, LATIDO_MS, webSocketClient } from "../../packages/net/src/index.ts";
 import { BARRIDO_MS, VigiaServidor } from "../../packages/client/src/vigia-servidor.ts"; // t_9cb3f636: the page notices the server went silent
 import { acciones, expresionDeDados } from "./acciones-informe.ts"; // T1: dice, photo, drop, hand jump, VR body and speed leave a line in the session log
@@ -50,7 +51,7 @@ import { montarVerNombres } from "./nombres-ver.ts";
 import { montarLibro, ponerAvisosMundo, ponerCatalogoCasa } from "./misiones.ts";
 import { anunciar, crearDialogo } from "./paneles.ts"; // S6: the accessible text of each sound (XAUR)
 import { montarMenuBarra } from "./menu-barra.ts"; // ux2-barra: the bar's «Cámara» (P) and «Menú» (O) drop-downs
-import { estadoCamara, filasDeAyuda } from "./menu-logica.ts";
+import { estadoCamara } from "./menu-logica.ts";
 import { crearSonidos, ponerSonidos, RUTA_TABLA, sonidos } from "../../packages/render/src/audio/sonidos.ts"; // S6: the house catalogue (its table comes from /sonidos.json; the files are served by their sha256)
 import { montarMapaPuerta } from "./mapa-puerta.ts"; // t_45ef2f70: the real map (mapa.ts) lands after the first frame
 import { crearIrAndando, frase } from "../../packages/client/src/ir-andando.ts";
@@ -297,7 +298,21 @@ const refrescarAcciones = (): void => {
   for (const { a, b } of botonesAccion) { const oculto = (ocultos.size > 0 && interfazMundo!.accionOculta(a, ocultos)) || (a.disponible ? !a.disponible() : false); if (b.hidden !== oculto) b.hidden = oculto; }
 };
 setInterval(refrescarAcciones, 250);
-addEventListener("keydown", (e) => { if (!e.repeat && !escribiendo(e)) acts.find((a) => a.key === e.code)?.run(); }); // J3: typing in a box is not an action
+// keymap v1: Ctrl+H hides (and shows) the whole interface, for photos and videos. The microphone warning stays: privacy outranks a clean picture.
+addEventListener("keydown", (e) => {
+  if (!teclas.es(e, "ocultarUI") || e.repeat || e.altKey) return;
+  e.preventDefault();
+  const r = document.documentElement;
+  r.classList.toggle("ui-oculta");
+  if (r.classList.contains("ui-oculta")) document.querySelectorAll("dialog[open]").forEach((d) => (d as HTMLDialogElement).close());
+});
+// keymap v1: a feature names its action, the table of teclas.ts owns the key (so one key = one function, and Yours applies). Fishing keeps E and Q in pesca.ts.
+const ACCION_DE_FEATURE: Record<string, string> = { bailar: "bailar", soltar: "soltar", frases: "frases" };
+// the «Reel in» button wears the E badge, but E itself is handled in pesca.ts (not by this generic listener)
+const INSIGNIA_DE_FEATURE: Record<string, string> = { ...ACCION_DE_FEATURE, recoger: "usar" };
+const teclaDe = (a: (typeof acts)[number]): string => (INSIGNIA_DE_FEATURE[a.id] ? teclas.etiqueta(INSIGNIA_DE_FEATURE[a.id]) : "");
+addEventListener("keydown", (e) => { if (!e.repeat && !escribiendo(e) && !e.ctrlKey && !e.metaKey && !e.altKey) acts.find((a) => ACCION_DE_FEATURE[a.id] && teclas.es(e, ACCION_DE_FEATURE[a.id]))?.run(); }); // J3: typing in a box is not an action
+if (!esTactil()) { const ayudaPie = document.getElementById("help")!; const pintarAyuda = (): void => { ayudaPie.textContent = lineaDeAyuda(); }; pintarAyuda(); teclas.alCambiar(pintarAyuda); }
 if (esTactil()) {
   document.getElementById("help")!.textContent = "Dedo a la izquierda: andar · a la derecha: mirar · dos dedos: acercar"; // N1: the touch map only
   const bar = document.getElementById("acciones")!;
@@ -312,14 +327,14 @@ if (esTactil()) {
   const bar = document.getElementById("acciones")!;
   for (const a of acts) {
     const b = document.createElement("button");
-    b.type = "button"; b.title = a.describe ?? ""; if (a.key) b.setAttribute("aria-keyshortcuts", a.key.replace(/^Key/, ""));
+    b.type = "button"; b.title = a.describe ?? ""; if (teclaDe(a)) b.setAttribute("aria-keyshortcuts", teclaDe(a));
     const t = document.createElement("span"); t.textContent = a.label; b.append(t);
-    if (a.key) { const k = document.createElement("kbd"); k.textContent = a.key.replace(/^Key/, ""); b.append(k); }
+    if (teclaDe(a)) { const k = document.createElement("kbd"); k.textContent = teclaDe(a); b.append(k); teclas.alCambiar(() => { k.textContent = teclaDe(a); }); }
     b.addEventListener("click", () => { a.run(); b.blur(); });
     bar.appendChild(b); botonesAccion.push({ a, b });
   }
   versionAcciones = -1; refrescarAcciones();
-  document.getElementById("help")!.textContent += " · " + acts.map((a) => `${(a.key ?? "").replace(/^Key/, "")} ${a.label.toLowerCase()}`).join(" · ") + " · G (mantén): movimientos";
+  /* the help line at the foot is written from the table below (lineaDeAyuda) */
 }
 
 // ---- H1 + M22: the builder, for whoever may build (the server says so on entering): panel, gizmo, grab ----
@@ -611,8 +626,8 @@ ponerOcultos(ocultos);
 /** MIS-257: is a hand on the controls (a key, the touch stick, the pad, the headset's stick, a jump)? Then the walk-by-itself gives way. */
 function manoEnMandos(): boolean {
   const pad = view.cam.mando();
-  return keys.has("KeyW") || keys.has("KeyA") || keys.has("KeyS") || keys.has("KeyD") || keys.has("ArrowUp") || keys.has("ArrowDown") || keys.has("ArrowLeft") || keys.has("ArrowRight")
-    || keys.has("Space") || saltoPendiente || touch !== null || !!(pad && (pad[0] || pad[1])) || (view.vr.active && Math.hypot(...view.vr.axes()) > 0.2);
+  return teclas.sujeta(keys, "adelante") || teclas.sujeta(keys, "izquierda") || teclas.sujeta(keys, "atras") || teclas.sujeta(keys, "derecha")
+    || teclas.sujeta(keys, "saltar") || saltoPendiente || touch !== null || !!(pad && (pad[0] || pad[1])) || (view.vr.active && Math.hypot(...view.vr.axes()) > 0.2);
 }
 function readAxes(): [number, number] {
   andarCorrer = false;
@@ -634,10 +649,10 @@ function readAxes(): [number, number] {
     return [Math.round(vx * STICK_MAX), Math.round(vz * STICK_MAX)];
   }
   let x = 0, z = 0;
-  if (keys.has("KeyA") || keys.has("ArrowLeft")) x -= 1;
-  if (keys.has("KeyD") || keys.has("ArrowRight")) x += 1;
-  if (keys.has("KeyW") || keys.has("ArrowUp")) z -= 1;
-  if (keys.has("KeyS") || keys.has("ArrowDown")) z += 1;
+  if (teclas.sujeta(keys, "izquierda")) x -= 1;
+  if (teclas.sujeta(keys, "derecha")) x += 1;
+  if (teclas.sujeta(keys, "adelante")) z -= 1;
+  if (teclas.sujeta(keys, "atras")) z += 1;
   if (touch) { x = touch.dx; z = touch.dy; }
   const pad = view.cam.mando(); // N1: a gamepad's left stick
   if (pad && (pad[0] || pad[1])) { x = pad[0]; z = pad[1]; }
@@ -650,7 +665,7 @@ function readAxes(): [number, number] {
 // pushed to its edge runs; in VR, A or X jumps and the stick at its edge runs. A tap waits for the next 20 Hz tick ----
 let saltoPendiente = false;
 addEventListener("keydown", (e) => {
-  if (e.code !== "Space" || escribiendo(e)) return;
+  if (!teclas.es(e, "saltar") || escribiendo(e)) return;
   e.preventDefault(); // no scrolling, no clicking the focused button
   if (!e.repeat) saltoPendiente = true;
 });
@@ -674,8 +689,8 @@ function readButtons(): number {
   if (andarCorrer) b |= BTN_RUN; // MIS-257: a long walk-by-itself runs (ir-andando.ts), the last stretch walks
   if (view.vr.active) { if (view.vr.correr()) b |= BTN_RUN; return b; } // in VR only the headset's stick runs: its edge (RUN_EDGE, packages/render/src/vr-paso.ts) or a speed above 100 %
   const alBorde = touch && Math.hypot(touch.dx, touch.dy) >= RUN_EDGE;
-  if (keys.has("ShiftLeft") || keys.has("ShiftRight") || alBorde) b |= BTN_RUN;
-  b |= botonesDeVuelo(keys, session.volando() && !rueda.abierta()); // H2: while flying a held Space climbs and a held Ctrl descends (on foot Space jumps once per press, above); the server decides who flies
+  if (teclas.sujeta(keys, "correr") || alBorde) b |= BTN_RUN;
+  b |= botonesDeVuelo({ has: (c: string) => (c === "Space" ? teclas.sujeta(keys, "saltar") : keys.has(c)) }, session.volando() && !rueda.abierta()); // H2: while flying a held Space climbs and a held Ctrl descends (on foot Space jumps once per press, above); the server decides who flies
   return b;
 }
 
@@ -975,7 +990,7 @@ void view.vrSupported().then(async (ok) => {
   // «Cámara» (P): photo, record (K still records on its own), share the screen (where the browser can)
   const camaraB = botonBarra("camara-abrir", "camara");
   const camara = montarMenuBarra({
-    id: "camara-menu", barra, boton: camaraB, etiqueta: "Cámara", tecla: "KeyP", puedeTecla: libre,
+    id: "camara-menu", barra, boton: camaraB, etiqueta: "Cámara", tecla: "KeyP", accion: "camara", puedeTecla: libre,
     entradas: [document.getElementById("foto-abrir"), graboso.boton, document.getElementById("compartir-pantalla")].filter((b): b is HTMLButtonElement => b instanceof HTMLButtonElement),
   });
   // the camera button says what is running behind it: recording (red) or sharing (sea green)
@@ -991,20 +1006,23 @@ void view.vrSupported().then(async (ok) => {
   // «Teclas y ayuda»: the keys of this page, from the help line (#help) every module already writes into
   const ayudaB = document.createElement("button"); ayudaB.type = "button"; ayudaB.id = "teclas-abrir";
   rotularBoton(ayudaB, "teclas");
-  const teclas = crearDialogo({ id: "teclas", titulo: "Teclas y ayuda", tecla: "F1", boton: ayudaB, alAbrir: () => {
+  const ayudaDlg = crearDialogo({ id: "teclas", titulo: "Keys and help", tecla: "F1", accion: "ayuda", boton: ayudaB, alAbrir: () => {
+    // keymap v1: the keys in effect (Yours if set, else the Default), from the one table of teclas.ts; the page's own help line adds what an object offers
     const lista = document.createElement("dl"); lista.className = "teclas-lista";
-    for (const p of filasDeAyuda(document.getElementById("help")?.textContent ?? "")) {
+    let grupo = "";
+    for (const f of filasDeTeclas()) {
+      if (f.grupo !== grupo) { grupo = f.grupo; const h = document.createElement("dt"); h.className = "grupo"; h.textContent = grupo; const v = document.createElement("dd"); v.className = "grupo"; lista.append(h, v); }
       const dt = document.createElement("dt"), dd = document.createElement("dd");
-      dt.textContent = p.tecla; dd.textContent = p.que; lista.append(dt, dd);
+      dt.textContent = f.tecla; dd.textContent = f.nombre; lista.append(dt, dd);
     }
-    teclas.cuerpo.replaceChildren(lista);
+    ayudaDlg.cuerpo.replaceChildren(lista);
   } });
   ayudaB.hidden = !!enMovil; // a phone names no key
 
   // «Menú» (O): settings, full screen, back to the city (only where the world names one), the keys
   const menuB = botonBarra("menu-abrir", "menu");
   montarMenuBarra({
-    id: "menu-lista", barra, boton: menuB, etiqueta: "Menú", tecla: "KeyO", puedeTecla: () => !document.querySelector("dialog[open]"),
+    id: "menu-lista", barra, boton: menuB, etiqueta: "Menú", tecla: "KeyO", accion: "menu", puedeTecla: () => !document.querySelector("dialog[open]"),
     entradas: [gear, document.getElementById("pantalla"), document.getElementById("volver-ciudad"), ayudaB].filter((b): b is HTMLButtonElement => b instanceof HTMLButtonElement),
   });
   Object.assign((globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia, { barra: { camara, menu: { abrir: () => document.getElementById("menu-abrir")?.click() } }, avatar: avatarUI });
@@ -1018,5 +1036,3 @@ montarPulsaciones({ ajuste: leerAjuste });
 const solReal = montarSolReal({ view, ajustes: (globalThis as unknown as { __numinia: { ajustes: Parameters<typeof montarSolReal>[0]["ajustes"] } }).__numinia.ajustes, decir: (t) => { const box = document.getElementById("avisos"); if (!box) return; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); } });
 Object.assign((globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia, { solReal });
 
-// battery mode: press B (or open ?bateria)
-addEventListener("keydown", (e) => { if (e.code === "KeyB" && !escribiendo(e)) { view.power.setBattery(!view.power.battery); view.applyPixelRatio(); } });

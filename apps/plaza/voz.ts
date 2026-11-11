@@ -5,6 +5,7 @@
 // 8 voices at once (the nearest); a voice from the stage (/escenario) reaches everyone and plays unpanned, like a PA.
 // Codec: Opus through WebCodecs where the browser has it (≈ 24 kbit/s); otherwise µ-law at 16 kHz (128 kbit/s), which
 // every browser can encode. A page that cannot decode Opus (no AudioDecoder) does not hear Opus speakers: it says so.
+import { teclas } from "./teclas.ts";
 import { VOZ_OPUS, VOZ_MULAW, aMulaw, deMulaw } from "../../packages/net/src/index.ts";
 import { decaerBoca } from "../../packages/render/src/avatares-politica.ts";
 import { audio } from "../../packages/render/src/audio/nucleo.ts"; // S1: the engine's one audio graph and its buses
@@ -33,6 +34,11 @@ const CSS = `
 #microfono[aria-pressed="true"] { background: #e05a4f; color: #fff; }
 #microfono:focus-visible { outline: 3px solid #ffd27a; }
 #microfono { position: relative; }
+#microfono-aviso { position: fixed; left: 50%; top: 8px; transform: translateX(-50%); z-index: 2147483000; display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 16px; background: rgba(120, 10, 10, .92); color: #fff; font: 600 13px/1.2 system-ui, sans-serif; pointer-events: none; box-shadow: 0 0 0 2px #fff; }
+#microfono-aviso[hidden] { display: none; }
+#microfono-aviso .punto { width: 12px; height: 12px; border-radius: 50%; background: #ff3b30; animation: mic-latido 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { #microfono-aviso .punto { animation: none; } }
+@keyframes mic-latido { 50% { opacity: .45; } }
 #microfono .nivel { position: absolute; left: 6px; bottom: 4px; display: block; width: 0; max-width: 32px; height: 3px; border-radius: 2px; background: #A6DAD5; }
 `;
 
@@ -49,10 +55,16 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
   const estilo = document.createElement("style"); estilo.textContent = CSS; document.head.appendChild(estilo);
   const boton = document.createElement("button");
   boton.type = "button"; boton.id = "microfono"; boton.className = "solo-icono"; boton.setAttribute("aria-pressed", "false");
-  boton.title = "Micrófono (Q): lo que dices lo oye la gente a menos de 30 m. No se graba.";
+  boton.title = "Microphone: what you say is heard by people within 30 m. It is not recorded.";
   const texto = document.createElement("span");
   const nivel = document.createElement("span"); nivel.className = "nivel"; nivel.setAttribute("aria-hidden", "true");
   boton.append(texto, nivel);
+  // keymap v1 (privacy): while the microphone is open a red icon and these words stay fixed on screen, whatever panel is open
+  const aviso = document.createElement("div"); aviso.id = "microfono-aviso"; aviso.setAttribute("role", "status"); aviso.hidden = true;
+  const punto = document.createElement("span"); punto.className = "punto"; punto.setAttribute("aria-hidden", "true");
+  const letrero = document.createElement("span"); letrero.textContent = "Your microphone is on";
+  aviso.append(punto, letrero); document.body.appendChild(aviso);
+  teclas.alCambiar(() => pintar());
   document.body.appendChild(boton);
   boton.addEventListener("pointerdown", (e) => e.stopPropagation()); // not a joystick touch
   const estado = { encendido: false, codec: 0, enviadas: 0, recibidas: 0, sinOpus: false, error: "" };
@@ -158,7 +170,9 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
   const pintar = () => {
     nucleo.despertar("microfono", estado.encendido); // v10: leaving the headset must not put the audio graph (and so the mic capture) to sleep
     boton.setAttribute("aria-pressed", String(estado.encendido));
-    const t = estado.encendido ? "Micrófono encendido: te oyen a menos de 30 m (Q apaga)" : "Micrófono apagado (Q enciende)";
+    const k = teclas.etiqueta("microfono"), mant = String(o.ajuste?.("controles.microfonoModo") ?? "mantener") !== "alternar";
+    const t = estado.encendido ? `Your microphone is on: people within 30 m hear you (${mant ? `release ${k}` : `${k}`} to turn it off)` : `Microphone off (${mant ? `hold ${k} to talk` : `${k} to open`})`;
+    aviso.hidden = !estado.encendido;
     texto.innerHTML = `${icono(estado.encendido ? "microphone" : "microphone-slash")}<span class="solo-lector">${t}</span>`; boton.title = t;
   };
   async function encender(): Promise<void> {
@@ -231,13 +245,27 @@ export function montarVoz(o: { session: Sesion; view: Vista; escribiendo(e: Keyb
       entraVR.pendiente = false;
       if (estado.encendido) return;
       const p = await permiso();
-      if (p === "granted") { await encender(); if (estado.encendido) vr.nota("Micrófono abierto: te oyen a menos de 30 m"); }
-      else vr.nota("Micrófono apagado: dale permiso en la página, fuera de VR");
+      // keymap v1 (privacy): entering the headset never opens the microphone; the wrist menu's «Micrófono» does, on purpose
+      vr.nota(p === "granted" ? "Microphone off: open it from the wrist menu" : "Microphone off: give the page permission outside VR, then open it from the wrist menu");
     } finally { entraVR.enCurso = false; }
   };
   setInterval(() => { void vigilarVR(); }, 500);
   boton.addEventListener("click", (e) => { alternar(); if (e.detail > 0) boton.blur(); });
-  addEventListener("keydown", (e) => { if (e.code === "KeyQ" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !o.escribiendo(e)) alternar(); });
+  // keymap v1: V (Yours or Default) is the microphone. By default it is push-to-talk: open only while the key is held.
+  // «Press to open and close» is the person's choice in Settings → Controls. Nothing here opens the microphone by itself.
+  let sujeta = false, abiertaPorTecla = false;
+  const modo = (): string => String(o.ajuste?.("controles.microfonoModo") ?? "mantener");
+  const soltarTecla = (): void => { sujeta = false; if (abiertaPorTecla && estado.encendido) apagar(); abiertaPorTecla = false; };
+  addEventListener("keydown", (e) => {
+    if (!teclas.es(e, "microfono") || e.ctrlKey || e.metaKey || e.altKey || o.escribiendo(e)) return;
+    if (e.repeat) return;
+    if (modo() === "alternar") { alternar(); return; }
+    sujeta = true;
+    if (!estado.encendido) { abiertaPorTecla = true; void encender().then(() => { if (!sujeta && abiertaPorTecla && estado.encendido) soltarTecla(); }); }
+  });
+  addEventListener("keyup", (e) => { if (teclas.es(e, "microfono") || e.code === (teclas.efectivas("microfono")[0] ?? "")) soltarTecla(); });
+  addEventListener("blur", soltarTecla); // the page lost the focus while the key was down: close it
+  document.addEventListener("visibilitychange", () => { if (document.hidden) soltarTecla(); });
   pintar();
   return {
     estado, alternar,

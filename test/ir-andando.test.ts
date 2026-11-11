@@ -100,5 +100,5 @@ test("the page wiring: the map's «Ir» exists, the stick is fed by it, the stic
   assert.match(mapa, /"Ir de golpe"/);
   assert.match(main, /e = yo \? andar\.ejes\(yo, manoEnMandos\(\)\) : null/);
   assert.match(main, /if \(andarCorrer\) b \|= BTN_RUN/);
-  assert.match(main, /keys\.has\("Space"\) \|\| saltoPendiente \|\| touch !== null/);
+  assert.match(main, /teclas\.sujeta\(keys, "saltar"\) \|\| saltoPendiente \|\| touch !== null/);
 });

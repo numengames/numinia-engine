@@ -72,7 +72,7 @@ async function pierna(engine) {
     paso("ficha oculta con el constructor cerrado", await a.evaluate(() => { const f = document.getElementById("ficha-objeto"); return !!f && f.hidden; }));
     // 1. build mode with the key C: the panel shows, the gizmo arrives (dynamic import)
     await a.mouse.move(400, 300);
-    await a.keyboard.press("KeyC");
+    await a.keyboard.press("KeyB");
     const abierto = await a.waitForFunction(() => !document.getElementById("panel-construir").hidden && globalThis.__numinia.view.editor.estado().cargado, null, { timeout: 10000 }).then(() => true, () => false);
     paso("abrir con C", abierto, { modo: await a.evaluate(() => globalThis.__numinia.constructor.estado.modo) });
     // ux2-dock: entering shows ONLY the dock (9 icons with tooltip + aria-label), no drawer, the environment inside its drawer
@@ -231,9 +231,9 @@ async function pierna(engine) {
     paso("deshacer y rehacer llegan a B", u1 && u2 && r1 && r2, { deshacerGiro: u1, deshacerMover: u2, rehacerMover: r1, rehacerGiro: r2 });
     if (process.env.SHOTS === "1") await a.screenshot({ path: `e2e-constructor-${engine}.png` });
     // C3: closing the builder hides the card even with the selection kept; opening it brings it back
-    await a.keyboard.press("KeyC");
+    await a.keyboard.press("KeyB");
     const cerrada = await a.waitForFunction(() => document.getElementById("panel-construir").hidden && document.getElementById("ficha-objeto").hidden, null, { timeout: 3000 }).then(() => true, () => false);
-    await a.keyboard.press("KeyC");
+    await a.keyboard.press("KeyB");
     const vuelve = await a.waitForFunction(() => !document.getElementById("ficha-objeto").hidden, null, { timeout: 3000 }).then(() => true, () => false);
     paso("la tarjeta se oculta al cerrar el constructor y vuelve al abrirlo", cerrada && vuelve, { cerrada, vuelve });
     // C3: «Ir» in the map (the hook main.ts wires): builder open → that object is selected and its card opens by itself;
@@ -241,12 +241,12 @@ async function pierna(engine) {
     await a.keyboard.press("Escape");
     const alIrAbierto = await a.evaluate((k) => { const n = globalThis.__numinia; return n.constructorUI.alIr({ id: k }); }, id);
     const fichaIr = await a.waitForFunction((k) => globalThis.__numinia.constructor.estado.seleccionado === k && !document.getElementById("ficha-objeto").hidden, id, { timeout: 3000 }).then(() => true, () => false);
-    await a.keyboard.press("KeyC"); // close; the selection stays but the builder is shut
-    await a.keyboard.press("KeyC"); await a.keyboard.press("Escape"); await a.keyboard.press("KeyC");
+    await a.keyboard.press("KeyB"); // close; the selection stays but the builder is shut
+    await a.keyboard.press("KeyB"); await a.keyboard.press("Escape"); await a.keyboard.press("KeyB");
     const alIrCerrado = await a.evaluate((k) => globalThis.__numinia.constructorUI.alIr({ id: k }), id);
     const sinFicha = await a.evaluate(() => document.getElementById("ficha-objeto").hidden);
     paso("«Ir» abre la ficha solo con el constructor abierto", alIrAbierto && fichaIr && !alIrCerrado && sinFicha, { alIrAbierto, fichaIr, alIrCerrado, sinFicha });
-    await a.keyboard.press("KeyC");
+    await a.keyboard.press("KeyB");
     await a.waitForFunction(() => !document.getElementById("panel-construir").hidden, null, { timeout: 3000 });
     // the card's «Tamaño» field: one number for the three scales, applied on the server (B sees it)
     await a.evaluate((k) => globalThis.__numinia.constructor.seleccionar(k), id);
@@ -266,7 +266,7 @@ async function pierna(engine) {
       c.on("pageerror", (e) => errors.push(String(e)));
       await c.goto(process.env.BASE_SIN + (process.env.BASE_SIN.includes("?") ? "&" : "?") + "pulso=2000");
       await c.waitForFunction(() => globalThis.__numinia?.probe.done && globalThis.__numinia.session.entity >= 0, null, { timeout: 30000 });
-      await c.mouse.move(400, 300); await c.keyboard.press("KeyC"); await c.waitForTimeout(800);
+      await c.mouse.move(400, 300); await c.keyboard.press("KeyB"); await c.waitForTimeout(800);
       const sin = await c.evaluate(() => ({ puede: globalThis.__numinia.constructor.estado.puede, panel: document.getElementById("panel-construir").hidden, ficha: document.getElementById("ficha-objeto").hidden }));
       paso("mundo sin permiso de construir: sin ficha", !sin.puede && sin.panel && sin.ficha, sin);
       await c.close();

@@ -103,7 +103,7 @@ async function pasada(engine) {
     const sinVolver = await espera(a, () => !globalThis.__numinia.mapa.puedeVolver(), null, 3000);
     ok("irYvolver", sinOrigen === false && conOrigen && sinVolver, { sinOrigen, conOrigen, sinVolver });
     // 6) I opens «Tú» (the map closes) with your name and no device numbers (they live in Ajustes › Gráficos); Escape closes it
-    await a.keyboard.press("KeyI");
+    await a.keyboard.press("KeyC");
     const fichaAbierta = await espera(a, () => document.getElementById("ficha")?.open === true && document.getElementById("mapa-grande")?.open === false, null, 3000);
     const nombre = await a.evaluate(() => globalThis.__numinia.session.who?.nombre ?? "");
     const textoFicha = await a.evaluate(() => globalThis.__numinia.ficha.texto());

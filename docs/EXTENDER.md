@@ -133,3 +133,4 @@ PR que añaden piezas no chocan).
 - [Franjas (v1, Y37): the band of the day, a hook for other features](extender/franjas.md)
 - [Derribado (v1): falling is not dying](extender/derribado.md)
 - [Idiomas del mundo (R-1, primer trozo): inglés por defecto, traducciones como ficheros](extender/idiomas-del-mundo.md)
+- [Keymap v1 (teclas.ts): one key, one function; Default / Yours; the microphone on V](extender/teclas.md)

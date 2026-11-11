@@ -11,6 +11,7 @@
 // and every step done plays a short positive sound.
 // U14 (5): a step that still waits shows locked with its countdown («· en 7 s», in the book and the top line), and a
 // sequence the server sent you (features/misiones/secuencia.ts) has its lines read aloud and its house sounds played.
+import { teclas } from "./teclas.ts";
 import { escribiendo } from "./interactuar.ts";
 import { icono } from "./iconos.ts";
 import { anunciar } from "./paneles.ts";
@@ -314,7 +315,7 @@ export function montarLibro(c: Ctl, o: {
   cerrar.addEventListener("click", () => abrir(false));
   for (const x of [o.boton, o.panel]) x.addEventListener("pointerdown", (ev) => ev.stopPropagation()); // not a joystick touch
   addEventListener("keydown", (e) => {
-    if (e.code !== "KeyJ" || e.repeat || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e)) return;
+    if (!teclas.es(e, "misiones") || e.repeat || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e)) return;
     abrir(o.panel.hidden);
   });
 

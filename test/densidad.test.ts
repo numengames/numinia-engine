@@ -1,5 +1,6 @@
 // U20: the density dial — the table of panels, the levels, the key's cycle, the setting in the N2 registry, and that the page's
 // CSS and markup say what the table says. Pure and fast; the browser look is in the screenshots of the story (work/ux/b5-u20).
+import { ACCIONES } from "../apps/plaza/teclas.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -78,7 +79,8 @@ test("the page says what the table says: CSS rules by attribute, the panels exis
   const css = leer("apps/plaza/tema.css"), html = leer("apps/plaza/index.html"), ts = leer("apps/plaza/densidad.ts");
   assert.ok(css.includes('html[data-densidad-nivel="minimo"] [data-densidad="normal"]') && css.includes('html[data-densidad-nivel="normal"] [data-densidad="completo"]'), "generic hiding by attribute");
   assert.ok(css.includes(".menos-movimiento") && css.includes("#chat-lista[data-cuando=\"al_cambiar\"]"), "the fade yields to «menos movimiento»");
-  assert.ok(ts.includes('"KeyU"') && ts.includes("marcarPaneles"));
+  assert.ok(ts.includes('"densidad"') && ts.includes("marcarPaneles"));
+  assert.deepEqual(ACCIONES.find((a) => a.id === "densidad")!.defecto, ["KeyU"]); // keymap v1: the key lives in the one table
   for (const m of MARCOS_PLAZA) {
     if (m.selector === "#reloj" || m.selector === "#minimapa") continue; // built by code, or not built yet
     if (m.selector.startsWith("#")) assert.ok(html.includes(`id="${m.selector.slice(1)}"`), `${m.selector} is in index.html`);
