@@ -8,8 +8,8 @@ import { crearSueloTerreno } from "./suelo-terreno.ts";
 import type { ConstruirMallaCliente } from "./malla-glb.ts"; // type only: the .glb reader (and its decoder) is the PAGE's chunk, never the AI bridge's
 import type { Bvh } from "../../sim/src/index.ts";
 import type { Body, SimState } from "../../sim/src/index.ts";
-import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeLatido, encodeReport, encodeIdentityRequest, encodePase, decodeIdentity, decodeCondiciones, decodeLeyendo, encodePedirCondiciones, encodeAceptar, seqNewer, codificarVozSubida, leerVozBajada } from "../../net/src/index.ts";
-import type { CondicionesMensaje, Transport, Welcome } from "../../net/src/index.ts";
+import { MSG, decodeSnapshot, decodeWelcome, decodeTime, encodeInput, encodePing, encodeLatido, encodeReport, encodeIdentityRequest, encodePase, decodeIdentity, decodeCondiciones, decodeLeyendo, encodePedirCondiciones, encodeAceptar, seqNewer, codificarVozSubida, leerVozBajada, leerPantallaEstado, leerPantallaTramaBajada, leerPantallaPideClave, codificarPantallaEmpezar, codificarPantallaParar, trocearPantalla } from "../../net/src/index.ts";
+import type { CondicionesMensaje, PantallaEstado, PantallaTrama, Transport, Welcome } from "../../net/src/index.ts";
 import { ClientRuntime } from "../../feature/src/index.ts";
 import type { ClientPart, ViewHooks } from "../../feature/src/index.ts";
 
@@ -204,9 +204,44 @@ export class ClientSession {
     return true;
   }
 
+  // ---- M18 trozo 3: a shared screen on the world's video screens (net/pantalla.ts). The page's lazy chunk (apps/plaza/pantalla-red.ts) listens. ----
+  /** The state of a share within reach (live, ended, refused). Yours too: the answer to `pantallaEmpezar`. */
+  onPantallaEstado: ((e: PantallaEstado) => void) | null = null;
+  /** A piece of a frame of the share you are watching. */
+  onPantallaTrama: ((t: PantallaTrama & { id: number }) => void) | null = null;
+  /** The server asks YOUR page (the sharer) for a key frame now. */
+  onPantallaClave: ((id: number) => void) | null = null;
+  /** Ask to show your screen on the video screen `key` (the server answers with a state: live, or why not). */
+  pantallaEmpezar(key: string, codec: number, ancho: number, alto: number): boolean {
+    const b = this.entity < 0 ? null : codificarPantallaEmpezar({ codec, ancho, alto, key });
+    if (!b) return false;
+    this.t.send(b, true); return true;
+  }
+  /** Stop your share (no key), or — with the right to — the one on `key`. */
+  pantallaParar(key = ""): boolean {
+    const b = this.entity < 0 ? null : codificarPantallaParar(key);
+    if (!b) return false;
+    this.t.send(b, true); return true;
+  }
+  /** Send one encoded frame, cut into pieces (in order). False when it cannot go (not joined, empty, too big). */
+  pantallaTrama(seq: number, clave: boolean, ts: number, frame: Uint8Array): boolean {
+    const piezas = this.entity < 0 ? null : trocearPantalla(seq & 0xffff, clave, ts, frame);
+    if (!piezas) return false;
+    for (const p of piezas) this.t.send(p, false);
+    return true;
+  }
+  /** Bytes waiting to leave this page (0 when the transport cannot say): the sharer drops frames instead of growing a queue. */
+  enviadoPendiente(): number { return this.t.buffered?.() ?? 0; }
+
   handle(bytes: Uint8Array, now: number): void {
     const type = bytes[0];
     if (type === MSG.VOICE) { const v = leerVozBajada(bytes); if (v) this.onVoice?.(v); return; }
+    if (type === MSG.PANTALLA) {
+      if (bytes[1] === 5) { const t = leerPantallaTramaBajada(bytes); if (t) this.onPantallaTrama?.(t); }
+      else if (bytes[1] === 4) { const e = leerPantallaEstado(bytes); if (e) this.onPantallaEstado?.(e); }
+      else if (bytes[1] === 6) { const id = leerPantallaPideClave(bytes); if (id !== null) this.onPantallaClave?.(id); }
+      return;
+    }
     if (type === MSG.LEYENDO) { // c5
       for (const l of decodeLeyendo(bytes) ?? []) {
         if (l.entidad === this.entity) continue; // the bubble of your own gate is the page's panel, not a sphere over you
