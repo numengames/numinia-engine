@@ -31,6 +31,9 @@ export function createMarcaMirada(o: { world: THREE.Object3D; camera: THREE.Came
       const q = malla.position;
       const s = p.suelo === true;
       if (malla.visible && q.x === p.x && q.y === p.y && q.z === p.z && malla.scale.x === p.r && suelo === s) return;
+      // QA Simposio 2026-11-11: a person's ring lies on the floor and is depth-tested, so the player's own body in front hides it
+      // (with depthTest off it was painted over the player standing between the camera and the person). A thing's ring still shows through.
+      if (suelo !== s || !malla.visible) { const m = malla.material as THREE.MeshBasicMaterial; if (m.depthTest !== s) { m.depthTest = s; m.needsUpdate = true; } }
       q.set(p.x, p.y, p.z); malla.scale.setScalar(p.r); suelo = s; malla.visible = true; pendiente = true;
     },
     /** Once per frame: turn the ring to face the camera (or lay it flat). Nothing to do while nothing is marked. */
