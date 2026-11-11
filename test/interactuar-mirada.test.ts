@@ -276,3 +276,24 @@ test("P15 marca-mirada: a ring for a person lies flat on the floor (face up) wha
   M.poner({ x: 1, y: 0.03, z: 2, r: 0.4 }); assert.equal(M.busy(), true, "same place but now facing the camera: it changed"); M.update();
   assert.ok(malla.quaternion.equals(camera.quaternion)); assert.equal(M.estado().suelo, false); assert.equal(world.children.length, 1);
 });
+
+// QA Simposio 2026-11-11: with depthTest off the person's ring was painted over the player's own body standing between the camera and
+// the person; lying on the floor it is depth-tested (the body hides it), while a thing's ring, which faces the camera, still shows through.
+test("P15 marca-mirada: a person's ring is depth-tested, a thing's is not, through every change of kind and through hide/show", () => {
+  const world = new THREE.Group(), camera = new THREE.PerspectiveCamera();
+  const M = createMarcaMirada({ world, camera });
+  const prueba = () => ((world.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).depthTest;
+  M.poner({ x: 0, y: 0, z: 0, r: 0.2 });
+  assert.equal(prueba(), false, "a thing's ring shows through whatever stands in front");
+  M.poner({ x: 1, y: 0.03, z: 2, r: 0.4, suelo: true });
+  assert.equal(prueba(), true, "a person's ring lies on the floor and the body in front hides it");
+  M.poner({ x: 2, y: 0.03, z: 2, r: 0.4, suelo: true });
+  assert.equal(prueba(), true, "moving to another person keeps it");
+  M.poner({ x: 0, y: 0, z: 0, r: 0.2 });
+  assert.equal(prueba(), false, "back to a thing");
+  M.poner(null); M.poner({ x: 1, y: 0.03, z: 2, r: 0.4, suelo: true });
+  assert.equal(prueba(), true, "hidden and shown again for a person");
+  M.poner(null); M.poner({ x: 0, y: 0, z: 0, r: 0.2 });
+  assert.equal(prueba(), false, "hidden and shown again for a thing");
+  assert.equal(world.children.length, 1, "still one mesh and one material");
+});
