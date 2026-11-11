@@ -96,7 +96,7 @@ try {
   ok("fuera", (await a.evaluate(() => globalThis.__numinia.gente.tarjetaAbierta())) === null, {});
 
   // ---- C as a friend, then C leaves ----
-  await a.keyboard.press("KeyL");
+  await a.keyboard.press("Tab");
   await a.waitForFunction(() => document.getElementById("gente")?.open, null, { timeout: 4000 });
   await a.click("#gente-tab-aqui");
   await a.waitForSelector(`#gente [data-quien="${C}"] .gente-fila`, { timeout: 8000 });

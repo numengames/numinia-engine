@@ -2,6 +2,7 @@
 // manage-rituals), the narrator's line every player sees, and the summons card («Ir / Ahora no»). It only asks the
 // features (features/director, features/entorno): the server decides. In VR the HTML panel is not drawn: whoever
 // directs from a headset uses the chat orders (/escenas, /escena, /narrar, /convocar) until the wrist menu (corte 4).
+import { teclas } from "./teclas.ts";
 import type { Cambio, Convocatoria } from "../../features/director/client.ts";
 import { anunciar, escribiendo } from "./paneles.ts";
 import { icono } from "./iconos.ts";
@@ -112,7 +113,7 @@ export function montarDirector(o: { dj: Director; ambiente: Ambiente; view: Vist
   boton.addEventListener("click", () => (panel.hidden ? abrir() : cerrar()));
   cerrarB.addEventListener("click", cerrar);
   panel.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); cerrar(); } });
-  addEventListener("keydown", (e) => { if (e.code === "KeyK" && !escribiendo(e) && dj.estado.puede) { e.preventDefault(); if (panel.hidden) abrir(); else cerrar(); } });
+  addEventListener("keydown", (e) => { if (teclas.es(e, "director") && !escribiendo(e) && dj.estado.puede) { e.preventDefault(); if (panel.hidden) abrir(); else cerrar(); } });
 
   const decirFallo = (r: { ok: boolean; why?: string }) => { if (!r.ok) anunciar(r.why ?? "No se pudo."); };
   const pintarEscenas = () => {

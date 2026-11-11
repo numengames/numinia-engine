@@ -8,11 +8,12 @@
 // button, K and the watch's «Grabar» only to whoever carries that relic (`permiso`, the inventory's `grabosoLibre`); a world
 // that does not define it keeps the Graboso for everyone, as before. «Invocar» in the panel L is still to do.
 // Design: ../../../mmo-browser-study/GRABOSO-DISENO.md.
+import { teclas } from "./teclas.ts";
 import { icono } from "./iconos.ts";
 import { crearGraboso, elegirFormato, TOPE_S, type Clip, type Estado, type Grabador } from "../../packages/client/src/graboso.ts";
 import { escribiendo } from "./escribiendo.ts";
 
-const TECLA = "KeyK";
+// keymap v1: K is the Director's; recording has no key until the person picks one (Settings → Controls)
 export type OpcionesGraboso = {
   lienzo: HTMLCanvasElement;                                   // the engine's canvas (view.renderer.domElement)
   view: { graboso: { mostrar(si: boolean): void; grabando(si: boolean): void } }; // the head over your shoulder
@@ -147,15 +148,13 @@ export function montarGraboso(o: OpcionesGraboso) {
   ver.addEventListener("click", () => { const abierto = video.hidden; if (abierto && url) { video.src = url; video.hidden = false; void video.play().catch(() => {}); } else { video.pause(); video.hidden = true; } ver.setAttribute("aria-pressed", String(abierto)); });
   quitar.addEventListener("click", () => { soltarUrl(); clipPreparado = null; gr.quitarClip(); o.decir("Clip descartado."); });
   boton.addEventListener("click", () => { if (libre() || gr.estado.fase !== "guardado") void gr.alternar(); });
-  addEventListener("keydown", (e) => { if (e.code === TECLA && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !escribiendo(e)) { if (!libre() && gr.estado.fase === "guardado") return; e.preventDefault(); void gr.alternar(); } });
-  // without the relic: no button (the bar's «Cámara» menu hides the entry by itself), no K in the help line, and a recording
+  addEventListener("keydown", (e) => { if (teclas.es(e, "grabar") && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !escribiendo(e)) { if (!libre() && gr.estado.fase === "guardado") return; e.preventDefault(); void gr.alternar(); } });
+  // without the relic: no button (the bar's «Cámara» menu hides the entry by itself) and a recording
   // in progress is kept first (never lose a clip because the relic went back to the Reserva)
-  const ayuda = document.getElementById("help"), AYUDA_K = " · K: grabar";
   const pintarPermiso = () => {
     const si = libre();
     if (!si && gr.estado.fase === "grabando") void gr.alternar();
     boton.hidden = !si && gr.estado.fase === "guardado";
-    if (ayuda) { const tiene = ayuda.textContent?.includes(AYUDA_K); if (!si && tiene) ayuda.textContent = ayuda.textContent!.replace(AYUDA_K, ""); else if (si && !tiene && !ayuda.textContent?.includes("K: grabar")) ayuda.textContent += AYUDA_K; }
   };
   const sinOirPermiso = o.permiso?.alCambiar(pintarPermiso);
   // the counter and the hard cap, once per second

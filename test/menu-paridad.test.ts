@@ -27,10 +27,10 @@ test("the list is well formed: unique ids and order, both languages, a real icon
     assert.ok(s.es && s.en, `${s.id}: needs es and en`);
     assert.ok(pathsIcono(s.icono).length > 0, `${s.id}: the icon «${s.icono}» is not in apps/plaza/iconos.ts`);
     assert.ok(s.botones.length > 0 && s.aparatos.length > 0, `${s.id}: a button and a device`);
-    if (s.tecla) assert.match(s.tecla, /^([A-Z]|F\d+)$/, `${s.id}: key`);
+    if (s.tecla) assert.match(s.tecla, /^([A-Z]|F\d+|Tab)$/, `${s.id}: key`);
   }
   assert.equal(nombreDe("gente"), "Gente"); assert.equal(nombreDe("gente", "en"), "People");
-  assert.equal(tituloDe("gente"), "Gente (L)"); assert.equal(tituloDe("ar"), "Entrar en AR");
+  assert.equal(tituloDe("gente"), "Gente (Tab)"); assert.equal(tituloDe("ar"), "Entrar en AR");
   assert.equal(iconoDe("bolsa"), "package");
   assert.throws(() => seccion("nope"));
 });

@@ -65,7 +65,7 @@ try {
   };
   const abrirPanel = async (p, movil) => {
     if (movil) { await p.evaluate(() => document.querySelector("#construir")?.click()); await sleep(400); await p.locator("#dock-cable").tap().catch(async () => { await p.locator("#dock-cable").click(); }); }
-    else { await p.keyboard.press("KeyC"); await p.locator("#dock-cable").click(); }
+    else { await p.keyboard.press("KeyB"); await p.locator("#dock-cable").click(); }
     await sleep(600);
   };
   const foto = async (p, nombre) => { if (SHOTS) { mkdirSync(SHOTS, { recursive: true }); await p.screenshot({ path: join(SHOTS, nombre) }); } };

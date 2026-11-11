@@ -118,7 +118,7 @@ try {
   // 4b) historia C (cable sin JSON): drive the REAL dropdowns — change what «rojo» shows (Farola → Lampara, a second
   // object that exists in the world), wait to 5 s and make it one-use, save, and read the server's state back on A and B.
   // Then a server refusal (an empty link) must show in Spanish next to the control, and the state must stay as it was.
-  await a.keyboard.press("KeyC");
+  await a.keyboard.press("KeyB");
   await a.locator("#dock-cable").click();
   const lirojo = a.locator("#cable-lista li", { hasText: "Botón rojo" });
   const opciones = await lirojo.locator('select[aria-label="Objeto de la acción 1"] option').evaluateAll((os) => os.map((o) => o.value));
@@ -150,11 +150,11 @@ try {
   await lirojo.locator('select[aria-label="Objeto de la acción 1"]').selectOption("Farola");
   await lirojo.locator(".cable-guardar-frase").click();
   await a.waitForFunction(() => globalThis.__numinia.disparadores.lista().find((x) => x.id === "rojo")?.receptores[0]?.objeto === "Farola", null, { timeout: 5000 });
-  await a.keyboard.press("KeyC");
+  await a.keyboard.press("KeyB");
 
   // 5) historia A (cable sin JSON): «+ Nuevo cable» creates a cable live (B sees it without touching anything), and
   // «Borrar» asks first, then removes it for both. Builder mode on + the Cable drawer open, as a person would.
-  await a.keyboard.press("KeyC");
+  await a.keyboard.press("KeyB");
   await a.locator("#dock-cable").click();
   const ids = (p) => p.evaluate(() => globalThis.__numinia.disparadores.lista().map((d) => d.id).sort().join());
   await a.locator("#cable-nuevo").click();
