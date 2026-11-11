@@ -265,7 +265,7 @@ export function montarConstructor(c: Builder, view: Vista, boton: HTMLButtonElem
   const dDeshacer = botonDock(ACCIONES_DOCK.deshacer[0], ACCIONES_DOCK.deshacer[1], () => c.deshacer()); dDeshacer.id = "dock-deshacer";
   const dRehacer = botonDock(ACCIONES_DOCK.rehacer[0], ACCIONES_DOCK.rehacer[1], () => c.rehacer()); dRehacer.id = "dock-rehacer";
   const dSalir = botonDock(ACCIONES_DOCK.salir[0], ACCIONES_DOCK.salir[1], () => abrir(false)); dSalir.id = "dock-salir";
-  const rotularSalir = (): void => { const k = teclas.etiqueta("construir"), t = k ? `${ACCIONES_DOCK.salir[1]} (${k})` : ACCIONES_DOCK.salir[1]; dSalir.title = t; dSalir.dataset.tip = t; dSalir.setAttribute("aria-label", t); dSalir.setAttribute("aria-keyshortcuts", k); };
+  const rotularSalir = (): void => { const base = ACCIONES_DOCK.salir[1].replace(/ \(.+\)$/, ""), k = teclas.etiqueta("construir"), t = k ? `${base} (${k})` : base; dSalir.title = t; dSalir.dataset.tip = t; dSalir.setAttribute("aria-label", t); dSalir.setAttribute("aria-keyshortcuts", k); };
   rotularSalir(); teclas.alCambiar(rotularSalir); // keymap v1: the key in effect (B by default), never a fixed letter
   dock.append(...CAJONES.map(([id]) => botonesCajon[id]), sepDock(), dDeshacer, dRehacer, sepDock(), dSalir);
 

@@ -21,7 +21,7 @@ export const CAJONES: readonly (readonly [Cajon, string, string, string])[] = [
 export const ACCIONES_DOCK = {
   deshacer: ["arrow-counter-clockwise", "Deshacer (Ctrl+Z)"],
   rehacer: ["arrow-clockwise", "Rehacer (Ctrl+Y o Ctrl+Mayús+Z)"],
-  salir: ["sign-out", "Salir de construir"], // constructor.ts adds the key in effect (keymap v1: B)
+  salir: ["sign-out", "Salir de construir (B)"], // the Default (keymap v1); constructor.ts puts the key in effect
 } as const;
 
 /** Pressing a drawer's button: opens it, or closes it when it was the open one (one drawer at a time). */
