@@ -19,6 +19,16 @@ export const en: Catalogo = {
   "idioma.en": "English",
   "idioma.es": "Spanish",
   "idioma.cambiado": "Language changed to {idioma}.",
+  "menu.juego": "Game",
+  "menu.interfaz": "Interface",
+  "menu.controles": "Controls",
+  "menu.graficos": "Graphics",
+  "menu.sonido": "Sound and voice",
+  "menu.accesibilidad": "Accessibility",
+  "menu.cuenta": "Account and privacy",
+  "menu.restablecerPagina": "Reset this page",
+  "menu.restablecerSeccion": "Reset this section",
+  "menu.paginaRestablecida": "Page reset: {pagina}.",
 };
 
 /** Spanish: may lack keys; those read the English text. */
@@ -28,6 +38,16 @@ export const es: Catalogo = {
   "idioma.en": "Inglés",
   "idioma.es": "Español",
   "idioma.cambiado": "Idioma cambiado a {idioma}.",
+  "menu.juego": "Juego",
+  "menu.interfaz": "Interfaz",
+  "menu.controles": "Controles",
+  "menu.graficos": "Gráficos",
+  "menu.sonido": "Sonido y voz",
+  "menu.accesibilidad": "Accesibilidad",
+  "menu.cuenta": "Cuenta y privacidad",
+  "menu.restablecerPagina": "Restablecer esta página",
+  "menu.restablecerSeccion": "Restablecer esta sección",
+  "menu.paginaRestablecida": "Página restablecida: {pagina}.",
 };
 
 export const CATALOGOS: Readonly<Record<Idioma, Catalogo>> = { en, es };

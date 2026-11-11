@@ -163,10 +163,8 @@ test("check: a page text without data-es (or empty, or not reading English) is r
   assert.deepEqual(faltasDePagina(`<p id="b" aria-label="Hola" data-en-aria-label="Hi" data-es-aria-label="Hola"></p>`), ["#b aria-label: the markup does not read the English (data-en-aria-label)"]);
 });
 
-// ---- known gap, reported not hidden: the window's own fixed texts (tabs, buttons, announcements) are still Spanish-only ----
-// `todo` keeps the suite green while it shows the gap in every run; remove the option when apps/plaza/menu-ajustes-ui.ts writes
-// its texts through t() (i18n 5/5, owner of that file).
-test("apps/plaza/menu-ajustes-ui.ts: the window's fixed texts (tabs, buttons) have no Spanish-only literals", { todo: "menu-ajustes-ui.ts still writes its tabs and buttons in Spanish only (needs t())" }, () => {
+// ---- the window's own fixed texts (tabs, buttons, announcements) go through t() ----
+test("apps/plaza/menu-ajustes-ui.ts: the window's fixed texts (tabs, buttons) have no Spanish-only literals", () => {
   const ui = readFileSync(new URL("../apps/plaza/menu-ajustes-ui.ts", import.meta.url), "utf8");
   const solo = [...ui.split("\n").entries()]
     .filter(([, l]) => !l.trimStart().startsWith("//"))

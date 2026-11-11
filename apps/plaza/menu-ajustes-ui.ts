@@ -6,6 +6,7 @@ import type { Ajustes, Grupo, Valor, Vista } from "../../packages/client/src/aju
 import type { ClientSession } from "../../packages/client/src/index.ts";
 import type { createView } from "../../packages/render/src/index.ts";
 import { icono } from "./iconos.ts";
+import { t } from "../../packages/client/src/idioma.ts";
 import { filasAparato, filasIdentidad, infoDom } from "./info-aparato.ts";
 import { escribiendo } from "./escribiendo.ts";
 import type { montarEdicion } from "./edicion.ts";
@@ -102,10 +103,10 @@ export function montarMenuAjustes(c: ContextoMenu): MenuAjustes {
   }
   // ---- the window: categories on the left, a search, «Restablecer esta página» (MMO interface, M2) ----
   const CATEGORIAS: Array<{ id: string; nombre: string; icono: string }> = [
-    { id: "juego", nombre: "Juego", icono: "game-controller" }, { id: "interfaz", nombre: "Interfaz", icono: "desktop" },
-    { id: "controles", nombre: "Controles", icono: "hand-grabbing" }, { id: "graficos", nombre: "Gráficos", icono: "image-square" },
-    { id: "sonido", nombre: "Sonido y voz", icono: "music-notes" }, { id: "accesibilidad", nombre: "Accesibilidad", icono: "eye" },
-    { id: "cuenta", nombre: "Cuenta y privacidad", icono: "user" },
+    { id: "juego", get nombre() { return t("menu.juego"); }, icono: "game-controller" }, { id: "interfaz", get nombre() { return t("menu.interfaz"); }, icono: "desktop" },
+    { id: "controles", get nombre() { return t("menu.controles"); }, icono: "hand-grabbing" }, { id: "graficos", get nombre() { return t("menu.graficos"); }, icono: "image-square" },
+    { id: "sonido", get nombre() { return t("menu.sonido"); }, icono: "music-notes" }, { id: "accesibilidad", get nombre() { return t("menu.accesibilidad"); }, icono: "eye" },
+    { id: "cuenta", get nombre() { return t("menu.cuenta"); }, icono: "user" },
   ];
   /** Which category a registry group lives in: the engine's groups by id; features' and worlds' groups are «Juego». */
   const categoriaDe = (grupo: string): string => ({ graficos: "graficos", aparato: "graficos", sonido: "sonido", controles: "controles", accesibilidad: "accesibilidad", interfaz: "interfaz", privacidad: "cuenta", identidad: "cuenta" } as Record<string, string>)[grupo] ?? "juego";
@@ -129,7 +130,7 @@ export function montarMenuAjustes(c: ContextoMenu): MenuAjustes {
   const buscar = document.createElement("input"); buscar.type = "search"; buscar.id = "ajustes-buscar"; buscar.placeholder = "Buscar un ajuste";
   const etqBuscar = document.createElement("label"); etqBuscar.htmlFor = "ajustes-buscar"; etqBuscar.className = "solo-lector"; etqBuscar.textContent = "Buscar un ajuste";
   const cab = dlg.querySelector(".cabecera"); cab?.insertBefore(etqBuscar, cab.lastElementChild); cab?.insertBefore(buscar, cab.lastElementChild);
-  const pagina = document.createElement("button"); pagina.type = "button"; pagina.id = "ajustes-restablecer-pagina"; pagina.textContent = "Restablecer esta página";
+  const pagina = document.createElement("button"); pagina.type = "button"; pagina.id = "ajustes-restablecer-pagina"; pagina.textContent = t("menu.restablecerPagina");
   $("ajustes-restablecer")?.before(pagina);
   function mostrar(): void {
     const q = busqueda.trim().toLowerCase(), buscando = q !== "";
@@ -161,7 +162,7 @@ export function montarMenuAjustes(c: ContextoMenu): MenuAjustes {
     }
     if (modo === "pestanas") lista.setAttribute("aria-labelledby", sel ? `ajustes-tab-${sel}` : "ajustes-titulo");
     pagina.hidden = !buscando && !categoria; // a folded accordion has no «page» to reset
-    pagina.textContent = modo === "acordeon" ? "Restablecer esta sección" : "Restablecer esta página";
+    pagina.textContent = modo === "acordeon" ? t("menu.restablecerSeccion") : t("menu.restablecerPagina");
     if (!lista.querySelector("fieldset:not([hidden])") && (buscando || modo === "pestanas")) { const v = lista.querySelector(".vacio") ?? Object.assign(document.createElement("p"), { className: "vacio" }); v.textContent = q ? "Ningún ajuste coincide." : "Esta categoría no tiene ajustes."; lista.append(v); } else lista.querySelector(".vacio")?.remove();
     const editar = lista.querySelector<HTMLElement>("#ajustes-editar-interfaz"); if (editar) editar.hidden = !!q || categoria !== "interfaz" || !edicion.disponible;
   }
@@ -219,7 +220,7 @@ export function montarMenuAjustes(c: ContextoMenu): MenuAjustes {
   buscar.addEventListener("input", () => { busqueda = buscar.value; mostrar(); });
   pagina.addEventListener("click", () => {
     for (const x of a.lista()) if (categoriaDe(x.grupo) === categoria) a.restablecer(x.id);
-    anunciar(`Página restablecida: ${CATEGORIAS.find((c) => c.id === categoria)?.nombre}.`);
+    anunciar(t("menu.paginaRestablecida", { pagina: CATEGORIAS.find((c) => c.id === categoria)?.nombre ?? "" }));
   });
   construir();
   // any change (the menu, an agent, the B key, a preset, a capability that arrived) updates the controls in place
