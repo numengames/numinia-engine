@@ -3,14 +3,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three";
-import { createSim, spawnAvatar, step, setMovimiento, getBody, BTN_RUN, TICK_HZ, replayFingerprint, referenceRecording, REFERENCE } from "../packages/sim/src/index.ts";
-import { fxToFloat } from "../packages/core/src/index.ts";
+import { createSim, spawnAvatar, step, setMovimiento, getBody, BODY_RADIUS, BTN_RUN, TICK_HZ, replayFingerprint, referenceRecording, REFERENCE } from "../packages/sim/src/index.ts";
+import { fx, fxToFloat } from "../packages/core/src/index.ts";
 import { Instance } from "../packages/instance/src/index.ts";
 import { ClientSession } from "../packages/client/src/index.ts";
 import { createCamara } from "../packages/render/src/camara.ts";
 import { CAMARA } from "../packages/render/src/camara-orbita.ts";
 import type { ClientPart, Msg } from "../packages/feature/src/index.ts";
-import { ZONA } from "../features/entorno/feature.ts";
+import { ZONA, MOV_ANDAR_MAX, MOV_CORRER_MAX } from "../features/entorno/feature.ts";
 import { validarEntorno, aFichero, leerMovimiento, ESQUEMA } from "../features/entorno/esquema.ts";
 import { crearEntorno } from "../features/entorno/server.ts";
 import { crearCliente } from "../features/entorno/client.ts";
@@ -32,6 +32,8 @@ test("movimiento format: good values pass and ride the flat state; bad ones say 
   for (const [json, path] of [
     [{ movimiento: { andar: 0 } }, "entorno.movimiento.andar"],
     [{ movimiento: { andar: 11 } }, "entorno.movimiento.andar"],
+    [{ movimiento: { andar: 6.5 } }, "entorno.movimiento.andar"],
+    [{ movimiento: { correr: 7 } }, "entorno.movimiento.correr"],
     [{ movimiento: { andar: "3" } }, "entorno.movimiento.andar"],
     [{ movimiento: { correr: 21 } }, "entorno.movimiento.correr"],
     [{ movimiento: { correr: NaN } }, "entorno.movimiento.correr"],
@@ -95,22 +97,67 @@ test("sim: the pace is not part of the fingerprint — an untouched state replay
 
 // ---- the page and the server agree -------------------------------------------------------------------------------------------------
 
-test("prediction: the page, given the world's pace by the environment state, ends where the server's sim does (no correction)", () => {
-  const json = { schema: ESQUEMA, movimiento: TARUGO };
-  const inst = new Instance({ seed: 1, capacity: 8, k: 50, snapshotEvery: 2, features: [crearEntorno(json)], log: () => {}, puede: () => true, movimiento: TARUGO });
+/** Run 2 s at full stick, running, against a server whose sim has `simMov` and whose page is given the environment `json`. Returns what the page saw. */
+function correrDosSegundos(json: Record<string, unknown>, simMov: typeof TARUGO | null) {
+  const inst = new Instance({ seed: 1, capacity: 8, k: 50, snapshotEvery: 2, features: [crearEntorno(json)], log: () => {}, puede: () => true, movimiento: simMov });
   const t = inst.join(0), cli = crearCliente(), vistos: Msg[] = [];
   let s!: ClientSession;
   s = new ClientSession(t, { features: [cli.part as ClientPart], view: { label() {}, bounce() {}, entorno: (v) => { vistos.push(v); } } });
   const pump = () => { t.flush(); inst.tick(); t.flush(); };
   for (let k = 0; k < 4; k++) pump();
   const v = s.features.stateOf("entorno").get(ZONA)!;
-  assert.deepEqual([v.movAndar, v.movCorrer, v.movFov], [3, 6, 70], "the page gets the pace with the environment");
   const z0 = s.selfPosition(1).z;
   for (let k = 0; k < 2 * TICK_HZ; k++) { s.tick(0, -127, BTN_RUN); pump(); }
   for (let k = 0; k < 4; k++) pump();
-  const corridos = z0 - s.selfPosition(1).z;
+  return { v, corridos: z0 - s.selfPosition(1).z, correcciones: s.stats.corrections };
+}
+
+test("prediction: the page, given the world's pace by the environment state, ends where the server's sim does (no correction)", () => {
+  const { v, corridos, correcciones } = correrDosSegundos({ schema: ESQUEMA, movimiento: TARUGO }, TARUGO);
+  assert.deepEqual([v.movAndar, v.movCorrer, v.movFov], [3, 6, 70], "the page gets the pace with the environment");
   assert.ok(Math.abs(corridos - 12) < 0.2, `2 s running at 6 m/s = 12 m, got ${corridos}`);
-  assert.equal(s.stats.corrections, 0, "the server never had to correct the prediction");
+  assert.equal(correcciones, 0, "the server never had to correct the prediction");
+});
+
+test("prediction (control): when the page is NOT given the pace, the same server sim corrects it — the test above proves something", () => {
+  const { v, correcciones } = correrDosSegundos({ schema: ESQUEMA }, TARUGO);
+  assert.equal(v.movCorrer, 0, "the page has no pace");
+  assert.ok(correcciones > 0, `the page predicts 4 m/s, the server moves 6 m/s: corrections expected, got ${correcciones}`);
+});
+
+// ---- one source of truth, and the wire step ----------------------------------------------------------------------------------------
+
+test("movimiento: one invalid key elsewhere in entorno.json drops the whole file for the sim too (the page drops it: they must agree)", () => {
+  const roto = { schema: ESQUEMA, movimiento: TARUGO, hora: { valor: "no es una hora" } };
+  assert.equal(validarEntorno(roto).ok, false, "precondition: the file as a whole is invalid");
+  const log: string[] = [];
+  assert.equal(movimientoDelMundo(() => roto, (l) => log.push(l)), null, "the sim keeps the house pace, like the page");
+  assert.match(log.join("\n"), /entorno\.hora/);
+  const { v, correcciones } = correrDosSegundos(roto, movimientoDelMundo(() => roto) as { andar: number; correr: number; fov: number } | null);
+  assert.equal(v.movCorrer, 0, "the page kept the house pace");
+  assert.equal(correcciones, 0, "so the server and the prediction agree");
+});
+
+test("movimiento: values off the wire's step are rounded (0.1 m/s, 1°) so the sim and the page read the same number", () => {
+  const r = leerMovimiento({ movimiento: { andar: 2.57, correr: 5.04, fov: 70.4 } });
+  assert.deepEqual(r, { ok: true, value: { andar: 2.6, correr: 5, fov: 70 } });
+  const e = validarEntorno({ schema: ESQUEMA, movimiento: { andar: 2.57, correr: 5.04, fov: 70.4 } });
+  assert.ok(e.ok);
+  if (e.ok && r.ok && r.value) assert.deepEqual([e.value.movAndar, e.value.movCorrer, e.value.movFov], [r.value.andar, r.value.correr, r.value.fov]);
+  const w = movimientoDelMundo(() => ({ schema: ESQUEMA, movimiento: { andar: 2.57 } }));
+  assert.deepEqual(w, { andar: 2.6 });
+});
+
+test("sim: at the top of the pace range a run cannot skip a thin wall (collision tests only where the body ends: step < BODY_RADIUS)", () => {
+  assert.ok(Number(MOV_CORRER_MAX) / TICK_HZ < fxToFloat(BODY_RADIUS), "one tick's move is under the body radius");
+  const s = createSim(2, 1); const e = spawnAvatar(s, 0);
+  const b = getBody(s, e);
+  const zPared = b.z - fx(2.5), x = fxToFloat(b.x);
+  // a 1 cm thin wall straight ahead, full width
+  s.solids = new Int32Array([fx(x - 5), fx(-1), zPared - fx(0.005), fx(x + 5), fx(3), zPared + fx(0.005)]);
+  setMovimiento(s, MOV_ANDAR_MAX, MOV_CORRER_MAX);
+  for (let t = 0; t < 3 * TICK_HZ; t++) step(s, new Int32Array([e, 0, -127, BTN_RUN]));
+  assert.ok(getBody(s, e).z > zPared, "the thin wall stopped the runner at the cap");
 });
 
 // ---- the camera ----------------------------------------------------------------------------------------------------------------------
