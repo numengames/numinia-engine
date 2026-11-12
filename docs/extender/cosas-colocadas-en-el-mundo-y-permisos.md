@@ -68,7 +68,7 @@
   entera en el chat cercano («Ada, ¿me ayudas?»; sin mayúsculas ni tildes; los nombres de menos de 3 letras no se buscan en el chat);
   `barra`: `/ada mensaje` (el chat no publica lo que empieza por `/`: solo lo ven quien lo escribe y la IA; el nombre es el entero, `/ada`
   a secas es una llamada sin palabras); `boton`: la petición `llamar {ia, texto}` (botón «Hablar con ella» y tecla E, S11; `texto` puede ir
-  vacío; al **entrar** en su burbuja la caja se abre sola, una vez por visita, con el ajuste `llamar.abrirAlEntrar`, activo por defecto: un mundo lo apaga en `mundo.ajustes.json` → `defectos`); `frase`: su frase clave, en cualquier sitio del texto. Cada IA tiene sus casillas en el bloque `ia.llamada` del pase (`roles` las
+  vacío; al **entrar** en su burbuja la caja se abre sola, una vez por visita, con el ajuste `llamar.abrirAlEntrar`, apagado por defecto y nunca en móvil ni en VR: un mundo lo enciende en `mundo.ajustes.json` → `defectos`); `frase`: su frase clave, en cualquier sitio del texto. Cada IA tiene sus casillas en el bloque `ia.llamada` del pase (`roles` las
   repite en su evento solo-servidor `iaLlamada` al identificarse y con cada pase nuevo; sin bloque: nombre, barra y botón sí, solo desde
   dentro sí, sin frase) y se publican en `session.features.stateOf("llamar")` (clave = su entidad: `{nombre, barra, boton, dentro, frase}`,
   `dentro` = `solo_dentro`) para la tarjeta. `solo_dentro`: quien llama debe estar dentro de su burbuja (el espejo de `entraEnBurbuja`/
