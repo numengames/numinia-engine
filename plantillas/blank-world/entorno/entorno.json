@@ -1,0 +1,45 @@
+{
+  "schema": "numinia-engine/entorno@1",
+  "preset": "propio",
+  "cielo": {
+    "tipo": "degradado",
+    "arriba": "#5B9BD5",
+    "horizonte": "#EAF1F7",
+    "nubes": 0.2
+  },
+  "sol": {
+    "altura": 48,
+    "rumbo": 150,
+    "intensidad": 3,
+    "color": "#FFF3E0"
+  },
+  "luz": {
+    "hdr": "",
+    "ambiente": 0.65,
+    "cielo": "#DCE8F3",
+    "suelo": "#7A7064"
+  },
+  "niebla": {
+    "cerca": 120,
+    "lejos": 420,
+    "color": "#EAF1F7",
+    "delCielo": true
+  },
+  "suelo": {
+    "tipo": "liso",
+    "color": "#B9B1A3",
+    "escala": 1
+  },
+  "tono": {
+    "curva": "neutro",
+    "exposicion": 1
+  },
+  "hitos": false,
+  "rejilla": false,
+  "aparicion": {
+    "x": 0,
+    "z": 0,
+    "radio": 3
+  },
+  "notas": "Blank world: a clear day with a flat gradient sky (cheaper than the atmosphere: it does not heat a phone), a high sun from the south-east, plain sand-grey ground so shadows and pieces are easy to read. No reference pillars (hitos) and no grid. People appear in the centre."
+}
