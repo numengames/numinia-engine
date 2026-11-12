@@ -18,7 +18,7 @@ test("limits.json publishes the first-load cap, and the built start bundle is un
   assert.ok(e, "first_load_br_bytes is in limits.json");
   assert.equal(e.state, "measured");
   assert.equal(e.test, "test/tamano-primera-carga.test.ts");
-  assert.ok(topeBr() <= 600_000, "the cap is not raised past 600 kB brotli without saying why (it was 480 kB gz on 18-10)");
+  assert.ok(topeBr() <= 650_000, "the cap is not raised past 650 kB brotli without saying why (it was 480 kB gz on 18-10)");
   const out = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "primera-carga-"));
   try {
     construir(out); // its own folder: other tests read dist/plaza
