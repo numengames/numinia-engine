@@ -10,7 +10,7 @@ import { ClientSession } from "../packages/client/src/index.ts";
 import type { GuestKeeper } from "../packages/client/src/index.ts";
 import { loopbackPair } from "../packages/net/src/index.ts";
 import { signer } from "../packages/server/src/secret.ts";
-import type { ServerPart } from "../packages/feature/src/index.ts";
+import type { Msg, ServerPart } from "../packages/feature/src/index.ts";
 import { PuenteMundo } from "../packages/agent/src/mcp-mundo.ts";
 import { RESPUESTA_MAX, leerTarjeta, responderDeTarjeta } from "../packages/agent/src/respuesta-tarjeta.ts";
 import chatServer from "../features/chat/server.ts";
