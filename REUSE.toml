@@ -180,12 +180,16 @@ SPDX-License-Identifier = "CC-BY-4.0"
 # Content only: the engine's licence is not touched. The Numen/Numinia logo, isotype and wordmarks are NOT part of it
 # (trademarks, TRADEMARKS.md): none is shipped here; if one is ever added, give it its OWN exact-path annotation
 # below this one with LicenseRef-Numen-AllRightsReserved. See plantillas/taller/aventura/LICENSE.md.
-# Blank World (decision of Pablo, 2026-11-07), same rule: no mark shipped; see plantillas/blank-world/aventura/LICENSE.md.
 [[annotations]]
-path = [
-  "plantillas/taller/**",
-  "plantillas/blank-world/**",
-]
+path = "plantillas/taller/**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Numen Games S.L."
+SPDX-License-Identifier = "CC0-1.0"
+
+# ── The Blank World template (decision of Pablo, 2026-11-07): its content is CC0, same rule as above ─────
+# No Numen/Numinia logo or wordmark is shipped here (TRADEMARKS.md). See plantillas/blank-world/aventura/LICENSE.md.
+[[annotations]]
+path = "plantillas/blank-world/**"
 precedence = "closest"
 SPDX-FileCopyrightText = "2026 Numen Games S.L."
 SPDX-License-Identifier = "CC0-1.0"
