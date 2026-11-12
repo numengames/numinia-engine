@@ -27,7 +27,10 @@ type Seccion = { titulo: string; lineas: string[] };
 
 /** Pure: the card without its front matter, HTML comments, links' targets and Markdown marks, cut into «## » sections (the intro, before the first one, has the title). */
 export function leerTarjeta(md: string): { titulo: string; secciones: Seccion[] } {
-  const sinFm = md.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "").replace(/<!--[\s\S]*?-->/g, "");
+  let sinFm = md.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "");
+  // Repeat until stable so nested pieces like «<!<!---->--» cannot leave a comment opener behind; then drop any unterminated opener.
+  for (let antes = ""; antes !== sinFm; ) { antes = sinFm; sinFm = sinFm.replace(/<!--[\s\S]*?-->/g, ""); }
+  sinFm = sinFm.replace(/<!--/g, "");
   let titulo = "";
   const secciones: Seccion[] = [{ titulo: "", lineas: [] }];
   const limpia = (l: string): string => l.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/[`*_]/g, "").replace(/^[-+]\s+/, "").replace(/\s+/g, " ").trim();
