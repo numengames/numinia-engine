@@ -12,6 +12,7 @@ export type Pose = { x: number; y: number; z: number; fx: number; fy: number; fz
 
 const G = Math.PI / 180;
 export const CAMARA = {
+  fovCasa: 60,                                                  // the house's vertical field of view (°); a world may say its own (entorno.json `movimiento.fov`)
   ojo: 1.6,                                                     // eye height over the feet (m): the play pivot
   juego: { cerca: 1.5, lejos: 20, inclinacion: [-80 * G, 80 * G] },   // third person; closer = first person (0)
   construir: { cerca: 0.5, lejos: 80, inclinacion: [-60 * G, 89 * G] },

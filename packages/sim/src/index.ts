@@ -223,6 +223,12 @@ export function sitioLibre(s: SimState, x: number, y: number, z: number, radios:
 }
 /** Replace the solid boxes (both the server and the page call it when the shared state of things changes). */
 export function setSolids(s: SimState, boxes: Int32Array): void { s.solids = boxes; }
+/** Per-world pace (entorno.json `movimiento`): walking and running speed in m/s; `null` (or 0) = the house's SPEED / RUN_SPEED.
+ * Both sides (the server's sim and the page's prediction) must be given the same values. A state never given any steps as before. */
+export function setMovimiento(s: SimState, andar: number | null, correr: number | null): void {
+  s.paso = andar && andar > 0 ? fxDiv(fx(andar), fx(TICK_HZ)) : STEP;
+  s.pasoCorrer = correr && correr > 0 ? fxDiv(fx(correr), fx(TICK_HZ)) : RUN_STEP;
+}
 /** M6: set (or clear) the world's collision mesh, a tree built with `buildBvh` from the same quantized triangles on
  * both sides. Not part of the state fingerprint. */
 export function setMesh(s: SimState, mesh: Bvh | null, piso = 0): void { s.mesh = mesh; s.piso = piso; }
@@ -269,14 +275,16 @@ export const Motion = defineSchema("Motion", 2, {
   iz: { kind: "fixed", min: -2, max: 2, step: 1 / 65536 },
 });
 
-export type SimState = { world: World; tf: Store; av: Store; mo: Store; tick: number; rng: Uint32Array; solids: Int32Array; mesh: Bvh | null; piso: number };
+export type SimState = { world: World; tf: Store; av: Store; mo: Store; tick: number; rng: Uint32Array; solids: Int32Array; mesh: Bvh | null; piso: number;
+  /** Metres per tick at full stick, walking and running: the house's STEP / RUN_STEP unless the world says otherwise (`setMovimiento`). World configuration like `solids`: not part of the fingerprint. */
+  paso: number; pasoCorrer: number };
 
 export function createSim(capacity: number, seed: number): SimState {
   const world = new World(capacity);
   const tf = world.register(Transform);
   const av = world.register(Avatar);
   const mo = world.register(Motion);
-  return { world, tf, av, mo, tick: 0, rng: new Uint32Array([seed >>> 0]), solids: new Int32Array(0), mesh: null, piso: 0 };
+  return { world, tf, av, mo, tick: 0, rng: new Uint32Array([seed >>> 0]), solids: new Int32Array(0), mesh: null, piso: 0, paso: STEP, pasoCorrer: RUN_STEP };
 }
 
 /** Where new avatars appear (metres): the square of half-side `radio` centred at (x, z). A vertical world (a tower)
@@ -384,7 +392,7 @@ export function step(s: SimState, inputs: Int32Array, orders: Int32Array = NO_OR
     if (MODO[e] === MODO_QUIETO) { mx = 0; mz = 0; }
     const len = fxSqrt(fxMul(mx, mx) + fxMul(mz, mz));
     if (len > FX_ONE) { mx = fxDiv(mx, len); mz = fxDiv(mz, len); } // no faster diagonals
-    const st = buttons & BTN_RUN ? RUN_STEP : STEP;
+    const st = buttons & BTN_RUN ? s.pasoCorrer : s.paso;
     // N1b: standing on something before this step (only with geometry — solids or a mesh: the flat plaza never needs
     // it, so the reference fingerprint stands)
     const geo = hasGeometry(s);
@@ -400,7 +408,7 @@ export function step(s: SimState, inputs: Int32Array, orders: Int32Array = NO_OR
     // walk/run speed, Hyperfy-style. Otherwise J2 as before: jump from the ground, or the one jump in the air,
     // then gravity, then the ground stops the fall (frozen: gravity still runs, so someone caught in the air falls).
     if (MODO[e] === MODO_VOLANDO) {
-      const vst = buttons & BTN_RUN ? RUN_STEP : STEP;
+      const vst = buttons & BTN_RUN ? s.pasoCorrer : s.paso;
       let y = Y[e];
       if (buttons & BTN_JUMP) y += vst;
       if (buttons & BTN_BAJAR) y -= vst;

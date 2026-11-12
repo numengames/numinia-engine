@@ -6,7 +6,7 @@
 // that height (a floor plan inside a building), and the world's file says it again at each start (server.ts).
 import type { Issue, Result } from "../../packages/core/src/index.ts";
 import { defineSchema, validate } from "../../packages/schema/src/index.ts";
-import { CAMARA_INICIOS, CAMARA_MAX_MAX, CAMARA_MAX_MIN, CAMPOS, entorno } from "./feature.ts";
+import { CAMARA_INICIOS, CAMARA_MAX_MAX, CAMARA_MAX_MIN, CAMPOS, MOV_ANDAR_MAX, MOV_ANDAR_MIN, MOV_CORRER_MAX, MOV_CORRER_MIN, MOV_FOV_MAX, MOV_FOV_MIN, entorno } from "./feature.ts";
 
 export const ESQUEMA = "numinia-engine/entorno@1";
 export type Plano = Record<string, unknown>;
@@ -61,6 +61,8 @@ export function validarEntorno(json: unknown, base: Plano = porDefecto()): Resul
   if (!af.ok) issues.push(...af.issues);
   const ca = leerCamara(json);
   if (!ca.ok) issues.push(...ca.issues);
+  const mo = leerMovimiento(json);
+  if (!mo.ok) issues.push(...mo.issues);
   const su = leerSuelo(json);
   if (!su.ok) issues.push(...su.issues);
   const vu = leerVuelo(json);
@@ -80,6 +82,12 @@ export function validarEntorno(json: unknown, base: Plano = porDefecto()): Resul
   if (ca.ok && ca.value) {
     if (ca.value.inicio !== undefined) plano.camaraInicio = ca.value.inicio;
     if (ca.value.distanciaMax !== undefined) plano.camaraMax = ca.value.distanciaMax;
+  }
+  // the world's pace rides the flat state too (the page's prediction and camera read it); the server's sim gets the same file through `movimientoDelMundo`
+  if (mo.ok && mo.value) {
+    if (mo.value.andar !== undefined) plano.movAndar = mo.value.andar;
+    if (mo.value.correr !== undefined) plano.movCorrer = mo.value.correr;
+    if (mo.value.fov !== undefined) plano.movFov = mo.value.fov;
   }
   if (ap.ok && ap.value?.giro !== undefined) { plano.llegadaGira = true; plano.llegadaGiro = ap.value.giro; }
   const v = validate(SCHEMA, plano);
@@ -137,6 +145,27 @@ export function leerCamara(json: unknown): Result<CamaraFichero | null> {
     if (typeof d === "number" && Number.isFinite(d) && d >= CAMARA_MAX_MIN && d <= CAMARA_MAX_MAX) out.distanciaMax = d;
     else issues.push({ path: "entorno.camara.distanciaMax", message: `un número entre ${CAMARA_MAX_MIN} y ${CAMARA_MAX_MAX} (metros): lo más lejos que se pone la cámara detrás de ti en tercera persona; en una casa, 2.5. La tercera persona no baja de 1.5 m` });
   }
+  return issues.length ? { ok: false, issues } : { ok: true, value: out };
+}
+
+/** The world's pace, `movimiento: { andar?, correr?, fov? }` of an `entorno@1` file: walking and running speed (m/s) and the camera's field of
+ * view (degrees). Each is optional; one missing keeps the house's (1.5 m/s, 4 m/s, 60°). null when the file has no `movimiento`: nothing changes.
+ * The server's sim reads it through `movimientoDelMundo`, the page from the flat state (`movAndar`, `movCorrer`, `movFov`). */
+export type MovimientoFichero = { andar?: number; correr?: number; fov?: number };
+export function leerMovimiento(json: unknown): Result<MovimientoFichero | null> {
+  const c = typeof json === "object" && json !== null && !Array.isArray(json) ? (json as Record<string, unknown>).movimiento : undefined;
+  if (c === undefined || c === null) return { ok: true, value: null };
+  if (typeof c !== "object" || Array.isArray(c)) return { ok: false, issues: [{ path: "entorno.movimiento", message: `un objeto { "andar": 3, "correr": 6, "fov": 70 }: velocidad al andar y al correr (metros por segundo) y campo de visión de la cámara (grados)` }] };
+  const o = c as Record<string, unknown>, issues: Issue[] = [], out: MovimientoFichero = {};
+  const num = (k: "andar" | "correr" | "fov", min: number, max: number, unidad: string, casa: string) => {
+    if (o[k] === undefined) return;
+    const v = o[k];
+    if (typeof v === "number" && Number.isFinite(v) && v >= min && v <= max) out[k] = v;
+    else issues.push({ path: `entorno.movimiento.${k}`, message: `un número entre ${min} y ${max} (${unidad}); sin la clave, ${casa}` });
+  };
+  num("andar", MOV_ANDAR_MIN, MOV_ANDAR_MAX, "metros por segundo al andar", "1.5");
+  num("correr", MOV_CORRER_MIN, MOV_CORRER_MAX, "metros por segundo al correr", "4");
+  num("fov", MOV_FOV_MIN, MOV_FOV_MAX, "grados de campo de visión", "60");
   return issues.length ? { ok: false, issues } : { ok: true, value: out };
 }
 
@@ -214,6 +243,8 @@ export function aFichero(p: Plano): Record<string, unknown> {
   // P1: the world's camera goes back to its place in the file only when the world has one (a file without `camara` stays without)
   const max = Number(p.camaraMax ?? 0), inicio = p.camaraInicio ?? "tercera";
   if (inicio !== "tercera" || max > 0) out.camara = { inicio, ...(max > 0 ? { distanciaMax: max } : {}) };
+  const [ma, mc, mf] = [Number(p.movAndar ?? 0), Number(p.movCorrer ?? 0), Number(p.movFov ?? 0)];
+  if (ma > 0 || mc > 0 || mf > 0) out.movimiento = { ...(ma > 0 ? { andar: ma } : {}), ...(mc > 0 ? { correr: mc } : {}), ...(mf > 0 ? { fov: mf } : {}) };
   return out;
 }
 

@@ -19,7 +19,8 @@ import { crearDerribado, leerDerribado } from "./derribado/server.ts";
 import { crearBurbujas, leerBurbujas } from "./burbujas/server.ts";
 import { crearDados } from "./dados/server.ts";
 import type { Torre as TorreDados } from "./dados/server.ts";
-import { leerAparicion, leerAparicionFoto, leerSuelo, leerTema, leerVuelo } from "./entorno/esquema.ts";
+import { leerAparicion, leerAparicionFoto, leerMovimiento, leerSuelo, leerTema, leerVuelo } from "./entorno/esquema.ts";
+import type { MovimientoFichero } from "./entorno/esquema.ts";
 import type { TemaMundo } from "./entorno/esquema.ts";
 import type { VueloMundo } from "./entorno/esquema.ts";
 import { crearSuelo } from "./suelo/server.ts"; // D-045
@@ -209,6 +210,14 @@ export function temaDelMundo(leer: (fichero: string) => unknown, log: (l: string
   const r = leerTema(leer("entorno.json"));
   if (r.ok) return r.value;
   log(`[mundo] tema de entorno.json no se usa (aspecto de siempre): ${r.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
+  return null;
+}
+
+/** The world's pace (entorno.json `movimiento`), or null: no file, no key, or a wrong one (logged, with its path; the house's pace stays). */
+export function movimientoDelMundo(leer: (fichero: string) => unknown, log: (l: string) => void = () => {}): MovimientoFichero | null {
+  const r = leerMovimiento(leer("entorno.json"));
+  if (r.ok) return r.value;
+  log(`[mundo] movimiento de entorno.json no se usa (el paso de siempre): ${r.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
   return null;
 }
 

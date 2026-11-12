@@ -34,6 +34,17 @@
   las cajas, con una esfera de 0,2 m (`barridoMalla` en `sim/bvh.ts`, sin reservar memoria); y en primera persona el
   plano cercano baja a 0,05 m, así que una pared pegada a la cara no se abre. En VR nada de esto mueve la cámara del
   visor.
+- **Ritmo del mundo** (`features/entorno`, `packages/sim`, `packages/render/src/camara.ts`). El mismo `entorno.json` puede decir
+  cuánto corre el personaje y cuánto abre la cámara: `"movimiento": { "andar": 3, "correr": 6, "fov": 70 }` (`andar` y
+  `correr` en metros por segundo, 0,5–10 y 0,5–20; `fov` en grados, 30–110). Cada clave es opcional y la que falta deja la
+  de la casa: andar 1,5 m/s, correr 4 m/s, campo de visión 60°. Sin `movimiento` no cambia nada (la huella de referencia de
+  la simulación sigue igual). La simulación recibe `andar` y `correr` por `InstanceOptions.movimiento` (la raíz de
+  composición los lee con `movimientoDelMundo`) y la página los recibe en el estado del entorno (`movAndar`, `movCorrer`,
+  `movFov`; `0` = los de la casa), que entrega a su predicción con `ClientSession.movimiento` y a la cámara con `cam.mundo`,
+  para que servidor y página den el mismo paso y no haya correcciones. Son del fichero del mundo, como la cámara: ni el panel
+  ni un preset los mueven. En VR la cámara es del visor y el campo de visión no se toca. **No hay aceleración**: el
+  personaje sigue arrancando y parando a velocidad plena (un modelo de aceleración exige llevar la velocidad horizontal por
+  el cable y es otro cambio de formato). Valores mal puestos se rechazan con su ruta y cómo arreglarlos.
 - El mismo `entorno.json` dice si la gente puede golpearse (L8, `features/lucha`): `"pvp": true` (apagado si no está) y,
   para arenas o sitios en paz, `"zonasPvp": [{ "id", "x", "z", "radio", "pvp": true|false }]` (círculos en metros; una
   zona en `false` gana a una en `true`). Solo se golpea a otra persona (`objetivo: p:<entidad>`) si **las dos** están donde
