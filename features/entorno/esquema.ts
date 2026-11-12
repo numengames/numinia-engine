@@ -6,7 +6,7 @@
 // that height (a floor plan inside a building), and the world's file says it again at each start (server.ts).
 import type { Issue, Result } from "../../packages/core/src/index.ts";
 import { defineSchema, validate } from "../../packages/schema/src/index.ts";
-import { CAMARA_INICIOS, CAMARA_MAX_MAX, CAMARA_MAX_MIN, CAMPOS, MOV_ANDAR_MAX, MOV_ANDAR_MIN, MOV_CORRER_MAX, MOV_CORRER_MIN, MOV_FOV_MAX, MOV_FOV_MIN, entorno } from "./feature.ts";
+import { CAMARA_INICIOS, CAMARA_MAX_MAX, CAMARA_MAX_MIN, CAMPOS, MOV_ANDAR_MAX, MOV_ANDAR_MIN, MOV_CORRER_MAX, MOV_CORRER_MIN, MOV_FOV_MAX, MOV_FOV_MIN, MOV_FOV_PASO, MOV_VEL_PASO, entorno } from "./feature.ts";
 
 export const ESQUEMA = "numinia-engine/entorno@1";
 export type Plano = Record<string, unknown>;
@@ -157,15 +157,16 @@ export function leerMovimiento(json: unknown): Result<MovimientoFichero | null> 
   if (c === undefined || c === null) return { ok: true, value: null };
   if (typeof c !== "object" || Array.isArray(c)) return { ok: false, issues: [{ path: "entorno.movimiento", message: `un objeto { "andar": 3, "correr": 6, "fov": 70 }: velocidad al andar y al correr (metros por segundo) y campo de visión de la cámara (grados)` }] };
   const o = c as Record<string, unknown>, issues: Issue[] = [], out: MovimientoFichero = {};
-  const num = (k: "andar" | "correr" | "fov", min: number, max: number, unidad: string, casa: string) => {
+  const num = (k: "andar" | "correr" | "fov", min: number, max: number, paso: number, unidad: string, casa: string) => {
     if (o[k] === undefined) return;
     const v = o[k];
-    if (typeof v === "number" && Number.isFinite(v) && v >= min && v <= max) out[k] = v;
+    // rounded to the wire's step (0.1 m/s, 1°): the page gets the quantized number, so the sim must use that same one
+    if (typeof v === "number" && Number.isFinite(v) && v >= min && v <= max) out[k] = Number((Math.round(v / paso) * paso).toFixed(1));
     else issues.push({ path: `entorno.movimiento.${k}`, message: `un número entre ${min} y ${max} (${unidad}); sin la clave, ${casa}` });
   };
-  num("andar", MOV_ANDAR_MIN, MOV_ANDAR_MAX, "metros por segundo al andar", "1.5");
-  num("correr", MOV_CORRER_MIN, MOV_CORRER_MAX, "metros por segundo al correr", "4");
-  num("fov", MOV_FOV_MIN, MOV_FOV_MAX, "grados de campo de visión", "60");
+  num("andar", MOV_ANDAR_MIN, MOV_ANDAR_MAX, MOV_VEL_PASO, "metros por segundo al andar", "1.5");
+  num("correr", MOV_CORRER_MIN, MOV_CORRER_MAX, MOV_VEL_PASO, "metros por segundo al correr", "4");
+  num("fov", MOV_FOV_MIN, MOV_FOV_MAX, MOV_FOV_PASO, "grados de campo de visión", "60");
   return issues.length ? { ok: false, issues } : { ok: true, value: out };
 }
 

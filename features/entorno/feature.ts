@@ -15,8 +15,13 @@ export const CIELOS = ["atmosfera", "degradado", "color"] as const;
 /** P1: the views a person may start in. «tercera» first: it is the house's, and an enum's default is its first value. */
 export const CAMARA_INICIOS = ["tercera", "primera"] as const;
 export const CAMARA_MAX_MIN = 1, CAMARA_MAX_MAX = 20;
-/** The world's pace (entorno.json `movimiento`): walking and running speed in m/s, and the camera's field of view in degrees. */
-export const MOV_ANDAR_MIN = 0.5, MOV_ANDAR_MAX = 10, MOV_CORRER_MIN = 0.5, MOV_CORRER_MAX = 20, MOV_FOV_MIN = 30, MOV_FOV_MAX = 110;
+/** The world's pace (entorno.json `movimiento`): walking and running speed in m/s, and the camera's field of view in degrees.
+ * The speed cap comes from the collision code: `step` tests only where a body ENDS each tick (no sweep), and a body is BODY_RADIUS = 0.35 m
+ * wide each side. A wall of ANY thickness is caught while one tick's move stays under that radius: 0.35 m x TICK_HZ 20 = 7 m/s. 6 m/s
+ * (0.3 m/tick) leaves 0.05 m for a push's impulse. At the old 20 m/s (1 m/tick) a wall thinner than 1.7 m could be skipped. */
+export const MOV_ANDAR_MIN = 0.5, MOV_ANDAR_MAX = 6, MOV_CORRER_MIN = 0.5, MOV_CORRER_MAX = 6, MOV_FOV_MIN = 30, MOV_FOV_MAX = 110;
+/** The wire's steps for the pace (see CAMPOS): `leerMovimiento` rounds to them so the sim and the page see the same number. */
+export const MOV_VEL_PASO = 0.1, MOV_FOV_PASO = 1;
 export const TONOS = ["agx", "aces", "neutro", "ninguno"] as const;
 /** The zone's only state key (M16 will bring several zones per world). */
 export const ZONA = "zona";

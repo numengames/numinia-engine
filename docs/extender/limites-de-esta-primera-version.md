@@ -36,10 +36,10 @@
   visor.
 - **Ritmo del mundo** (`features/entorno`, `packages/sim`, `packages/render/src/camara.ts`). El mismo `entorno.json` puede decir
   cuánto corre el personaje y cuánto abre la cámara: `"movimiento": { "andar": 3, "correr": 6, "fov": 70 }` (`andar` y
-  `correr` en metros por segundo, 0,5–10 y 0,5–20; `fov` en grados, 30–110). Cada clave es opcional y la que falta deja la
+  `correr` en metros por segundo, ambos 0,5–6 (con 20 m/s un paso mide 1 m y el cuerpo, que solo se comprueba donde acaba, atravesaba paredes finas; 6 m/s = 0,3 m por tic, menos que el radio del cuerpo, 0,35 m); `fov` en grados, 30–110; se redondean al paso del cable, 0,1 m/s y 1°). Cada clave es opcional y la que falta deja la
   de la casa: andar 1,5 m/s, correr 4 m/s, campo de visión 60°. Sin `movimiento` no cambia nada (la huella de referencia de
   la simulación sigue igual). La simulación recibe `andar` y `correr` por `InstanceOptions.movimiento` (la raíz de
-  composición los lee con `movimientoDelMundo`) y la página los recibe en el estado del entorno (`movAndar`, `movCorrer`,
+  composición los lee con `movimientoDelMundo`, que valida el fichero entero como la página: si una clave cualquiera está mal, los dos usan el paso de la casa) y la página los recibe en el estado del entorno (`movAndar`, `movCorrer`,
   `movFov`; `0` = los de la casa), que entrega a su predicción con `ClientSession.movimiento` y a la cámara con `cam.mundo`,
   para que servidor y página den el mismo paso y no haya correcciones. Son del fichero del mundo, como la cámara: ni el panel
   ni un preset los mueven. En VR la cámara es del visor y el campo de visión no se toca. **No hay aceleración**: el
