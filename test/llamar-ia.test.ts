@@ -4,7 +4,7 @@
 // checked in the browser leg (screenshots in work/ia-organizacion/capturas/llamar/).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { crearAperturas, crearDentro, avisoAceptado, aceptarAviso, CLAVE_AVISO } from "../apps/plaza/llamar-nucleo.ts";
+import { abrirSolo, crearAperturas, crearDentro, avisoAceptado, aceptarAviso, CLAVE_AVISO } from "../apps/plaza/llamar-nucleo.ts";
 import { luzEscucha, promptHablar, textos, IDIOMAS } from "../apps/plaza/gente-ia.ts";
 import { es } from "../apps/plaza/gente-ia-es.ts";
 import { crearLlamarPagina, leerCfg, prepararTexto } from "../features/llamar/client.ts";
@@ -50,6 +50,22 @@ test("walking into a bubble opens the talk once per stay: closing it does not br
   assert.equal(a.entra(3, true, false), false, "that AI takes no calls by button: nothing opens");
   assert.equal(a.entra(3, true, true), true, "and those refusals did not use up the stay");
   a.sale(99); // leaving a bubble you were never in changes nothing
+});
+
+test("auto-open is off on touch and in a VR/AR session whatever the setting says, and the feature ships it off", async () => {
+  assert.equal(abrirSolo(true, false, false), true);
+  assert.equal(abrirSolo(true, true, false), false, "touch: no soft keyboard out of nowhere");
+  assert.equal(abrirSolo(true, false, true), false, "VR/AR: a DOM dialog is not usable");
+  assert.equal(abrirSolo(false, false, false), false);
+  const { llamar } = await import("../features/llamar/feature.ts");
+  assert.equal(llamar.ajustes?.find((x) => x.id === "abrirAlEntrar")?.defecto, false, "default off");
+});
+
+test("a bubble entered while another box is open is not marked as opened, so it can open once that box closes", () => {
+  const a = crearAperturas();
+  assert.equal(a.entra(2, true, true, false), false, "a modal is open: not now");
+  assert.equal(a.ya(2), false, "and the stay is not used up");
+  assert.equal(a.entra(2, true, true, true), true, "the box closed: the second AI opens");
 });
 
 test("the notice «lo lee su cerebro» is asked once per browser, and a browser with no storage asks again", () => {

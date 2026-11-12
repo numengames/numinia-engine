@@ -1,7 +1,7 @@
 // llamar-ia (ia-llamar S11): «Hablar con ella» and the E prompt on the page. Two ways in, one box:
 //   - the button on an AI's card / sheet (gente-tarjeta.ts, gente.ts) → hablar(quien)
-//   - walking INTO Ada's bubble opens the talk by itself (setting `llamar.abrirAlEntrar`, on by default; a world turns it off in its mundo.ajustes.json
-//     `defectos`). Once per stay: if you close it, it does not come back until you leave the bubble and enter again. Outside a bubble nothing happens.
+//   - walking INTO Ada's bubble opens the talk by itself (setting `llamar.abrirAlEntrar`, off by default; a world turns it on in its mundo.ajustes.json
+//     `defectos`; never on touch or in a VR/AR session). Once per stay: if you close it, it does not come back until you leave the bubble and enter again. Outside a bubble nothing happens.
 //   - «E: hablar con Ada» while you are inside Ada's bubble: the SAME prompt the holograms, the lock keypad and the video controls use (interactuar.ts
 //     `locales`: it is the one «E» of the page, shown by the nearest thing in reach); it appears on the server's `entras` and goes on `sales`.
 // The first time (per browser) a short notice is shown before the box: what you say is read by its brain outside the world and the answer is seen by
@@ -9,7 +9,7 @@
 // its own notice. Names go in with textContent; innerHTML never receives text.
 import { el } from "./gente-comun.ts";
 import { promptHablar, sinMarca, textos } from "./gente-ia.ts";
-import { aceptarAviso, avisoAceptado, crearAperturas, crearDentro } from "./llamar-nucleo.ts";
+import { aceptarAviso, abrirSolo, avisoAceptado, crearAperturas, crearDentro } from "./llamar-nucleo.ts";
 import { prepararTexto } from "../../features/llamar/client.ts";
 import { TEXTO_MAX } from "../../features/llamar/feature.ts";
 import type { Cerca } from "./interactuar.ts";
@@ -24,8 +24,10 @@ export function montarLlamarIA(o: {
   distancia(quien: number): number | null;
   /** The name over its head (with or without the « · IA» mark). */
   nombre(quien: number): string | null;
-  /** The setting `llamar.abrirAlEntrar`: entering a bubble opens the talk by itself. Default on. */
+  /** The setting `llamar.abrirAlEntrar`: entering a bubble opens the talk by itself. Default off. */
   abrirAlEntrar?: () => boolean;
+  /** Touch device or VR/AR session: the box never opens by itself there, whatever the setting says. */
+  sinAbrirSolo?: () => boolean;
   idioma?: () => string;
   almacen?: Pick<Storage, "getItem" | "setItem"> | null;
 }) {
@@ -35,7 +37,9 @@ export function montarLlamarIA(o: {
   const existe = (ia: number): boolean => o.ia.de(ia) !== null;
   const puede = (ia: number): boolean => existe(ia) && o.llamar.puedeBoton(ia);
   const aperturas = crearAperturas();
-  o.burbuja.alEntrar((ia, nombre) => { dentro.entra(ia, nombre); if (aperturas.entra(ia, o.abrirAlEntrar?.() ?? true, puede(ia))) hablar(ia); });
+  const activo = (): boolean => abrirSolo(o.abrirAlEntrar?.() ?? false, o.sinAbrirSolo?.() ?? false, false);
+  const intentar = (ia: number): void => { if (aperturas.entra(ia, activo(), puede(ia), !d.open)) hablar(ia); };
+  o.burbuja.alEntrar((ia, nombre) => { dentro.entra(ia, nombre); intentar(ia); });
   o.burbuja.alSalir((ia) => { dentro.sale(ia); aperturas.sale(ia); });
   o.ia.alCambiar((quien, ficha) => { if (!ficha) { dentro.quita(quien); aperturas.sale(quien); } });
 
@@ -58,6 +62,7 @@ export function montarLlamarIA(o: {
   form.noValidate = true;
   d.append(el("header", {}, titulo), el("div", { className: "cuerpo" }, aviso, filaAviso, form));
   document.body.appendChild(d);
+  d.addEventListener("close", () => { for (const { ia: q } of dentro.lista()) if (!d.open) intentar(q); }); // a bubble entered while this box was open gets its turn now
   d.addEventListener("pointerdown", (e) => e.stopPropagation()); // a tap here is not a joystick touch
 
   let ia = -1, paso: "aviso" | "caja" = "caja";
