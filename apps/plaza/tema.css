@@ -449,6 +449,12 @@ html.menos-movimiento #ajustes.acordeon .cat-cab > svg:last-child { transition: 
 #minimapa #minimapa-norte:hover { background: var(--n-ambar) !important; color: var(--n-fondo) !important; border-color: var(--n-ambar) !important; }
 #minimapa #minimapa-norte:focus-visible { outline: 2px solid var(--n-verdemar); outline-offset: 2px; }
 #minimapa #minimapa-norte .icono { pointer-events: none; }
+/* Map v2.2: the filter's magnifying glass, on the minimap's lower-left rim (the north button's twin) */
+#minimapa #minimapa-filtro { position: absolute; left: 0; bottom: 0; width: 26px; height: 26px; min-width: 0 !important; min-height: 0 !important; padding: 0 !important; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50% !important; border: 1px solid var(--n-ambar) !important; background: var(--n-fondo) !important; color: var(--n-ambar) !important; box-shadow: 0 1px 5px rgba(0, 0, 0, .45); cursor: pointer; line-height: 0; transition: background .15s, color .15s; }
+#minimapa #minimapa-filtro:hover { background: var(--n-ambar) !important; color: var(--n-fondo) !important; }
+#minimapa #minimapa-filtro:focus-visible { outline: 2px solid var(--n-verdemar); outline-offset: 2px; }
+#minimapa #minimapa-filtro .icono { pointer-events: none; }
 :root { --botones-alto: 0px !important; }
 @media (pointer: coarse) { :root { --botones-alto: 0px !important; } }
 /* your card, top left: a real button laid over it opens your sheet (I) */

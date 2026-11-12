@@ -391,7 +391,7 @@ alPrimerCuadro(() => import("./director.ts").then((m) => m.montarDirector({ dj: 
 // ux2-gente: friends kept in this browser, the sheet of whoever you pick, and the small card when you click someone in the
 // world (gente-tarjeta.ts). Silenciar = voz.ts drops their voice here; Bloquear = /bloquear; Denunciar = /denunciar.
 const distanciaA = (q: number): number | null => { if (session.entity < 0) return null; const r = session.remotePositions().find((x) => x.id === q); if (!r) return null; const y = session.selfPosition(1); return Math.hypot(r.x - y.x, r.z - y.z); };
-const llamarIA = montarLlamarIA({ llamar: llamarPagina, ia: iaPagina, burbuja: burbujaPagina, distancia: distanciaA, nombre: (q) => chatDePagina.nombres.get(q) ?? null, idioma: () => document.documentElement.lang });
+const llamarIA = montarLlamarIA({ llamar: llamarPagina, ia: iaPagina, burbuja: burbujaPagina, distancia: distanciaA, nombre: (q) => chatDePagina.nombres.get(q) ?? null, abrirAlEntrar: () => leerAjuste("llamar.abrirAlEntrar") !== false, idioma: () => document.documentElement.lang });
 const gente = montarGentePuerta({ viajar, llamar: { puede: llamarIA.puede, hablar: llamarIA.hablar }, barra: document.getElementById("barra-arriba"), orden: (t) => chatDePagina.decir(t),
   mundo: () => estado?.nombre ?? "",
   ia: iaPagina, idioma: () => document.documentElement.lang,

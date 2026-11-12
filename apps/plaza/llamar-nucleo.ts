@@ -25,6 +25,19 @@ export function crearDentro() {
   };
 }
 
+/** Auto-open on entering a bubble: which AIs already opened (or tried to open) the talk during THIS stay inside their bubble, so closing the box
+ * does not bring it back until you leave that bubble and enter it again. Pure; llamar-ia.ts decides when to call it. */
+export function crearAperturas() {
+  const s = new Set<number>();
+  return {
+    /** You entered `ia`'s bubble: true when the box should open by itself (option on, not opened already in this stay). Marks the stay. */
+    entra(ia: number, activo: boolean, puede: boolean): boolean { if (!activo || !puede || s.has(ia)) return false; s.add(ia); return true; },
+    /** You left the bubble (or the AI left the world): the next entry may open again. */
+    sale(ia: number): void { s.delete(ia); },
+    ya: (ia: number): boolean => s.has(ia),
+  };
+}
+
 /** Where the «lo lee su cerebro» acceptance is kept: this browser, once (D-083). */
 export const CLAVE_AVISO = "numinia.llamar-ia.aviso";
 type Almacen = Pick<Storage, "getItem" | "setItem">;
