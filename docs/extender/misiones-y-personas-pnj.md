@@ -23,7 +23,11 @@ mi-aventura/
 la escala es opcional) se dibuja ese modelo, **mirando hacia donde anda** (los modelos propios miran a +z). El servidor
 lo cuenta en el estado `avatar` (`tipo: "modelo"`, `sha`, `ext: "glb"`, `escala`) y la página lo coloca como a una
 persona del mundo; una persona nunca puede elegir ese tipo. Si el `.glb` no está en el servidor, vale el robot (nunca un
-cuerpo invisible). Hoy es un modelo quieto (sin animar al andar); lo animado queda para después.
+cuerpo invisible). **Vive como una persona del mundo** (2026-11-11): si el `.glb` trae clips con estos nombres, la página
+pone `respira`/`idle`/`reposo` en reposo, `habla`/`talk` mientras se ven sus palabras (más o menos lo que se tarda en
+decirlas: 1,2 s más 55 ms por letra, nunca más que su bocadillo) y `camina`/`walk`/`andar` mientras se mueve; quieta,
+mira a la persona con la que está (`burbuja.mira`). Sin clips, el modelo se queda quieto. Ejemplo: Chispa, un moñoñi con
+la boca en su propio nodo (el clip `habla` la escala).
 
 **`habitante@1` y lo que sabe (`cerebro.saber`, E2)** — una IA con cerebro (escalón 2 o 4) conoce quién es por su
 `cerebro.persona`, que no pasa de **1500 bytes**. Para lo que no cabe ahí (un programa de horarios, dónde está cada

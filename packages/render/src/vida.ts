@@ -89,6 +89,9 @@ export function caminaPaso(o: { dx: number; dz: number }, dt: number): number {
 export const vaACaminar = (metros: number): boolean => metros > 0.05 && metros <= CAMINA_MAX_M;
 
 /** A name that says the model has a talking clip (gestures while the person talks to you): `talk`, `habla` or `gesto`. */
+/** How long a line takes to say (ms), for a body's talking clip: a floor, then per letter, never longer than its bubble (`ms`). */
+export const HABLA_MIN_MS = 1200, HABLA_MS_LETRA = 55;
+export const duracionHabla = (texto: string, ms: number): number => Math.max(0, Math.min(ms, HABLA_MIN_MS + texto.length * HABLA_MS_LETRA));
 export const esClipHabla = (nombre: string): boolean => /talk|habla|gesto/i.test(nombre);
 /** ... a walking clip (played while the person walks to a new place): `walk`, `camina` or `andar`. */
 export const esClipCamina = (nombre: string): boolean => /(^|[^a-z])(walk|camina|andar)/i.test(nombre);
