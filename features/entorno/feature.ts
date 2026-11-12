@@ -19,6 +19,8 @@ export const TONOS = ["agx", "aces", "neutro", "ninguno"] as const;
 /** The zone's only state key (M16 will bring several zones per world). */
 export const ZONA = "zona";
 
+/** Room for CAMINOS_MAX paths of "-1960.25,-1960.25,-1960.25,-1960.25;" (36 bytes): a text field holds at most 512. */
+export const CAMINOS_MAX = 14, CAMINOS_BYTES = 512;
 const COLOR = { kind: "int", min: 0, max: 0xffffff } as const;
 const FICHERO = { kind: "text", maxBytes: 72, default: "" } as const; // "<sha256>.<ext>" of a file in /a/, or ""
 /** U14: the highest map cut (m above the ground). The map's camera flies at 80 m: a cut stays well under it. */
@@ -68,6 +70,10 @@ export const CAMPOS: Fields = {
   camaraMax: { kind: "fixed", min: 0, max: CAMARA_MAX_MAX, step: 0.1, default: 0 },
   llegadaGira: { kind: "bool", default: false },
   llegadaGiro: { kind: "fixed", min: -180, max: 180, step: 0.1, default: 0 },
+  // Glowing paths on the floor (entorno.json `caminos`, `caminosColor`): the world's file's too. `caminos` = "x1,z1,x2,z2;x1,z1,x2,z2" (metres), the
+  // page draws one thin strip per path with a pulse of light running along it (packages/render/src/caminos.ts). Empty = none.
+  caminos: { kind: "text", maxBytes: CAMINOS_BYTES, default: "" },
+  caminosColor: { ...COLOR, default: 0x7fe8ff },
 };
 
 export const entorno = defineFeature({
@@ -76,7 +82,7 @@ export const entorno = defineFeature({
   level: "base",
   describe: "El entorno de la zona: cielo, sol, luz, niebla, viento, suelo y exposición. Llega a todos al entrar; quien tiene permiso de construir lo cambia en directo con un preset (día, atardecer, noche, niebla, tormenta…) o con valores finos.",
   state: {
-    describe: "Una sola entrada, «zona». Colores en entero 0xRRGGBB; ángulos en grados (altura del sol sobre el horizonte, rumbo desde el norte hacia el este); niebla en metros (lejos 0 = sin niebla; nieblaAuto = su color sale del horizonte del cielo); viento en m/s; sueloEscala 1 = cada textura a su tamaño (suelos.json); suelo «ninguno» = sin suelo (cielo arriba y abajo; quien pisa el vacío cae hasta sueloMinimo); imagen y hdr = «<sha256>.<ext>» de /a/ o vacío (vacío: la luz sale del propio cielo); mapaCorte = altura en metros a la que el minimapa y el mapa cortan el mundo, como el plano de un edificio (0 = sin corte: se ven los tejados).",
+    describe: "Una sola entrada, «zona». Colores en entero 0xRRGGBB; ángulos en grados (altura del sol sobre el horizonte, rumbo desde el norte hacia el este); niebla en metros (lejos 0 = sin niebla; nieblaAuto = su color sale del horizonte del cielo); viento en m/s; sueloEscala 1 = cada textura a su tamaño (suelos.json); suelo «ninguno» = sin suelo (cielo arriba y abajo; quien pisa el vacío cae hasta sueloMinimo); caminos = tiras de luz sobre el suelo, «x1,z1,x2,z2;…» en metros, las del archivo del mundo; imagen y hdr = «<sha256>.<ext>» de /a/ o vacío (vacío: la luz sale del propio cielo); mapaCorte = altura en metros a la que el minimapa y el mapa cortan el mundo, como el plano de un edificio (0 = sin corte: se ven los tejados).",
     fields: CAMPOS,
     persist: true,
   },
