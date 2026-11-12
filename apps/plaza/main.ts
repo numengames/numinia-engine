@@ -7,10 +7,12 @@ import { version as versionPaquete } from "../../package.json"; // only this fie
 import { hex } from "../../packages/core/src/index.ts";
 import { referenceRecording, replayFingerprint, TICK_HZ, STICK_MAX, BTN_JUMP, BTN_RUN } from "../../packages/sim/src/index.ts";
 import { botonesDeVuelo } from "./vuelo-teclas.ts";
+import { teclas, filasDeTeclas, lineaDeAyuda } from "./teclas.ts";
 import { CIERRE_LLENO, CIERRE_SILENCIO, LATIDO_MS, webSocketClient } from "../../packages/net/src/index.ts";
 import { BARRIDO_MS, VigiaServidor } from "../../packages/client/src/vigia-servidor.ts"; // t_9cb3f636: the page notices the server went silent
 import { acciones, expresionDeDados } from "./acciones-informe.ts"; // T1: dice, photo, drop, hand jump, VR body and speed leave a line in the session log
-import { montarAjustes, leerAjuste } from "./menu-ajustes.ts"; // N2: settings menu + capabilities
+import { tx, ligar, alCambiarIdioma, idiomaActivo } from "../../packages/feature/src/idioma.ts";
+import { montarAjustes, leerAjuste, ponerIdiomaMundo } from "./menu-ajustes.ts"; // N2: settings menu + capabilities
 import { montarCiudad } from "./ciudad.ts"; // t_5cff4f06: the corner button back to the city (a world's own ciudadUrl)
 import mundoPlaza from "./mundo.ajustes.json";
 import { montarPulsaciones } from "./pulsaciones.ts"; // U26: a press you can see (and feel) on every button
@@ -50,7 +52,7 @@ import { montarVerNombres } from "./nombres-ver.ts";
 import { montarLibro, ponerAvisosMundo, ponerCatalogoCasa } from "./misiones.ts";
 import { anunciar, crearDialogo } from "./paneles.ts"; // S6: the accessible text of each sound (XAUR)
 import { montarMenuBarra } from "./menu-barra.ts"; // ux2-barra: the bar's «Cámara» (P) and «Menú» (O) drop-downs
-import { estadoCamara, filasDeAyuda } from "./menu-logica.ts";
+import { estadoCamara } from "./menu-logica.ts";
 import { crearSonidos, ponerSonidos, RUTA_TABLA, sonidos } from "../../packages/render/src/audio/sonidos.ts"; // S6: the house catalogue (its table comes from /sonidos.json; the files are served by their sha256)
 import { montarMapaPuerta } from "./mapa-puerta.ts"; // t_45ef2f70: the real map (mapa.ts) lands after the first frame
 import { crearIrAndando, frase } from "../../packages/client/src/ir-andando.ts";
@@ -82,6 +84,8 @@ import { llamarPagina } from "../../features/llamar/client.ts"; // ia-llamar S11
 import { montarLlamarIA } from "./llamar-ia.ts"; // ia-llamar S11: the notice and the box of «Hablar con ella», and the prompt «E: hablar con…»
 import { burbujaPagina } from "../../features/burbuja/client.ts"; // ia-llamar S9: the shape of each AI's action bubble and the «entras» that flashes it
 import { ojosDe } from "../../features/ia/ojos.ts"; // t_5096d6f4: the eyes of an AI by the size of its model
+import { montarPresencia } from "./ia-presencia.ts";
+import { anclar } from "./anclar.ts"; // Pablo 11-11: boxes beside someone in the world, never over another panel // an AI faces the person it is with (features/burbuja `mira`)
 import { iaPagina } from "../../features/ia/client.ts"; // ia-visible S3: the public card of each AI (state, who answers, what it may do)
 import { asiento, interruptor as interruptorAsiento } from "../../features/asiento/client.ts"; // asiento v1: sitting down for real
 import { burbujas, interruptor as interruptorBurbujas } from "../../features/burbujas/client.ts"; // burbujas v1: voice bubbles
@@ -99,12 +103,14 @@ import { montarAncestros } from "./ancestros.ts";
 import { montarVoz } from "./voz.ts";
 import { montarSubtitulosPuerta } from "./subtitulos-puerta.ts"; // V13: voice subtitles (name + direction), loaded on first use
 import { montarPantalla } from "./pantalla.ts";
+import type { montarPantallaRed as MontarPantallaRed } from "./pantalla-red.ts"; // type only: the code itself is a lazy chunk
 import { montarCondicionesPuerta } from "./condiciones-puerta.ts"; // condiciones/c3: the bubble of entry (only when the world's gate is on; the server decides). t_45ef2f70: its façade now (holds the page while the offer is on and the bubble is not here); the bubble itself loads after the first frame
 import { montarGraboso } from "./graboso.ts"; // M18b: the relic that records what you see (K)
 import { icono } from "./iconos.ts";
 import { rotularBoton } from "./menu-secciones-ui.ts"; // v2 paridad: the bar reads the one list of sections
 import { nombreDe, seccion, tituloDe } from "../../packages/render/src/menu-secciones.ts";
 import { gestosDePagina } from "../../features/gestos/client.ts";
+import { cargar as cargarFrases } from "../../features/frases/client.ts"; // Y29: fixed phrases — the light door; its logic and panel load after the first frame
 import { FAVORITOS_INICIALES } from "../../features/gestos/movimientos.ts";
 import { montarRueda } from "./rueda.ts";
 import { montarXR } from "./xr.ts";
@@ -152,7 +158,7 @@ let sonarServidor: (s: PeticionSonido) => boolean = (s) => catalogoSonidos.suena
 // of the catalogue that sounds as a single looping bed (today «ambiente-numinia», the CC0 mattress); `ambiente_ganancia` = its
 // volume (×0.042 by default, the one its author wanted); `ambiente_sintetizado` = the SYNTHESISED beds and layers that
 // this world turns on by name (by default, none).
-type Estado = { temaHud?: unknown; espejo?: unknown; dardosEnlace?: unknown; version?: string; nombre?: string; tema?: unknown; interfaz?: unknown; avatar?: string; avatares?: unknown; aforo?: number; conectados?: number;
+type Estado = { idioma?: string; temaHud?: unknown; espejo?: unknown; dardosEnlace?: unknown; version?: string; nombre?: string; tema?: unknown; interfaz?: unknown; avatar?: string; avatares?: unknown; aforo?: number; conectados?: number;
   audio?: { ambiente?: string | null; ambiente_ganancia?: number; ambiente_sintetizado?: string[]; avisos?: Record<string, string> } };
 const estadoP: Promise<Estado | null> = fetch(`${activos}/status`).then((r) => r.json() as Promise<Estado>).catch(() => null);
 const estado = await Promise.race([estadoP, new Promise<null>((ok) => setTimeout(() => ok(null), 1500))]);
@@ -178,6 +184,7 @@ view.naturaleza.tablaFauna(() => import("../../features/naturaleza/fauna-casa.ts
 // game features (J7): their client parts, and how they may draw (a label, a hop) over any avatar
 // I1: the guest token stays in this browser (no account, no personal data); private mode = a new guest each time
 const GUARDA = "numinia.invitado";
+let pausaCuadros = 0; // Y25: frames of the hit pause still to hold (features/lucha/peso.ts; the loop below skips its draw while > 0)
 const session = new ClientSession(transport, {
   features: funciones,
   pase: tomarPaseDeLaDireccion(location, history), // H3b: #pass=<token> from numinia.com, out of the address bar at once, sent once connected
@@ -188,6 +195,8 @@ const session = new ClientSession(transport, {
     bounce: (e, ms) => view.bounce(e === session.entity ? "self" : e, ms),
     beacon: (x, z, text, ms) => view.beacon(x, z, text, ms),
     ajuste: (id) => leerAjuste(id), // N2: a feature reads its own settings (menu-ajustes.ts)
+    movimientoReducido: () => leerAjuste("accesibilidad.menosMovimiento") === true, // Y25: «reduce motion» (features/lucha/peso.ts, L5 after it)
+    pausa: (n) => { if (!view.vr.active && view.ar.state === "off") pausaCuadros = Math.min(5, n); }, // Y25: hit pause, 2-5 frames of the picture only; never in VR/AR
     // H1: things placed in the world, and where I am (a builder puts things in front of me)
     place: (key, o) => view.place(key, o),
     here: () => { if (session.entity < 0) return null; const p = session.selfPosition(0); return { x: p.x, y: 0, z: p.z }; },
@@ -227,17 +236,18 @@ const session = new ClientSession(transport, {
     },
     // V1: every announced event reaches screen readers (polite; safety = assertive). V3 adds the engine's own voice.
     announce: (a) => {
+      if (a.feature === "frases" && a.event === "dicha") return; // Y29: the client part says it again in this page's language («traducida»), so the server's id-only line is not read
       if (a.feature === "chat") return; // J3: the chat box's own list (role=log, polite) reads the chat
       if (a.feature === "director" && a.event === "narracion") return; // N6: the narrator's banner (a live region) reads it
       if (a.feature === "misiones" && a.event === "completada") return; // U14 (6): the «Misión completada» banner (a live region) reads it
       if (a.feature === "misiones" && a.event === "abrirEvaluacion") return; // P13: the end card says it itself (misiones.ts), with how to close it
       const box = document.getElementById(a.importance >= 3 ? "avisos-urgentes" : "avisos")!;
-      const p = document.createElement("p"); p.textContent = a.text; box.appendChild(p);
+      const p = document.createElement("p"); p.textContent = idiomaActivo() === "en" ? (a.en ?? a.text) : a.text; box.appendChild(p); // a Spanish source text has its English in avisos-en.ts
       while (box.childElementCount > 3) box.firstElementChild!.remove();
     },
   },
 });
-transport.opened.catch(() => { hud.textContent = `No llego al servidor ${url}.\n¿Está arrancado (npm run server)?`; });
+transport.opened.catch(() => { hud.textContent = tx(`Cannot reach the server ${url}.\nIs it running (npm run server)?`, `No llego al servidor ${url}.\n¿Está arrancado (npm run server)?`); });
 // H7: the door was closed because the world is full (ficha `aforo`): say so where everyone reads it (the HUD and the
 // alert region for screen readers), with the way out; the page does not reconnect by itself
 let conexionCerrada = false; // t_9cb3f636: the socket closed for good: the silence notice gives way to the final one
@@ -246,12 +256,12 @@ void transport.closed.then((c) => {
   if (c.code === CIERRE_SILENCIO) { // t_9cb3f636: the server stopped hearing this page (a stall, a lost network): it let go of the avatar
     hud.hidden = true;
     const aviso = document.getElementById("mundo-lleno")!;
-    aviso.textContent = "Se cortó la conexión con el mundo. Vuelve a cargar la página para entrar de nuevo."; aviso.hidden = false;
+    aviso.textContent = tx("The connection to the world was cut. Reload the page to enter again.", "Se cortó la conexión con el mundo. Vuelve a cargar la página para entrar de nuevo."); aviso.hidden = false;
     return;
   }
   if (c.code !== CIERRE_LLENO) return;
-  const n = /(\d+)\/(\d+)/.exec(c.reason), nombre = estado?.nombre ? `«${estado.nombre}»` : "Este mundo";
-  const texto = `${nombre} está lleno${n ? ` (${n[2]} persona${n[2] === "1" ? "" : "s"} como mucho)` : ""}. Espera un rato y vuelve a cargar la página.`;
+  const n = /(\d+)\/(\d+)/.exec(c.reason), nombre = estado?.nombre ? `«${estado.nombre}»` : tx("This world", "Este mundo");
+  const texto = tx(`${nombre} is full${n ? ` (${n[2]} ${n[2] === "1" ? "person" : "people"} at most)` : ""}. Wait a while and reload the page.`, `${nombre} está lleno${n ? ` (${n[2]} persona${n[2] === "1" ? "" : "s"} como mucho)` : ""}. Espera un rato y vuelve a cargar la página.`);
   hud.hidden = true; // the statistics block would repaint over any text put there
   const aviso = document.getElementById("mundo-lleno")!;
   aviso.textContent = texto; aviso.hidden = false; // role=alert: screen readers read it at once
@@ -272,6 +282,9 @@ iaPagina.alCambiar((quien, ficha) => view.pensando(quien === session.entity ? "s
 // «entras» (YOU crossed its edge) makes it flash for a moment. Who is inside is the server's: the page only draws.
 burbujaPagina.alCambiar((quien, b) => view.burbuja(quien === session.entity ? "self" : quien, b, iaPagina.de(quien)?.estado === "dormida"));
 burbujaPagina.alEntrar((ia) => view.burbujaDestello(ia === session.entity ? "self" : ia));
+// presence (Pablo, 2026-11-11): an AI faces the person it is with (the server's `mira`) while it stands still
+const presencia = montarPresencia({ burbujas: burbujaPagina, yo: () => session.entity, miPosicion: () => (session.entity >= 0 ? session.selfPosition(1) : null), otros: () => session.remotePositions(),
+  orientar: (q, r) => view.orientar(q === session.entity ? "self" : q, r) });
 
 // condiciones/c3: with the world's gate on, the server sends its conditions after you join and you stand in a bubble until you accept;
 // with it off it sends nothing and this does nothing. The gate itself is the server's; here the walking input is also held still.
@@ -291,13 +304,27 @@ const refrescarAcciones = (): void => {
   for (const { a, b } of botonesAccion) { const oculto = (ocultos.size > 0 && interfazMundo!.accionOculta(a, ocultos)) || (a.disponible ? !a.disponible() : false); if (b.hidden !== oculto) b.hidden = oculto; }
 };
 setInterval(refrescarAcciones, 250);
-addEventListener("keydown", (e) => { if (!e.repeat && !escribiendo(e)) acts.find((a) => a.key === e.code)?.run(); }); // J3: typing in a box is not an action
+// keymap v1: Ctrl+H hides (and shows) the whole interface, for photos and videos. The microphone warning stays: privacy outranks a clean picture.
+addEventListener("keydown", (e) => {
+  if (!teclas.es(e, "ocultarUI") || e.repeat || e.altKey) return;
+  e.preventDefault();
+  const r = document.documentElement;
+  r.classList.toggle("ui-oculta");
+  if (r.classList.contains("ui-oculta")) document.querySelectorAll("dialog[open]").forEach((d) => (d as HTMLDialogElement).close());
+});
+// keymap v1: a feature names its action, the table of teclas.ts owns the key (so one key = one function, and Yours applies). Fishing keeps E and Q in pesca.ts.
+const ACCION_DE_FEATURE: Record<string, string> = { bailar: "bailar", soltar: "soltar", frases: "frases" };
+// the «Reel in» button wears the E badge, but E itself is handled in pesca.ts (not by this generic listener)
+const INSIGNIA_DE_FEATURE: Record<string, string> = { ...ACCION_DE_FEATURE, recoger: "usar" };
+const teclaDe = (a: (typeof acts)[number]): string => (INSIGNIA_DE_FEATURE[a.id] ? teclas.etiqueta(INSIGNIA_DE_FEATURE[a.id]) : "");
+addEventListener("keydown", (e) => { if (!e.repeat && !escribiendo(e) && !e.ctrlKey && !e.metaKey && !e.altKey) acts.find((a) => ACCION_DE_FEATURE[a.id] && teclas.es(e, ACCION_DE_FEATURE[a.id]))?.run(); }); // J3: typing in a box is not an action
+if (!esTactil()) { const ayudaPie = document.getElementById("help")!; const pintarAyuda = (): void => { ayudaPie.textContent = lineaDeAyuda(); }; pintarAyuda(); teclas.alCambiar(pintarAyuda); }
 if (esTactil()) {
-  document.getElementById("help")!.textContent = "Dedo a la izquierda: andar · a la derecha: mirar · dos dedos: acercar"; // N1: the touch map only
+  ligar(document.getElementById("help")!, "textContent", "Left finger: walk · right: look · two fingers: zoom", "Dedo a la izquierda: andar · a la derecha: mirar · dos dedos: acercar"); // N1: the touch map only
   const bar = document.getElementById("acciones")!;
   for (const a of acts.filter((x) => x.feature !== "gestos")) { // J7b: on touch the gestures live in the wheel's button (rueda.ts)
     const b = document.createElement("button");
-    b.type = "button"; b.textContent = a.label; b.title = a.describe ?? "";
+    b.type = "button"; alCambiarIdioma(() => { b.textContent = a.label; b.title = a.describe ?? ""; }); // a feature writes `get label()`: read again on a language change
     b.addEventListener("pointerdown", (ev) => { ev.stopPropagation(); a.run(); }); // not a joystick touch
     bar.appendChild(b); botonesAccion.push({ a, b });
   }
@@ -306,14 +333,14 @@ if (esTactil()) {
   const bar = document.getElementById("acciones")!;
   for (const a of acts) {
     const b = document.createElement("button");
-    b.type = "button"; b.title = a.describe ?? ""; if (a.key) b.setAttribute("aria-keyshortcuts", a.key.replace(/^Key/, ""));
-    const t = document.createElement("span"); t.textContent = a.label; b.append(t);
-    if (a.key) { const k = document.createElement("kbd"); k.textContent = a.key.replace(/^Key/, ""); b.append(k); }
+    b.type = "button"; if (teclaDe(a)) b.setAttribute("aria-keyshortcuts", teclaDe(a));
+    const t = document.createElement("span"); b.append(t); alCambiarIdioma(() => { t.textContent = a.label; b.title = a.describe ?? ""; });
+    if (teclaDe(a)) { const k = document.createElement("kbd"); k.textContent = teclaDe(a); b.append(k); teclas.alCambiar(() => { k.textContent = teclaDe(a); }); }
     b.addEventListener("click", () => { a.run(); b.blur(); });
     bar.appendChild(b); botonesAccion.push({ a, b });
   }
   versionAcciones = -1; refrescarAcciones();
-  document.getElementById("help")!.textContent += " · " + acts.map((a) => `${(a.key ?? "").replace(/^Key/, "")} ${a.label.toLowerCase()}`).join(" · ") + " · G (mantén): movimientos";
+  /* the help line at the foot is written from the table below (lineaDeAyuda) */
 }
 
 // ---- H1 + M22: the builder, for whoever may build (the server says so on entering): panel, gizmo, grab ----
@@ -346,12 +373,13 @@ const cable = montarCablePuerta({ constructor, disparadores, aqui: () => (sessio
 const cerradurasPagina = montarCerradura({ cerradura: cerraduras });
 // ---- U14: video controls — pause/resume (E, click or the controller in VR) and my own volume (slider, flat screen) ----
 const videoMandos = montarVideoMandos({ lista: () => constructor.lista(), controlVideo: (id) => view.controlVideo(id), panel: document.getElementById("video-mandos")! });
+alPrimerCuadro(() => cargarFrases().then((p) => import("./frases.ts").then((m) => m.montarFrases(p.frasesDePagina)))); // Y29: the fixed-phrases panel, after the first frame
 alPrimerCuadro(() => import("./entorno.ts").then((m) => m.montarEntorno(ambiente, elementos, view, interruptorNaturaleza, constructorUI.cajon("entorno"), interruptorBase, constructor, [
-  { id: "baculo", etiqueta: "Báculo del Director", titulo: "Encender o apagar el báculo del Director de juego de este mundo (quien lo lleva dirige) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en baculos.json. / Turn the Game Director's staff on or off for the whole world.", encendida: "Báculo del Director encendido.", apagada: "Báculo del Director apagado.", interruptor: interruptorBaculo },
-  { id: "asientos", etiqueta: "Asientos", titulo: "Encender o apagar los asientos de este mundo («E» junto a un asiento y te sientas) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en asientos.json. / Turn the seats on or off for the whole world.", encendida: "Asientos encendidos.", apagada: "Asientos apagados.", interruptor: interruptorAsiento },
-  { id: "burbujas", etiqueta: "Burbujas de voz", titulo: "Encender o apagar las burbujas de voz de este mundo (dentro de una, solo se oyen entre sí los que están dentro; es privacidad de oído, no cifrado) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en burbujas.json. / Turn the voice bubbles on or off for the whole world.", encendida: "Burbujas de voz encendidas.", apagada: "Burbujas de voz apagadas.", interruptor: interruptorBurbujas },
-  { id: "dados", etiqueta: "Dados", titulo: "Encender o apagar los dados de este mundo (la torre de dados y /tirar) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en dados.json. / Turn the dice on or off for the whole world.", encendida: "Dados encendidos.", apagada: "Dados apagados.", interruptor: interruptorDados },
-  { id: "espejo", etiqueta: "Espejo de Hermes", titulo: "Encender o apagar la salud de Hermes, la lámpara maestra del panel de interruptores de este mundo, para todos. Las demás funciones se encienden con las lámparas del panel (E o clic). Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en espejo.json. / Turn Hermes' master health lamp on or off for the whole world.", encendida: "Salud de Hermes encendida.", apagada: "Salud de Hermes apagada.", interruptor: interruptorEspejo },
+  { id: "baculo", get etiqueta() { return tx("Director's Staff", "Báculo del Director"); }, get titulo() { return tx("Turn the Game Director's staff on or off for the whole world (whoever carries it directs). Only visible to, and changeable by, whoever directs here or is in charge. Saved in baculos.json.", "Encender o apagar el báculo del Director de juego de este mundo (quien lo lleva dirige) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en baculos.json."); }, get encendida() { return tx("Director's Staff on.", "Báculo del Director encendido."); }, get apagada() { return tx("Director's Staff off.", "Báculo del Director apagado."); }, interruptor: interruptorBaculo },
+  { id: "asientos", get etiqueta() { return tx("Seats", "Asientos"); }, get titulo() { return tx("Turn the seats of this world on or off for everyone («E» next to a seat to sit). Only visible to, and changeable by, whoever directs here or is in charge. Saved in asientos.json.", "Encender o apagar los asientos de este mundo («E» junto a un asiento y te sientas) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en asientos.json."); }, get encendida() { return tx("Seats on.", "Asientos encendidos."); }, get apagada() { return tx("Seats off.", "Asientos apagados."); }, interruptor: interruptorAsiento },
+  { id: "burbujas", get etiqueta() { return tx("Voice bubbles", "Burbujas de voz"); }, get titulo() { return tx("Turn the voice bubbles of this world on or off for everyone (inside one, only those inside hear each other; it is hearing privacy, not encryption). Only visible to, and changeable by, whoever directs here or is in charge. Saved in burbujas.json.", "Encender o apagar las burbujas de voz de este mundo (dentro de una, solo se oyen entre sí los que están dentro; es privacidad de oído, no cifrado) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en burbujas.json."); }, get encendida() { return tx("Voice bubbles on.", "Burbujas de voz encendidas."); }, get apagada() { return tx("Voice bubbles off.", "Burbujas de voz apagadas."); }, interruptor: interruptorBurbujas },
+  { id: "dados", get etiqueta() { return tx("Dice", "Dados"); }, get titulo() { return tx("Turn the dice of this world on or off for everyone (the dice tower and /tirar). Only visible to, and changeable by, whoever directs here or is in charge. Saved in dados.json.", "Encender o apagar los dados de este mundo (la torre de dados y /tirar) para todos. Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en dados.json."); }, get encendida() { return tx("Dice on.", "Dados encendidos."); }, get apagada() { return tx("Dice off.", "Dados apagados."); }, interruptor: interruptorDados },
+  { id: "espejo", get etiqueta() { return tx("Hermes mirror", "Espejo de Hermes"); }, get titulo() { return tx("Turn Hermes' health, the master lamp of this world's switch panel, on or off for everyone. The other features are switched with the panel's lamps (E or click). Only visible to, and changeable by, whoever directs here or is in charge. Saved in espejo.json.", "Encender o apagar la salud de Hermes, la lámpara maestra del panel de interruptores de este mundo, para todos. Las demás funciones se encienden con las lámparas del panel (E o clic). Solo lo ve y lo cambia quien dirige aquí o manda. Se guarda en espejo.json."); }, get encendida() { return tx("Hermes health on.", "Salud de Hermes encendida."); }, get apagada() { return tx("Hermes health off.", "Salud de Hermes apagada."); }, interruptor: interruptorEspejo },
 ], interruptoresFunciones, { subir: (f, campo) => soltar.subirFondo(f, campo), nivel: () => view.entorno.nivel }))); // t_45ef2f70: the builder's drawer mounts after the first frame. H4b: fondo y HDR subidos; H4/H8: environment and elements, inside the builder's «Entorno» drawer (ux2-dock)
 // H7: the world's settings (title, picture, default avatar, people limit): the form below the switches (only who may), and the title in the tab follows the server
 alPrimerCuadro(() => import("./ficha-mundo.ts").then((m) => m.montarFichaMundo({ ajustes: ajustesMundo, padre: constructorUI.cajon("entorno"), avatares: catalogoAvatares?.modelos.map((x) => ({ id: x.id, nombre: x.nombre })) ?? [] })));
@@ -363,11 +391,11 @@ alPrimerCuadro(() => import("./director.ts").then((m) => m.montarDirector({ dj: 
 // ux2-gente: friends kept in this browser, the sheet of whoever you pick, and the small card when you click someone in the
 // world (gente-tarjeta.ts). Silenciar = voz.ts drops their voice here; Bloquear = /bloquear; Denunciar = /denunciar.
 const distanciaA = (q: number): number | null => { if (session.entity < 0) return null; const r = session.remotePositions().find((x) => x.id === q); if (!r) return null; const y = session.selfPosition(1); return Math.hypot(r.x - y.x, r.z - y.z); };
-const llamarIA = montarLlamarIA({ llamar: llamarPagina, ia: iaPagina, burbuja: burbujaPagina, distancia: distanciaA, nombre: (q) => chatDePagina.nombres.get(q) ?? null, idioma: () => document.documentElement.lang });
+const llamarIA = montarLlamarIA({ llamar: llamarPagina, ia: iaPagina, burbuja: burbujaPagina, distancia: distanciaA, nombre: (q) => chatDePagina.nombres.get(q) ?? null, abrirAlEntrar: () => leerAjuste("llamar.abrirAlEntrar") !== false, idioma: () => document.documentElement.lang });
 const gente = montarGentePuerta({ viajar, llamar: { puede: llamarIA.puede, hablar: llamarIA.hablar }, barra: document.getElementById("barra-arriba"), orden: (t) => chatDePagina.decir(t),
   mundo: () => estado?.nombre ?? "",
   ia: iaPagina, idioma: () => document.documentElement.lang,
-  baliza: (q, texto) => { const r = session.remotePositions().find((x) => x.id === q); if (!r) return { ok: false, why: "No sé dónde está desde aquí." }; view.beacon(r.x, r.z, texto, 60_000); return { ok: true }; }, // ia-visible S7: where trips are off, «Ir hacia ella» marks where the AI is
+  baliza: (q, texto) => { const r = session.remotePositions().find((x) => x.id === q); if (!r) return { ok: false, why: tx("I don't know where they are from here.", "No sé dónde está desde aquí.") }; view.beacon(r.x, r.z, texto, 60_000); return { ok: true }; }, // ia-visible S7: where trips are off, «Ir hacia ella» marks where the AI is
   mirada: {
     avatar: (q) => avatarUI?.deQuien(q) ?? null,
     distancia: distanciaA,
@@ -390,20 +418,20 @@ const webPagina = montarWeb({ web: pantallasWeb, view }); // N17: web screens �
 const ancestrosPagina = montarAncestros({ ancestros, view }); // ancestros v1: the hall in 3D, the two panels, and the law + our rule on screen when the hologram answers you
 // ---- mundo-hermes: the zones' floors and the switch lamps (/status `espejo`), and the card that opens when a thing is looked at ----
 // mundo-hermes: entorno.json `tema: "black-and-white"` (told as /status `temaHud`) dresses the HUD; any other world never loads this
-if (estado?.temaHud === "black-and-white") void Promise.all([import("./tema-byn.ts"), import("./mapa.ts")]).then(([t, m]) => { m.temaMapa(true); t.aplicarTemaByn(); }).catch((e) => console.warn(`[tema] no se pudo cargar el tema: ${(e as Error)?.message ?? e}`));
+if (estado?.temaHud === "black-and-white") void Promise.all([import("./tema-byn.ts"), import("./mapa.ts")]).then(([t, m]) => { m.temaMapa(true); t.aplicarTemaByn(); }).catch((e) => console.warn(`[tema] no se pudo cargar el tema: ${(e as Error)?.message ?? e}`)); // i18n-ok: developer log / diagnostics report, not shown to the player
 espejoCtl.configurar(estado?.espejo);
 let espejoCard: Promise<unknown> | null = null;
 // M6 the guide: loaded when the switch `guia` is on (nothing of it is in the start bundle); the frame loop below asks her for her step
 let guiaPagina: { cuadro(dt: number): boolean } | null = null, guiaCarga = false;
-const cargarGuia = (): void => { if (guiaCarga || !espejoCtl.interruptor.activa("guia") || !espejoCtl.vista()?.guia) return; guiaCarga = true; void import("./guia.ts").then((m) => { guiaPagina = m.montarGuia({ espejo: espejoCtl, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), forma: (k, f) => view.forma(k, f), mover: (k, x, z, r) => view.moverForma(k, x, z, r) }); }).catch((e) => { guiaCarga = false; console.warn(`[guia] no se pudo cargar: ${(e as Error)?.message ?? e}`); }); };
+const cargarGuia = (): void => { if (guiaCarga || !espejoCtl.interruptor.activa("guia") || !espejoCtl.vista()?.guia) return; guiaCarga = true; void import("./guia.ts").then((m) => { guiaPagina = m.montarGuia({ espejo: espejoCtl, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null), forma: (k, f) => view.forma(k, f), mover: (k, x, z, r) => view.moverForma(k, x, z, r) }); }).catch((e) => { guiaCarga = false; console.warn(`[guia] no se pudo cargar: ${(e as Error)?.message ?? e}`); }); }; // i18n-ok: developer log / diagnostics report, not shown to the player
 cargarGuia();
 espejoCtl.alCambiar(() => cargarGuia());
 // M7 embed mode: only when the page is framed AND `?embed=1` (or the world's /status says `espejo.embed`); a page that is not framed never downloads the bridge
 if (window.parent !== window && (/[?&]embed=1\b/.test(location.search) || (estado?.espejo as { embed?: boolean } | null | undefined)?.embed)) void import("./espejo-embed.ts").then((m) => m.montarEmbed({ espejo: espejoCtl })).catch((e) => console.warn(`[embed] ${String(e)}`));
-espejoCtl.alCambiar((que) => { if (que === "ficha" && espejoCtl.estado.ficha) espejoCard ??= import("./espejo.ts").then((m) => m.montarEspejo({ espejo: espejoCtl, viaje: viajar, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) })).catch((e) => console.warn(`[espejo] no se pudo cargar la ficha: ${(e as Error)?.message ?? e}`)); });
+espejoCtl.alCambiar((que) => { if (que === "ficha" && espejoCtl.estado.ficha) espejoCard ??= import("./espejo.ts").then((m) => m.montarEspejo({ espejo: espejoCtl, viaje: viajar, yo: () => (session.entity >= 0 ? session.selfPosition(1) : null) })).catch((e) => console.warn(`[espejo] no se pudo cargar la ficha: ${(e as Error)?.message ?? e}`)); }); // i18n-ok: developer log / diagnostics report, not shown to the player
 // ---- pesca v1: nothing of it is in the start bundle; the HUD and the 3D arrive with the first fishing spot or float ----
 let pescaHud: Promise<unknown> | null = null, pescaPagina: unknown = null; // N4: pescaPagina.manos (VR rod, gamepad) for the e2e
-pesca.alCambiar(() => { if (!pesca.sitios().length) return; /* f2: fishing switched off: nothing to load */ pescaHud ??= import("./pesca.ts").then((m) => (pescaPagina = m.montarPesca({ pesca, view, session, hud: document.getElementById("pesca-hud")!, interaccion: () => interaccion }))).catch((e) => console.warn(`[pesca] no se pudo cargar la página de pesca: ${(e as Error)?.message ?? e}`)); });
+pesca.alCambiar(() => { if (!pesca.sitios().length) return; /* f2: fishing switched off: nothing to load */ pescaHud ??= import("./pesca.ts").then((m) => (pescaPagina = m.montarPesca({ pesca, view, session, hud: document.getElementById("pesca-hud")!, interaccion: () => interaccion }))).catch((e) => console.warn(`[pesca] no se pudo cargar la página de pesca: ${(e as Error)?.message ?? e}`)); }); // i18n-ok: developer log / diagnostics report, not shown to the player
 // ---- dardos enlazados (E1): AR in ANY world shows the darts board of another one (the Alchemist Tower), through a second, light connection
 // that exists only once something asks for it (./dardos-enlace.ts is its own chunk). What the link is = the engine's constant unless this world's
 // dardos.json says otherwise (/status `dardosEnlace`); a world never links to itself nor when it has an AR board of its own. E2 puts the UI on it.
@@ -416,13 +444,13 @@ const dardosEnlace = {
   async enlace() {
     const v = dardosEnlace.vigente(); if (!v.enlace) return null;
     const e = v.enlace;
-    return (enlaceDardos ??= import("./dardos-enlace.ts").then((m) => m.crearEnlaceDardos({ enlace: e, view, nombre: () => session.who?.nombre ?? "Invitado", mundo: () => nombreDelMundo || document.title })));
+    return (enlaceDardos ??= import("./dardos-enlace.ts").then((m) => m.crearEnlaceDardos({ enlace: e, view, nombre: () => session.who?.nombre ?? tx("Guest", "Invitado"), mundo: () => nombreDelMundo || document.title })));
   },
 };
 
 // ---- dardos v1: the throwing view (mouse, flick, keys) and «En tu pared (AR)» arrive with the first dartboard ----
 let dardosHud: Promise<unknown> | null = null;
-dardos.alCambiar(() => { if (!dardos.sitios().length) return; /* f2: darts switched off: nothing to load */ dardosHud ??= import("./dardos.ts").then((m) => m.montarDardos({ dardos, view, session, hud: document.getElementById("dardos-hud")! })).catch((e) => console.warn(`[dardos] no se pudo cargar la página de dardos: ${(e as Error)?.message ?? e}`)); });
+dardos.alCambiar(() => { if (!dardos.sitios().length) return; /* f2: darts switched off: nothing to load */ dardosHud ??= import("./dardos.ts").then((m) => m.montarDardos({ dardos, view, session, hud: document.getElementById("dardos-hud")! })).catch((e) => console.warn(`[dardos] no se pudo cargar la página de dardos: ${(e as Error)?.message ?? e}`)); }); // i18n-ok: developer log / diagnostics report, not shown to the player
 
 // ---- S6f: everything sounds through ONE door — the catalogue file if there is one, and if not the synthesised recipe; buttons,
 // my steps, my jump and my landing are local, and what is shared (door, dice, darts, fish, teleport) is sent by the
@@ -441,7 +469,7 @@ alPrimerCuadro(() => import("./sonidos.ts").then(async (m) => { // t_45ef2f70: t
   const ponerAmbiente = () => { if (a || dirigir.ambienteActual()) puerta.ambiente(ambienteDeEscena(dirigir.ambienteActual(), a)); };
   ponerAmbiente();
   dirigir.alCambiar((que) => { if (que === "actual") ponerAmbiente(); });
-}).catch((e) => console.warn(`[sonidos] no se pudieron montar: ${(e as Error)?.message ?? e}`)));
+}).catch((e) => console.warn(`[sonidos] no se pudieron montar: ${(e as Error)?.message ?? e}`))); // i18n-ok: developer log / diagnostics report, not shown to the player
 
 // ---- U10: the microphone (button or Q): your voice to who is near; theirs from where they stand ----
 const subtitulos = montarSubtitulosPuerta({
@@ -459,14 +487,46 @@ const graboso = montarGraboso({ lienzo: view.renderer.domElement, view, xr: { pr
 const cajaChat = montarChat(chatDePagina, document.getElementById("chat")!);
 montarPensando({ ia: iaPagina, nombre: (q) => chatDePagina.nombres.get(q) ?? null, distancia: distanciaA, idioma: () => document.documentElement.lang, raiz: document.getElementById("chat")! }); // t_466efdb8: «Ada está pensando…» with a tiny orb, under the chat list
 
-// ---- M18 (trozo 2, local only): «Compartir pantalla» (button or P): your screen on the nearest video screen of the world,
-// or in a floating window; only this page sees it — nothing is sent (apps/plaza/pantalla.ts) ----
+// ---- M18 (trozos 2 y 3): «Compartir pantalla» (button or P): your screen on the nearest video screen of the world, seen by
+// everyone near it through the server's relay (apps/plaza/pantalla-red.ts, WebCodecs), or in a floating window only you see ----
+const decirPantalla = (t: string) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } };
+// The network side is a lazy chunk (first-load budget): it is fetched the first time a share is announced to this page or this page starts
+// one. What arrives meanwhile is kept (a few hundred messages at most) and replayed to it in order; a viewer then waits for a key frame.
+type PantallaRed = ReturnType<typeof MontarPantallaRed>;
+let pantallaRedCargada: PantallaRed | null = null, pantallaRedPromesa: Promise<PantallaRed> | null = null;
+const pantallaRedCola: ((r: PantallaRed) => void)[] = [];
+const cargarPantallaRed = (): Promise<PantallaRed> => pantallaRedPromesa ??= import("./pantalla-red.ts").then((m) => {
+  const r = m.montarPantallaRed({ session, view, decir: decirPantalla, nombreDe: (key) => String(constructor.objeto(key)?.nombre ?? ""), alPararPropia: (key) => compartir.alPararPropia(key) });
+  pantallaRedCargada = r;
+  for (const f of pantallaRedCola.splice(0)) f(r);
+  return r;
+});
+const alCargar = (f: (r: PantallaRed) => void) => { if (pantallaRedCargada) { f(pantallaRedCargada); return; } if (pantallaRedCola.length < 300) pantallaRedCola.push(f); void cargarPantallaRed(); };
+session.onPantallaEstado = (e) => alCargar(() => session.onPantallaEstado?.(e));
+const pantallaRed = { get estado() { return pantallaRedCargada?.estado ?? { enviando: null, viendo: 0, tramasEnviadas: 0, saltadas: 0, bytesEnviados: 0, tramasVistas: 0, error: "" }; } };
 const compartir = montarPantalla({
-  view, escribiendo, construyendo: () => construyendo(view),
+  view, escribiendo, construyendo: () => construyendo(view), red: { empezar: (k, s) => cargarPantallaRed().then((r) => r.empezar(k, s)), parar: () => { if (pantallaRedPromesa) void pantallaRedPromesa.then((r) => r.parar()); } },
   yo: () => (session.entity >= 0 ? session.selfPosition(1) : null),
   nombreDe: (key) => String(constructor.objeto(key)?.nombre ?? ""),
   decir: (t) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); const c = document.getElementById("chat-estado"); if (c) { c.textContent = t; setTimeout(() => { if (c.textContent === t) c.textContent = ""; }, 6000); } },
 });
+
+// ---- «Watch full screen»: seated before a 3D screen that shows a share or a video, an extra button (F) opens that picture full screen; local only, not offered in VR ----
+// Lazy: its code is a chunk fetched the first time you sit while a screen shows something; a world without screens never downloads it.
+{
+  const sentadoAhora = () => { const k = asiento.mio(), v = k ? asiento.lista().find((c) => c.id === k) : undefined; return v ? { x: v.x, z: v.z, mira: v.mira } : null; };
+  const espera = setInterval(() => {
+    if (!sentadoAhora() || view.pantallasMostrando().length === 0) return;
+    clearInterval(espera);
+    void import("./pantalla-completa.ts").then((m) => {
+      const pc = m.montarPantallaCompleta({
+        view, escribiendo, sentado: sentadoAhora,
+        teclaLibre: () => pesca.estado().fase === "nada" && document.getElementById("panel-construir")?.hidden !== false && !document.body.classList.contains("modo-foto") && !document.body.classList.contains("rueda-abierta"), // F reels while fishing, frames in the builder and the photo mode, and the wheel takes it
+      });
+      (globalThis as unknown as { __numinia?: Record<string, unknown> }).__numinia ??= {}; (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia.pantallaCompleta = pc;
+    });
+  }, 500);
+}
 
 // ---- J4/J5: what you can use from close by (E, a click, the prompt button), conversations, the quest book (J) ----
 const interaccion = montarInteraccion({ session, view, boton: document.getElementById("interactuar") as HTMLButtonElement, ofrece: (f, k) => misiones.ofrece(f, k) && pesca.ofrece(f, k) && dardos.ofrece(f, k) && cerradurasPagina.ofrece(f, k) && lucha.ofrece(f, k), ocupado: () => !!misiones.dialogo(), locales: (x, z, y) => [...asiento.cerca(), ...huecos.cerca(x, z, y), ...cerradurasPagina.cerca(x, z), ...videoMandos.cerca(x, z), ...llamarIA.cerca()], pinchar: (key) => huecos.pinchar(key) || enlaces.pinchar(key),
@@ -478,7 +538,9 @@ view.manos.on((e) => { if (e.tipo === "soltar") acciones.registrar("soltar", { d
 { const tirar = dados.tirar.bind(dados); dados.tirar = (expresion, sitio, oculta) => { const r = tirar(expresion, sitio, oculta); if (r.ok) acciones.registrar("dados", { detalle: expresionDeDados(expresion), activo: oculta === true }); return r; }; }
 const xr = montarXR({ session, view, misiones, interaccion, enlaces, huecos }); // J4: + the ray points at things with a link and the trigger asks before opening // J10: hands in VR take, point and answer; what you took is in your hand
 let condicionesXR: { tick(): void } | null = null; // condiciones/c4: the bubble inside the headset — loaded with the VR chunk below, only where the browser can present VR
-montarDialogo(misiones, document.getElementById("dialogo")!, view);
+montarDialogo(misiones, document.getElementById("dialogo")!, view, { // Pablo 11-11: the box stays beside whoever talks to you
+  donde: (pnj) => { const v = session.features.stateOf("pnj").get(pnj); return v ? view.puntoEnPantalla(Number(v.x), Number(v.y ?? 0) + 1.7, Number(v.z)) : null; },
+});
 montarFlecha({ misiones }); // T3: idle costs nothing; with a step that points at a button it follows the button
 const nombres = montarVerNombres(view); // U22: Alt / «Nombres» button / gamepad Back: every name; otherwise only who you look at and who speaks
 misiones.alCambiar((que) => { if (que === "dialogo") view.hablando(misiones.dialogo() ? `pnj:${misiones.dialogo()!.pnj}` : null); }); // U22: the one you talk to shows its name
@@ -488,7 +550,22 @@ montarLibro(misiones, {
   oir: (fn) => session.features.tap(fn), ajuste: leerAjuste, // U14 (3): it opens by itself on accepting; a step done = a short sound
   banner: document.getElementById("mision-completada")!, // U14 (6): «Misión completada»
   evaluacion: document.getElementById("evaluacion")!, // P13: the end evaluation card
+  ahora: document.getElementById("mision-ahora")!, // H3: the quest card while building
 });
+{ // Pablo 11-11: the quest card stays beside the person who gives the quests (the nearest person of the world), never over a panel
+  const card = document.getElementById("mision-ahora")!;
+  const quien = (): { x: number; y: number } | null => {
+    const yo = session.entity >= 0 ? session.selfPosition(1) : null; let mejor: { x: number; y: number; z: number } | null = null, d2 = Infinity;
+    for (const v of session.features.stateOf("pnj").values()) {
+      const x = Number(v.x), z = Number(v.z), d = yo ? (x - yo.x) ** 2 + (z - yo.z) ** 2 : 0;
+      if (d < d2) { d2 = d; mejor = { x, y: Number(v.y ?? 0), z }; }
+    }
+    return mejor ? view.puntoEnPantalla(mejor.x, mejor.y + 1.7, mejor.z) : null;
+  };
+  const a = anclar(card, quien, () => !card.hidden);
+  new MutationObserver(() => { if (!card.hidden) a.seguir(); }).observe(card, { attributes: true, attributeFilter: ["hidden"] });
+  if (!card.hidden) a.seguir();
+}
 
 // ---- Y1: the Inventario panel (L, «Inventario»): what you carry and your Reserva; the sheet shows its summary ----
 const inventario = montarInventarioPuerta(inventarioCtl, document.getElementById("inventario-abrir") as HTMLButtonElement);
@@ -518,9 +595,16 @@ const foto = montarFotoPuerta({ view, yo: () => (session.entity >= 0 ? session.s
 montarObjetivo({ lucha, interaccion });
 montarCombate({ lucha }); // combate nivel 2: the three skill slots (keys 1–3) — hidden until the page hears of fighting
 const fuentesLucha = fuentesDeLucha(lucha); // the character HUD's Estado and Carga come from the lucha client (hud-personaje.ts reads them from __numinia)
-// ux2-barra: your sheet (I) opens from your card, top left (hud-personaje.ts); no «Ficha» under the minimap any more
-// «Tú» (I): the avatar you wear (its portrait: tu-logica.ts) and the world's name, read when the sheet draws
+// ux2-barra: your sheet (C, keymap v1) opens from your card, top left (hud-personaje.ts); no «Ficha» under the minimap any more
+// «Tú» (C): the avatar you wear (its portrait: tu-logica.ts) and the world's name, read when the sheet draws
 const botonFicha = document.getElementById("hud-personaje-abrir") as HTMLButtonElement;
+{ // keymap v1: its name says the key in effect (Yours or Default), in both languages, so the language switch keeps it
+  const rotularTu = (): void => {
+    const k = teclas.etiqueta("ficha"), en = k ? `You (${k})` : "You", es = k ? `Tú (${k})` : "Tú", ahora = document.documentElement.lang === "es" ? es : en; // i18n-ok: both languages are stored side by side (data-en/data-es) so the language switch keeps the key
+    for (const a of ["title", "aria-label"]) { botonFicha.setAttribute(`data-en-${a}`, en); botonFicha.setAttribute(`data-es-${a}`, es); botonFicha.setAttribute(a, ahora); }
+  };
+  rotularTu(); teclas.alCambiar(rotularTu);
+}
 let nombreDelMundo = estado?.nombre ?? "";
 ajustesMundo.alCambiar((a) => { if (a.nombre) { nombreDelMundo = a.nombre; document.title = a.nombre; } }); // H7: the owner renames the world → every tab
 const miAvatar = () => avatarQueLlevas(catalogoAvatares?.modelos, avatarUI?.eleccion("yo"), session.entity);
@@ -528,7 +612,7 @@ const ficha = montarFicha({ session, view, desde: () => informe.bienvenidaMs, ot
   ...(catalogoAvatares?.modelos.length ? { cambiarAvatar: () => avatarUI?.abrir() } : {}) }, botonFicha);
 montarBienes({ bienes, comprobar, ficha, boton: botonFicha, vitrina: (cv, model) => view.vitrina(cv, model) }); // N10: the sheet's «Inventario» = your goods, their receipts
 // ---- U24: the phone layout (six controls while playing): only a phone profile loads it, desktop and VR never see it ----
-if (enMovil) import("./movil.ts").then((m) => m.montarMovil({ interaccion, acciones: acts, ocultos: () => ocultos, saltar: pedirSalto, cajaChat, mapa, misiones, pesca, nombres, simulada: perfil().forzado && !matchMedia("(pointer: coarse)").matches })).catch((e) => console.warn(`[movil] no se pudo montar la disposición móvil: ${(e as Error)?.message ?? e}`));
+if (enMovil) import("./movil.ts").then((m) => m.montarMovil({ interaccion, acciones: acts, ocultos: () => ocultos, saltar: pedirSalto, cajaChat, mapa, misiones, pesca, nombres, simulada: perfil().forzado && !matchMedia("(pointer: coarse)").matches })).catch((e) => console.warn(`[movil] no se pudo montar la disposición móvil: ${(e as Error)?.message ?? e}`)); // i18n-ok: developer log / diagnostics report, not shown to the player
 
 // ---- determinism probe: replay the reference run here and compare with the server's number ----
 const probe = { browser: -1, server: -1, ms: 0, done: false };
@@ -589,8 +673,8 @@ ponerOcultos(ocultos);
 /** MIS-257: is a hand on the controls (a key, the touch stick, the pad, the headset's stick, a jump)? Then the walk-by-itself gives way. */
 function manoEnMandos(): boolean {
   const pad = view.cam.mando();
-  return keys.has("KeyW") || keys.has("KeyA") || keys.has("KeyS") || keys.has("KeyD") || keys.has("ArrowUp") || keys.has("ArrowDown") || keys.has("ArrowLeft") || keys.has("ArrowRight")
-    || keys.has("Space") || saltoPendiente || touch !== null || !!(pad && (pad[0] || pad[1])) || (view.vr.active && Math.hypot(...view.vr.axes()) > 0.2);
+  return teclas.sujeta(keys, "adelante") || teclas.sujeta(keys, "izquierda") || teclas.sujeta(keys, "atras") || teclas.sujeta(keys, "derecha")
+    || teclas.sujeta(keys, "saltar") || saltoPendiente || touch !== null || !!(pad && (pad[0] || pad[1])) || (view.vr.active && Math.hypot(...view.vr.axes()) > 0.2);
 }
 function readAxes(): [number, number] {
   andarCorrer = false;
@@ -612,10 +696,10 @@ function readAxes(): [number, number] {
     return [Math.round(vx * STICK_MAX), Math.round(vz * STICK_MAX)];
   }
   let x = 0, z = 0;
-  if (keys.has("KeyA") || keys.has("ArrowLeft")) x -= 1;
-  if (keys.has("KeyD") || keys.has("ArrowRight")) x += 1;
-  if (keys.has("KeyW") || keys.has("ArrowUp")) z -= 1;
-  if (keys.has("KeyS") || keys.has("ArrowDown")) z += 1;
+  if (teclas.sujeta(keys, "izquierda")) x -= 1;
+  if (teclas.sujeta(keys, "derecha")) x += 1;
+  if (teclas.sujeta(keys, "adelante")) z -= 1;
+  if (teclas.sujeta(keys, "atras")) z += 1;
   if (touch) { x = touch.dx; z = touch.dy; }
   const pad = view.cam.mando(); // N1: a gamepad's left stick
   if (pad && (pad[0] || pad[1])) { x = pad[0]; z = pad[1]; }
@@ -628,14 +712,14 @@ function readAxes(): [number, number] {
 // pushed to its edge runs; in VR, A or X jumps and the stick at its edge runs. A tap waits for the next 20 Hz tick ----
 let saltoPendiente = false;
 addEventListener("keydown", (e) => {
-  if (e.code !== "Space" || escribiendo(e)) return;
+  if (!teclas.es(e, "saltar") || escribiendo(e)) return;
   e.preventDefault(); // no scrolling, no clicking the focused button
   if (!e.repeat) saltoPendiente = true;
 });
 const pedirSalto = (): void => { saltoPendiente = true; }; // U24: the phone's big button (when nothing is near) and «…» jump through this
 if (esTactil()) {
   const b = document.createElement("button");
-  b.type = "button"; b.id = "saltar"; b.textContent = "Saltar"; b.title = "Saltar (otra vez en el aire: más alto)";
+  b.type = "button"; b.id = "saltar"; ligar(b, "textContent", "Jump", "Saltar"); ligar(b, "title", "Jump (again in the air: higher)", "Saltar (otra vez en el aire: más alto)");
   let porToque = false;
   b.addEventListener("pointerdown", (ev) => { ev.stopPropagation(); porToque = true; saltoPendiente = true; }); // not a joystick touch
   b.addEventListener("click", () => { if (!porToque) saltoPendiente = true; porToque = false; }); // screen readers click
@@ -652,8 +736,8 @@ function readButtons(): number {
   if (andarCorrer) b |= BTN_RUN; // MIS-257: a long walk-by-itself runs (ir-andando.ts), the last stretch walks
   if (view.vr.active) { if (view.vr.correr()) b |= BTN_RUN; return b; } // in VR only the headset's stick runs: its edge (RUN_EDGE, packages/render/src/vr-paso.ts) or a speed above 100 %
   const alBorde = touch && Math.hypot(touch.dx, touch.dy) >= RUN_EDGE;
-  if (keys.has("ShiftLeft") || keys.has("ShiftRight") || alBorde) b |= BTN_RUN;
-  b |= botonesDeVuelo(keys, session.volando() && !rueda.abierta()); // H2: while flying a held Space climbs and a held Ctrl descends (on foot Space jumps once per press, above); the server decides who flies
+  if (teclas.sujeta(keys, "correr") || alBorde) b |= BTN_RUN;
+  b |= botonesDeVuelo({ has: (c: string) => (c === "Space" ? teclas.sujeta(keys, "saltar") : keys.has(c)) }, session.volando() && !rueda.abierta()); // H2: while flying a held Space climbs and a held Ctrl descends (on foot Space jumps once per press, above); the server decides who flies
   return b;
 }
 
@@ -662,7 +746,7 @@ const arBtn = document.getElementById("ar") as HTMLButtonElement;
 // MIS-200 (t_9687b5fc): both entry buttons wait while the world still loads (boton-listo.ts); once it is ready they stay ready
 const listoEntrada = crearListo();
 const entradaLista = (): boolean => listoEntrada.actualizar(view.cargando(), performance.now());
-const arLabel = { off: "Entrar en AR", searching: "Mira una mesa o el suelo… (salir)", ready: "Toca para poner la plaza (salir)", placed: "La plaza en tu mesa · toca para moverla (salir)", mezclada: "Realidad mezclada (por VR)" };
+const arLabel = (): Record<"off" | "searching" | "ready" | "placed" | "mezclada", string> => ({ off: tx("Enter AR", "Entrar en AR"), searching: tx("Look at a table or the floor… (leave)", "Mira una mesa o el suelo… (salir)"), ready: tx("Tap to place the plaza (leave)", "Toca para poner la plaza (salir)"), placed: tx("The plaza on your table · tap to move it (leave)", "La plaza en tu mesa · toca para moverla (salir)"), mezclada: tx("Mixed reality (via VR)", "Realidad mezclada (por VR)") });
 const decirAviso = (t: string) => { const box = document.getElementById("avisos")!; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); };
 view.arSupported().then((ok) => {
   if (!ok) return;
@@ -677,7 +761,7 @@ view.arSupported().then((ok) => {
     enlace: dardosEnlace, view, condiciones: c.montarCondiciones, alMiniatura: entrarMiniatura, movil: () => enMovil, decir: decirAviso,
     falloAR: () => mensajeFalloAR(view.ar.lastErrorName), informarFallo: () => session.report({ k: "xr", modo: "ar", accion: "falla", detalle: view.ar.lastError }),
   })).catch((e) => { elegirAR = null; throw e; }));
-  const sinElegir = (): void => { console.warn("[ar] no se pudo cargar la elección de AR: se entra con la maqueta"); };
+  const sinElegir = (): void => { console.warn("[ar] no se pudo cargar la elección de AR: se entra con la maqueta"); }; // i18n-ok: developer log / diagnostics report, not shown to the player
   arBtn.onclick = () => {
     if (view.ar.state !== "off") { void view.ar.exit(); return; }
     if (!entradaLista()) { decirAviso(MOTIVO_PREPARANDO); return; }
@@ -689,7 +773,7 @@ view.arSupported().then((ok) => {
 });
 setInterval(() => { // dardos v1: a minigame may hold the AR session
   const espera = !view.ar.jugando && view.ar.state === "off" && !entradaLista();
-  const asp = aspectoBoton(!espera, view.ar.jugando ? "Dardos en tu pared (salir)" : arLabel[view.ar.state]);
+  const asp = aspectoBoton(!espera, view.ar.jugando ? tx("Darts on your wall (leave)", "Dardos en tu pared (salir)") : arLabel()[view.ar.state]);
   arBtn.textContent = asp.texto; arBtn.setAttribute("aria-disabled", String(asp.ariaDisabled));
   if (asp.titulo) arBtn.title = asp.titulo; else arBtn.removeAttribute("title");
 }, 250);
@@ -722,6 +806,7 @@ montarNovedades(versionPaquete); // t_bdc2c2db: «what's new», once per version
 void estadoP.then((st) => {
   if (!st) return;
   if (st.nombre) nombreDelMundo = st.nombre;
+  if (st.idioma && st.idioma !== estado?.idioma) ponerIdiomaMundo(st.idioma); // late /status: the world's language is the default (a stored choice still wins)
   if (st.espejo && !estado?.espejo) espejoCtl.configurar(st.espejo); // late /status: same
   ajusteEnlace = ajusteDeEstado(st.dardosEnlace); // dardos enlazados: the link this world's server says (late /status: same)
   if (st.nombre) document.title = st.nombre; // ADR-074: the world's name (its aventura/ficha.json), also when Caddy or vite serve the page
@@ -734,7 +819,7 @@ void estadoP.then((st) => {
 const pantalla = document.getElementById("pantalla") as HTMLButtonElement;
 if (document.fullscreenEnabled) {
   const pintar = () => {
-    const oculto = view.vr.active || view.ar.state !== "off", texto = document.fullscreenElement ? "Salir de pantalla completa" : "Pantalla completa";
+    const oculto = view.vr.active || view.ar.state !== "off", texto = document.fullscreenElement ? tx("Exit full screen", "Salir de pantalla completa") : tx("Full screen", "Pantalla completa");
     if (pantalla.hidden !== oculto) pantalla.hidden = oculto;
     if (pantalla.title !== texto) { pantalla.title = texto; pantalla.innerHTML = `${icono(document.fullscreenElement ? "corners-in" : "corners-out")}<span class="solo-lector">${texto}</span>`; } // U11: an icon; ux2-barra: an entry of «Menú»
   };
@@ -743,7 +828,7 @@ if (document.fullscreenEnabled) {
   pantalla.onclick = () => { if (document.fullscreenElement) void document.exitFullscreen().catch(() => {}); else void document.documentElement.requestFullscreen().catch(() => {}); };
   addEventListener("fullscreenchange", pintar);
   setInterval(pintar, 1000);
-  pintar();
+  alCambiarIdioma(() => { pantalla.title = ""; pintar(); }); // the new language rewrites the label at once
 }
 
 // ---- T1: tell the server how this player entered and how it is going (device, browser, XR, frames, ping,
@@ -778,7 +863,7 @@ let modoAntes = "plano";
 setInterval(() => { const m = modo(); if (m !== modoAntes) { session.report({ k: "xr", modo: m === "plano" ? modoAntes : m, accion: m === "plano" ? "sale" : "entra", detalle: m === "plano" ? "" : `${view.xrHz() || "?"} Hz` }); modoAntes = m; } }, 250);
 const informarError = (mensaje: unknown, donde: string) => { informe.errores++; if (informe.errores <= 5) session.report({ k: "error", mensaje: String(mensaje).slice(0, 160), donde: donde.slice(0, 160) }); };
 addEventListener("error", (e) => informarError(e.message, `${(e.filename ?? "").split("/").pop()}:${e.lineno}`));
-addEventListener("unhandledrejection", (e) => { const r = e.reason as { message?: unknown; name?: unknown } | null | undefined; informarError(r === undefined || r === null ? `rechazo sin motivo (${modo()})` : r.message ?? r.name ?? r, "promesa"); });
+addEventListener("unhandledrejection", (e) => { const r = e.reason as { message?: unknown; name?: unknown } | null | undefined; informarError(r === undefined || r === null ? `rechazo sin motivo (${modo()})` : r.message ?? r.name ?? r, "promesa"); }); // i18n-ok: developer log / diagnostics report, not shown to the player
 let lastDrawAt = 0;
 
 // ---- loop: fixed 20 Hz client ticks inside the display loop, drawing blends between ticks ----
@@ -804,7 +889,7 @@ addEventListener("visibilitychange", () => session.latido(document.hidden));
     if (vigia.callado === mostrado) return;
     mostrado = vigia.callado;
     const aviso = document.getElementById("mundo-lleno")!;
-    if (mostrado) { aviso.textContent = "Sin respuesta del mundo… esperando a que vuelva la conexión."; aviso.hidden = false; }
+    if (mostrado) { aviso.textContent = tx("No answer from the world… waiting for the connection to come back.", "Sin respuesta del mundo… esperando a que vuelva la conexión."); aviso.hidden = false; }
     else aviso.hidden = true;
   }, BARRIDO_MS);
 }
@@ -835,12 +920,14 @@ view.loop((now) => {
   if (probe.done && informe.primerCuadroMs && !informe.entrada) void enviarEntrada();
   // power policy (P2): skip the draw when hidden or when nothing changes; the 20 Hz ticks above never skip
   condicionesXR?.tick(); // condiciones/c4: the bubble inside the headset (nothing to do unless the bubble is up and VR is presenting)
+  presencia.cuadro(now);
   const guiaMueve = guiaPagina?.cuadro(dt) ?? false; // M6: the guide's step (false and free when she is off)
   const enSecuencia = misiones.cuadro() || guiaMueve; // U14 (5): a sequence only this player sees moves its people (no work when none plays)
   const sig = lastSig; lastSig = signature();
   if (sig !== lastSig || keys.size > 0 || touch || view.vr.active || view.ar.state !== "off" || view.busy() || enSecuencia) lastActive = now;
   const active = now - lastActive < 600;
-  if (view.vr.active || view.ar.state !== "off" || view.power.shouldDraw(now, { hidden: document.hidden, active })) {
+  const congelado = pausaCuadros > 0; if (congelado) pausaCuadros--; // Y25: the hit pause holds the last picture for a few frames (the ticks above went on)
+  if (!congelado && (view.vr.active || view.ar.state !== "off" || view.power.shouldDraw(now, { hidden: document.hidden, active }))) {
     view.sync(session.entity >= 0 ? session.selfPosition(acc / TICK_MS) : null, session.remotePositions(now));
     view.sueloTerreno(session.sueloTerreno()); // avatares/suelo-relieve: hills count as ground for the avatars' clips and feet
     view.solidos(session.solidos()); // N1b: the camera does not go through solid things; avatars stand on them
@@ -871,7 +958,7 @@ view.loop((now) => {
         cargaOculta = true; carga.ocultar(); view.cargaOculta();
         const pend = piezasPendientes(mundo);
         informe.carga = { ocultaMs: Math.round(performance.now()), msDesdeWelcome, piezas: mundo.total, pendientes: pend, tope: est === "tope" };
-        if (est === "tope") console.warn(`[carga] the cap (${TOPE_CARGA_MS / 1000} s) fired: the loading screen left with ${pend} of ${mundo.total} pieces still not ready${pendiente ? " and the ground still pending" : ""}`);
+        if (est === "tope") console.warn(`[carga] the cap (${TOPE_CARGA_MS / 1000} s) fired: the loading screen left with ${pend} of ${mundo.total} pieces still not ready${pendiente ? " and the ground still pending" : ""}`); // i18n-ok: developer log
         session.report({ k: "carga", ...informe.carga });
       }
     }
@@ -888,16 +975,18 @@ function drawHud() {
   // the screen at 390 px — "white-space: pre" never wraps — leaving it cut off behind the minimap).
   // Each .linea clips with "…" instead of overflowing; the browser=server fingerprint (debugging, not
   // essential for playing) is hidden on narrow or touch screens via CSS (.detalle).
+  const bateria = view.power.battery ? tx(" · battery mode", " · modo batería") : "", resolucion = view.power.scale < 1 ? tx(` · resolution ${Math.round(view.power.scale * 100)} %`, ` · resolución ${Math.round(view.power.scale * 100)} %`) : "";
+  const rotuloTu = tx("You", "Tú"), rotuloVista = tx("connected in view", "conectados a la vista"), rotuloCorr = tx("corrections of your prediction", "correcciones de tu predicción"), rotuloHuella = tx("Fingerprint browser = server", "Huella navegador = servidor");
   if (!hud.hidden) hud.innerHTML = // U23: statistics are off by default; a hidden block is not rewritten twice a second
-    `<div class="linea">Render: <b>${view.backend}</b> · ${fps} fps${view.power.battery ? " · modo batería" : ""}${view.power.scale < 1 ? ` · resolución ${Math.round(view.power.scale * 100)} %` : ""}</div>` +
-    `<div class="linea">Tú: ${session.who?.nombre ?? "…"} (avatar ${session.entity}) · conectados a la vista: ${s.visible + 1}</div>` +
-    `<div class="linea">Ping: ${s.rttMs < 0 ? "—" : s.rttMs + " ms"} · correcciones de tu predicción: ${s.corrections}</div>` +
-    `<div class="linea detalle">Huella navegador = servidor: ${det}</div>`;
+    `<div class="linea">Render: <b>${view.backend}</b> · ${fps} fps${bateria}${resolucion}</div>` +
+    `<div class="linea">${rotuloTu}: ${session.who?.nombre ?? "…"} (avatar ${session.entity}) · ${rotuloVista}: ${s.visible + 1}</div>` +
+    `<div class="linea">Ping: ${s.rttMs < 0 ? "—" : s.rttMs + " ms"} · ${rotuloCorr}: ${s.corrections}</div>` +
+    `<div class="linea detalle">${rotuloHuella}: ${det}</div>`;
   if (view.vr.active) view.vr.setPanel([...xr.lineasPanel(), `${fps} fps · ${s.visible + 1} conectados · ping ${s.rttMs < 0 ? "—" : s.rttMs + " ms"}`, ...medidorUI.lineaVR()]); // J10: the quest first
 }
 
 // handle for automated checks (tools/e2e.mjs)
-(globalThis as unknown as { __numinia: unknown }).__numinia = { pintar, gemelos, ajustesMundo, session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones, medidorVivo: medidorUI, espejo: espejoCtl };
+(globalThis as unknown as { __numinia: unknown }).__numinia = { pintar, gemelos, ajustesMundo, session, view, condiciones, probe, cost: () => cost, informe, constructor, constructorUI, chat: chatDePagina, cajaChat, misiones, interaccion, huecos, enlaces, videoMandos, mapa, andar, ficha, miAvatar, ambiente, elementos, voz, compartir, xr, baculo, burbujas, pesca, lucha, estado: fuentesLucha.estado, carga: fuentesLucha.carga, bienes, dardos, dardosEnlace, dados, contadores, contadoresPagina, pescaPagina: () => pescaPagina, dirigir, foto, viajar, ia: iaPagina, burbuja: burbujaPagina, presencia, llamar: { ...llamarPagina, ...llamarIA }, gente, web: pantallasWeb, webPagina, disparadores, cable, graboso, inventario: { ...inventarioCtl, abrir: inventario.abrir, cerrar: inventario.cerrar }, gestos: gestosDePagina, rueda, ancestros, ancestrosPagina, funciones: interruptoresFunciones, medidorVivo: medidorUI, espejo: espejoCtl, pantallaRed };
 
 // ---- t_5cff4f06: back to the city — hidden unless this world's mundo.ajustes.json sets ciudadUrl; ux2-barra: an entry
 // of the bar's «Menú» (O), no longer a corner button ----
@@ -924,7 +1013,7 @@ void view.vrSupported().then(async (ok) => {
 });
 
 // ---- U11 + ux2-barra: the bar, top right — one thing, one place, one key. Left to right: Micrófono (Q) · Gente (L) ·
-// Bolsa (R) · Cámara (P: foto, grabar, compartir pantalla) · Construir (C, builders only) | Avisos (N) · Menú (O: ajustes,
+// Bolsa (I) · Cámara (P: foto, grabar, compartir pantalla) · Construir (B, builders only) | Avisos (N) · Menú (O: ajustes,
 // pantalla completa, volver a la ciudad, teclas y ayuda). The order is CSS (`order`, tema.css ux2-barra): modules add
 // their own buttons at different moments. The menus move the modules' own buttons in (menu-barra.ts): same ids, same
 // handlers, same `hidden` rules ----
@@ -952,14 +1041,14 @@ void view.vrSupported().then(async (ok) => {
   // «Cámara» (P): photo, record (K still records on its own), share the screen (where the browser can)
   const camaraB = botonBarra("camara-abrir", "camara");
   const camara = montarMenuBarra({
-    id: "camara-menu", barra, boton: camaraB, etiqueta: "Cámara", tecla: "KeyP", puedeTecla: libre,
+    id: "camara-menu", barra, boton: camaraB, get etiqueta() { return tx("Camera", "Cámara"); }, tecla: "KeyP", accion: "camara", puedeTecla: libre,
     entradas: [document.getElementById("foto-abrir"), graboso.boton, document.getElementById("compartir-pantalla")].filter((b): b is HTMLButtonElement => b instanceof HTMLButtonElement),
   });
   // the camera button says what is running behind it: recording (red) or sharing (sea green)
   const pintarCamara = () => {
     const e = estadoCamara({ grabando: graboso.boton.getAttribute("aria-pressed") === "true", compartiendo: compartir.estado.compartiendo });
     if ((camaraB.dataset.estado ?? null) !== e) { if (e) camaraB.dataset.estado = e; else delete camaraB.dataset.estado; }
-    const t = e === "grabando" ? `${tituloDe("camara")}: grabando` : e === "compartiendo" ? `${tituloDe("camara")}: compartiendo tu pantalla` : tituloDe("camara");
+    const t = e === "grabando" ? tituloDe("camara") + ": " + tx("recording", "grabando") : e === "compartiendo" ? tituloDe("camara") + ": " + tx("sharing your screen", "compartiendo tu pantalla") : tituloDe("camara");
     if (camaraB.title !== t) camaraB.title = t;
   };
   new MutationObserver(pintarCamara).observe(graboso.boton, { attributes: true, attributeFilter: ["aria-pressed"] });
@@ -968,20 +1057,23 @@ void view.vrSupported().then(async (ok) => {
   // «Teclas y ayuda»: the keys of this page, from the help line (#help) every module already writes into
   const ayudaB = document.createElement("button"); ayudaB.type = "button"; ayudaB.id = "teclas-abrir";
   rotularBoton(ayudaB, "teclas");
-  const teclas = crearDialogo({ id: "teclas", titulo: "Teclas y ayuda", tecla: "F1", boton: ayudaB, alAbrir: () => {
+  const ayudaDlg = crearDialogo({ id: "teclas", titulo: () => tx("Keys and help", "Teclas y ayuda"), tecla: "F1", accion: "ayuda", boton: ayudaB, alAbrir: () => {
+    // keymap v1: the keys in effect (Yours if set, else the Default), from the one table of teclas.ts; the page's own help line adds what an object offers
     const lista = document.createElement("dl"); lista.className = "teclas-lista";
-    for (const p of filasDeAyuda(document.getElementById("help")?.textContent ?? "")) {
+    let grupo = "";
+    for (const f of filasDeTeclas()) {
+      if (f.grupo !== grupo) { grupo = f.grupo; const h = document.createElement("dt"); h.className = "grupo"; h.textContent = grupo; const v = document.createElement("dd"); v.className = "grupo"; lista.append(h, v); }
       const dt = document.createElement("dt"), dd = document.createElement("dd");
-      dt.textContent = p.tecla; dd.textContent = p.que; lista.append(dt, dd);
+      dt.textContent = f.tecla; dd.textContent = f.nombre; lista.append(dt, dd);
     }
-    teclas.cuerpo.replaceChildren(lista);
+    ayudaDlg.cuerpo.replaceChildren(lista);
   } });
   ayudaB.hidden = !!enMovil; // a phone names no key
 
   // «Menú» (O): settings, full screen, back to the city (only where the world names one), the keys
   const menuB = botonBarra("menu-abrir", "menu");
   montarMenuBarra({
-    id: "menu-lista", barra, boton: menuB, etiqueta: "Menú", tecla: "KeyO", puedeTecla: () => !document.querySelector("dialog[open]"),
+    id: "menu-lista", barra, boton: menuB, get etiqueta() { return tx("Menu", "Menú"); }, tecla: "KeyO", accion: "menu", puedeTecla: () => !document.querySelector("dialog[open]"),
     entradas: [gear, document.getElementById("pantalla"), document.getElementById("volver-ciudad"), ayudaB].filter((b): b is HTMLButtonElement => b instanceof HTMLButtonElement),
   });
   Object.assign((globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia, { barra: { camara, menu: { abrir: () => document.getElementById("menu-abrir")?.click() } }, avatar: avatarUI });
@@ -989,11 +1081,9 @@ void view.vrSupported().then(async (ok) => {
 
 // ---- N2: settings and capabilities (menu-ajustes.ts): gear + O, window.__numinia.ajustes / .capacidades. Applied here,
 // before the first frame: the display loop above only draws from the next animation frame on ----
-montarAjustes({ view, session, params, funciones, numinia: (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia });
+montarAjustes({ idiomaMundo: estado?.idioma, view, session, params, funciones, numinia: (globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia });
 montarPulsaciones({ ajuste: leerAjuste });
 // D-076: the sun that follows the real one, only for a world that offers it AND a player who accepted (sol-real.ts)
 const solReal = montarSolReal({ view, ajustes: (globalThis as unknown as { __numinia: { ajustes: Parameters<typeof montarSolReal>[0]["ajustes"] } }).__numinia.ajustes, decir: (t) => { const box = document.getElementById("avisos"); if (!box) return; const p = document.createElement("p"); p.textContent = t; box.appendChild(p); while (box.childElementCount > 3) box.firstElementChild!.remove(); } });
 Object.assign((globalThis as unknown as { __numinia: Record<string, unknown> }).__numinia, { solReal });
 
-// battery mode: press B (or open ?bateria)
-addEventListener("keydown", (e) => { if (e.code === "KeyB" && !escribiendo(e)) { view.power.setBattery(!view.power.battery); view.applyPixelRatio(); } });

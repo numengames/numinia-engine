@@ -15,6 +15,7 @@ import { idiomaDe, FRASES } from "../../features/disparadores/cable-frase.ts";
 import type { ClaveFrase } from "../../features/disparadores/cable-frase.ts";
 import { CONTEXTO_VACIO, huecosDeCable, receptorNuevo } from "../../features/disparadores/cable-huecos.ts";
 import type { BorradorCable, ContextoCable, Parte } from "../../features/disparadores/cable-huecos.ts";
+import { tx, ligar, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
 type Res = { ok: true } | { ok: false; why: string };
 type Tipo = "zona" | "boton" | "senal";
 export type Disparador = { id: string; nombre: string; tipo: Tipo; senal?: string; cooldown: number; unSoloUso: boolean; usos: number; enEspera: boolean; agotado: boolean; receptores: Record<string, unknown>[] };
@@ -35,9 +36,9 @@ export type OpcionesCable = {
   panel: HTMLElement | null;  // the builder's «Cable» drawer: the list goes inside it (its heading says «Cable»)
 };
 
-const estadoTexto = (d: Disparador): string => d.agotado ? "agotado" : d.enEspera ? "en espera" : "listo";
+const estadoTexto = (d: Disparador): string => d.agotado ? tx("used up", "agotado") : d.enEspera ? tx("waiting", "en espera") : tx("ready", "listo");
 // Touch targets of 44 px, wrapping lines (360 px wide), a visible focus ring; nothing hover-only.
-const ESTILO = `
+const ESTILO = `/* i18n-ok: CSS */
 #cable-panel .cable-frase{margin:6px 0;line-height:1.4}
 #cable-panel .cable-linea{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 /* the sentence flows as inline text (punctuation stays glued to the control before it and the line wraps at any width) */
@@ -75,11 +76,11 @@ export function montarCable(o: OpcionesCable) {
   const ctx = (): ContextoCable => o.contexto?.() ?? CONTEXTO_VACIO;
   if (!document.getElementById("cable-estilo")) { const st = document.createElement("style"); st.id = "cable-estilo"; st.textContent = ESTILO + ESTILO_DECIR; document.head.append(st); }
   const caja = document.createElement("div");
-  caja.id = "cable-panel"; caja.setAttribute("role", "group"); caja.setAttribute("aria-label", "Cable: disparadores del mundo");
+  caja.id = "cable-panel"; caja.setAttribute("role", "group"); ligar(caja, "aria-label", "Wires: the world's triggers", "Cable: disparadores del mundo");
   const nuevo = document.createElement("button");
-  nuevo.type = "button"; nuevo.id = "cable-nuevo"; nuevo.textContent = "+ Nuevo cable";
-  nuevo.setAttribute("aria-label", "Nuevo cable: preparar un botón en tu posición");
-  nuevo.title = "Prepara un cable nuevo: un botón en el sitio donde estás. Elige qué hace y pulsa «Crear cable».";
+  nuevo.type = "button"; nuevo.id = "cable-nuevo"; ligar(nuevo, "textContent", "+ New wire", "+ Nuevo cable");
+  ligar(nuevo, "aria-label", "New wire: set up a button at your position", "Nuevo cable: preparar un botón en tu posición");
+  ligar(nuevo, "title", "Sets up a new wire: a button where you stand. Choose what it does and press «Create wire».", "Prepara un cable nuevo: un botón en el sitio donde estás. Elige qué hace y pulsa «Crear cable».");
   const lista = document.createElement("ul"); lista.id = "cable-lista";
   // Story D: «Decírselo al mundo» sits first; the server says whether this world has an AI (else the box hides and the reason shows)
   const decirUI = o.disparadores.decir ? montarDecir({ decir: o.disparadores.decir, idioma, avisar: o.decir }) : null;
@@ -138,7 +139,7 @@ export function montarCable(o: OpcionesCable) {
             x.type = "button"; x.textContent = p.visible ?? "";
             x.addEventListener("click", () => {
               const q = o.aqui?.();
-              if (!q) { o.decir("No sé dónde estás todavía."); return; }
+              if (!q) { o.decir(tx("I do not know where you are yet.", "No sé dónde estás todavía.")); return; }
               const r = receptor(); r.x = Math.round(q.x * 10) / 10; r.y = Math.round(q.y * 10) / 10; r.z = Math.round(q.z * 10) / 10;
               alCambiar(); pintar(k);
             });
@@ -193,11 +194,12 @@ export function montarCable(o: OpcionesCable) {
     const li = document.createElement("li");
     const texto = document.createElement("span");
     const arriba = document.createElement("div"); arriba.className = "cable-linea";
+    let probar: HTMLButtonElement | null = null;
     if (d.tipo === "boton") {
       const p = document.createElement("button");
-      p.type = "button"; p.textContent = "Probar"; p.className = "cable-probar"; p.id = `cable-probar-${id}`; // the guide arrow (a mission step's `senala`) can point at one cable's «Probar»
-      p.title = `Disparar «${d.nombre}» como si lo pulsaras, para comprobar su cableado`;
-      p.addEventListener("click", () => { const r = o.disparadores.pulsar(id); if (!r.ok) o.decir(`No: ${r.why}.`); });
+      p.type = "button"; p.textContent = tx("Test", "Probar"); p.className = "cable-probar"; p.id = `cable-probar-${id}`; // the guide arrow (a mission step's `senala`) can point at one cable's «Probar»
+      p.title = tx(`Fire «${d.nombre}» as if you pressed it, to check its wiring`, `Disparar «${d.nombre}» como si lo pulsaras, para comprobar su cableado`);
+      probar = p;
       arriba.append(p);
     }
     const grupo = document.createElement("div");
@@ -205,9 +207,15 @@ export function montarCable(o: OpcionesCable) {
     const errId = `cable-error-${id}`;
     const err = document.createElement("p"); err.id = errId; err.className = "cable-error"; err.setAttribute("role", "alert");
     const nota = document.createElement("p"); nota.className = "cable-nota"; nota.setAttribute("role", "status");
+    // H5 (Lumen redesign): «Probar» used to answer nothing when it worked; now its row says so in its own status line.
+    if (probar) probar.addEventListener("click", () => {
+      const r = o.disparadores.pulsar(id);
+      if (!r.ok) { o.decir(`No: ${r.why}.`); return; }
+      nota.textContent = tx(`Tested: you pressed «${d.nombre}». See what changed in the world.`, `Probado: has pulsado «${d.nombre}». Mira qué ha cambiado en el mundo.`);
+    });
     const guardar = document.createElement("button");
     guardar.type = "button"; guardar.className = "cable-guardar-frase"; guardar.textContent = T("boton.guardar");
-    guardar.title = `Guardar los cambios de «${d.nombre}»`;
+    guardar.title = tx(`Save the changes to «${d.nombre}»`, `Guardar los cambios de «${d.nombre}»`);
     const ed = editor(b, grupo, () => { sucio = true; nota.textContent = ""; }, () => (motivo ? { receptor: receptorErr, id: errId } : null));
     guardar.addEventListener("click", () => {
       motivo = ""; receptorErr = null; err.textContent = ""; nota.textContent = "";
@@ -221,21 +229,21 @@ export function montarCable(o: OpcionesCable) {
     });
     // Story B: the JSON stays, folded away in a native <details> (keyboard: Tab to the summary, Enter/Space opens it).
     const area = document.createElement("textarea");
-    area.className = "cable-receptores"; area.rows = 3; area.setAttribute("aria-label", `Receptores de ${d.nombre} (JSON)`);
+    area.className = "cable-receptores"; area.rows = 3; area.setAttribute("aria-label", tx(`Receivers of ${d.nombre} (JSON)`, `Receptores de ${d.nombre} (JSON)`));
     const guardarJson = document.createElement("button");
-    guardarJson.type = "button"; guardarJson.textContent = "Guardar";
-    guardarJson.title = `Reemplazar en vivo los receptores de «${d.nombre}»`;
+    guardarJson.type = "button"; guardarJson.textContent = tx("Save", "Guardar");
+    guardarJson.title = tx(`Replace the receivers of «${d.nombre}» live`, `Reemplazar en vivo los receptores de «${d.nombre}»`);
     guardarJson.addEventListener("click", () => {
       let receptores: unknown;
       try { receptores = JSON.parse(area.value); }
-      catch { o.decir("No: receptores no es JSON válido."); return; }
-      if (!Array.isArray(receptores)) { o.decir("No: receptores debe ser una lista."); return; }
+      catch { o.decir(tx("No: receivers is not valid JSON.", "No: receptores no es JSON válido.")); return; }
+      if (!Array.isArray(receptores)) { o.decir(tx("No: receivers must be a list.", "No: receptores debe ser una lista.")); return; }
       const r = o.disparadores.editarReceptores(id, receptores as Record<string, unknown>[]);
       if (!r.ok) o.decir(`No: ${r.why}.`);
     });
     const datos = document.createElement("details");
     datos.className = "cable-datos";
-    const resumen = document.createElement("summary"); resumen.textContent = "Ver datos";
+    const resumen = document.createElement("summary"); resumen.textContent = tx("View data", "Ver datos");
     datos.append(resumen, area, " ", guardarJson);
     const abajo = document.createElement("div"); abajo.className = "cable-linea";
     li.append(texto, arriba, grupo, guardar, err, nota, datos, abajo);
@@ -245,19 +253,19 @@ export function montarCable(o: OpcionesCable) {
       abajo.replaceChildren();
       if (!confirmando.has(id)) {
         const borrar = document.createElement("button");
-        borrar.type = "button"; borrar.className = "cable-borrar"; borrar.dataset.cableBf = id; borrar.textContent = "Borrar";
-        borrar.setAttribute("aria-label", `Borrar el cable ${d.nombre}`);
+        borrar.type = "button"; borrar.className = "cable-borrar"; borrar.dataset.cableBf = id; borrar.textContent = tx("Delete", "Borrar");
+        borrar.setAttribute("aria-label", tx(`Delete wire ${d.nombre}`, `Borrar el cable ${d.nombre}`));
         borrar.addEventListener("click", () => { confirmando.add(id); pintarBorrar(); li.querySelector<HTMLButtonElement>(".cable-borrar-si")?.focus(); });
         abajo.append(borrar);
       } else {
-        const aviso = document.createElement("span"); aviso.setAttribute("role", "alert"); aviso.textContent = `¿Borrar «${d.nombre}»? `;
+        const aviso = document.createElement("span"); aviso.setAttribute("role", "alert"); aviso.textContent = tx(`Delete «${d.nombre}»? `, `¿Borrar «${d.nombre}»? `);
         const si = document.createElement("button");
-        si.type = "button"; si.className = "cable-borrar-si"; si.textContent = "Sí, borrar";
-        si.setAttribute("aria-label", `Sí, borrar el cable ${d.nombre}`);
+        si.type = "button"; si.className = "cable-borrar-si"; si.textContent = tx("Yes, delete", "Sí, borrar");
+        si.setAttribute("aria-label", tx(`Yes, delete wire ${d.nombre}`, `Sí, borrar el cable ${d.nombre}`));
         si.addEventListener("click", () => { confirmando.delete(id); const r = o.disparadores.borrarDisparador(id); if (!r.ok) o.decir(`No: ${r.why}.`); pintarBorrar(); nuevo.focus(); });
         const no = document.createElement("button");
-        no.type = "button"; no.className = "cable-borrar-no"; no.textContent = "Cancelar";
-        no.setAttribute("aria-label", `No borrar el cable ${d.nombre}`);
+        no.type = "button"; no.className = "cable-borrar-no"; no.textContent = tx("Cancel", "Cancelar");
+        no.setAttribute("aria-label", tx(`Do not delete wire ${d.nombre}`, `No borrar el cable ${d.nombre}`));
         no.addEventListener("click", () => { confirmando.delete(id); pintarBorrar(); li.querySelector<HTMLButtonElement>(".cable-borrar")?.focus(); });
         abajo.append(aviso, si, no);
       }
@@ -267,7 +275,7 @@ export function montarCable(o: OpcionesCable) {
 
     const actualizar = (nuevoD: Disparador) => {
       d = nuevoD;
-      texto.textContent = `${d.nombre} (${d.tipo}${d.unSoloUso ? ", un solo uso" : ""}) · ${estadoTexto(d)} · ${d.usos} uso(s)`;
+      texto.textContent = `${d.nombre} (${d.tipo}${d.unSoloUso ? tx(", single use", ", un solo uso") : ""}) · ${estadoTexto(d)} · ${tx(`${d.usos} use(s)`, `${d.usos} uso(s)`)}`;
       const f = firmaDe(d);
       // the server changed the cable: show it, unless someone is in the middle of editing it (their draft wins until they save)
       if (f !== firma && !sucio) { firma = f; Object.assign(b, copiar(d)); ed.pintar(); }
@@ -288,9 +296,9 @@ export function montarCable(o: OpcionesCable) {
   const idLibre = (): string => { const usados = new Set(o.disparadores.lista().map((x) => x.id)); for (let n = 1; ; n++) if (!usados.has(`cable-${n}`)) return `cable-${n}`; };
   const abrirNuevo = () => {
     if (borradorNuevo) { borradorNuevo.li.querySelector<HTMLElement>("[data-k]")?.focus(); return; }
-    const b: Borrador = { nombre: `Cable ${idLibre().slice(6)}`, tipo: "boton", senal: "", cooldown: 0, unSoloUso: false, receptores: [receptorNuevo("suena", ctx(), o.aqui?.() ?? null)] };
+    const b: Borrador = { nombre: tx(`Wire ${idLibre().slice(6)}`, `Cable ${idLibre().slice(6)}`), tipo: "boton", senal: "", cooldown: 0, unSoloUso: false, receptores: [receptorNuevo("suena", ctx(), o.aqui?.() ?? null)] };
     const li = document.createElement("li"); li.className = "cable-borrador";
-    const titulo = document.createElement("span"); titulo.textContent = "Cable nuevo (todavía no existe)";
+    const titulo = document.createElement("span"); titulo.textContent = tx("New wire (does not exist yet)", "Cable nuevo (todavía no existe)");
     const grupo = document.createElement("div"); grupo.className = "cable-frase"; grupo.setAttribute("role", "group");
     const err = document.createElement("p"); err.id = "cable-error-nuevo"; err.className = "cable-error"; err.setAttribute("role", "alert");
     let motivo = "", receptorErr: number | null = null;
@@ -341,12 +349,13 @@ export function montarCable(o: OpcionesCable) {
     ordenPintado = orden;
     const hijos: Node[] = ds.map((d) => filas.get(d.id)!.li);
     if (borradorNuevo) hijos.unshift(borradorNuevo.li);
-    if (!hijos.length) hijos.push(Object.assign(document.createElement("li"), { textContent: "Sin cables todavía: pulsa «+ Nuevo cable»." }));
+    if (!hijos.length) hijos.push(Object.assign(document.createElement("li"), { textContent: tx("No wires yet: press «+ New wire».", "Sin cables todavía: pulsa «+ Nuevo cable».") }));
     lista.replaceChildren(...hijos);
   }
   o.constructor.escuchar((que) => { if (que === "permiso") refrescar(); });
   o.disparadores.alCambiar(() => refrescar());
   refrescar();
+  alCambiarIdioma(() => { filas.clear(); ordenPintado = ""; refrescar(); }); // rows are built once: a new language rebuilds them
   // C4: the Inspector's «Abrir el cable» (it opens this drawer first): bring this list into view and focus it
   const mostrar = () => { caja.tabIndex = -1; caja.scrollIntoView?.({ block: "nearest" }); caja.focus(); };
   return { refrescar, mostrar };

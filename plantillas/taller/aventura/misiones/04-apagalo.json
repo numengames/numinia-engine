@@ -1,8 +1,8 @@
 {
   "formato": "mision@1",
   "id": "apagalo",
-  "titulo": "Apágalo",
-  "descripcion": "En la ficha del farolillo, márcalo para que no se vea al jugar.",
+  "titulo": "Switch it off",
+  "descripcion": "In the lantern's card, mark it so it is not seen while playing.",
   "requisitos": {
     "misiones": [
       "muevelo"
@@ -12,14 +12,15 @@
     {
       "id": "oculta",
       "tipo": "hace",
-      "texto": "Abre su ficha y márcalo como oculto al jugar",
-      "accion": "oculta"
+      "texto": "Open its card and mark it as hidden while playing",
+      "accion": "oculta",
+      "senala": "inspector-visible"
     }
   ],
   "recompensas": [],
   "textos": {
-    "aceptada": "Tú lo sigues viendo al construir; quien juega, no.",
-    "completada": "Un objeto tiene ficha con propiedades. Esto prepara el truco de los cables."
+    "aceptada": "You still see it while building; whoever plays does not.",
+    "completada": "An object has a card with properties. This prepares the cable trick."
   },
   "repetible": false
 }

@@ -1960,3 +1960,407 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · Sonnet 5.5.
 - Commit: rama `wt/t_8ea805d7`. Versión 0.105.0 → 0.105.1 (parche; mezclado con main tras #312).
 - Siguiente (del mismo perfil): el barrido de candidatos de `selectVisible` (la división `1/(1+d²·0,01)` y las cinco tablas tipadas) y las dos poblaciones del Bot (solo cuentan en el banco).
+
+## 2026-11-07 05:10 · t_c9331c8a · hecho
+- Qué: merge de main en #315 (derribado). Conflictos en `features/mundo.ts` y `features/servidor.ts`: main trajo `sucesos` y `espacios`; se mantienen las dos piezas y `derribado`. Versión 0.106.0.
+- Números: puertas en verde (3084 pruebas, 0 errores nuevos de tipos, página 634,4 kB gz).
+- Consumo: n/d.
+- Commit: merge de origin/main.
+- Siguiente: marcar #315 como listo para revisión, pedir revisores.
+
+## 2026-11-03 17:30 · P4 indicios que se marcan con testigos numerados, y contadores para evaluar · hecho
+- Qué: pieza del motor para aventuras de formación (R-1): una `cosa@1` puede ser `marcable` y un paso `marca` pide que lo marcado sea exactamente un conjunto de cosas. Con ese paso en marcha, la ficha de la cosa termina en «Marcar» / «Desechar» (o «Desmarcar» / «Dejar marcado»); cada indicio marcado muestra, solo a su jugador, una placa amarilla con su número en negro; los números siempre son seguidos (desmarcar el 1 hace que el 2 pase a ser el 1). Los contadores por misión (`marcas`, `marcas_erroneas`, `desmarcados`) quedan en el progreso y en `misiones.libro()`.
+- Números: `test/misiones-evidencia.test.ts` nuevo (9 pruebas: formatos, máquina —marcar, desmarcar, renumerar, conjunto exacto, contadores, guardado— y todo sobre el enchufe real); misiones sube a v10 (estado `marcable`, `mox`/`moy`/`moz`, evento `marcados`, contadores en `mision`). Sin los campos nuevos el formato, el estado, los eventos y lo guardado no cambian.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor. Commit: rama `feat/evidence-markers`.
+- Siguiente: la ficha de evaluación que lee los contadores, y la aventura de la escena del crimen (fase 3) sobre esta pieza.
+
+## 2026-11-04 06:49 · N4 · las personas gesticulan con sus propias animaciones · hecho
+- Qué: una persona cuyo modelo trae animaciones propias ya no se queda con los brazos quietos: la que se llame `talk`, `habla` o `gesto` suena mientras hablas con ella, y la `walk`, `camina` o `andar` mientras va a su sitio nuevo; andar gana a hablar y hablar a estar quieta, con un fundido de 0,3 s. `Idle_Talking_Loop` ya no cuenta como reposo.
+- Números: `test/pnj-viva.test.ts` 16/16; `npm test` 2750 en verde; tipos sin errores nuevos.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor. Commit: rama `feat/pnj-gestures`.
+- Siguiente: fotografiar el paseo entre fases en la escena del crimen.
+
+## 2026-11-04 07:06 · P7 un mundo puede quitar los botones sociales (Saludar, Bailar, Movimientos) · hecho
+- Qué: la ficha del mundo (`ficha@1`) gana `interfaz: { ocultar: ["gestos"] }` (R-1: una línea y el mundo no los enseña). Con él, «Saludar», «Bailar» y «Movimientos» desaparecen de la barra de abajo en escritorio, del menú «…» del móvil y del botón «Movimientos» de la pantalla táctil. Solo quita botones: las teclas G y H y el «Saludar» de la tarjeta de una persona siguen. Un nombre que no existe se deja fuera y se dice en el registro; sin el campo, ni `/status` ni la pantalla cambian. Lo lee `leerInterfaz` (servidor, como `tema`), sale en `GET /status` y la página lo aplica en `apps/plaza/interfaz-mundo.ts`; documentado en `docs/EXTENDER.md`.
+- Números: `test/interfaz-mundo.test.ts` nuevo (7 pruebas; antes del cambio no cargaba: faltaba el módulo). Medido en Chromium contra el mundo v3 con y sin el campo: barra de escritorio `Saludar, Bailar H, Movimientos, Recoger F, Soltar Q` → `Recoger F, Soltar Q`; menú «…» del móvil (412 px) sin Saludar, Bailar ni Movimientos; botón táctil `hidden` = true. Suite 2756 bien.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor. Commit: rama `feat/world-hide-social`.
+- Siguiente: la copia del mundo v3 con el campo (`mundo-v3-p7`) y reimportarla cuando la rama se fusione.
+
+## 2026-11-04 07:06 · P8 el menú ☰ cabe en la pantalla del móvil · hecho
+- Qué: en un móvil de 412 px el menú ☰ iba de x = 286 a 506 (hasta 94 px fuera de la pantalla; 360 px: 234…454). La causa: `menu-barra.ts` ponía `right` en línea, pero `#barra-arriba > * { inset: auto !important }` de `tema.css` le gana, así que el menú de 220 px colgaba del borde IZQUIERDO de una barra que está a 80 px del borde derecho de la pantalla. Ahora, si donde lo pone el CSS no cabe (8 px de margen), se cuelga bajo su botón con `right` en línea `!important` y, si hace falta, se desplaza para quedar dentro (`derechaDelMenu`, puro, en `menu-logica.ts`); el ancho máximo es el de la pantalla menos márgenes. En escritorio ya cabía: no se toca (mismas x que antes). Vale también para «Cámara».
+- Números: `test/menu-cabe.test.ts` nuevo (7 pruebas, incluido un barrido de 280 a 1920 px y de 0,8× a 1,5× de zoom). Medido en Chromium (WebGL2) con el mundo v3, menú ☰ abierto: 412×915 286…506 → 110…330; 360×640 234…454 → 58…278; 915×412 855…1075 → 679…899; 640×360 518…738 → 342…562; escritorio 1280×720 909…1129 → 909…1129 (igual). Foto mirada en 412 y 360: el menú cuelga bajo el botón, sin texto cortado.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: patch. Commit: rama `fix/menu-fits-phone`.
+- Siguiente: la rueda de «Movimientos» y los demás paneles del móvil, si alguno más se sale.
+
+## 2026-11-04 07:16 · P9 el original que el navegador guardó ya no se rechaza; un original con copia pendiente no es «immutable» · hecho
+- Qué: quien entró a un mundo antes de que el servidor hiciera la copia ligera de un .glb (meshopt) tenía el ORIGINAL guardado un año («immutable») bajo la misma url; con la copia hecha el manifiesto trae el sha256 de la copia y la página lo rechazaba («el sha256 no coincide con el del manifiesto») y el objeto no se dibujaba. La página (`apps/plaza/manifiesto.ts`) acepta ahora también los bytes cuyo sha256 es el de la propia url `/a/<sha>.<ext>` (el original es auténtico por construcción; un nivel de detalle no) y los guarda bajo ese sha. El servidor (`activos.ts` + `optimizar-cola.ts`) manda un .glb subido que aún espera su copia con `max-age=300` en vez de `immutable` un año (la cola sabe cuáles están pendientes; con el optimizador apagado o ya probado queda `immutable`).
+- Números: 2 pruebas nuevas en `test/manifiesto.test.ts` (página: manifiesto con el sha de la copia + fetch que devuelve el original; servidor: cabecera antes y después de la copia); antes del arreglo fallan las 2, después pasan; unos bytes que no casan con ninguno de los dos, o el modelo en la url de un nivel, siguen rechazados. `test/subidas.test.ts` pasa a `optimizar: false` en su prueba de subida (esperaba `immutable` justo tras subir). `npm test` 2751 en verde. En vivo (mundo v2 local, perfil con los originales guardados, main contra P9): 14 objetos «no se pudo cargar … no coincide» con main, 0 con P9. #300 sobre WebGL2 en v2: 252 → 0 `bindTexture` y con WebGPU 2 212 → 0 `Destroyed texture`; el mundo v3 no tiene cristal con transmisión y no tiene ninguno de los dos avisos ni con main.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: patch. Commit: rama `fix/manifest-original-bytes`, local.
+- Siguiente: cuando se fusione, mirar en numinia.com si siguen saliendo «no coincide» (los .glb originales de los zips v1, v2 y v3).
+
+## 2026-11-04 09:22 · V1 · cambios sin choques entre PR (fragmentos tipo Changesets) · hecho
+- Qué: un PR ya no mueve la versión ni escribe en el diario: deja un fichero propio `.changeset/<rama>.md` (el formato de Changesets: el paquete y el salto arriba, la entrada del diario debajo). El número lo mueve un único PR de versión con `npm run cambios:juntar`, que toma el salto más alto, escribe la versión una vez, pasa las entradas al diario por su hora y borra los fragmentos. Antes todos los PR tocaban las mismas líneas (`package.json`, `package-lock.json`, `docs/RUNLOG.md`, `novedades-datos.ts`) y al entrar uno los demás quedaban en conflicto y la cola de fusión los echaba (hoy, #301–#305). `apps/plaza/novedades-datos.ts` deja de estar en git: se genera del diario y de los fragmentos pendientes.
+- Números: `tools/juntar-cambios.mjs` + `tools/lib/cambios.mjs` (lógica pura) nuevos, `test/cambios.test.ts` con 16 pruebas (antes: la herramienta no existía y el fichero no cargaba); seis ramas mezcladas en dos órdenes sin un solo conflicto (ver el PR).
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor (esta entrada es el propio fragmento; el número no se mueve aquí). Commit: rama `chore/versions-without-collisions`, local.
+- Siguiente: rehacer #301–#305 con su fragmento; abrir el primer PR de versión (`chore(release): x.y.z`) cuando haya varios fusionados.
+
+## 2026-11-04 21:36 · P13 evaluación al terminar una misión: tarjeta con tiempo, contadores y puntuación · hecho
+- Qué: pieza del motor para aventuras de formación (R-1): una `mision@1` puede llevar `evaluacion` ({ titulo, base, minimo, resta: { contador: peso entero }, tiempo: { referencia_min, resta_por_minuto }, muestra, etiquetas }). Al completarla, el servidor mide el tiempo con SU reloj (aceptada, cierre de cada bloque, hecha; queda en el progreso y sobrevive a reconectar y a reiniciar), calcula la puntuación con cualquier contador por nombre (el que falta vale 0) y la página enseña una tarjeta con la puntuación, el tiempo de toda la misión y el de cada fase y los contadores, con «Cerrar» (o Escape) y «Ver evaluación» en el libro (J); los lectores de pantalla y los agentes reciben lo mismo en un anuncio, y `misiones.evaluacion(id)` / `libro()[i].evaluacion` lo da como datos. Con `fases` ([{ nombre, hasta: <id del paso que la cierra> }], 1–8) la tarjeta enseña el tiempo de toda la misión y el de cada fase con nombre, en vez de una fila por bloque. Nuevo contador `desmarcados_correctos` en los pasos `marca` (desmarcar una cosa que el paso sí pide). Sin `evaluacion` en el mundo, nada cambia: ni el estado, ni los eventos, ni lo que se guarda.
+- Números: `test/misiones-evaluacion.test.ts` nuevo (12 pruebas: formato, cálculo puro, filas y etiquetas, tiempos por bloque, guardado y recarga, `desmarcados_correctos`, mundo sin `evaluacion` igual, las fases con nombre, y todo sobre el enchufe real con una segunda pestaña y un reinicio); misiones sube a v12 (v11 es la foto, P10; eventos `evaluacion`, `evaluacionFila`, `abrirEvaluacion`). Queda fuera el informe para el instructor.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor. Commit: rama `feat/mission-evaluation`.
+- Siguiente: el informe para el instructor (la misma tarjeta de todos los alumnos) y escribir `evaluacion` en la inspección de la escena del crimen.
+
+## 2026-11-04 21:40 · P10 paso de misión `foto`: cuenta la foto que saca el jugador con la cámara del motor · hecho
+- Qué: pieza del motor para aventuras de formación (R-1): un paso `foto` (`objetivo` = esfera del rincón, `distancia` opcional) se cumple cuando el jugador saca una foto con la cámara de fotos de siempre y el centro del objetivo sale en el encuadre (fov y aspecto reales), a la distancia pedida y sin pared en medio. Decide el servidor a partir de la pose de la cámara: pose lejos del jugador, rechazada; como mucho una foto por segundo. Una foto cumple como mucho un paso por misión, el objetivo más cercano; una foto que no cumple ninguno suma `fotos_erroneas` a la misión (en el progreso y en `libro()[i].cuenta`). Entrar en una zona no hace nada y el paso no pone baliza ni flecha.
+- Números: `test/misiones-foto.test.ts` nuevo (9 pruebas: geometría del encuadre, formato bueno y malo, máquina, enchufe real con y sin pared); misiones sube a v11 (intento `foto`, `fotos` en el evento `mision`). Sin pasos `foto` el formato, el estado, los eventos y lo guardado no cambian. La cámara de fotos en móvil: los chips de filtro del visor miden 44 px de alto en táctil (eran 34); en escritorio, igual. Para no pasar el tope de la primera carga, lo que el paso `foto` necesita en la página viaja con el trozo de la cámara, y la subida de la foto como portada del mundo (antes en `main.ts`) también se pide al pulsarla (`test/foto-tactil.test.ts`, `test/foto-portada.test.ts`).
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor. Commit: rama `feat/photo-step`.
+- Siguiente: probar la aventura de la escena del crimen con sus tres fotos como pasos `foto` (cadáver, ventana, puerta de entrada).
+
+## 2026-11-04 21:40 · P16 · las personas hacen una ronda por la casa, con paradas · hecho
+- Qué: una persona puede andar por una ronda de 2 a 8 puntos según la fase del jugador, parándose en cada uno el tiempo que diga el autor, con su clip de caminar; al hablar con ella se para y le mira, y al despedirse sigue por donde iba. Se activa con `"ronda"` dentro de una entrada de `posiciones` del `pnj@1`; sin él, todo igual.
+- Números: `test/pnj-ronda.test.ts` 12 pruebas (cuenta pura, formato, servidor y página); el cálculo de 20 personas cuesta ~1 µs por cuadro.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor. Commit: rama `feat/pnj-patrol`.
+- Siguiente: fotografiar la ronda de la Cabo en el mundo v3 con la GPU.
+
+## 2026-11-04 21:44 · interaccion · Aviso «E: …» destacado, de lo que se mira y solo de cerca · hecho
+- Qué: el aviso de interacción («E: hablar con…») sale ahora en ámbar con la tecla dibujada y letra mayor, centrado sobre la barra de botones; entre las cosas al alcance ofrece la que se mira (la más cercana si ninguna está delante), la marca con un aro que no la tapa (a los pies si es una persona, del tamaño de la cosa y centrado en su modelo si es un objeto) y se va al salir del radio. Además, un mundo puede ocultar los botones «Recoger» y «Soltar» del jugador con `interfaz.ocultar: ["recoger-soltar"]`, y el botón «…» del móvil ya no anuncia, para el lector de pantalla, los gestos que el mundo ocultó.
+- Números: elección pura en `apps/plaza/interactuar-mirada.ts` (15 pruebas en `test/interactuar-mirada.test.ts`); aro: una malla, creada al ofrecer la primera cosa, 0 cuadros extra en reposo; contraste 9,01:1; navegador con GPU en el mundo v3 con radios 1,1 m / 1,8 m.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: branch `feat/interact-prompt`.
+- Siguiente: ninguno; la lógica de mandos de VR no cambia.
+
+## 2026-11-05 09:30 · mundo-hermes · Rótulos del espejo sin solapes ni cortes (M10) · hecho
+- Qué: las placas planas sobre las cosas del espejo se deslizan hacia dentro de la pantalla (ya no se cortan en los bordes), no suben por encima del borde superior (si no caben, se ocultan), nunca tapan su propia figura y no parpadean entre fotogramas (histéresis: la que se vio antes cuenta como algo más cercana). Además, si el puerto del enlace local (8791 por defecto) está ocupado, el motor lo dice en una línea clara y sigue sin enlace, en lugar de caerse con un error sin capturar. Sin espejo nada cambia.
+- Números: ver la descripción del PR.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: patch. Commit: rama `hermes/rotulos`.
+- Siguiente: los rótulos que quedan bajo los paneles de la interfaz y los que tapan figuras de otras filas.
+
+## 2026-11-05 14:00 · mundo-hermes · Pieza espejo y enlace local · hecho
+- Qué: `MOTOR_PLANTILLA` (el mundo nuevo nace de la plantilla que se elija; por defecto `taller`) y la plantilla cerrada `hermes`; la pieza `espejo` (`entorno/espejo.json`, `numinia-engine/espejo@1`): cosas de fuera puestas en el mundo con ficha y lugar, interruptores por función, `usar` y `pedir` (solo una persona identificada que dirige o manda, cerca, verbo permitido, ritmo), petición hacia fuera y respuesta o caducidad a los 30 s; y el enlace local WebSocket en 127.0.0.1 con reto HMAC, rechazo de `Origin`, 16 KB y ritmo por conexión, y `hola.funciones`.
+- Números: 2860 pruebas en verde, 0 mal; huella 7e630965 intacta; sin `espejo.json` el estado compartido y la simulación salen igual que sin la pieza; el enlace no abre ningún puerto sin espejo.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: el adaptador del plugin (carril P) y la vista de las zonas (dibujo plano en blanco y negro).
+
+## 2026-11-05 15:00 · mundo-hermes · Mundo plano y táctil de Hermes · hecho
+- Qué: la plantilla `hermes` trae su planta (`entorno/espejo.json`: umbral con el panel de interruptores, reloj, sesiones y plaza; solo `salud` nace encendida) y un suelo negro; lo que llega de fuera sin posición se coloca solo en la cuadrícula de su zona (4 m, desde el centro) y la fuente no puede quitar ni cambiar el panel; el cliente dibuja cada cosa como una forma plana en blanco y negro hecha por código (reloj, cubo, losa con una lámpara por interruptor, borde de zona discontinuo si la función está apagada), con su rótulo en castellano; mirar una cosa (E o tocar) abre su ficha con un botón por verbo y confirmación en dos pasos; `/status` cuenta a la página las zonas y los interruptores. Arreglo: el servidor no abría el enlace local porque buscaba la pieza antes de que arrancara.
+- Números: 2865 pruebas en verde, 0 mal; página 628.1 kB gz · 530.4 kB br (tope 536); formas planas en un trozo aparte que solo se baja con la primera cosa; huella de los mundos sin espejo intacta.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: el adaptador del plugin con `pedir` real (carril P) y el dibujo definitivo de la planta (Pablo).
+
+## 2026-11-05 17:00 · mundo-hermes · Palancas, carteles, tema y agentes · hecho
+- Qué: las lámparas del panel del umbral son mandos (`encender`: quien dirige o manda, persona identificada, cambia `funciones.<nombre>` en `espejo.json` con el fichero entero validado y escritura atómica, se aplica sin reiniciar, quita las cosas de la función apagada y avisa a la fuente con la trama `funciones`); botón «Ir a <zona>» en la ficha del panel con la pieza de teletransporte de siempre; `tema: black-and-white` en `entorno.json` (solo la plantilla `hermes`) viste la página y el minimapa de blanco y negro; formas planas y fichas para `perfil` (figura con lámpara) y `uso` (medidor; coste siempre «estimado», caché aparte).
+- Números: ver el registro de puertas de esta rama (pruebas, tipos sin errores nuevos, página dentro del tope); sin `espejo.json` el estado y la huella salen igual.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: zonas `perfil`/`uso` en la plantilla; el verbo `perfil.activar`.
+
+## 2026-11-05 18:30 · mundo-hermes · Pulido del motor y pruebas con navegador (M4) · hecho
+- Qué: la plantilla `hermes` trae las zonas `perfil` (Z6, la torre de control) y `uso` (Z2, la sala de máquinas) con sus interruptores apagados; la ficha cabe en cualquier pantalla desde 360×640 (dos columnas, desplazamiento propio, nunca sobre la barra de acciones); los rótulos del espejo son placas negras con contorno blanco que se apartan de su figura y se apilan por distancia; el tema blanco y negro cubre todo el HUD con un solo acento; `npm run test:e2e` prueba el mundo con un navegador de verdad.
+- Números: ver el registro de esta historia en el chat de Ursa (pruebas, tipos, e2e); mundos sin espejo y sin `tema` intactos.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: el verbo `perfil.activar`; el dibujo definitivo de la planta (Pablo).
+
+## 2026-11-05 19:00 · mundo-hermes · Un lote con una zona desconocida ya no se rechaza entero · hecho
+- Qué: `lote` deja fuera las cosas cuya zona no existe (o no admite su tipo), acepta el resto y lo cuenta (`descartadas` en la costura; trama `ack` por el enlace solo si algo quedó fuera); la forma, el tamaño, los repetidos y las cosas del mundo siguen siendo todo o nada; `hola.zonas` no cambia.
+- Números: ver el registro de esta historia (espejo-servidor y espejo-enlace en verde).
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: que el plugin lea el `ack` y lo muestre.
+
+## 2026-11-05 22:00 · mundo-hermes · Pulido del motor, segunda vuelta (M5) · hecho
+- Qué: los botones de zona dicen «Ir al umbral» y «Ir a la torre de control»; cada función tiene su etiqueta con artículo («Apagar el gasto», «Encender los agentes») y el subtítulo del panel las usa; las placas planas miden 90–220 px en pantalla, se desvanecen de 32 a 40 m y no se dibujan más lejos; en el tema blanco y negro la barra de acciones y el aviso de la casa se esconden mientras hay una ficha abierta (en 360×640 se ven 5 filas de botones, antes 2) y la barra ya no corta «Soltar» a 1280×720; `tools/identidad-sin-espejo.mjs` compara dos copias del motor con un mundo sin espejo ni tema (semilla, `/status`, lo que la página pide).
+- Números: ver el registro de esta historia (pruebas, tipos 291/300, e2e 12 en verde); mundos sin espejo y sin tema: carpeta sembrada y `/status` idénticos a origin/main, huella f455ffc1 igual.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: el verbo `perfil.activar`; el dibujo definitivo de la planta (Pablo).
+## 2026-11-05 · mundo-hermes · Documentos, habilidades, tablero y guía (M6) · hecho
+- Qué: cuatro funciones nuevas, apagadas de fábrica y con su interruptor: `documentos` (estantes en Z1 «La biblioteca»; «Abrir» pone una capa a pantalla completa con un `<iframe>` sandbox sobre una página cuyo origen está en `documentos.origenes`, comprobado en el servidor y otra vez en la página; si no responde en 6 s dice cómo arrancar el visor), `habilidades` (tablillas con lámpara en filas por grupo en Z4 «El taller»; la ficha corta la descripción a 140 caracteres), `kanban` (tablero de tres columnas dibujado por código en Z9, solo lectura) y `guia` (silueta blanca que acompaña a 3 m y dice una frase corta de «usted» al entrar en una zona o tocar una cosa; botón «Ir con la guía»). Cambio de nombres sin efecto aún: `skills`→`habilidades`, `biblioteca`→`documentos`.
+- Números: ver el registro de esta historia (pruebas 2929, tipos 291/300, e2e con las pruebas M6, página 632.6 kB gz · 534.4 kB br de 536); mundos sin espejo y sin tema idénticos a origin/main (`tools/identidad-sin-espejo.mjs`), huella f455ffc1 igual; los trozos `formas-extra`, `documento` y `guia` solo se bajan cuando aparece la cosa.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: que el plugin publique `documento`, `habilidad` y `tablero` (contrato en `docs/EXTENDER.md`); el cuerpo VRM de la guía.
+
+## 2026-11-05 · mundo-hermes · Modo embed: el mundo dentro de Hermes Desktop (M7) · hecho
+- Qué: con `embed.activa: true` en `espejo.json` el mundo corre bien en un marco aislado sin `allow-same-origin` (origen opaco): almacén seguro que cae a memoria solo si el navegador lo bloquea, CORS `*` en los ficheros de la página y `POST /espejo/embed` solo con el modo encendido, desde esta máquina y con una credencial `e1.` firmada con la clave del enlace (`Origin: null` nunca basta); un puente `postMessage` (trozo perezoso `espejo-embed`, solo si la página está enmarcada y trae `?embed=1` y la credencial en el fragmento) que lleva `snapshot`/`event`/`funciones` del padre a la misma tubería del enlace local y las `peticion` del mundo al padre; el dueño local queda marcado en `quien`. Contrato en `docs/EXTENDER.md` («Embed (v1)»).
+- Números: ver el registro de esta historia (pruebas, tipos 291/300, e2e con 7 pruebas de embed, página dentro del tope); mundos sin embed idénticos (`tools/identidad-sin-espejo.mjs`).
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: minor. Commit: rama `hermes/mundo-hermes` (local, sin PR).
+- Siguiente: que el plugin publique por `postMessage` (carril P) con la credencial en el fragmento.
+
+## 2026-11-05 14:07 · licencias · REUSE verde, CODEOWNERS y TRADEMARKS · hecho
+- Qué: el repositorio declara ahora la licencia de cada fichero: `LICENSES/` con los textos (AGPL-3.0-only, CC0-1.0, CC-BY-4.0, MIT, OFL-1.1 y la reserva de Numen), `REUSE.toml` por rutas (código AGPL-3.0-only, documentación CC-BY-4.0, activos CC0 de su fuente, tipografías Geist y Bebas Neue en OFL-1.1, Phosphor y Bruno Simon/three.js en MIT dentro de `iconos.ts` y `follaje.ts`), `CODEOWNERS` con @PabloFMM y `TRADEMARKS.md`. La sección de licencia del README coincide. Sin cambios de código.
+- Números: `reuse lint` antes: 7 de 1595 ficheros con información, no conforme; después: 1598/1598, conforme con REUSE 3.3. Sin puertas que correr: no toca código.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: patch. Commit: rama `chore/reuse-codeowners-trademarks`.
+- Siguiente: un trabajo de CI con `reuse lint` (necesita la puerta de `.github/workflows/`).
+
+## 2026-11-05 23:00 · mundo-hermes · Endurecer el origen del modo embed (M9) · hecho
+- Qué: con `embed.activa: true` el WebSocket solo admite `Origin` ausente, `null` o el del propio mundo (otro: 403) y `/status` solo lleva CORS `*` para esos mismos (una auditoría externa de #307 vio que cualquier página del navegador podía conectar al mundo local como invitado y leer sus zonas); `MOTOR_SALIR_SI_STDIN_CIERRA=1` hace que el motor salga (cierre limpio, código 0) cuando se cierra su entrada estándar, para que Hermes no lo deje huérfano. Con embed apagado o sin `espejo.json` nada cambia. Contrato en `docs/EXTENDER.md` («Embed (v1)»).
+- Números: ver la descripción del PR (pruebas nuevas, puertas, e2e, página, identidad sin espejo).
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: patch. Commit: rama `hermes/endurecer-origen`.
+- Siguiente: el plugin arranca el motor con la tubería y la variable.
+
+## 2026-11-06 06:30 · sucesos · «Suceso» piece: a world event that announces itself, advances alone and rewards everyone (Y48, slice 1) · hecho
+- Qué: `features/sucesos` (the server decides, R-1). A world declares its events in `sucesos.json` (`numinia-engine/sucesos@1`): each is announced to whoever is near (voice + bell, no «!» and no quest to accept), advances by itself even with nobody there, every person in its zone speeds it up (integers: `ayuda` % per person up to `ayudaMax`), it has no failure, and when it ends EVERY participant gets the whole reward and the result chains another event by a weighted draw from the engine's integer RNG (mulberry32, fixed seed). Verbs `mirar` and `lanzar` (who directs) and the chat order `/evento <id> [lanzar]`; the event card carries `interact`; taking part is standing in the zone (no gesture). Server-only events `otorga` and `cadena` for inventory/cable. Without the file the piece does nothing. Not to be confused with the facts book `evento@1` (`packages/server/src/eventos.ts`).
+- Números: `test/sucesos.test.ts` 12 tests (file reader, integer pace, weighted draw, an event with nobody there, whole reward to two and none to the far one, same seed = same chain, mirar/lanzar, chat, conMundo). Simulation fingerprint unchanged (f455ffc1). `npm run gates`: types, layers, determinism, bandwidth and plaza green; the page-weight gate and its test were already red on origin/main (536277 B br > 536000) with identical numbers before and after this change.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor. Commit: branch `motor-web-3d/t_68c0064f-jugador-y-gm-pieza-evento-de-mundo-que-s`.
+- Siguiente: Entorno switch, panel and e2e, persistence and repetition (rows Y48b–Y48d of `docs/BACKLOG.md`).
+
+## 2026-11-06 06:45 · espacios · «Espacio» piece: an own private corner with guests and placement by rules (Y50 + Y51, slice 1) · hecho
+- Qué: `features/espacios` (the server decides, R-1). A world declares its spaces in `espacios.json` (`numinia-engine/espacios@1`). The game master (who directs or rules) assigns a space to one person and frees it; the space is private by default (strangers are put back outside its edge once a second, with the reason), the owner names it, invites and removes guests (up to 12) and places things; the server checks each placement in integer centimetres (floor or a supporter with room under the spot, only on what the type allows, inside the radius, no overlap, cap of objects) and refuses removing a thing with another resting on it. Names (space, owner, guests) are bounded untrusted text for the `<material>` block. Verbs `asignar`, `liberar`, `nombrar`, `invitar`, `quitar`, `entrar`, `colocar`, `retirar`, `mirar`; chat `/espacio`; owner, guests, name and things persist in the feature store. New limits in `limits.json`: `space_objects_max` 40 and `space_guests_max` 12. The page carries no client part (the catalog is enough; first-load size unchanged). Without the file the piece does nothing.
+- Números: `test/espacios.test.ts` 13 tests (file reader, placement rules, removal rule, a scripted placement run twice with the same result, assign/free, privacy sweep, names, chat, caps 41st object / 13th guest, conMundo). Simulation fingerprint untouched (no sim change).
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor. Commit: branch `motor-web-3d/t_6f5fcaf6-jugador-y-gm-pieza-espacio-propio-privad`.
+- Siguiente: lazy panel that imports `features/espacios/client.ts`, Entorno switch and e2e (Y50b); boundary and placed things drawn (Y50c); open/closed toggle (Y50d).
+
+## 2026-11-06 07:20 · game · Derribado: falling is not dying, lifting a companion and reappearing without loss (Y45+Y46+Y47) · hecho
+- Qué: new `derribado` piece (slice 1, server only). If the world has `entorno/derribado.json`, whoever falls in a fight is downed: held still, losing nothing, with `pedirAyuda`, `rendirse` or waiting for a companion to lift them (`levantar`, «E» beside them or by verb, no item, no cost). If nobody comes, after 30 s they return to the reappearance spot the world declares. `lucha`'s `jugadorCaido` event now says `quien`. Without the file nothing changes.
+- Números: `test/derribado.test.ts` 7 tests green (same seed, same result and same hash).
+- Consumo: not measured · Sonnet 5.5.
+- Cambio: minor. Commit: branch `motor-web-3d/t_c9331c8a-jugador-y-gm-estado-derribado-levantar-a`.
+- Siguiente: Y45b (action-bar buttons, Entorno switch, join the PVP fall).
+
+## 2026-11-07 03:38 · idiomas · The Taller is public: English by default, Spanish as a translation file, CC0 licence · hecho
+- Qué: R-1 first slice, `packages/server/src/idiomas.ts`: a world's words are English; a translation is a file `aventura/idiomas/<lang>.<folder>.<file>` and the world's language is `idioma` in `ficha.json` (default `en`). The adventure reader, the sheet and the note for AIs read the translation, falling back to English; the settings panel keeps the translated name in step; `tools/aventura.ts` checks that a translation differs only in words. The Taller, visible name now «Learn to Build» (internal id `taller`; sheet carries `version` 1.0.0, creator Numen Games, owner pending) (sheet, Lumen, 11 missions, LEEME-IA, sample cable) is now English with the Spanish text in `idiomas/es.*`. Licence file `aventura/LICENSE.md` (CC0-1.0 except the logo/marks, see TRADEMARKS.md), `REUSE.toml` annotation for `plantillas/taller/**`, world sheet `docs/FICHA-MUNDO-TALLER.md`. The engine licence is untouched.
+- Números: `test/idiomas.test.ts` 3 tests; `node tools/aventura.ts plantillas/taller/aventura` passes. The browser run (`tools/e2e-piernas/mundo-nuevo-taller.mjs`) was edited for the new names and NOT run.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor. Commit: branch `motor-web-3d/t_59476c84-taller-p-blico-misiones-jugables-en-ingl`.
+- Siguiente: one language per player; `entorno/` and page buttons in English; Oráculo signature (PRO-018).
+
+## 2026-11-07 04:50 · franjas · Time-of-day piece: the world announces dawn, day, dusk and night (Y37) · hecho
+- Qué: `features/franjas` (the server decides, R-1). It reads the zone's clock from `entorno` (read only) and turns it into one of four bands with whole numbers; the hours each band starts are data (`franjas.json`, `numinia-engine/franjas@1`, house 5 / 7 / 18 / 20) and a wrong set says its path and how to fix it. Each change is announced once (text + sound, importance 1) while the day cycle runs; never at start-up, on arrival or without a cycle. One state entry `zona` and a card «Time of day»; the verb `consultar` answers only the asker (agents and the catalog; `features/franjas/client.ts` has the page API and the «Time of day» button but is not in the first-load bundle, which has 83 B of room, like `sucesos`). Texts in English by default with a Spanish translation block. Other features hook on with `api.listen("franjas", "franja")` and `api.estadoDe("franjas")` (a test feature does it without touching entorno). Simulation fingerprint unchanged.
+- Números: `test/franjas.test.ts` 12 tests (480 steps with no gap or overlap, a whole 2-minute day with one notice per change, midnight, no cycle, silent and Spanish worlds, `consultar`, a hooking feature).
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor. Siguiente: a world's own `franjas.json`, per-preset hours, one sound per band (Y30), Y38 and Y39 on top.
+
+## 2026-11-07 06:00 · frases · Fixed phrases: a closed list of 20 with stable ids, read in each person's language (Y29) · hecho
+- Qué: `features/frases` (the server decides, R-1). `frases.json` (`numinia-engine/frases@1`): 20 phrases in 4 groups with a stable id and text in en (default) and es. Verb `frase` {id}: the server checks the id, applies the pace of the near chat (1/s, burst 3, with the reason when too fast) and tells whoever is within 20 m THE ID, never text. Each page translates when it paints (bubble with « … » marks over the speaker, a line for screen readers); changing language redraws what is on screen without resending. The list is shared state, so agents read it as cards. Page: panel «Phrases» (key Backquote, top-bar button, buttons of at least 44 px, focus in and back). The page's start bundle only holds a light door (`client.ts`); the logic loads when first needed.
+- Números: `test/frases.test.ts` 11 tests (list, pinned ids in `test/frases-ids.json`, reader, language, near/far, repaint, unknown id, pace, cards, light door, accessibility). Simulation fingerprint unchanged (f455ffc1).
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor. Commit: branch `motor-web-3d/t_aceb31db-ola-1-y29-frases-fijas-jugador-y-maestro`.
+- Siguiente: VR selection of a phrase (the HTML panel is not drawn in VR; the `frase` verb and the bubble are).
+- Límite: `first_load_br_bytes` 536.000 → 537.000 in `limits.json` (measured 536.408 B with the light door; the panel's CSS already moved to a lazy chunk). Flagged for review.
+
+## 2026-11-07 09:00 · MIS-292 · cada versión del motor publica su número y sus novedades · hecho
+- Qué: `imagen.json` de cada release lleva ahora `version` (la versión semántica que sale de los fragmentos pendientes, o la de `package.json`) y la release adjunta `novedades.json` (tipo + texto por cambio desde la release anterior), para que numinia.com muestre «0.106.0» y lo que trae. Los campos antiguos de `imagen.json` no se tocan.
+- Números: `test/novedades-release.test.ts` nuevo (4 pruebas). `.github/workflows/publicar-motor.yml` no cambia: ya llama a `tools/publicar-version.sh`.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor. Commit: rama `motor-web-3d/t_5f08b0e4`.
+- Siguiente: tras fusionar y publicarse, comprobar los dos `curl` de MIS-292.
+
+## 2026-11-10 07:55 · documentación · EXTENDER.md en un fichero por pieza y llms.txt más corto · hecho
+- Qué: la receta de funciones se reparte en un fichero por pieza (`docs/extender/`) y `llms.txt` deja una frase por paquete, para que los PR dejen de chocar en esos dos ficheros.
+- Números: `docs/EXTENDER.md` pasa de 2464 líneas / 279 KB a 135 líneas / 8,8 KB (receta + índice); 40 secciones movidas línea por línea a `docs/extender/<pieza>.md` (2092 líneas no vacías, conjunto idéntico); 8 viñetas de paquete de `llms.txt` acortadas (la de `server` pasa de 4003 a 235 caracteres) y sus datos extra pasan a «Details moved from llms.txt» en cada README.
+- Consumo: sin medir · claude-sonnet-5-5.
+- Cambio: patch. Commit: branch `docs/split-extender-llms`.
+- Siguiente: que una pieza nueva documente en su fichero y añada una línea al índice (regla en CONTRIBUTING.md y AGENTS.md).
+
+## 2026-11-07 04:20 · plantillas · Art Gallery: the former Galeria Stoa as a public CC0 template · hecho
+- Qué: new template `plantillas/art-gallery` (chosen with `MOTOR_PLANTILLA=art-gallery`): the built stoa with its 21 holes (`datos/`, 30 files by sha256), the curator, the critic, Lia, Pau, Nora, three visitors, three missions, five postcards, three scenes. Every word is English, the 22 signs and object names too; the Spanish translation sits in `aventura/idiomas/es.*`. English sheet and note for AIs, semantic `version`, creator Numen Games, owner pending, CC0 licence file (marks excluded, none shipped), `REUSE.toml` annotation, world sheet `docs/FICHA-MUNDO-ART-GALLERY.md`. `sembrar` also copies a template's `datos/` when it has one (additive; the other templates have none). The huecos (U12) were already in `main`: no separate PR.
+- Números: `test/mundo-nuevo-art-gallery.test.ts` (8 tests, real server included); `node tools/aventura.ts plantillas/art-gallery/aventura` passes.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor. Commit: branch `motor-web-3d/t_6e535c94-art-gallery-p-blico-nombre-textos-en-ing`.
+- Siguiente: people still show as robots in game photos (documented in the sheet); play the Spanish files once the language mechanism (R-1) is merged; the Oraculo signature.
+
+## 2026-11-07 05:30 · plantillas · Tabletop RPG Room: the former tholos as a public CC0 template (1.0.0) · hecho
+- Qué: new template `plantillas/tabletop-rpg-room` (chosen with `MOTOR_PLANTILLA=tabletop-rpg-room`): the built tholos with the table and the hole for the director's map (`datos/`, 3 files by sha256), Senet, two missions, two things, six scenes, and an `entorno/` that switches on seats, director's staff, voice bubble and dice tower and keeps the house pond, target, creature and Hall of Ancestors out. Every word is English (object names, sign-free: the sample map was redrawn in English, the glb materials renamed); the Spanish translation sits in `aventura/idiomas/es.*`. English sheet and note for AIs, semantic `version` 1.0.0, creator Numen Games, owner pending, CC0 licence file (marks excluded, none shipped), `REUSE.toml` annotation, world sheet `docs/FICHA-MUNDO-TABLETOP-RPG-ROOM.md`. `sembrar` copies a template's `datos/` (same two lines as the Art Gallery PR). Seats, staff, voice bubble and dice were already in `main` (`features/asiento`, `baculo`, `burbujas`, `dados`): no separate PR.
+- Números: `test/mundo-nuevo-tabletop-rpg-room.test.ts` (9 tests, real server included); `node tools/aventura.ts plantillas/tabletop-rpg-room/aventura` passes.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor. Commit: branch `feat/tabletop-rpg-room-template`; git tag `tabletop-rpg-room-v1.0.0` after the merge.
+- Siguiente: play the Spanish files once the language mechanism (R-1) is merged; the Oraculo signature; the history scan (PUB-001..005).
+
+## 2026-11-07 06:00 · game · Weighty blow: hit pause, flash and thud, with a «Reduce motion» switch (Y25) · hecho
+- Qué: a blow you land now has weight on your page. The picture holds 3 frames (hit pause, only the page's draw; the ticks and the server are untouched), the creature flashes for 100 ms (never the whole screen, at most 3 flashes per second) and a low thud plays. Only your own blow pauses; no pause in VR/AR. The engine setting «Reducir movimiento» (`accesibilidad.menosMovimiento`, default from the system's prefers-reduced-motion, live) turns off pause and flash; the «−N» text, the announcement and the sound always stay. New optional view hooks `movimientoReducido()` and `pausa(frames)` (L5 will read the same switch). Piece: `features/lucha/peso.ts`; recipe in `docs/EXTENDER.md` (Lucha).
+- Números: `test/lucha-peso.test.ts` 8 tests green; fingerprint, wire format and `sim` untouched.
+- Consumo: not measured · Sonnet 5.5.
+- Cambio: minor. Commit: branch `motor-web-3d/t_2cf6aed3-ola-1-y25-golpe-con-peso-jugador-y-maest`.
+- Siguiente: L5 (camera shake and vignette) inherits the switch; Y26 (local acknowledgement) goes after this.
+
+## 2026-11-10 09:00 · cli · `check` and `replay` commands (M23, first slice) · hecho
+- Qué: `npm run check -- <folder>` validates a folder: every .json parses, `numinia-engine/<name>@<n>` manifests name files that exist with the sha256 they state, and every binary asset has an acceptable licence (CC0, CC-BY or propia) from a manifest entry, a LICENCIAS.md or a REUSE.toml annotation; exit 1 and one line per problem. `npm run replay -- <recording.json>` (or `--reference [--ticks N] [--write file]`) replays a recording of inputs and checks the fingerprint (`--expect`, or the file's own), naming the first bad tick. Format `numinia-engine/recording@1`.
+- Números: `test/cli-check-replay.test.ts`; `--reference` gives 7e630965, the pinned reference fingerprint; `check activos` passes on the repo.
+- Cambio: minor.
+- Siguiente: `shot` and `diff-shot` (need a headless browser; M25 uses them).
+
+## 2026-11-10 10:00 · docs · J16: recipe for writing adventures with an LLM, tested · hecho
+- Qué: `docs/extender/aventuras-con-llm.md`: the brief to give a model, the check-and-paste-back loop around `node tools/aventura.ts`, a worked example («The lighthouse lamp»: ficha, one quest of three steps, one person, one thing) and what a person must still review (the checker does not know the terrain or the tone).
+- Números: `test/aventuras-con-llm.test.ts` (4 tests) reads the example's files from the page itself, checks they pass `tools/aventura.ts`, that the page's typical mistake fails with the file and path, and plays the quest to the end over the real plug.
+- Siguiente: the e2e in a browser of the same adventure (the BACKLOG «hecho cuando» says e2e; this slice proves it headless over the plug); rewards that are objects, secuencias and AI inhabitants in the brief.
+
+## 2026-11-10 12:00 · game · Lucha L2: the player's Estado rungs slow the person on the server · hecho
+- Qué: Confundido walks at 3/4 speed and Colapsado at 1/2 (the server freezes the person one tick in 4 / in 2); Desestabilizado is the warning rung and Aletargado holds still then returns to the safe spot (already there). No hit points, server side only, no client code.
+- Cambio: minor.
+- Siguiente: a real speed factor in the sim (the slowed person's own prediction rubber-bands lightly); creature blows climbing the ladder.
+
+## 2026-11-10 13:58 · avatars · Avatars read a GLB collision floor as ground (no more «flying» on an island) · hecho
+- Qué: in a world whose floor is only a collision GLB (`colision: "malla"` things, no `naturaleza.json` hills) avatars no longer play the jump/fall clip all the time. The page's ground for avatars (`ClientSession.sueloTerreno()`) was only set when a terrain existed, so «in the air» was measured against the flat plaza; it now also comes from the GLB mesh. Seen live on an island at 19 m.
+- Números: `test/avatar-suelo-glb.test.ts` 3 tests (the first fails before the fix, all pass after); sim, wire format and fingerprint untouched.
+- Consumo: not measured · Sonnet 5.5.
+- Cambio: patch. Commit: branch `fix/avatar-ground-from-glb-mesh`.
+- Siguiente: with terrain and a GLB mesh together the avatar ground still reads the terrain alone; unify if a world needs both.
+
+## 2026-11-10 14:20 · limits · First-load cap 537 → 560 kB (brotli) · hecho
+- Qué: `first_load_br_bytes` in `limits.json` goes from 537.000 to 560.000 bytes. Main measures 536.4 kB, so any change to the page failed `npm run tamano` by a hair. Asked by Pablo (2026-11-10). No code changes.
+- Números: `node tools/tamano.mjs` and `test/tamano-primera-carga.test.ts` read the cap from `limits.json`.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: patch.
+
+## 2026-11-10 15:00 · feature · Flash limiter (V7, first slice) · hecho
+- Qué: `packages/feature/src/destellos.ts`, a pure sliding-window limiter (≤ 3 flash starts per second, WCAG 2.3.1; a caller may be stricter, never looser). The Y25 hit flash in `features/lucha/peso.ts` now asks it instead of its own copy. Not in the client first-load path.
+- Falta de V7: modo sentado, `prefers-reduced-motion`/`prefers-contrast` antes del primer cuadro, e2e con `reducedMotion: 'reduce'`, other effects (despertar column, H8 particles) asking the shared limiter.
+- Cambio: minor.
+
+## 2026-11-10 21:45 · test · Seeded fuzz of every network decoder (D3) · hecho
+- Qué: `test/decodificadores-fuzz.test.ts` feeds noise, bit-flipped, truncated, extended and offset-view bytes to the 20 wire decoders (core messages, voice, feature catalog/message/state, `readFields`) and the upload checkers (`comprobarGlb/Trazo/Fichero`, `medidasImagen`). Each must not throw, stay under 250 ms and stay within its size cap. No engine code changes.
+- Números: fixed seed, 400 cases per decoder; the file runs in about 0.3 s.
+- Cambio: patch.
+
+## 2026-11-11 13:04 · plaza · E responde a la primera opción de una conversación · hecho
+- Qué: con la caja de conversación abierta, E elige la primera respuesta (Continuar / Aceptar); la primera respuesta se rotula «E.». La misma pulsación que abre la conversación no responde (la caja se abre con la respuesta del servidor, en otro turno).
+- Números: `test/dialogo-e.test.ts` 2 pruebas con la aventura de ejemplo y las dos piezas de página; la primera falla sin el cambio.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor. Commit: branch `feat/plaza-dialogue-e-first-option`.
+- Siguiente: VR y móvil sin comprobar.
+
+## 2026-11-11 13:04 · asiento · Sentado se queda sentado y sin rótulo en muebles del mundo · hecho
+- Qué: el movimiento de sentarse lleva `sujeto`: la política de avatares ya no levanta al avatar al final del deslizamiento; un asiento con `dibujo: false` no pone rótulo sobre quien se sienta; `SITIOS_MAX` pasa de 24 a 64 (una sala tiene 34 sillas).
+- Números: `test/asiento.test.ts` 17 pruebas (+3); sin cambios en la simulación ni en la huella.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: patch. Commit: branch `fix/asiento-stays-seated-no-sign`.
+- Siguiente: ninguno conocido.
+
+## 2026-11-11 13:04 · aparato · Solo un puntero grueso hace móvil a un aparato · hecho
+- Qué: la clase móvil de potencia (`isMobileClass`, `decidirAparato`) depende solo del puntero grueso; `navigator.deviceMemory` (los navegadores lo recortan a 2-4 GB) ya no convierte un PC en móvil (sin antialias, sombras recortadas). `nivelDe` solo manda a la nivel D por memoria baja si el aparato es móvil.
+- Números: `test/aparato.test.ts` 14 pruebas, `test/power.test.ts` +2 (fallan antes del arreglo).
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: patch. Commit: branch `fix/client-mobile-class-pointer-only`.
+- Siguiente: `capacidades.ts` `esMovil` aún cuenta la memoria (la página lo pisa con el valor de power); alinearlo si hace falta.
+
+## 2026-11-11 13:04 · render · El aro de una persona se oculta tras tu propio cuerpo · hecho
+- Qué: el aro de una persona (en el suelo) se prueba contra la profundidad, así que el cuerpo del jugador delante lo tapa; el aro de una cosa sigue viéndose a través.
+- Números: `test/interactuar-mirada.test.ts` 18 pruebas (+1, falla antes del arreglo).
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: patch. Commit: branch `fix/render-talk-ring-depth-tested`.
+- Siguiente: ninguno conocido.
+
+## 2026-11-11 13:04 · colision · Un triángulo inclinado ya no bloquea el aire de su caja · hecho
+- Qué: un triángulo de pared muy inclinado (la tela de una tienda, 25 m de alto) ya no frena a quien camina por el aire de su AABB: tras el filtro por caja, `blockedMesh` pregunta a `triCrossesBox` (test de ejes separadores, float64 exacto en múltiplos de 1/64 m) si el triángulo cruza de verdad el cuerpo. Visto en vivo: no se podía entrar en una isla.
+- Números: `test/tri-cruza-caja.test.ts` 4 pruebas (la de simulación falla antes del arreglo); huella de referencia y formato de la simulación sin cambios (la referencia no usa malla).
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: patch. Commit: branch `fix/sim-steep-triangle-sat`.
+- Siguiente: si algún mundo tiene paredes inclinadas que antes frenaban de más y ahora dejan pasar, revisar su colisión.
+
+## 2026-11-11 14:15 · entorno · A world can have no ground: sky above and below (`suelo: "ninguno"`) · hecho
+- Qué: `entorno.json` accepts `suelo: { tipo: "ninguno" }` (flat field `suelo`, value `ninguno`, next to `hierba`, `tierra`, `arena`, `roca`, `nieve`, `liso`). The ground plane and grid are not drawn, the sky (atmosphere, gradient, colour, equirect image/HDR) is mirrored under the horizon so looking down shows sky, not a cut, the top-down map keeps a plain background, and the simulation has no flat floor at y = 0 (the world's own platforms/GLB mesh are the floor); falling ends in the existing `sueloMinimo`/`vuelta` void (100 m down when the world gives none). Server and page agree and follow the Entorno panel live.
+- Números: `test/sin-suelo.test.ts` 6 tests; reference fingerprint unchanged; a world without the key is untouched (ground present, `piso` 0).
+- Consumo: not measured · Sonnet 5.5.
+- Cambio: minor. Commit: branch `feat/entorno-no-ground`.
+- Siguiente: a sea or void colour under the islands is not a setting yet.
+
+## 2026-11-11 15:00 · game · M18 trozo 3: a shared screen is seen by everyone near the video screen · hecho
+- Qué: when you share your screen while standing near a video screen of the world (30 m), everyone within 40 m of that screen sees it there, live. The server relays it like the proximity voice: short encoded frames over the game's own WebSocket (new additive message type 17, `PANTALLA`), cut into pieces under the 1024-byte frame cap, never opened and never stored. The page encodes and decodes with WebCodecs (VP8, or H.264 where that is all the browser has) at most 1280 px a side and 15 fps, about 1.2 Mbit/s. No paid service, no TURN, no new dependency.
+- Reglas del servidor (`packages/instance/src/pantallas.ts`): one share per screen and per person (the second to ask gets «ocupada»); you must stand within 30 m; the share ends when you leave, walk far, are stopped by someone who directs, or the screen is deleted, and every viewer is told; people behind the conditions gate, visits by link, blocked people and closed voice bubbles neither share nor see it; a per-share bandwidth guard drops a whole frame (and the deltas after it) and asks the sharer for a key frame; a viewer who arrives mid-stream waits for the next key frame.
+- Página: `apps/plaza/pantalla-red.ts` sends from the stream you already share and draws what arrives on a canvas whose `captureStream()` goes to the same `pantallaEnVivo` the local share used. Without WebCodecs the page neither sends nor decodes and says so once; in the floating window nothing leaves the page. Includes the follow-you change (the share moves to the nearest screen when you walk up to it and back to the window when you walk away).
+- Números: `test/pantalla-red.test.ts` (14 tests): wire round-trips and fuzz, frame joining, the rules above with a fake world, a real `Instance` with three pages (near gets the pieces, far gets nothing, leaving ends it), page helpers, and the limits published in `limits.json` (`pantalla_alcance_m`, `pantalla_ancho_max`, `pantalla_fps`, `pantalla_bytes_s`). `docs/FICHA-TECNICA.md` has the four new rows. **Not measured on real devices or with two real browsers**: the encode/decode path needs a browser with WebCodecs.
+- Siguiente: a real two-browser e2e (`tools/e2e-piernas`) and a measurement of CPU and bandwidth on a phone; LiveKit remains the plan for audio of the screen.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor.
+
+## 2026-11-11 15:00 · fix · Turning the camera no longer raycasts the whole scene · hecho
+- Qué: the link-hover pick (`apps/plaza/enlaces.ts`) no longer runs while a mouse button is held or the pointer is locked, and is spaced by 8x its own cost. Measured on the Symposium world (RTX 4080): the pick costs 47 ms p50; turning the camera fell to 26-43 fps, and 60 fps without the pick.
+- Falta: make `view.pickThing` itself cheap (only things with a link, or a BVH).
+- Cambio: patch.
+
+## 2026-11-11 16:27 · plaza · Conversation options show their key in a box: E first, Q last · hecho
+- Qué: in an open conversation the first answer is E, the last one (with two or more) is Q, the ones between keep their number. The key is drawn as a boxed <kbd> like the bottom bar's badges (no «E.»), phones show no keys. Q is caught in capture while the box is open, so it neither opens the microphone nor drops what you hold.
+- Números: tests for teclaDeOpcion and for Q not reaching other listeners (test/dialogo-e.test.ts).
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: patch.
+
+## 2026-11-11 16:35 · plaza · «Watch full screen» when seated in front of a live screen · hecho
+- Qué: seated in front of a 3D video screen that shows something (a share, local or relayed by #345, or a playing video), an extra bar button and the F key open that picture full screen (an overlay where the browser refuses real full screen). F, the × button or Esc closes it; standing up or the screen going quiet closes it too. Not offered in VR (no DOM full screen there). F yields to fishing, the builder, photo mode and the wheel. Lazy chunk, fetched the first time you sit while a screen shows something.
+- Números: test/pantalla-completa.test.ts (3 tests, the decision without a DOM).
+- Siguiente: keymap v1 will route the key through teclas.ts; real phone and browser full screen not exercised here.
+
+## 2026-11-11 17:15 · ia-presencia · Una IA te mira y se queda contigo cuando entras en su cúpula · hecho
+- Qué: la burbuja de acción de toda IA es ahora una cúpula por defecto, y al entrar en ella la IA te mira, deja su paseo y se queda contigo; se marcha 3 s después de quedarse sola. Las marcas de IA (cartel verde, aro, burbuja) ya salen también cuando la IA estaba dentro antes que tú.
+- Números: `features/burbuja` v2 con el campo `mira` (la persona con la que está: la primera que entró mientras siga dentro, luego la más cercana; nunca otra IA); pruebas 3269 bien, 0 mal; tick p99 de la plaza de 1.000 5,93 ms; página 646,3 kB gz. Comprobado en un navegador sin GPU contra el playground: al entrar, 1 aro y 1 cúpula dibujados (antes 0 y 0); al acercarse, la IA se para a mitad de ruta (0,00 m en 3 s) y la página la orienta hacia la persona. Sin medir en móvil ni en VR.
+- Consumo: sin medir · claude-opus-5-5 (Galatea).
+- Cambio: minor. Commit: branch `galatea/ia-presencia`.
+- Siguiente: que la página avise y se reconecte cuando el servidor se reinicia (hoy se queda congelada sin decir nada); revisar las demás piezas cuyo `alCambiar` no entrega lo que ya había (asiento, botones, puertas…); campo `burbuja` en `habitante@1`.
+
+## 2026-11-11 17:30 · feature · Client i18n: Language setting and menus in English and Spanish · hecho
+- Qué: `packages/client/src/idioma.ts` (`t()`, en/es catalogues, language detection), a Language / Idioma setting, and the settings menu plus `apps/plaza/index.html` texts in both languages. Test: every menu text exists in English and Spanish.
+- Falta: server feature texts (separate PR).
+- Cambio: minor (new optional setting, no format change).
+
+## 2026-11-11 17:30 · render · Names smaller and right above the head; quest «!» lower · hecho
+- Qué: name plates are 35 % smaller (`NOMBRE_ESCALA`), sit just over the top of the placed model's head (`yPlacaSobreCabeza`, measured once per model), and the quest-mark band is lower (`ROT_MARCA` 160 → 110 px).
+- Números: test/carteles.test.ts 11/11.
+- Consumo: sin medir · sonnet 5.5.
+- Cambio: patch. Commit: branch `motor-web-3d/t_271835e6-pr-names-smaller-and-right-above-the-hea`.
+- Siguiente: none.
+
+## 2026-11-11 17:50 · espejo · Q closes the card of a mirrored thing · hecho
+- Qué: the card of any mirrored thing (project, board, card, any type) opens with E and now closes with Q (Escape and «Cerrar (Q)» still work). Q is swallowed while the card is open, so it never toggles the microphone.
+- Números: 1 file of page code (lazy chunk `espejo.ts`), 1 test file (3 tests).
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: patch.
+
+## 2026-11-11 17:50 · feature · Server feature texts in English and Spanish by world language · hecho
+- Qué: the player-facing texts of misiones, pesca, teletransporte, web, disparadores, objetos, contadores, director and bienes exist in English and Spanish; the world's language picks one (English by default, Spanish falls back to English). New `textos.ts` per feature where the text table was large.
+- Falta: the rest of the features' texts, if any appear.
+- Cambio: minor (no wire or file format change; text only).
+
+## 2026-11-11 18:30 · plaza · Keymap v1: one key, one function, two-column Controls, push-to-talk microphone on V · hecho
+- Qué: `apps/plaza/teclas.ts` is the single table of the world's keys (E use, Q opposite, V microphone, I bag, C sheet, B build, Tab people, Ctrl+H hide the interface; fishing reels in with E and lets go with Q). Every listener asks it. Settings → Controls shows Default / Yours with swap-or-cancel on conflict and «Reset all»; F1 and the bar badges show the key in effect. The microphone is hold-to-talk on V (toggle in Settings), never opens by itself (also not when entering VR) and shows a fixed red «Your microphone is on».
+- Números: `test/teclas.test.ts` (12 tests); freed L, R, X, Q-as-microphone; battery mode no longer has the B key (Settings only).
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor.
+
+## 2026-11-11 18:58 · teclas · Los paneles se abren con las teclas del mapa nuevo y sus rótulos las dicen · hecho
+- Qué: la I abre la bolsa, la C tu ficha y el Tab la gente, como dice Ajustes › Controles (antes la I abría la ficha, la R la bolsa y la L la gente). Los rótulos dicen la tecla de verdad («Tú (C)», «Salir de construir (B)»…), también si cambias tus teclas, y la misión 1 del Taller dice «o la tecla B».
+- Números: medido en un navegador pulsando de verdad: antes I→ficha, C→nada, R→bolsa, L→gente, Tab→nada; ahora I→bolsa, C→ficha, Tab→gente, B→construir, R y L→nada; 0 errores de página. Prueba nueva `test/teclas-paneles.test.ts` (todo panel abre con una acción de la tabla; ningún texto nombra una tecla vieja).
+- Consumo: sin medir · claude-opus-5-5 (Galatea).
+- Cambio: patch. Commit: branch `galatea/teclas-paneles`.
+- Siguiente: la pierna e2e `misiones` sigue esperando «E: hablar con…» y desde #347 la tecla va en una cajita; está rota en main y no es de este cambio.
+
+## 2026-11-11 19:00 · i18n · Every menu and interface text in English, with Spanish second · hecho
+- Qué: the world's language wins when the player has not chosen one (stored choice > world > navigator > English). Every player-visible Spanish-only literal in `apps/plaza`, `packages/client`, `features/*/client.ts` moves into `tx(en, es)` / `ligar` / `data-en`+`data-es`; the notices (`avisos-en.ts`) and the bar, F1, E prompt and shared-screen texts follow the language live. Tests: a new Spanish-only literal in the swept files fails `test/idioma-barrido*.test.ts`; a Spanish announce without English fails `test/avisos-en.test.ts`.
+- Números: first load 548.8 → 561.4 kB brotli; cap 560 → 565 kB (`limits.json`, for Pablo to confirm).
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor.
+
+## 2026-11-11 20:00 · avatars · Second uploaded/world avatar no longer indexed past the catalogue (capsule instead of avatar) · hecho
+- Qué: in `apps/plaza/avatar.ts` the second uploaded or «De este mundo» avatar got index `casas.length + subidos.size`, one past its entry, so the player drew as a brown capsule after switching twice. The index is now `casas.length` (the entry about to be pushed).
+- Números: `test/avatar-segundo-del-mundo.test.ts` (fails before the fix, passes after); sim, wire format and fingerprint untouched.
+- Consumo: not measured · Sonnet 5.5.
+- Cambio: patch. Commit: branch `motor-web-3d/t_22deabcd-pr-second-uploaded-world-avatar-indexed`.
+- Siguiente: none.
+
+## 2026-11-11 20:45 · playground lote 1 · the Taller with Lumen, the Nomad by default and a calmer interface · hecho
+- Qué: primera subida del trabajo de interfaz con Pablo en el playground de Galatea. Lumen y sus 11 misiones del Taller
+  (flecha guía, tarjeta de la misión en construcción, «Probar» que contesta en su fila, textos en inglés sin nombres en
+  español); el Nómada (Nomad for The Oracles, CC0, original en numinia-assets) es el avatar por defecto de quien no ha
+  elegido; cámara de partida a 6 m (antes 10,4); el diálogo y la tarjeta de la misión se quedan junto a quien te habla
+  y nunca tapan otro panel (`apps/plaza/anclar.ts`); nombres sin tarjeta detrás (letras con contorno); aviso de «E» en
+  cristal; un solo botón de cerrar en todo (X + Close + Esc) y Escape cierra lo de arriba o, sin nada abierto, sale del
+  modo construir; la guía hace brillar el botón que pide la misión (sin flecha con palo); las personas del mundo te
+  siguen con la mirada hasta 3 veces su radio (mínimo 8 m); Lumen un 20 % más pequeña.
+- Números: Nómada 3,19 MB → 205 kB (1,80 m, 5.064 triángulos, 1 material); pruebas y puertas en verde (ver el PR).
+- Cambio: minor (nuevo avatar por defecto y comportamiento visible).

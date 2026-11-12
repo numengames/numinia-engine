@@ -19,7 +19,7 @@ import { rngNext } from "../../packages/core/src/index.ts";
 import { serverPart } from "../../packages/feature/src/index.ts";
 import type { Msg, ServerApi } from "../../packages/feature/src/index.ts";
 import type { Pvp } from "./estados.ts";
-import { crearEscalera, NIVEL_COLAPSADO, NIVEL_ALETARGADO, ESCALERA, INCAPACITADO_S, pvpEntre } from "./estados.ts";
+import { crearEscalera, quieto, NIVEL_COLAPSADO, NIVEL_ALETARGADO, ESCALERA, INCAPACITADO_S, pvpEntre } from "./estados.ts";
 import { lucha, ALCANCE_PVP_M, DANO_BASE, DANO_VAR, ENFRIAMIENTO_TICKS, REAPARICION_S, VER_M, VIDA_JUGADOR_MAX, REAPARICION_JUGADOR_TICKS } from "./feature.ts";
 import { BESTIARIO } from "./bestiario.ts";
 import { ECLIPSE, CRITICO_PCT, CRITICO_X, cargaTras, ticksDe } from "./habilidades.ts";
@@ -98,6 +98,14 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
   const habDesde = new Map<string, number>();      // `player:ability` → first tick it may be used again
   api.onLeave((e) => { puedeDesde.delete(e); escalera.reiniciar(e); reaparecen.delete(e); vida.delete(e); caidos.delete(e); carga.delete(e); for (const k of [...habDesde.keys()]) if (k.startsWith(`${e}:`)) habDesde.delete(k); });
 
+  // Y45: when the world has `derribado` on, a fall lasts until a companion lifts the person or they reappear (not the 5 s timer);
+  // the piece's own events say when it is over. Nothing here runs in a world without the piece.
+  const sinFin = (m: Msg): boolean => { const q = Number(m.quien); if (caidos.has(q)) caidos.set(q, Number.MAX_SAFE_INTEGER); return true; };
+  const vuelto = (m: Msg): boolean => { const q = Number(m.quien); if (!caidos.delete(q)) return true; vida.set(q, VIDA_JUGADOR_MAX); api.emit("jugadorVuelve", {}, { to: q }); return true; };
+  api.listen("derribado", "cae", sinFin);
+  api.listen("derribado", "levanta", vuelto);
+  api.listen("derribado", "reaparece", vuelto);
+
   /** A person on the Estado ladder at Colapsado or worse «only reacts» (estados.ts): they strike no creature either. Never true without PVP. */
   const colapsado = (e: number): boolean => escalera.size > 0 && escalera.nivel(e, api.tick()) >= NIVEL_COLAPSADO;
 
@@ -131,7 +139,7 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
     api.emit("jugadorHerido", { dano, vida: vidaDespues }, { to: e });
     if (vidaDespues === 0) {
       caidos.set(e, t + REAPARICION_JUGADOR_TICKS);
-      api.emit("jugadorCaido", {}, { to: e });
+      api.emit("jugadorCaido", { quien: e }, { to: e });   // derribado (if the world has it on) hears this and answers `derribado.cae`
       api.hecho("persona.cae", {}); // MIS-248: a bare count, never who
     }
   };
@@ -229,6 +237,8 @@ export const crearLucha = (opts: { criaturas?: Criatura[]; semilla?: number; pvp
   };
 
   api.onTick((t) => {
+    // L2: the rung slows the person (a one-tick `quieto` on the rung's duty cycle, estados.ts); Aletargado already holds its own order.
+    if (escalera.size > 0) for (const e of escalera.enEstado(t)) { const n = escalera.nivel(e, t); if (n < NIVEL_ALETARGADO && quieto(n, t)) api.ordenar(e, { quieto: 0.05 }); }
     if (reaparecen.size > 0) {
       for (const [e, en] of reaparecen) {
         if (t < en) continue;

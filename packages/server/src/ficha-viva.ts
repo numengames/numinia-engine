@@ -9,6 +9,7 @@ import type { AjustesMundo, AjustesMundoVivo, CambioAjustes } from "../../featur
 import { FICHA, FICHA_FICHERO, FICHA_PORTADA, validarFicha } from "./aventura.ts";
 import type { Ficha } from "./aventura.ts";
 import { escribirMundo } from "./mundo.ts";
+import { IDIOMA_DEFECTO, leerTraduccion, rutaTraducida } from "./idiomas.ts";
 
 export type OpcionesFichaViva = {
   /** The adventure folder (where ficha.json lives); null = the world has none: a change lasts until the server restarts. */
@@ -70,6 +71,9 @@ export function crearFichaViva(o: OpcionesFichaViva) {
     if (o.aventura) {
       try { escribir(o.aventura, FICHA_FICHERO, siguiente, { nuevo: !existia }); }
       catch (err) { o.log(`[ficha] no pude escribir ${FICHA_FICHERO}: ${(err as Error).message}`); return no(`No he podido guardar ${FICHA_FICHERO} (${(err as NodeJS.ErrnoException).code ?? "error"}; más en el registro del servidor): no cambia.`); }
+      // the world's language has its own words for the sheet (idiomas.ts): the name the owner just chose must win there too, or a restart would bring the translated one back
+      const lang = typeof siguiente.idioma === "string" ? siguiente.idioma : IDIOMA_DEFECTO, t = leerTraduccion(o.aventura, lang, FICHA_FICHERO);
+      if (t !== null) { try { escribir(o.aventura, rutaTraducida(lang, FICHA_FICHERO), { ...JSON.parse(t), nombre }, { nuevo: false }); } catch (err) { o.log(`[ficha] no pude poner el nombre en la traducción ${lang}: ${(err as Error).message}`); } }
     } else o.log("[ficha] sin carpeta del mundo donde escribir: el cambio vale hasta que el servidor se reinicie");
     const antes = ficha?.nombre;
     ficha = v.value;

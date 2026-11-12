@@ -1,0 +1,88 @@
+// objetos — the words a builder READS from the server (a refusal: why a change was not made), in English (the fallback)
+// and Spanish (i18n 5/5). Same convention as misiones/formato.ts: a catalogue of our own (features may not import the
+// client's t()); the language is the WORLD's (`idioma` of its ficha.json). An omitted language is Spanish (what every
+// call said before); an unknown language, or a key missing in one language, reads the English text, never an empty one.
+// `{x}` is filled from `vars` in ONE pass. Pure; never throws. (Each refusal travels in `rechazado.motivo`, 160 bytes at most.)
+export const IDIOMA_OBJETOS = "es";
+export const TEXTOS_OBJETOS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  en: {
+    cerrado: "You cannot build here: the world is closed to building (whoever administers it opens it).",
+    no_hay_objeto: "There is no object «{id}».",
+    zona_llena: "This zone already has {max} objects: delete some first.",
+    trazos_tuyos: "You have {max} strokes: delete or undo some.",
+    trazos_mundo: "The world already has all the strokes that fit: delete some.",
+    sin_nombre: "If it is not decoration, it needs a name: it is what screen-reader users hear and what agents read.",
+    extension: "A {tipo} is a {lista} file; .{ext} is not valid.",
+    modelo_no: "That model is not in the library nor uploaded to this server.",
+    fichero_no: "That .{ext} file was not uploaded to this server.",
+    fijado_mover: "It is pinned: release it before moving it.",
+    fijado_girar: "It is pinned: release it before turning it.",
+    fijado_borrar: "It is pinned: release it before deleting it.",
+    fijado_hueco: "It is pinned: release it before making a hole in it.",
+    fijado_deshacer: "It is pinned: release it before undoing.",
+    fijado_rehacer: "It is pinned: release it before redoing.",
+    companero_propio: "A thing cannot be its own companion.",
+    sonido_solido: "A sound sphere cannot be solid: it is a zone you walk through.",
+    trazo_solido: "A stroke cannot be solid: it is paint in the air, it does not collide.",
+    malla_solo_modelo: "Only a 3D model (.glb) collides with its mesh: an image, a video or a sound can be a box or nothing.",
+    falta_caja: "To be solid it needs its box: wait until the model shows and mark it again.",
+    no_es_hueco: "«{nombre}» is not a hole: a hole is a frame's picture waiting for its work (the builder marks it).",
+    hueco_imagen: "A hole is an image (the card waiting for the work): place an image and make it the hole.",
+    hueco_minimo: "A hole is at least {min} m per side.",
+    en_hueco: "A {lista} image goes in a hole; .{ext} is not valid.",
+    imagen_no_subida: "That .{ext} image was not uploaded to this server.",
+    sin_pixeles: "I cannot read how many pixels that image has: save it again as .png or .jpg.",
+    imagen_grande: "The image is {ancho} × {alto} px; a hole takes up to {max} px per side.",
+    imagen_alargada: "The image ({ancho} × {alto} px) is too elongated for this frame: it would be under {cm} cm.",
+    hueco_vacio: "That hole is already empty.",
+    nada_tuyo_deshacer: "There is nothing of yours to undo.",
+    nada_tuyo_rehacer: "There is nothing of yours to redo.",
+    // motivoEnlace
+    enlace_largo: "The link is too long (more than {max} characters).",
+    enlace_incompleto: "That is not a full address (it starts with https://).",
+    enlace_usuario: "A link cannot carry a user or a password.",
+    enlace_https: "Only https links (http only for this very machine, in tests).",
+  },
+  es: {
+    cerrado: "No puedes construir aquí: el mundo está cerrado a construir (lo abre quien lo administra).",
+    no_hay_objeto: "No hay ningún objeto «{id}».",
+    zona_llena: "Esta zona ya tiene {max} objetos: borra alguno antes.",
+    trazos_tuyos: "Tienes {max} trazos: borra o deshaz alguno.",
+    trazos_mundo: "El mundo ya tiene todos los trazos que caben: borra alguno.",
+    sin_nombre: "Si no es decorado, necesita un nombre: es lo que oye quien usa un lector de pantalla y lo que leen los agentes.",
+    extension: "Un {tipo} es un fichero {lista}; .{ext} no vale.",
+    modelo_no: "Ese modelo no está en la biblioteca ni se ha subido a este servidor.",
+    fichero_no: "Ese fichero .{ext} no se ha subido a este servidor.",
+    fijado_mover: "Está fijado: suéltalo antes de moverlo.",
+    fijado_girar: "Está fijado: suéltalo antes de girarlo.",
+    fijado_borrar: "Está fijado: suéltalo antes de borrarlo.",
+    fijado_hueco: "Está fijado: suéltalo antes de hacerle un hueco.",
+    fijado_deshacer: "Está fijado: suéltalo antes de deshacer.",
+    fijado_rehacer: "Está fijado: suéltalo antes de rehacer.",
+    companero_propio: "Una cosa no puede ser su propio compañero.",
+    sonido_solido: "Una esfera de sonido no puede ser sólida: es una zona por la que se pasa.",
+    trazo_solido: "Un trazo no puede ser sólido: es pintura en el aire, no choca.",
+    malla_solo_modelo: "Solo un modelo 3D (.glb) choca con su malla: una imagen, un vídeo o un sonido pueden ser caja o nada.",
+    falta_caja: "Para que sea sólido hace falta su caja: espera a que el modelo se vea y vuelve a marcarlo.",
+    no_es_hueco: "«{nombre}» no es un hueco: un hueco es la imagen de un marco que espera su obra (la marca quien construye).",
+    hueco_imagen: "Un hueco es una imagen (el cartel que espera la obra): coloca una imagen y haz de ella el hueco.",
+    hueco_minimo: "Un hueco mide al menos {min} m por lado.",
+    en_hueco: "En un hueco va una imagen {lista}; .{ext} no vale.",
+    imagen_no_subida: "Esa imagen .{ext} no se ha subido a este servidor.",
+    sin_pixeles: "No sé leer cuántos píxeles mide esa imagen: vuelve a guardarla como .png o .jpg.",
+    imagen_grande: "La imagen mide {ancho} × {alto} px; en un hueco caben hasta {max} px por lado.",
+    imagen_alargada: "La imagen ({ancho} × {alto} px) es demasiado alargada para este marco: quedaría de menos de {cm} cm.",
+    hueco_vacio: "Ese hueco ya está vacío.",
+    nada_tuyo_deshacer: "No hay nada tuyo que deshacer.",
+    nada_tuyo_rehacer: "No hay nada tuyo que rehacer.",
+    enlace_largo: "El enlace es demasiado largo (más de {max} caracteres).",
+    enlace_incompleto: "Eso no es una dirección completa (empieza por https://).",
+    enlace_usuario: "El enlace no puede llevar usuario ni contraseña.",
+    enlace_https: "Solo enlaces https (http solo para esta misma máquina, en pruebas).",
+  },
+};
+/** The text for `clave` in `idioma` (fallback: English), with `{x}` filled from `vars`. Pure; never throws, never empty for a known key. */
+export function textoObjetos(idioma: string | undefined, clave: string, vars: Readonly<Record<string, string | number>> = {}): string {
+  const t = TEXTOS_OBJETOS[idioma ?? IDIOMA_OBJETOS]?.[clave] ?? TEXTOS_OBJETOS.en[clave] ?? clave;
+  return t.replace(/\{(\w+)\}/g, (_, k: string) => (Object.hasOwn(vars, k) ? String(vars[k]) : `{${k}}`));
+}

@@ -1,6 +1,9 @@
 {
   "formato": "ficha@1",
-  "nombre": "Mundo nuevo",
-  "descripcion": "Un mundo recién nacido, de noche, con Lumen —la guardiana del taller—. Aprende a construir en 11 misiones cortas: colocar, mover, apagar y, al final, conectar cables para que el farolillo se encienda cuando tú lo decidas.",
-  "notas": "Plantilla «taller» del motor (plantillas/taller): con lo que nace todo mundo nuevo. Cámbiale el nombre y la descripción cuando quieras."
+  "nombre": "Learn to Build",
+  "version": "1.0.0",
+  "creador": "Numen Games",
+  "dueno": "pending",
+  "descripcion": "A newborn world, at night, with Lumen, the guardian of the workshop. Learn to build in 11 short missions: place, move, switch off and, at the end, wire cables so the lantern lights up when you decide.",
+  "notas": "The engine's default template (plantillas/taller; internal id «taller», visible name «Learn to Build», published as numinia-assets/mundos/learn-to-build/): what every new world is born with. `version` is the semantic version of this world; `creador` and `dueno` follow the world sheet (docs/FICHA-MUNDO-TALLER.md). Change its name and description whenever you like."
 }

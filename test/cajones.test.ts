@@ -2,7 +2,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { ACCIONES_DOCK, alTocarlo, alternarCajon, CAJONES, esArrastre, filtrarBiblioteca, iconoDePieza, queCierraEscape, tamanoUniforme, TECLAS_TARJETA } from "../apps/plaza/cajones.ts";
+import { ACCIONES_DOCK, alTocarlo, alternarCajon, CAJONES, esArrastre, filtrarBiblioteca, iconoDePieza, queCierraEscape, tamanoUniforme, teclasTarjeta } from "../apps/plaza/cajones.ts";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
 import { icono } from "../apps/plaza/iconos.ts";
 const existe = (ic: string) => icono(ic) !== "";
 
@@ -29,7 +30,7 @@ test("Escape undoes the most transient thing first: the piece in hand, grab mode
   assert.equal(queCierraEscape({ ...s, fantasma: false }), "agarre");
   assert.equal(queCierraEscape({ ...s, fantasma: false, agarre: false }), "cajon");
   assert.equal(queCierraEscape({ fantasma: false, agarre: false, cajon: "", seleccion: "o1" }), "seleccion");
-  assert.equal(queCierraEscape({ fantasma: false, agarre: false, cajon: "", seleccion: "" }), "");
+  assert.equal(queCierraEscape({ fantasma: false, agarre: false, cajon: "", seleccion: "" }), "salir", "nothing to undo: Escape leaves build mode");
 });
 
 test("the library search: name or id, no accents, no case; empty = everything", () => {
@@ -53,17 +54,25 @@ test("a press is a click up to 6 px of travel; further it is a drag into the wor
 });
 
 test("the card: the real keys of the handles, one size when uniform, and what touching it does", () => {
-  assert.match(TECLAS_TARJETA, /G mover · R girar · 4 escala/);
+  assert.match(teclasTarjeta(), /G move · R turn · 4 scale/);
   assert.equal(tamanoUniforme(2, 2, 2), "2");
   assert.equal(tamanoUniforme(1, 2, 1), "");
   assert.equal(alTocarlo({}, []), "");
-  assert.equal(alTocarlo({ enlace: "https://numinia.com/x" }, []), "Abre numinia.com");
-  assert.equal(alTocarlo({ enlace: "https://numinia.com/x" }, ["Botón → abre puerta"]), "Abre numinia.com · Dispara 1 cable");
-  assert.equal(alTocarlo({}, ["a", "b"]), "Dispara 2 cables");
+  assert.equal(alTocarlo({ enlace: "https://numinia.com/x" }, []), "Opens numinia.com");
+  assert.equal(alTocarlo({ enlace: "https://numinia.com/x" }, ["Botón → abre puerta"]), "Opens numinia.com · Fires 1 wire");
+  assert.equal(alTocarlo({}, ["a", "b"]), "Fires 2 wires");
 });
 
 test("the builder has no key of its own for a drawer: B is the battery mode and N the minimap's", () => {
   const src = readFileSync(new URL("../apps/plaza/constructor.ts", import.meta.url), "utf8");
   assert.doesNotMatch(src, /case "KeyB"/);
   assert.doesNotMatch(src, /case "KeyN"/);
+});
+
+test("the dock speaks both languages, read at the moment it is built", () => {
+  try {
+    fijarIdioma("en"); assert.equal(CAJONES[0][2], "Add"); assert.match(ACCIONES_DOCK.deshacer[1], /^Undo/);
+    fijarIdioma("es"); assert.equal(CAJONES[0][2], "Añadir"); assert.match(ACCIONES_DOCK.deshacer[1], /^Deshacer/);
+    assert.equal(alTocarlo({}, ["a", "b"]), "Dispara 2 cables"); assert.match(teclasTarjeta(), /girar/);
+  } finally { fijarIdioma("en"); }
 });

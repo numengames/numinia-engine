@@ -28,9 +28,10 @@ const keeper = (): Keeper => { const k = { token: null as string | null, load: (
 function mundo(n = 2, semilla = 7, criaturas = [G]) {
   const log: string[] = [];
   const inst = new Instance({ seed: 1, capacity: 16, k: 50, snapshotEvery: 2, features: [crearLucha({ criaturas, semilla })], log: (l) => log.push(l), identitySign: sign });
+  const hora = { now: 1_000_000 };   // game time for the page (Y25: the flash limiter counts per second): 50 ms per tick, as the real 20 Hz
   const pages = Array.from({ length: n }, (_, i) => {
     const eventos: { event: string; msg: Record<string, unknown> }[] = [];
-    const t = inst.join(i), cli = crearCliente((event, msg) => eventos.push({ event, msg })), seen: string[] = [], k = keeper();
+    const t = inst.join(i), cli = crearCliente((event, msg) => eventos.push({ event, msg }), () => hora.now), seen: string[] = [], k = keeper();
     const s = new ClientSession(t, { features: [cli.part], identity: k, view: {
       label: (e, text) => seen.push(`label ${e} ${text}`), bounce: (e) => seen.push(`bounce ${e}`),
       place: (key, o) => seen.push(`place ${key} ${o ? `${o.sx}x${o.sy}x${o.sz} ${(o as { color?: string }).color}` : "null"}`),
@@ -38,7 +39,7 @@ function mundo(n = 2, semilla = 7, criaturas = [G]) {
     } });
     return { t, s, l: cli.lucha, seen, eventos, k };
   });
-  const pump = (ticks = 1) => { for (let i = 0; i < ticks; i++) { for (const c of pages) c.t.flush(); inst.tick(); for (const c of pages) c.t.flush(); } };
+  const pump = (ticks = 1) => { for (let i = 0; i < ticks; i++) { hora.now += 50; for (const c of pages) c.t.flush(); inst.tick(); for (const c of pages) c.t.flush(); } };
   const place = (e: number, x: number, z: number) => { inst.sim.tf.cols.x[e] = fx(x); inst.sim.tf.cols.z[e] = fx(z); };
   const evs = (c: (typeof pages)[number], ev: string) => c.eventos.filter((x) => x.event === ev).map((x) => x.msg);
   const estado = () => { for (const [k, v] of inst.features.allState()) if (k === `lucha:${KEY}`) return v; throw new Error("sin criatura"); };
@@ -332,7 +333,7 @@ test("lucha h3: a critical applies the doubled damage to coherence, and the page
     if (Number(ult.queda) > 0) assert.equal(Number(W.estado().coherencia), Number(ult.queda));
     if (ult.critico && Number(ult.queda) > 0) {   // a killing blow dissolves the creature: nothing left to paint
       visto = true;
-      assert.ok(p.seen.some((s) => s.startsWith(`tag lucha:${KEY} `) && s.includes("¡CRÍTICO! −24")), "damage tag");
+      assert.ok(p.seen.some((s) => s.startsWith(`tag lucha:${KEY} `) && s.includes("CRITICAL! −24")), "damage tag");
       assert.ok(p.seen.some((s) => s.includes(`place lucha:${KEY}`) && s.endsWith(COLOR_CRITICO)), "gold flash");
     }
     W.pump(20);
@@ -383,7 +384,7 @@ test("lucha h2: a page with no creature and no Carga yet does not claim there is
   W.pump(4);
   assert.equal(W.pages[0].l.activo(), false);
   assert.equal(W.pages[0].l.estado(), undefined);
-  assert.deepEqual(W.pages[0].l.habilidad("corte-breve"), { ok: false, why: "no hay ninguna criatura cerca" });
+  assert.deepEqual(W.pages[0].l.habilidad("corte-breve"), { ok: false, why: "no creature nearby" });
 });
 
 
@@ -456,4 +457,15 @@ test("lucha: an ability that dissolves the creature (Discontinuidad 55 vs the Gu
   assert.equal(W.evs(p, "disuelta").length, vistas + 1, "the creature dissolved");
   assert.equal(W.evs(p, "jugadorHerido").length, heridos, "a dissolved creature does not strike back: life untouched");
   assert.equal(W.evs(p, "jugadorCaido").length, 0);
+});
+
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+test("lucha i18n: damage text and rejections speak the active language, English first", () => {
+  try {
+    fijarIdioma("en");
+    assert.equal(textoDano(12, true), "  CRITICAL! −12");
+    fijarIdioma("es");
+    assert.equal(textoDano(12, true), "  ¡CRÍTICO! −12");
+    assert.equal(textoDano(12, true, "en"), "  CRITICAL! −12");
+  } finally { fijarIdioma("en"); }
 });

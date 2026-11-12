@@ -4,7 +4,7 @@
 // checked in the browser leg (screenshots in work/ia-organizacion/capturas/llamar/).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { crearDentro, avisoAceptado, aceptarAviso, CLAVE_AVISO } from "../apps/plaza/llamar-nucleo.ts";
+import { crearAperturas, crearDentro, avisoAceptado, aceptarAviso, CLAVE_AVISO } from "../apps/plaza/llamar-nucleo.ts";
 import { luzEscucha, promptHablar, textos, IDIOMAS } from "../apps/plaza/gente-ia.ts";
 import { es } from "../apps/plaza/gente-ia-es.ts";
 import { crearLlamarPagina, leerCfg, prepararTexto } from "../features/llamar/client.ts";
@@ -36,6 +36,20 @@ test("the E prompt offers the nearest AI you are inside that takes calls by butt
   assert.deepEqual(d.elegir((i) => i === 3, (i) => dist[i]), { ia: 3, nombre: "Cora", distancia: 0 }, "an unknown distance is offered as 0, not Infinity");
   assert.equal(d.elegir(() => false, () => 1), null);
   assert.equal(crearDentro().elegir(() => true, () => 1), null, "inside no bubble: no prompt");
+});
+
+test("walking into a bubble opens the talk once per stay: closing it does not bring it back until you leave and enter again; the setting off or no button: never", () => {
+  const a = crearAperturas();
+  assert.equal(a.entra(1, true, true), true, "first entry: opens");
+  assert.equal(a.ya(1), true);
+  assert.equal(a.entra(1, true, true), false, "you closed it and stay inside: does not reopen");
+  assert.equal(a.entra(2, true, true), true, "another AI's bubble has its own stay");
+  a.sale(1);
+  assert.equal(a.entra(1, true, true), true, "left and came back: opens again");
+  assert.equal(a.entra(3, false, true), false, "setting off: nothing opens");
+  assert.equal(a.entra(3, true, false), false, "that AI takes no calls by button: nothing opens");
+  assert.equal(a.entra(3, true, true), true, "and those refusals did not use up the stay");
+  a.sale(99); // leaving a bubble you were never in changes nothing
 });
 
 test("the notice «lo lee su cerebro» is asked once per browser, and a browser with no storage asks again", () => {
@@ -86,7 +100,7 @@ test("page accessor: reads the state, asks `llamar {ia, texto}` and refuses too 
   const pagina = crearLlamarPagina();
   assert.equal(pagina.de(4), null, "before the part is set up");
   assert.equal(pagina.puedeBoton(4), false);
-  assert.deepEqual(pagina.llamar(4, "hola"), { ok: false, why: "la página aún no ha arrancado" });
+  assert.deepEqual(pagina.llamar(4, "hola"), { ok: false, why: "the page has not started yet" });
   const estado = new Map<string, Record<string, unknown>>([["4", { nombre: true, barra: true, boton: true, dentro: true, frase: "" }], ["5", { boton: false }]]);
   const enviados: [string, Record<string, unknown>][] = [];
   pagina.part.setup({

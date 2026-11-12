@@ -1,0 +1,13 @@
+# REUSE.toml of the Art Gallery template (decision of Pablo, 2026-11-07): its content is CC0.
+# A REUSE.toml in a folder governs that folder (reuse spec 3.3) and beats the root file for these paths, so a new
+# template never edits the root REUSE.toml and two templates never collide there.
+# Content only: the engine's licence is not touched. No Numen/Numinia logo or wordmark is shipped here (trademarks,
+# TRADEMARKS.md); if one is ever added, give it its OWN exact-path annotation below this one with
+# LicenseRef-Numen-AllRightsReserved. See aventura/LICENSE.md.
+version = 1
+
+[[annotations]]
+path = "**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Numen Games S.L."
+SPDX-License-Identifier = "CC0-1.0"

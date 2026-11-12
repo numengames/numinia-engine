@@ -1,3 +1,4 @@
+// i18n-ok-file: Spanish voice grammar for agents, not interface text
 // gente-ia-es (ia-visible S6/S7): the words of the AI section of «Gente» and of the AI card, in Spanish. One file per language with
 // the SAME keys (test/gente-ia.test.ts compares them); a language without a file falls back to Spanish (gente-ia.ts).
 export const es = {

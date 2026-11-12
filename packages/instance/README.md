@@ -6,3 +6,9 @@ The authoritative loop: connects any `Transport`, applies one input per tick (J2
 - **Depends on:** core, schema, ecs, sim, net, feature (rule: `tools/layers.json`)
 - **Tested by:** `test/engine.test.ts`, `test/identidad.test.ts`
 - **Main API:** `Instance` (option `aparicion`: the world's spawn area, from entorno.json; `position()` for features gives `{ x, y, z }`), `Bot`, `MAX_QUEUE`, `emitir`/`verificar` (guest tokens), `emitirAgente`/`verificarAgente`/`agenteDe` (P4a: AI inhabitants' tickets, own secret; the server names them «<name> · IA»; option `agentes`)
+
+## Details moved from llms.txt
+
+These clauses were in the one-line `llms.txt` bullet for this package and are kept here verbatim.
+
+- hosts the game features' server runtime.

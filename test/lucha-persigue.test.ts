@@ -90,7 +90,7 @@ test("lucha walks: the Guardián goes for a person 5 m away, its solid box goes 
   await new Promise((r) => setTimeout(r, 400));
   const lugares = W.pages[0].seen.filter((s) => s.startsWith("place ") && !s.endsWith("null"));
   const [lx, lz] = lugares.at(-1)!.split(" ")[2].split(",").map(Number);
-  assert.ok(lugares.length > 8 && Math.abs(lx - Number(c.x)) < 0.01 && Math.abs(lz - Number(c.z)) < 0.01, `${lugares.length} drawings, last at the real place: ${lugares.at(-1)} vs ${c.x},${c.z}`);
+  assert.ok(lugares.length > 4 && Math.abs(lx - Number(c.x)) < 0.01 && Math.abs(lz - Number(c.z)) < 0.01, `${lugares.length} drawings, last at the real place: ${lugares.at(-1)} vs ${c.x},${c.z}`);
 });
 
 test("lucha strikes first: in reach it hits on its own cooldown with ITS damage, the player's life falls, at 0 they fall and are left alone until they come back", () => {

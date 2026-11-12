@@ -110,8 +110,10 @@ test("C: piezasPendientes y textoPiezas", () => {
   assert.equal(piezasPendientes(null), 0); assert.equal(piezasPendientes(undefined), 0);
   assert.equal(piezasPendientes({ listas: 3, total: 10 }), 7);
   assert.equal(piezasPendientes({ listas: 12, total: 10 }), 0, "nunca negativo");
-  assert.equal(textoPiezas(null), ""); assert.equal(textoPiezas({ listas: 0, total: 0 }), "");
-  assert.equal(textoPiezas({ listas: 120, total: 146 }), "120 de 146 piezas");
-  assert.equal(textoPiezas({ listas: 1, total: 1 }), "1 de 1 pieza");
-  assert.equal(textoPiezas({ listas: 9, total: 4 }), "4 de 4 piezas", "acotado");
+  assert.equal(textoPiezas(null), ""); assert.equal(textoPiezas({ listas: 0, total: 0 }, "es"), "");
+  assert.equal(textoPiezas({ listas: 120, total: 146 }, "es"), "120 de 146 piezas");
+  assert.equal(textoPiezas({ listas: 120, total: 146 }, "en"), "120 of 146 pieces");
+  assert.equal(textoPiezas({ listas: 3, total: 5, bytes: { listos: 3.2 * 1048576, total: 8.1 * 1048576 } }, "en"), "3 of 5 pieces · 3.2 of 8.1 MB");
+  assert.equal(textoPiezas({ listas: 1, total: 1 }, "es"), "1 de 1 pieza");
+  assert.equal(textoPiezas({ listas: 9, total: 4 }, "es"), "4 de 4 piezas", "acotado");
 });

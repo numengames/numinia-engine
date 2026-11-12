@@ -16,7 +16,7 @@ export function montarEmbed(o: { espejo: typeof Controlador; ventana?: Window })
   const url = new URL("/espejo/embed", w.location.href).href;
   const enviar = async (trama: Record<string, unknown>): Promise<Respuesta> => {
     try { const r = await fetch(url, { method: "POST", headers: { authorization: `Bearer ${cred}`, "content-type": "application/json" }, body: JSON.stringify(trama) }); return (await r.json()) as Respuesta; }
-    catch { return { ok: false, motivo: "no he podido hablar con el mundo (POST /espejo/embed)" }; }
+    catch { return { ok: false, motivo: "no he podido hablar con el mundo (POST /espejo/embed)" /* i18n-ok: protocol message for the embedding host page, not shown to the player */ }; }
   };
   const puente = crearPuente({ padre: w.parent, fuente: w.parent, enviar });
   let vinculado = false;

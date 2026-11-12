@@ -4,11 +4,18 @@
 // data-densidad / data-cuando and puts the chosen level on <html>; tema.css hides by those attributes. A frame built
 // later (U3) declares the same two keys and needs no new CSS. Pure: no DOM, tested in Node (test/densidad.test.ts).
 
+import { tx } from "./idioma.ts";
+
 export type Densidad = "minimo" | "normal" | "completo";
 /** From the quietest to the fullest: the order of the dial and of the key that cycles it. */
 export const DENSIDADES: readonly Densidad[] = ["minimo", "normal", "completo"];
 export const DENSIDAD_DEFECTO: Densidad = "normal";
-export const NOMBRES_DENSIDAD: Record<Densidad, string> = { minimo: "Mínimo", normal: "Normal", completo: "Completo" };
+/** The name of each level in the active language (getters: read when asked, not at import). */
+export const NOMBRES_DENSIDAD: Record<Densidad, string> = {
+  get minimo() { return tx("Minimal", "Mínimo"); },
+  get normal() { return tx("Normal", "Normal"); },
+  get completo() { return tx("Full", "Completo"); },
+};
 /** siempre: always there · al_cambiar: appears with a change and fades after `segundos` («menos movimiento»: stays fixed) · bajo_demanda: a key or a button held. */
 export type Cuando = "siempre" | "al_cambiar" | "bajo_demanda";
 export const CUANDOS: readonly Cuando[] = ["siempre", "al_cambiar", "bajo_demanda"];
@@ -53,22 +60,22 @@ export type MarcoDensidad = {
 
 /** The panels the page has today. Mínimo = the «now» line, the folded chat, the contextual action and nothing else. */
 export const MARCOS_PLAZA: readonly MarcoDensidad[] = [
-  { id: "hud.ahora", selector: "#mision-seguida", densidad: "minimo", cuando: "siempre", caja: { ancla: "arriba-izquierda", dx: 16, dy: 14, ancho: 480, alto: 38 }, cristal: 8, nombre: "Línea de «ahora» (la misión seguida)" },
-  { id: "hud.avisos", selector: "#avisos-pila", densidad: "minimo", cuando: "al_cambiar", segundos: SEGUNDOS_AL_CAMBIAR, caja: { ancla: "arriba-centro", dx: 0, dy: 14, ancho: 440 }, cajaCompacta: { dy: 60 }, cristal: 8, nombre: "Pila de avisos (≤ 3, 6 s)" },
+  { id: "hud.ahora", selector: "#mision-seguida", densidad: "minimo", cuando: "siempre", caja: { ancla: "arriba-izquierda", dx: 16, dy: 14, ancho: 480, alto: 38 }, cristal: 8, get nombre() { return tx("«Now» line (the followed quest)", "Línea de «ahora» (la misión seguida)"); } },
+  { id: "hud.avisos", selector: "#avisos-pila", densidad: "minimo", cuando: "al_cambiar", segundos: SEGUNDOS_AL_CAMBIAR, caja: { ancla: "arriba-centro", dx: 0, dy: 14, ancho: 440 }, cajaCompacta: { dy: 60 }, cristal: 8, get nombre() { return tx("Notice stack (≤ 3, 6 s)", "Pila de avisos (≤ 3, 6 s)"); } },
   // P15: no `cristal`: this one is not a dim glass chip like the rest, it is the house amber (tema.css) so it is not lost among them; set 24 px clear of the action bar
-  { id: "hud.accion", selector: "#interactuar", densidad: "minimo", cuando: "siempre", caja: { ancla: "abajo-centro", dx: 0, dy: 120, ancho: 360, alto: 52 }, nombre: "Acción contextual" },
-  { id: "hud.chat", selector: "#chat", densidad: "minimo", cuando: "siempre", caja: { ancla: "abajo-izquierda", dx: 16, dy: 16, ancho: 440 }, nombre: "Chat (el contenedor: lista, línea de escribir y pastilla)" },
-  { id: "hud.chat.pastilla", selector: "#chat-boton", densidad: "minimo", cuando: "siempre", nombre: "Chat plegado (pastilla)" },
-  { id: "hud.chat.lineas", selector: "#chat-lista", densidad: "normal", cuando: "al_cambiar", segundos: SEGUNDOS_AL_CAMBIAR, fijoEn: ["completo"], cristal: 12, nombre: "Chat: últimas líneas" },
-  { id: "hud.barra", selector: "#barra-arriba", densidad: "normal", cuando: "siempre", caja: { ancla: "arriba-derecha", dx: 16, dy: 14 }, nombre: "Barra de botones" },
-  { id: "hud.reloj", selector: "#reloj", densidad: "normal", cuando: "siempre", caja: { ancla: "arriba-derecha", dx: 16, dy: 62, alto: 28 }, cristal: 8, nombre: "Reloj" },
-  { id: "hud.minimapa", selector: "#minimapa", densidad: "normal", cuando: "siempre", caja: { ancla: "arriba-derecha", dx: 16, dy: 94 }, nombre: "Minimapa" },
-  { id: "hud.personaje", selector: "#hud-personaje", densidad: "normal", cuando: "siempre", caja: { ancla: "arriba-izquierda", dx: 16, dy: 62, ancho: 290 }, cristal: 12, nombre: "Personaje: Estado, Carga y Aliento" },
-  { id: "hud.misiones", selector: "#misiones", densidad: "normal", cuando: "bajo_demanda", tecla: "KeyJ", caja: { ancla: "arriba-derecha", dx: 16, dy: 292, ancho: 292, alto: 40 }, cristal: 12, nombre: "Misiones (botón; J abre el libro)" },
-  { id: "hud.objetivo", selector: "#objetivo", densidad: "normal", cuando: "siempre", caja: { ancla: "arriba-centro", dx: 0, dy: 108, ancho: 340 }, cristal: 12, nombre: "Objetivo (criatura apuntada)" },
-  { id: "hud.habilidades", selector: "#habilidades", densidad: "normal", cuando: "siempre", caja: { ancla: "abajo-centro", dx: 0, dy: 174, ancho: 360, alto: 66 }, cristal: 12, nombre: "Habilidades (3 huecos)" },
-  { id: "hud.acciones", selector: "#acciones", densidad: "normal", cuando: "siempre", caja: { ancla: "abajo-centro", dx: 0, dy: 16, ancho: 360, alto: 80 }, cristal: 12, nombre: "Barra de acciones" },
-  { id: "hud.ayuda", selector: "#help", densidad: "completo", cuando: "siempre", caja: { ancla: "abajo-derecha", dx: 16, dy: 16, ancho: 410 }, cristal: 12, nombre: "Ayuda de teclas" },
+  { id: "hud.accion", selector: "#interactuar", densidad: "minimo", cuando: "siempre", caja: { ancla: "abajo-centro", dx: 0, dy: 120, ancho: 360, alto: 52 }, get nombre() { return tx("Contextual action", "Acción contextual"); } },
+  { id: "hud.chat", selector: "#chat", densidad: "minimo", cuando: "siempre", caja: { ancla: "abajo-izquierda", dx: 16, dy: 16, ancho: 440 }, get nombre() { return tx("Chat (the container: list, typing line and pill)", "Chat (el contenedor: lista, línea de escribir y pastilla)"); } },
+  { id: "hud.chat.pastilla", selector: "#chat-boton", densidad: "minimo", cuando: "siempre", get nombre() { return tx("Folded chat (pill)", "Chat plegado (pastilla)"); } },
+  { id: "hud.chat.lineas", selector: "#chat-lista", densidad: "normal", cuando: "al_cambiar", segundos: SEGUNDOS_AL_CAMBIAR, fijoEn: ["completo"], cristal: 12, get nombre() { return tx("Chat: latest lines", "Chat: últimas líneas"); } },
+  { id: "hud.barra", selector: "#barra-arriba", densidad: "normal", cuando: "siempre", caja: { ancla: "arriba-derecha", dx: 16, dy: 14 }, get nombre() { return tx("Button bar", "Barra de botones"); } },
+  { id: "hud.reloj", selector: "#reloj", densidad: "normal", cuando: "siempre", caja: { ancla: "arriba-derecha", dx: 16, dy: 62, alto: 28 }, cristal: 8, get nombre() { return tx("Clock", "Reloj"); } },
+  { id: "hud.minimapa", selector: "#minimapa", densidad: "normal", cuando: "siempre", caja: { ancla: "arriba-derecha", dx: 16, dy: 94 }, get nombre() { return tx("Minimap", "Minimapa"); } },
+  { id: "hud.personaje", selector: "#hud-personaje", densidad: "normal", cuando: "siempre", caja: { ancla: "arriba-izquierda", dx: 16, dy: 62, ancho: 290 }, cristal: 12, get nombre() { return tx("Character: Status, Load and Breath", "Personaje: Estado, Carga y Aliento"); } },
+  { id: "hud.misiones", selector: "#misiones", densidad: "normal", cuando: "bajo_demanda", tecla: "KeyJ", caja: { ancla: "arriba-derecha", dx: 16, dy: 292, ancho: 292, alto: 40 }, cristal: 12, get nombre() { return tx("Quests (button; J opens the journal)", "Misiones (botón; J abre el libro)"); } },
+  { id: "hud.objetivo", selector: "#objetivo", densidad: "normal", cuando: "siempre", caja: { ancla: "arriba-centro", dx: 0, dy: 108, ancho: 340 }, cristal: 12, get nombre() { return tx("Target (the creature aimed at)", "Objetivo (criatura apuntada)"); } },
+  { id: "hud.habilidades", selector: "#habilidades", densidad: "normal", cuando: "siempre", caja: { ancla: "abajo-centro", dx: 0, dy: 174, ancho: 360, alto: 66 }, cristal: 12, get nombre() { return tx("Skills (3 slots)", "Habilidades (3 huecos)"); } },
+  { id: "hud.acciones", selector: "#acciones", densidad: "normal", cuando: "siempre", caja: { ancla: "abajo-centro", dx: 0, dy: 16, ancho: 360, alto: 80 }, cristal: 12, get nombre() { return tx("Action bar", "Barra de acciones"); } },
+  { id: "hud.ayuda", selector: "#help", densidad: "completo", cuando: "siempre", caja: { ancla: "abajo-derecha", dx: 16, dy: 16, ancho: 410 }, cristal: 12, get nombre() { return tx("Key help", "Ayuda de teclas"); } },
 ];
 /** Not governed by the dial, on purpose: events and what you asked for (mission banner, narrator, dice, summons, the open
  *  book, the settings), the statistics (their own setting, `graficos.estadisticas`) and the screen-reader notices. */
@@ -100,7 +107,7 @@ export function validarMarcos(marcos: readonly MarcoDensidad[]): string[] {
     vistos.add(m.id);
     if (!m.selector) out.push(`${m.id}: needs a selector`);
     if (!esDensidad(m.densidad)) out.push(`${m.id}: densidad is minimo, normal or completo`);
-    if (!CUANDOS.includes(m.cuando)) out.push(`${m.id}: cuando is siempre, al_cambiar or bajo_demanda`);
+    if (!CUANDOS.includes(m.cuando)) out.push(`${m.id}: cuando is siempre, al_cambiar or bajo_demanda`); // i18n-ok: developer validation message naming internal keys
     if (m.cuando !== "al_cambiar" && (m.segundos !== undefined || m.fijoEn !== undefined)) out.push(`${m.id}: segundos and fijoEn belong to al_cambiar`);
     if (m.cuando === "bajo_demanda" && !m.tecla) out.push(`${m.id}: bajo_demanda needs its key (tecla)`);
     if (m.segundos !== undefined && !(m.segundos >= 1 && m.segundos <= 30)) out.push(`${m.id}: segundos from 1 to 30`);
@@ -163,7 +170,7 @@ export function cssMarcos(marcos: readonly MarcoDensidad[] = MARCOS_PLAZA): stri
   const vidrio = marcos.filter((m) => m.cristal).map((m) => {
     const s = `${base}${m.selector}:not(:empty)`;
     return `${s}{background:rgba(30,26,23,.55) !important;-webkit-backdrop-filter:blur(${px(m.cristal!)}) brightness(.75);backdrop-filter:blur(${px(m.cristal!)}) brightness(.75);border:1px solid rgba(249,235,220,.2) !important;border-radius:8px !important;color:var(--n-texto) !important;}\n`
-      + `html[data-sin-cristal][data-densidad-nivel] body ${m.selector}:not(:empty){-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--n-sup) !important;}\n`
+      + `html[data-sin-cristal][data-densidad-nivel] body ${m.selector}:not(:empty){-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--n-sup) !important;}\n` // i18n-ok: CSS, not text
       + `html.alto-contraste[data-densidad-nivel] body ${m.selector}:not(:empty){-webkit-backdrop-filter:none;backdrop-filter:none;background:#000 !important;color:#fff !important;border-color:#fff !important;}`;
   }).join("\n");
   return `@media (min-width:${ANCHO_MIN_MARCOS}px){\n${caja}\n}\n` + (compacta ? `@media (min-width:${ANCHO_MIN_MARCOS}px) and (max-width:${ANCHO_COMPACTO - 1}px){\n${compacta}\n}\n` : "") + `${vidrio}\n`;

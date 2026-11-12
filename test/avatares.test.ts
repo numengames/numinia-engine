@@ -17,11 +17,9 @@ test("J1 policy: VRM cap per device class (12 phone, 25 headset, 60 desktop) and
   assert.equal(ANIMAR_HASTA_M, 40);
 });
 
-test("J1 policy: each player's avatar is fixed by its entity id and every avatar gets used", () => {
-  for (let id = 0; id < 50; id++) assert.equal(elegirAvatar(id, 3), elegirAvatar(id, 3));
-  assert.deepEqual(new Set([0, 1, 2, 3, 4, 5].map((id) => elegirAvatar(id, 3))), new Set([0, 1, 2]));
+test("policy: a player who has not chosen wears the house default, the first of the catalogue (Pablo 11-11: the Nomad)", () => {
+  for (const id of [-4, 0, 1, 2, 7, 49]) assert.equal(elegirAvatar(id, 3), 0);
   assert.equal(elegirAvatar(7, 0), -1);
-  assert.equal(elegirAvatar(-4, 3) >= 0, true);
 });
 
 test("J1 policy: state by horizontal speed and height (idle < 0.3 m/s, run > 5 m/s, in the air > 0.15 m)", () => {

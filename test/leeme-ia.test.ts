@@ -43,7 +43,8 @@ test("a NEW world is born with the Taller's LEEME-IA.md (a copy, plain text, wit
   assert.ok(statSync(f).size < LEEME_IA_MAX, "the template fits");
   const t = leerLeemeIA(nuevo.aventura);
   assert.equal(t.problema, null);
-  for (const h of ["## Lo que puedes construir", "## Estilo", "## Lo que no debes tocar"]) assert.ok(t.texto!.includes(h), h);
+  for (const h of ["## What you may build", "## Style", "## What you must not touch"]) // English is the default language of the Taller (its Spanish translation: idiomas/es.LEEME-IA.md)
+    assert.ok(t.texto!.includes(h), h);
   // it travels with the world in the zip
   assert.ok(inventario({ datos: nuevo.datos, subidas: null, aventura: nuevo.aventura, entorno: nuevo.entorno }).some((x) => x.ruta === `aventura/${LEEME_IA}`), "in the zip");
   // the world's own from now on: the engine never rewrites it

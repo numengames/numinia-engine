@@ -15,7 +15,7 @@ import { crearCliente, nivelVisto, ROTULO, ESTADO_MS, REAPARECE_MS } from "../fe
 import type { Pvp } from "../features/lucha/estados.ts";
 import { leerPvp, pvpEn, pvpEntre } from "../features/lucha/estados.ts";
 import { conMundo } from "../features/mundo.ts";
-import { crearEscalera, ESCALERA, CALMA_TICKS, INCAPACITADO_S } from "../features/lucha/estados.ts";
+import { crearEscalera, ESCALERA, CALMA_TICKS, INCAPACITADO_S, VELOCIDAD_POR_NIVEL, quieto } from "../features/lucha/estados.ts";
 import funciones from "../features/servidor.ts";
 
 const sign = signer("una-clave-de-prueba-larga");
@@ -264,6 +264,27 @@ test("pvp feedback: the Estado shows over the person struck (icon + word) for wh
   assert.ok(a.seen.includes(`label ${b.s.entity} ${ROTULO.aletargado}`));
   W.pump(INCAPACITADO_S * HZ + 4);
   assert.equal(a.l.estadoDe(b.s.entity), "ninguno");
-  assert.ok(a.seen.includes(`label ${b.s.entity} Reaparece`));
+  assert.ok(a.seen.includes(`label ${b.s.entity} Respawns`));
   assert.ok(ROTULO.ninguno === "" && ESTADO_MS > REAPARECE_MS);
+});
+
+test("lucha L2: each rung slows the person on the server (full, full, 3/4, 1/2, still); the pure duty cycle matches", () => {
+  assert.deepEqual([...VELOCIDAD_POR_NIVEL], [1, 1, 0.75, 0.5, 0]);
+  for (const [n, f] of [[0, 1], [1, 1], [2, 0.75], [3, 0.5]] as const) assert.equal([...Array(80).keys()].filter((t) => !quieto(n, t)).length / 80, f, `rung ${n}`);
+  const caminado = (golpes: number): number => {
+    const W = mundo(2);
+    W.pump(2);
+    const [a, b] = W.pages;
+    W.place(a.s.entity, 0, 0); W.place(b.s.entity, 1, 0); W.pump(12);
+    for (let i = 0; i < golpes; i++) { a.l.golpear(`p:${b.s.entity}`); W.pump(ENFRIAMIENTO_TICKS + 1); }
+    W.place(b.s.entity, 1, 0); W.place(a.s.entity, 200, 200);   // out of each other's way; only b walks
+    const z0 = W.inst.sim.tf.cols.z[b.s.entity] / 65536;
+    for (let i = 0; i < 80; i++) { b.s.tick(0, 127, 0); W.pump(1); }
+    return Math.abs(W.inst.sim.tf.cols.z[b.s.entity] / 65536 - z0);
+  };
+  const [d0, d1, d2, d3] = [0, 1, 2, 3].map(caminado);
+  assert.ok(d0 > 0 && Math.abs(d1 - d0) < 0.01, `rung 1 walks as fast as rung 0 (${d0} vs ${d1})`);
+  assert.ok(Math.abs(d2 / d0 - 0.75) < 0.06, `confundido at ~3/4: ${d2 / d0}`);
+  assert.ok(Math.abs(d3 / d0 - 0.5) < 0.06, `colapsado at ~1/2: ${d3 / d0}`);
+  assert.equal(crearEscalera().enEstado(0).length, 0);
 });

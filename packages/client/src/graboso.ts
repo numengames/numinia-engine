@@ -3,6 +3,8 @@
 // node --test can drive the whole cycle: out → recording → cut at the cap → a clip you can download.
 // Design: ../../../mmo-browser-study/GRABOSO-DISENO.md. Lore: a Reliquia (clase "graboso"); it joins the inventory (Y1) when Y1 lands.
 
+import { tx } from "./idioma.ts";
+
 /** The hard cap of a clip (s): never under 30 nor over 60 (Pablo, 18-10). 30 is the mission's goal, 60 the ceiling. */
 export const TOPE_S = { min: 30, max: 60, defecto: 60 } as const;
 /** The formats a recorder is asked for, best first; the first one the browser supports wins. */
@@ -59,17 +61,17 @@ export function crearGraboso(o: { grabador: Grabador; ahora(): number; fecha?: (
 
   async function sacar(): Promise<boolean> {
     if (estado.fase !== "guardado") return false;
-    if (!tipo) { estado.error = "Este navegador no sabe grabar vídeo."; avisar(estado.error, 2); cambio(); return false; }
+    if (!tipo) { estado.error = tx("This browser cannot record video.", "Este navegador no sabe grabar vídeo."); avisar(estado.error, 2); cambio(); return false; }
     estado.fase = "despertando"; estado.error = ""; cambio();
     try {
       const r = await o.grabador.empezar(tipo);
       estado.sonido = r.sonido;
     } catch (e) {
-      estado.fase = "guardado"; estado.error = `El Graboso no despierta: ${(e as Error)?.message ?? e}`; avisar(estado.error, 2); cambio();
+      estado.fase = "guardado"; estado.error = tx(`The Graboso will not wake: ${(e as Error)?.message ?? e}`, `El Graboso no despierta: ${(e as Error)?.message ?? e}`); avisar(estado.error, 2); cambio();
       return false;
     }
     estado.fase = "grabando"; estado.desdeMs = o.ahora(); cambio();
-    avisar(estado.sonido ? "El Graboso graba lo que ves y oyes." : "El Graboso graba sin sonido: no hay micrófono.", 1);
+    avisar(estado.sonido ? tx("The Graboso is recording what you see and hear.", "El Graboso graba lo que ves y oyes.") : tx("The Graboso is recording without sound: no microphone.", "El Graboso graba sin sonido: no hay micrófono."), 1);
     return true;
   }
 
@@ -82,12 +84,12 @@ export function crearGraboso(o: { grabador: Grabador; ahora(): number; fecha?: (
     estado.fase = "guardado"; cambio();
     cerrando = (async () => {
       const r = await o.grabador.parar();
-      if (!r.blob || r.blob.size === 0) { estado.error = "El Graboso no retuvo nada."; avisar(estado.error, 2); }
+      if (!r.blob || r.blob.size === 0) { estado.error = tx("The Graboso kept nothing.", "El Graboso no retuvo nada."); avisar(estado.error, 2); }
       else {
         const corto = duracionS < TOPE_S.min;
-        if (estado.clip) avisar("El clip anterior se sustituye por el nuevo.", 0);
+        if (estado.clip) avisar(tx("The previous clip is replaced by the new one.", "El clip anterior se sustituye por el nuevo."), 0);
         estado.clip = { blob: r.blob, tipo: r.tipo || tipo, duracionS: Math.round(duracionS * 10) / 10, conSonido: estado.sonido, nombre: nombreDeClip((o.fecha ?? (() => new Date()))(), r.tipo || tipo), corto };
-        avisar(corto ? `Clip de ${Math.round(duracionS)} s guardado (la misión pide ${TOPE_S.min} s o más).` : `Clip de ${Math.round(duracionS)} s guardado. Puedes descargarlo.`, 1);
+        avisar(corto ? tx(`${Math.round(duracionS)} s clip saved (the mission asks for ${TOPE_S.min} s or more).`, `Clip de ${Math.round(duracionS)} s guardado (la misión pide ${TOPE_S.min} s o más).`) : tx(`${Math.round(duracionS)} s clip saved. You can download it.`, `Clip de ${Math.round(duracionS)} s guardado. Puedes descargarlo.`), 1);
       }
     })().finally(() => { cerrando = null; cambio(); });
     await cerrando;
@@ -97,7 +99,7 @@ export function crearGraboso(o: { grabador: Grabador; ahora(): number; fecha?: (
   /** Once per frame: cuts at the cap. Returns true when it cut. */
   function tic(): boolean {
     if (estado.fase !== "grabando" || segundos() < estado.topeS) return false;
-    avisar("Tope alcanzado: el Graboso se cierra.", 1);
+    avisar(tx("Limit reached: the Graboso closes.", "Tope alcanzado: el Graboso se cierra."), 1);
     void guardar();
     return true;
   }

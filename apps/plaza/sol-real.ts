@@ -3,6 +3,7 @@
 // The place is read in this browser, rounded to a whole degree (about 100 km) at once, the sun is computed here (packages/render/src/sol-real.ts:
 // no weather service, no request), kept in memory only — never sent to the server, never written to the settings or any file. Declining or any
 // error switches the setting back off and the world's own sun stays.
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { posicionSol, posicionValida, zonaAproximada } from "../../packages/render/src/sol-real.ts";
 
 export type Accion = "pedir" | "seguir" | "apagar";
@@ -32,7 +33,7 @@ export function montarSolReal(o: SolRealOpciones) {
   const apagar = () => { if (reloj) { clearInterval(reloj); reloj = null; } o.view.entorno.solReal(null); };
   const poner = () => { if (zona) o.view.entorno.solReal(posicionSol(ahora(), zona.lat, zona.lon)); };
   function pedir(): void {
-    if (!geo) { o.ajustes.set(id, false); o.decir?.("Este navegador no sabe dónde estás: el sol sigue siendo el del mundo."); return; }
+    if (!geo) { o.ajustes.set(id, false); o.decir?.(tx("This browser does not know where you are: the sun stays the world's own.", "Este navegador no sabe dónde estás: el sol sigue siendo el del mundo.")); return; }
     pidiendo = true; solicitudes++;
     geo.getCurrentPosition(
       (p) => {
@@ -41,7 +42,7 @@ export function montarSolReal(o: SolRealOpciones) {
         zona = zonaAproximada(p.coords.latitude, p.coords.longitude); // rounded NOW: the exact place is not kept
         revisar();
       },
-      () => { pidiendo = false; zona = null; o.ajustes.set(id, false); o.decir?.("No has compartido tu ubicación: el sol sigue siendo el del mundo."); },
+      () => { pidiendo = false; zona = null; o.ajustes.set(id, false); o.decir?.(tx("You have not shared your location: the sun stays the world's own.", "No has compartido tu ubicación: el sol sigue siendo el del mundo.")); },
       { enableHighAccuracy: false, maximumAge: 3600_000, timeout: 20_000 },
     );
   }

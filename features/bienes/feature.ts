@@ -4,7 +4,7 @@
 // can take away; any page, world or tool checks its signature with the key written inside (comprobar.ts, POST
 // /bienes/comprobar, npm run bienes -- verificar). Minting it on a chain is a later, optional
 // step (Pablo's decision: work/noche-20261018/N10-bienes-digitales.md); cadena.ts already turns a receipt into ERC-721
-// metadata and a lazy-mint voucher's shape. Recipe: docs/EXTENDER.md «Bienes digitales».
+// metadata and a lazy-mint voucher's shape. Recipe: docs/extender/bienes-digitales.md.
 // v2 (N18): a good with a model can be WORN — in your hand or on your head — and everyone near sees it (state `p:<entity>`,
 // view.lleva); the inventory comes from a per-owner index (`d:<guest>`), not from walking every good of the world; and a
 // receipt from ANOTHER world can be brought here (intent `traer`, in pieces): it is always checked, and it becomes yours

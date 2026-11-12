@@ -4,6 +4,18 @@
  "animacionesFuente": "Quaternius Universal Animation Library (UAL1 Standard), CC0",
  "modelos": [
   {
+   "id": "nomad-for-the-oracles",
+   "nombre": "Nomad for The Oracles",
+   "fichero": "activos/avatares/Nomad_for_The_Oracles.vrm",
+   "sha256": "6619067b8d910d84424b98f78f05ac8cd6beae8390a7af7afdf4777ba09a05d8",
+   "bytes": 205228,
+   "triangulos": 5064,
+   "vrm": "0",
+   "licencia": "CC0",
+   "autor": "[PabloFM / 0x42e62e421bedf2469826879ec1a0574d7d3cca26]",
+   "fuente": "https://github.com/numengames/numinia-assets/blob/7ac28c6833cdabd5a6ffb69b59306265423f5e2d/content/avatars/nomad_for_the_oracles.vrm"
+  },
+  {
    "id": "astrodisco",
    "nombre": "Astrodisco",
    "fichero": "activos/avatares/100Avatars_027_Astrodisco.vrm",

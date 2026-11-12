@@ -3,6 +3,7 @@
 // `.fuente()`, `.minimapa.girar()`…) whose calls wait for the real map and run in order when it lands after the first
 // frame. Answers that need the real map say «nothing yet» (no markers, no way back, closed) until then; a press that
 // needs it (M, «Ir», «Marcar destino») loads it right away.
+import { teclas } from "./teclas.ts";
 import type { HostMapa } from "./mapa.ts";
 import { crearPuerta } from "./puerta.ts";
 import { escribiendo } from "./escribiendo.ts";
@@ -14,7 +15,7 @@ export type MapaPuerta = Omit<Real, "registro">;
 
 export function montarMapaPuerta(h: HostMapa): MapaPuerta {
   const alTeclado = (e: KeyboardEvent): void => {
-    if (e.code !== "KeyM" || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e)) return;
+    if (!teclas.es(e, "mapa") || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e)) return;
     e.preventDefault(); e.stopPropagation(); ya((r) => r.abrir());
   };
   const puerta = crearPuerta<Real>(async () => {
@@ -35,6 +36,8 @@ export function montarMapaPuerta(h: HostMapa): MapaPuerta {
     quitarFuente: (id) => luego((r) => r.quitarFuente(id)),
     marcadores: () => puerta.real()?.marcadores() ?? [],
     contar: () => puerta.real()?.contar() ?? ({} as ReturnType<Real["contar"]>),
+    contarTodos: () => puerta.real()?.contarTodos() ?? ({} as ReturnType<Real["contar"]>),
+    capas: { estado: () => puerta.real()?.capas.estado() ?? {}, poner: (id, si) => luego((r) => r.capas.poner(id, si)), ids: () => puerta.real()?.capas.ids() ?? [] },
     fallos: () => puerta.real()?.fallos() ?? [],
     dibujado: () => puerta.real()?.dibujado() ?? { mini: {}, grande: {} },
     stats: () => puerta.real()?.stats() ?? ({ mini: {}, grande: {}, imagenes: 0, vueltas: 0, ocultas: 0, corte: 0 } as unknown as ReturnType<Real["stats"]>),

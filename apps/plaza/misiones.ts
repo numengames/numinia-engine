@@ -11,13 +11,16 @@
 // and every step done plays a short positive sound.
 // U14 (5): a step that still waits shows locked with its countdown («· en 7 s», in the book and the top line), and a
 // sequence the server sent you (features/misiones/secuencia.ts) has its lines read aloud and its house sounds played.
+import { teclas } from "./teclas.ts";
 import { escribiendo } from "./interactuar.ts";
 import { icono } from "./iconos.ts";
 import { anunciar } from "./paneles.ts";
+import { tx, ligar, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
 import { esTactil, perfil } from "./perfil-aparato.ts"; // U25: touch controls or not, one answer for the whole page
 import { cercaDeAlguien } from "../../packages/client/src/movil.ts"; // U24: no «pulsa E» on a phone
 import { audio } from "../../packages/render/src/audio/nucleo.ts"; // S1: one audio graph for the whole engine
 import type { Evaluacion } from "./evaluacion-tarjeta.ts"; // P13: the end card of a completed quest that has `evaluacion` (features/misiones/client.ts EvaluacionVista); the card itself is a lazy chunk
+import { pintarCerrar } from "./cerrar.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
 type Paso = { n: number; texto: string; hecho: boolean; donde: string; tipo?: string; espera?: number; listoEn?: number };
@@ -43,18 +46,23 @@ export type EstadoPaso = "hecho" | "ahora" | "bloqueado";
 /** How each state reads: the word for screen readers (aria-label), the house icon on the page («ahora» is a dot drawn
  * by tema.css in the world's emphasis colour) and the mark on the VR panel (plain glyphs, no emoji font). */
 export const ESTADOS: Record<EstadoPaso, { dice: string; icono: string; vr: string }> = {
-  hecho: { dice: "Hecho", icono: "check", vr: "✓" },
-  ahora: { dice: "Ahora", icono: "", vr: "→" },
-  bloqueado: { dice: "Bloqueado", icono: "lock-key", vr: "□" },
+  hecho: { get dice() { return tx("Done", "Hecho"); }, icono: "check", vr: "✓" },
+  ahora: { get dice() { return tx("Now", "Ahora"); }, icono: "", vr: "→" },
+  bloqueado: { get dice() { return tx("Locked", "Bloqueado"); }, icono: "lock-key", vr: "□" },
 };
 /** «<quest>:<step>» of every step to do now — the controller's objetivos(): every step still to do of each active
  * quest's current block (a grupo: several at once). */
 export const ahorasDe = (obs: readonly { mision: string; paso: number }[]): Set<string> => new Set(obs.map((x) => `${x.mision}:${x.paso}`));
 /** Done (or the quest is complete: all its steps are done); to do now; otherwise locked: still to do, after the current
  * block (it opens when the block before it is done) or, U14 (5), in it but still waiting (`espera`: it opens by itself). */
-export function estadoPaso(m: { id: string; estado: string }, s: { n: number; hecho: boolean }, ahoras: ReadonlySet<string>): EstadoPaso {
+export function estadoPaso(m: { id: string; estado: string; paso?: number }, s: { n: number; hecho: boolean }, ahoras: ReadonlySet<string>): EstadoPaso {
   if (s.hecho || m.estado === "hecha") return "hecho";
-  return ahoras.has(`${m.id}:${s.n}`) ? "ahora" : "bloqueado";
+  if (ahoras.has(`${m.id}:${s.n}`)) return "ahora";
+  // H3: a step that is done by doing something (`hace`: open Construir, move, tick a box…) has no place in the world, so the
+  // controller's objetivos() never lists it. When the quest has NO step to do «now» there, the current step is the one the
+  // server says (`paso`): without this every step of such a quest read «Bloqueado» in the book, even the one you must do.
+  const conLugar = [...ahoras].some((k) => k.startsWith(`${m.id}:`));
+  return !conLugar && m.paso !== undefined && s.n === m.paso ? "ahora" : "bloqueado";
 }
 
 /** When the book opens by itself (the spec: «aparece automáticamente al terminar el primer diálogo»): after a quest is
@@ -224,9 +232,10 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, texto = "", clase = "
 /** «a 12 m al norte» (−z is north, the way the camera looks when you arrive). */
 export function rumbo(dx: number, dz: number): string {
   const d = Math.hypot(dx, dz);
-  if (d < 2) return "aquí";
-  const lado = Math.abs(dx) > Math.abs(dz) * 2 ? (dx > 0 ? "este" : "oeste") : Math.abs(dz) > Math.abs(dx) * 2 ? (dz > 0 ? "sur" : "norte") : `${dz > 0 ? "sur" : "nor"}${dx > 0 ? "este" : "oeste"}`;
-  return `a ${Math.round(d)} m al ${lado}`;
+  if (d < 2) return tx("here", "aquí");
+  const ns = dz > 0 ? tx("south", "sur") : tx("north", "norte"), ew = dx > 0 ? tx("east", "este") : tx("west", "oeste");
+  const lado = Math.abs(dx) > Math.abs(dz) * 2 ? ew : Math.abs(dz) > Math.abs(dx) * 2 ? ns : tx(`${ns}${ew}`, `${dz > 0 ? "sur" : "nor"}${ew}`);
+  return tx(`${Math.round(d)} m ${lado}`, `a ${Math.round(d)} m al ${lado}`);
 }
 
 /** One row of the book: the mark (an icon or the «now» dot, hidden from screen readers), the state in words for them,
@@ -235,13 +244,13 @@ function filaPaso(s: Paso, e: EstadoPaso): HTMLLIElement {
   const d = ESTADOS[e], donde = e === "ahora" ? s.donde : "", falta = e === "bloqueado" ? segundosDe(s) : 0;
   const li = el("li", "", `paso ${e}`);
   li.dataset.estado = e;
-  li.setAttribute("aria-label", `${d.dice}: ${s.texto}${donde ? ` (${donde})` : ""}${falta ? ` (se abre en ${falta} s)` : ""}`);
+  li.setAttribute("aria-label", `${d.dice}: ${s.texto}${donde ? ` (${donde})` : ""}${falta ? tx(` (opens in ${falta} s)`, ` (se abre en ${falta} s)`) : ""}`);
   const marca = el("span", "", "marca");
   marca.setAttribute("aria-hidden", "true");
   if (d.icono) marca.innerHTML = icono(d.icono, 16); // a fixed house glyph, never text from the wire
   li.append(marca, el("span", `${d.dice}: `, "solo-lector"), el("span", s.texto, "texto"));
   if (donde) { const lugar = el("span", "", "donde"); lugar.append(el("span", " (", "solo-lector"), donde, el("span", ")", "solo-lector")); li.append(lugar); }
-  if (falta) li.append(el("span", ` · en ${falta} s`, "donde espera"));
+  if (falta) li.append(el("span", tx(` · in ${falta} s`, ` · en ${falta} s`), "donde espera"));
   return li;
 }
 
@@ -252,15 +261,18 @@ export function montarLibro(c: Ctl, o: {
   banner?: HTMLElement;
   /** P13: the end evaluation card (hidden until a quest with `evaluacion` is completed or «Ver evaluación» is pressed in the book). */
   evaluacion?: HTMLElement;
+  /** H3 (Lumen redesign): the followed quest as a small card, shown only while building (tema.css), when the book and the
+   * top line are hidden: what to do now, where, and how far along. The book is still the complete view. */
+  ahora?: HTMLElement;
 }) {
   const senalados = () => (c.senalados ?? c.objetivos)();
   const balizar = (ob: Objetivo | undefined) => { if (ob) o.view.beacon(ob.x, ob.z, ob.nombre, BALIZA_MS); };
   const tactil = esTactil();
   // the head stays (its close button keeps its focus across repaints); the body is drawn again on every change
-  const titulo = el("h2", "Misiones"), cerrar = el("button", tactil ? "Cerrar" : "Cerrar (J)", "cerrar"), cuerpo = el("div", "", "cuerpo");
+  const titulo = ligar(el("h2"), "textContent", "Quests", "Misiones"), cerrar = pintarCerrar(el("button", "", "cerrar"), { tecla: "J" }), cuerpo = el("div", "", "cuerpo");
   const cabeza = el("header", "", "cabeza");
   titulo.tabIndex = -1;
-  cerrar.type = "button"; cerrar.setAttribute("aria-keyshortcuts", "J");
+  cerrar.type = "button";
   cabeza.append(titulo, cerrar);
   o.panel.replaceChildren(cabeza, cuerpo);
   const pintar = () => {
@@ -268,31 +280,31 @@ export function montarLibro(c: Ctl, o: {
     const libro = c.libro(), activas = libro.filter((m) => m.estado === "activa"), hechas = libro.filter((m) => m.estado === "hecha");
     const ahoras = ahorasDe(c.objetivos()); // every step to do now (a grupo: several)
     const partes: HTMLElement[] = [];
-    if (!libro.length) partes.push(el("p", `Aún no tienes misiones. Habla con la gente de la plaza: ${cercaDeAlguien(perfil().clase)}.`));
+    if (!libro.length) partes.push(el("p", tx(`You have no quests yet. Talk to people in the plaza: ${cercaDeAlguien(perfil().clase)}.`, `Aún no tienes misiones. Habla con la gente de la plaza: ${cercaDeAlguien(perfil().clase)}.`)));
     for (const m of activas) {
       const art = el("article", "", m.seguida ? "mision seguida" : "mision");
       art.append(el("h3", m.titulo), el("p", m.descripcion, "descripcion"));
       const ol = el("ol", "", "pasos");
       for (const s of m.lista) ol.append(filaPaso(s, estadoPaso(m, s, ahoras)));
-      const seguir = el("button", m.seguida ? "Dejar de seguir" : "Seguir");
+      const seguir = el("button", m.seguida ? tx("Stop following", "Dejar de seguir") : tx("Follow", "Seguir"));
       seguir.type = "button";
       seguir.addEventListener("click", () => { c.seguir(m.seguida ? "" : m.id); if (!m.seguida) balizar(senalados().find((x) => x.mision === m.id)); });
-      const dejar = el("button", "Abandonar");
+      const dejar = el("button", tx("Abandon", "Abandonar"));
       dejar.type = "button";
       dejar.addEventListener("click", () => c.abandonar(m.id));
       const fila = el("div", "", "fila");
       fila.append(seguir, dejar);
       art.append(ol, fila);
-      if (m.recompensa) art.append(el("p", `Recompensa: ${m.recompensa}`, "recompensa"));
+      if (m.recompensa) art.append(el("p", tx(`Reward: ${m.recompensa}`, `Recompensa: ${m.recompensa}`), "recompensa"));
       partes.push(art);
     }
     if (hechas.length) { // a completed quest: all its steps are done, so one row with the check
-      partes.push(el("h3", `Hechas (${hechas.length})`));
+      partes.push(el("h3", tx(`Done (${hechas.length})`, `Hechas (${hechas.length})`)));
       const ul = el("ul", "", "hechas");
       for (const m of hechas) {
         const li = filaPaso({ n: 0, texto: `${m.titulo}${m.recompensa ? ` · ${m.recompensa}` : ""}`, hecho: true, donde: "" }, "hecho"); li.dataset.mision = m.id;
         if (m.evaluacion && o.evaluacion) { // P13: the card can be opened again from the book
-          const ver = el("button", "Ver evaluación", "ver-evaluacion"); ver.type = "button"; ver.setAttribute("aria-label", `Ver evaluación: ${m.titulo}`); // the visible words come first (WCAG label in name)
+          const ver = el("button", tx("View evaluation", "Ver evaluación"), "ver-evaluacion"); ver.type = "button"; ver.setAttribute("aria-label", tx(`View evaluation: ${m.titulo}`, `Ver evaluación: ${m.titulo}`)); // the visible words come first (WCAG label in name)
           ver.addEventListener("click", () => verEvaluacion(m.id, true));
           li.append(ver);
         }
@@ -310,11 +322,14 @@ export function montarLibro(c: Ctl, o: {
     o.boton.setAttribute("aria-expanded", String(si));
     if (si) { pintar(); if (foco) titulo.focus({ preventScroll: true }); }
   };
-  o.boton.addEventListener("click", () => abrir(o.panel.hidden));
+  alCambiarIdioma(() => pintar()); // the open book is written again in the new language
+  o.boton.addEventListener("click", () => abrir(!!o.panel.hidden));
   cerrar.addEventListener("click", () => abrir(false));
   for (const x of [o.boton, o.panel]) x.addEventListener("pointerdown", (ev) => ev.stopPropagation()); // not a joystick touch
   addEventListener("keydown", (e) => {
-    if (e.code !== "KeyJ" || e.repeat || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e)) return;
+    // Escape closes the open book, unless a modal dialog sits on top (that one takes this Escape; the book waits for the next)
+    if (e.code === "Escape" && !o.panel.hidden && !e.repeat && !escribiendo(e) && !document.querySelector("dialog[open]")) { e.preventDefault(); abrir(false); return; }
+    if (!teclas.es(e, "misiones") || e.repeat || e.ctrlKey || e.metaKey || e.altKey || escribiendo(e)) return;
     abrir(o.panel.hidden);
   });
 
@@ -323,7 +338,7 @@ export function montarLibro(c: Ctl, o: {
   const quizasAbrir = () => {
     if (!solo.toca({ dialogo: !!c.dialogo(), vr: !!o.view.vr?.active }) || !o.panel.hidden) return;
     abrir(true, false);
-    anunciar(tactil ? "El libro de misiones se ha abierto." : "El libro de misiones se ha abierto: J lo cierra."); // it took no focus: say it
+    anunciar(tactil ? tx("The quest journal has opened.", "El libro de misiones se ha abierto.") : tx("The quest journal has opened: J closes it.", "El libro de misiones se ha abierto: J lo cierra.")); // it took no focus: say it
   };
 
   // the column of light follows the tracked objective: a new step or a new tracked quest lights it again (the book
@@ -332,6 +347,28 @@ export function montarLibro(c: Ctl, o: {
   const revisarBaliza = () => {
     const ob = senalados().find((x) => x.seguida), firma = ob ? `${ob.mision}:${ob.paso}` : "";
     if (firma && firma !== marcado) { balizar(ob); marcado = firma; }
+  };
+  // H3: the card of the followed quest (a quest still active; else the first one). Repainted only when what it says changes.
+  let firmaTarjeta = "";
+  const pintarAhora = () => {
+    const t = o.ahora;
+    if (!t) return;
+    const libro = c.libro(), m = libro.find((x) => x.seguida && x.estado === "activa") ?? libro.find((x) => x.estado === "activa");
+    if (!m) { if (!t.hidden) { t.hidden = true; t.replaceChildren(); firmaTarjeta = ""; } return; }
+    const ahoras = ahorasDe(c.objetivos());
+    const estados = m.lista.map((s) => estadoPaso(m, s, ahoras));
+    const firma = JSON.stringify([m.id, m.titulo, m.lista.map((s, i) => [s.texto, estados[i], s.donde, estados[i] === "bloqueado" ? segundosDe(s) : 0])]);
+    if (firma === firmaTarjeta && !t.hidden) return;
+    firmaTarjeta = firma;
+    const hechos = estados.filter((e) => e === "hecho").length;
+    const ahora = Math.min(hechos + 1, m.pasos), cab = el("p", tx(`Current quest · step ${ahora} of ${m.pasos}`, `Misión en curso · paso ${ahora} de ${m.pasos}`), "cab");
+    const barra = el("div", "", "barra");
+    barra.setAttribute("aria-hidden", "true");
+    for (const e of estados) { const i = el("i"); i.className = e; barra.append(i); }
+    const ol = el("ol", "", "pasos");
+    m.lista.forEach((s, i) => ol.append(filaPaso(s, estados[i])));
+    t.replaceChildren(cab, el("h2", m.titulo), barra, ol);
+    t.hidden = false;
   };
   let notaHasta = 0;
   /** The short note in the middle of the screen; when you got a thing, with the item icon in place of the «✓». */
@@ -364,10 +401,11 @@ export function montarLibro(c: Ctl, o: {
       const seg = c.libro().find((x) => x.seguida && x.estado === "activa"), s = seg?.lista.find((x) => x.n === seg.paso), falta = s ? segundosDe(s) : 0;
       const gr = seg ? c.resumen().seguida?.grupo : null;
       if (seg && gr && gr.total > 0 && gr.hechos === gr.total) t = `★ ${seg.titulo} · ${gr.nombre} ${gr.hechos}/${gr.total}`; // the grupo is complete and the server holds it a moment (~2 s) before the next step: nothing is left to point at, the counter stays
-      else if (seg && s && falta) t = `★ ${seg.titulo} (${s.n + 1}/${seg.pasos}): ${s.texto} · en ${falta} s`;
+      else if (seg && s && falta) t = `★ ${seg.titulo} (${s.n + 1}/${seg.pasos}): ${s.texto}${tx(` · in ${falta} s`, ` · en ${falta} s`)}`;
     }
     if (o.linea.textContent !== t) o.linea.textContent = t;
     o.linea.hidden = !t;
+    pintarAhora();
   };
   c.alCambiar((que) => {
     if (que === "libro") { pintar(); revisarBaliza(); linea(); tarjetaCargada?.pintar(); }
@@ -385,8 +423,8 @@ export function montarLibro(c: Ctl, o: {
   const mostrarCompletada = (msg: Record<string, unknown>) => {
     const b = o.banner;
     if (!b) return;
-    const partes: HTMLElement[] = [el("p", "Misión completada", "rotulo"), el("p", String(msg.titulo ?? ""), "titulo")];
-    for (const r of recompensasDe(String(msg.recompensa ?? ""))) { const p = el("p", "", r.tipo === "objeto" ? "insignia objeto" : "insignia"); p.append(el("span", r.tipo === "objeto" ? "Objeto, ya es tuyo: " : "Insignia: ", "solo-lector"), r.nombre); partes.push(p); }
+    const partes: HTMLElement[] = [el("p", tx("Quest completed", "Misión completada"), "rotulo"), el("p", String(msg.titulo ?? ""), "titulo")];
+    for (const r of recompensasDe(String(msg.recompensa ?? ""))) { const p = el("p", "", r.tipo === "objeto" ? "insignia objeto" : "insignia"); p.append(el("span", r.tipo === "objeto" ? tx("Item, it is yours now: ", "Objeto, ya es tuyo: ") : tx("Badge: ", "Insignia: "), "solo-lector"), r.nombre); partes.push(p); }
     if (msg.texto) partes.push(el("p", String(msg.texto), "solo-lector"));
     b.replaceChildren(...partes);
     b.classList.add("visible");
@@ -422,11 +460,11 @@ export function montarLibro(c: Ctl, o: {
     if (event === "abrirEvaluacion") { // P13: the quest just completed has an end card (it came with the book): show it and say it once
       // a: the card replaces the «Misión completada» banner and its note (they were mounted behind it): they go once it is up, so nothing is left empty while its chunk comes
       if (tarjeta && !o.view.vr?.active) verEvaluacion(String(msg.mision), false, true).then(() => { if (!tarjeta.hidden) ocultarCompletada(); });
-      else anunciar(`${String(msg.titulo)}: ${Number(msg.puntos) || 0} puntos. ${String(msg.resumen ?? "")}`); // in VR there is no card: the score is said
+      else anunciar(tx(`${String(msg.titulo)}: ${Number(msg.puntos) || 0} points. ${String(msg.resumen ?? "")}`, `${String(msg.titulo)}: ${Number(msg.puntos) || 0} puntos. ${String(msg.resumen ?? "")}`)); // in VR there is no card: the score is said
     }
     if (event === "abrirLibro" && o.panel.hidden && !o.view.vr?.active) { // P3: a pick-up asked for it (the notebook): same as when a quest is accepted — it takes no focus, and never in VR
       abrir(true, false);
-      anunciar(tactil ? "El libro de misiones se ha abierto." : "El libro de misiones se ha abierto: J lo cierra.");
+      anunciar(tactil ? tx("The quest journal has opened.", "El libro de misiones se ha abierto.") : tx("The quest journal has opened: J closes it.", "El libro de misiones se ha abierto: J lo cierra."));
     }
   });
   // U14 (5): a sequence's lines are read aloud (the note itself is hidden from screen readers) and its sounds play

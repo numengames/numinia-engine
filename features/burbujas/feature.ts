@@ -8,7 +8,7 @@
 //   modo «abierta»: inside hear everyone inside; the near people outside also hear those inside (a bubble that only widens).
 // It is PRIVACY OF HEARING, not encryption: the server still relays the frames it receives and never decodes, records or stores
 // them; nothing here opens a microphone. A world turns it on with `entorno/burbujas.json`; without the file nothing changes (no
-// bubbles, cost 0, the relay as before). It is a piece with a switch (Entorno panel). Recipe: docs/EXTENDER.md «Burbujas de voz».
+// bubbles, cost 0, the relay as before). It is a piece with a switch (Entorno panel). Recipe: docs/extender/burbujas-de-voz.md.
 import { defineFeature } from "../../packages/feature/src/index.ts";
 
 /** How many bubbles a world may have, and the radius range (m). */

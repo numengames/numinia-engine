@@ -1,0 +1,38 @@
+{
+  "formato": "pnj@1",
+  "id": "ana",
+  "nombre": "Ana",
+  "oficio": "Visitor",
+  "descripcion": "Looks at slot 6 (west) at leisure.",
+  "apariencia": {
+    "modelo": "6841b7c0583fd438e2226c07a407fb55e7a65527c26e5ce44095870b83e1f4c1",
+    "escala": 1
+  },
+  "posicion": {
+    "x": -15.69,
+    "z": -3.2
+  },
+  "giro": -123,
+  "radio": 3,
+  "dialogo": {
+    "entradas": [
+      {
+        "nodo": "hola"
+      }
+    ],
+    "nodos": {
+      "hola": {
+        "texto": "I have been here a while. When the wall fills up, I will come back to see what has changed.",
+        "opciones": [
+          {
+            "texto": "See you later.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "notas": "Gallery template: standing in front of slot 6 (west), looking at it. Own model (CC0, own work of Numen Games). Gives no missions."
+}

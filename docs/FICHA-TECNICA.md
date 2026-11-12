@@ -57,6 +57,10 @@ hace falta para que quepa el pase (medido 630–1.813 bytes; un tope de 1.536 no
 | PASE (12), IA de organización | puente → servidor | 2048 (el mismo) | el pase de una IA (suma `kind`, `state` y un `sub a_…`; nombre y roles como una persona) | 17 % sobre el peor caso emitible | 551 (un rol, nombre corto), **1.693** (5 roles CJK, nombre de 40, 2 permisos: una IA solo lleva entrar y construir) | medido (`test/pase-ia.test.ts`) |
 | REPORT (9) | página → servidor | 1000 | un informe JSON; la página recorta `ua`/`gpu` si no cabe | 20 % sobre lo visto | 799 guardados (entrada) | medido en sesiones locales; **sin medir en aparatos reales** |
 | VOICE (11) | página → servidor | 704 | 4 de cabecera + 700 de trama | 380 bytes (54 %) | 324 (20 ms µ-law) | medido (`test/mensajes-tope.test.ts`) |
+| PANTALLA (17), trozo de imagen | página → servidor | 1.011 | 11 de cabecera + hasta 1.000 de imagen codificada (WebCodecs, VP8 o H.264); una imagen se corta en hasta 128 trozos y el servidor los pasa en orden, sin abrirlos ni guardarlos. Tope por pantalla: 250 kB/s, 22 imágenes/s y 400 trozos/s; pasado el tope se tira la imagen entera y las siguientes hasta la próxima clave | 13 bytes (1,3 %) | 1.011 (trozo lleno); una imagen de 1280×720 a 1,2 Mbit/s son ~10 trozos de media | medido (`test/pantalla-red.test.ts`); **sin medir en aparatos reales** |
+| PANTALLA (17), empezar / parar | página → servidor | 40 | 8 de cabecera + nombre de la pantalla (hasta 32); parar, 3 + nombre | — | 14 | medido (`test/pantalla-red.test.ts`) |
+| PANTALLA (17), trozo de imagen | servidor → página | 1.013 | 13 de cabecera + hasta 1.000; solo a quien está a 40 m o menos de la pantalla de vídeo y no la ha dejado atrás, y solo desde la siguiente imagen clave | 11 bytes (1,1 %) | 1.013 | medido (`test/pantalla-red.test.ts`) |
+| PANTALLA (17), estado / pide clave | servidor → página | 47 / 4 | quién comparte, en qué pantalla, con qué codec y tamaño, y por qué acabó o se rechazó; a quien comparte, la petición de una imagen clave | — | 22 / 4 | medido (`test/pantalla-red.test.ts`) |
 | FEATURE (7), intención | página → servidor | sin tope propio (campos con `maxBytes`) | texto empaquetado por esquema | 820 bytes bajo el corte de 1024 | 204 (`chat.decir`) de 26 intenciones | medido (`test/mensajes-tope.test.ts`) |
 | SNAPSHOT (2) | servidor → página | sin tope (K=50) | 30 de cabecera + 6–8 por visible; si alguien acaba de ser puesto en otro sitio a propósito (teletransporte), 1 + 4 por cada uno durante 5 ticks | — | 330 con K=50 (sin saltos) | medido (ídem); la cola de saltos, calculada |
 | LATIDO (16) | página → servidor | 2 | 1 de tipo + 1 de «estoy en una pestaña de fondo»; cada 400 ms. El servidor da por caída a la página que latió y calla 15 s (150 s si dijo que está de fondo); la página avisa sola a los 1,5 s si es el servidor el que calla | — | 2 | calculado (`test/latido-salto.test.ts`) |
@@ -142,7 +146,7 @@ Tú y los jugadores más cercanos, como humanoides VRM con animaciones; el resto
 ## Misiones y personas (J5) y cosas que se usan de cerca (J4)
 
 Las misiones, las personas que las dan y las cosas que se cogen las escribe la aventura como texto (`mision@1`,
-`pnj@1`, `cosa@1`; `docs/EXTENDER.md`). Medido por `test/misiones.test.ts` y `tools/e2e-piernas/misiones.mjs`.
+`pnj@1`, `cosa@1`; `docs/extender/misiones-y-personas-pnj.md`). Medido por `test/misiones.test.ts` y `tools/e2e-piernas/misiones.mjs`.
 
 | Dato | Valor |
 |---|---|
@@ -176,7 +180,7 @@ en Quest entra en todo.
 ## Ajustes (N2)
 
 El menú de ajustes (tecla O o el engranaje) es HTML de verdad; lo leen los lectores de pantalla y los agentes
-(`window.__numinia.ajustes`). Cómo crece: [`EXTENDER.md`](EXTENDER.md) («Añadir un ajuste», «Añadir una capacidad»).
+(`window.__numinia.ajustes`). Cómo crece: [`extender/anadir-un-ajuste.md`](extender/anadir-un-ajuste.md), [`extender/anadir-una-capacidad.md`](extender/anadir-una-capacidad.md).
 
 | Dato | Valor |
 |---|---|

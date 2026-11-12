@@ -1,8 +1,8 @@
-// Y1 on the page: the Inventario panel (key R, «Reserva», or the «Inventario» button next to «Misiones»): what you carry (one
+// Y1 on the page: the Inventario panel (key I by default — keymap v1 —, «Reserva», or the «Inventario» button next to «Misiones»): what you carry (one
 // weapon, up to three relics) and your Reserva (the rest; tokens with «× n»), each line with a house icon and a real
 // button «Llevar» / «Guardar» where it applies. No drag and drop (that is Y2). Plain accessible HTML, like the book:
 // headings, lists, buttons. It is drawn only while open and only when the Reserva changes.
-// La Bolsa galáctica on the page (key R, or the «Bolsa» button): a classic game inventory — 42 square slots (7 x 6 on a PC, 6
+// La Bolsa galáctica on the page (key I by default, or the «Bolsa» button): a classic game inventory — 42 square slots (7 x 6 on a PC, 6
 // columns on a phone) with the item's house icon big and centred, rarity as the slot's border and glow, «× n» for a stack, empty
 // sockets dim; above them the equipment slots (1 weapon, 3 relics, silhouettes when empty). Pick a slot (click, tap, arrows +
 // Enter) for its card — name, type line, worth, «Llevar»/«Guardar» — or hover it on a PC for the tooltip. Weapons and relics
@@ -14,6 +14,7 @@ import { icono } from "./iconos.ts";
 import { FORMAS_EQUIPO, ICONO_TIPO, SILUETA, accionDe, colorDe, cuentaTexto, destinoDeSoltar, etiquetaHueco, lineaTipo, lineaValor, mover, nombreConCuenta, novedades, plano } from "./bolsa-rejilla.ts";
 import type { Objeto, Zona } from "./bolsa-rejilla.ts";
 import { crearSoltar, preguntaSoltar } from "./bolsa-soltar.ts";
+import { tx, ligar } from "../../packages/feature/src/idioma.ts";
 export { ICONO_TIPO, RAREZA_DE_COLOR, detalleDeCaptura } from "./bolsa-rejilla.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
@@ -29,14 +30,15 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, texto = "", clase = "
 const conIcono = (e: HTMLElement, nombre: string, px: number): void => { e.innerHTML = icono(nombre, px); };
 
 export function montarInventario(c: Ctl, boton: HTMLButtonElement) {
-  const panel = crearDialogo({ id: "inventario", titulo: "Bolsa galáctica", tecla: "KeyR", noConstruyendo: true, boton, alAbrir: () => { pintar(true); (rejilla.querySelector('[tabindex="0"]') as HTMLElement | null)?.focus({ preventScroll: true }); } });
+  const panel = crearDialogo({ id: "inventario", titulo: () => tx("Galactic Backpack", "Bolsa galáctica"), tecla: "KeyI", accion: "bolsa", noConstruyendo: true, boton, alAbrir: () => { pintar(true); (rejilla.querySelector('[tabindex="0"]') as HTMLElement | null)?.focus({ preventScroll: true }); } });
   const titulo = panel.dialog.querySelector("h2") as HTMLElement, cuenta = el("span", "", "cuenta");
+  ligar(titulo, "textContent", "Galactic Backpack", "Bolsa galáctica");
   titulo.after(cuenta);
   const equipoEl = el("div", "", "equipo"), rejilla = el("div", "", "rejilla"), ficha = el("aside", "", "ficha-objeto"), tip = el("div", "", "bolsa-tip");
-  equipoEl.setAttribute("role", "group"); equipoEl.setAttribute("aria-label", "Llevas contigo: un arma y hasta tres reliquias"); equipoEl.dataset.zona = "equipo";
+  equipoEl.setAttribute("role", "group"); ligar(equipoEl, "aria-label", "You carry: one weapon and up to three relics", "Llevas contigo: un arma y hasta tres reliquias"); equipoEl.dataset.zona = "equipo";
   rejilla.setAttribute("role", "group"); rejilla.dataset.zona = "bolsa";
   ficha.setAttribute("aria-live", "polite"); tip.setAttribute("role", "tooltip"); tip.hidden = true;
-  const izq = el("div", "", "bolsa-col"); izq.append(el("h3", "Llevas contigo", "rotulo"), equipoEl, el("h3", "Bolsa", "rotulo"), rejilla);
+  const izq = el("div", "", "bolsa-col"); izq.append(ligar(el("h3", "", "rotulo"), "textContent", "You carry", "Llevas contigo"), equipoEl, ligar(el("h3", "", "rotulo"), "textContent", "Backpack", "Bolsa"), rejilla);
   const caja = el("div", "", "bolsa"); caja.append(izq, ficha);
   panel.cuerpo.append(caja); panel.dialog.appendChild(tip);
 
@@ -48,7 +50,7 @@ export function montarInventario(c: Ctl, boton: HTMLButtonElement) {
   const botonDe = (zona: Zona, i: number): HTMLButtonElement | null => (zona === "equipo" ? equipoEl : rejilla).children[i] as HTMLButtonElement | null ?? null;
 
   const casilla = (zona: Zona, i: number, o: Objeto | null): HTMLButtonElement => {
-    const b = el("button", "", `hueco${o ? "" : " vacio"}${zona === "equipo" ? " eq" : ""}${o && parpadean.has(o.id) ? " nuevo" : ""}${o && o.id === sel ? " sel" : ""}`);
+    const b = el("button", "", `hueco${o ? "" : " vacio"}${zona === "equipo" ? " eq" : ""}${o && parpadean.has(o.id) ? " nuevo" : ""}${o && o.id === sel ? " sel" : ""}`); // i18n-ok: CSS class names, not text
     b.type = "button"; b.dataset.zona = zona; b.dataset.i = String(i);
     b.setAttribute("aria-label", etiquetaHueco(o, i, zona)); b.tabIndex = foco.zona === zona && foco.i === i ? 0 : -1;
     if (o) {
@@ -58,18 +60,18 @@ export function montarInventario(c: Ctl, boton: HTMLButtonElement) {
       if (o.n > 1) { const n = el("span", `× ${o.n}`, "n"); n.setAttribute("aria-hidden", "true"); b.appendChild(n); }
     } else {
       b.setAttribute("aria-disabled", "true");
-      if (zona === "equipo") { const s = el("span", "", "ic silueta"); conIcono(s, SILUETA[FORMAS_EQUIPO[i]], 30); const t = el("span", FORMAS_EQUIPO[i] === "arma" ? "Arma" : "Reliquia", "rot"); b.append(s, t); }
+      if (zona === "equipo") { const s = el("span", "", "ic silueta"); conIcono(s, SILUETA[FORMAS_EQUIPO[i]], 30); const t = el("span", FORMAS_EQUIPO[i] === "arma" ? tx("Weapon", "Arma") : tx("Relic", "Reliquia"), "rot"); b.append(s, t); }
     }
     return b;
   };
   const tarjeta = (): void => {
     const o = hueco.find((h) => h.o?.id === sel)?.o ?? null, r = c.resumen();
     if (!o) {
-      ficha.replaceChildren(el("h3", "Elige un objeto"), el("p", r.objetos ? "Pulsa un hueco (o muévete con las flechas y Enter) para verlo. En un ordenador, pasa el ratón por encima." : "Tu Bolsa galáctica está vacía. Lo que te den en la plaza (una Semilla del Conocimiento al terminar una misión, un pez que pesques) aparece aquí.", "vacio"), ...(r.prestigio ? [el("p", resumenTexto(r), "resumen")] : []));
+      ficha.replaceChildren(el("h3", tx("Pick an item", "Elige un objeto")), el("p", r.objetos ? tx("Press a slot (or move with the arrows and Enter) to see it. On a computer, hover over it.", "Pulsa un hueco (o muévete con las flechas y Enter) para verlo. En un ordenador, pasa el ratón por encima.") : tx("Your Galactic Backpack is empty. What you are given in the plaza (a Seed of Knowledge for finishing a quest, a fish you catch) shows up here.", "Tu Bolsa galáctica está vacía. Lo que te den en la plaza (una Semilla del Conocimiento al terminar una misión, un pez que pesques) aparece aquí."), "vacio"), ...(r.prestigio ? [el("p", resumenTexto(r), "resumen")] : []));
       return;
     }
     const cab = el("div", "", "cab"), gi = el("span", "", "gran"); gi.style.setProperty("--c", colorDe(o)); conIcono(gi, o.icono || ICONO_TIPO[o.tipo], 44);
-    const tx = el("div"); tx.append(el("h3", nombreConCuenta(o)), el("p", lineaTipo(o), "tipo")); cab.append(gi, tx);
+    const tit = el("div"); tit.append(el("h3", nombreConCuenta(o)), el("p", lineaTipo(o), "tipo")); cab.append(gi, tit);
     const partes: HTMLElement[] = [cab]; const v = lineaValor(o); if (v) partes.push(el("p", v, "valor"));
     const acc = accionDe(o);
     if (acc) {
@@ -78,14 +80,14 @@ export function montarInventario(c: Ctl, boton: HTMLButtonElement) {
       partes.push(b);
       const pide = soltar.pendiente?.id === o.id;
       if (pide) {
-        const q = el("p", preguntaSoltar(o), "pregunta"), si = el("button", "Sí, soltar", "accion soltar-si"), no = el("button", "Cancelar", "accion soltar-no");
-        si.type = "button"; no.type = "button"; si.setAttribute("aria-label", `Sí, soltar ${o.nombre}`); no.setAttribute("aria-label", `Cancelar: conservar ${o.nombre}`);
+        const q = el("p", preguntaSoltar(o), "pregunta"), si = el("button", tx("Yes, drop", "Sí, soltar"), "accion soltar-si"), no = el("button", tx("Cancel", "Cancelar"), "accion soltar-no");
+        si.type = "button"; no.type = "button"; si.setAttribute("aria-label", tx(`Yes, drop ${o.nombre}`, `Sí, soltar ${o.nombre}`)); no.setAttribute("aria-label", tx(`Cancel: keep ${o.nombre}`, `Cancelar: conservar ${o.nombre}`));
         si.addEventListener("click", () => { soltar.confirmar(); botonDe(foco.zona, foco.i)?.focus({ preventScroll: true }); });
         no.addEventListener("click", () => { soltar.cancelar(); botonDe(foco.zona, foco.i)?.focus({ preventScroll: true }); });
-        const g = el("div", "", "soltar-pregunta"); g.setAttribute("role", "group"); g.setAttribute("aria-label", `Confirmar soltar ${o.nombre}`); g.append(q, si, no);
+        const g = el("div", "", "soltar-pregunta"); g.setAttribute("role", "group"); g.setAttribute("aria-label", tx(`Confirm dropping ${o.nombre}`, `Confirmar soltar ${o.nombre}`)); g.append(q, si, no);
         partes.push(g);
       } else {
-        const bs = el("button", "Soltar", "accion soltar"); bs.type = "button"; bs.setAttribute("aria-label", `Soltar ${o.nombre}`);
+        const bs = el("button", tx("Drop", "Soltar"), "accion soltar"); bs.type = "button"; bs.setAttribute("aria-label", tx(`Drop ${o.nombre}`, `Soltar ${o.nombre}`));
         bs.addEventListener("click", () => { if (soltar.pedir(o) === "pregunta") ficha.querySelector<HTMLElement>(".soltar-no")?.focus({ preventScroll: true }); }); // the safe answer has the focus
         partes.push(bs);
       }
@@ -104,8 +106,8 @@ export function montarInventario(c: Ctl, boton: HTMLButtonElement) {
     hueco = [...p.equipo.map((o, i) => ({ zona: "equipo" as Zona, i, o })), ...p.bolsa.map((o, i) => ({ zona: "bolsa" as Zona, i, o }))];
     equipoEl.replaceChildren(...p.equipo.map((o, i) => casilla("equipo", i, o)));
     rejilla.replaceChildren(...p.bolsa.map((o, i) => casilla("bolsa", i, o)));
-    rejilla.setAttribute("aria-label", `Bolsa galáctica: ${p.ocupados} de ${p.huecos} huecos ocupados`);
-    cuenta.textContent = cuentaTexto(p); cuenta.classList.toggle("llena", p.llena); cuenta.setAttribute("aria-label", `${p.ocupados} de ${p.huecos} huecos`);
+    rejilla.setAttribute("aria-label", tx(`Galactic Backpack: ${p.ocupados} of ${p.huecos} slots used`, `Bolsa galáctica: ${p.ocupados} de ${p.huecos} huecos ocupados`));
+    cuenta.textContent = cuentaTexto(p); cuenta.classList.toggle("llena", p.llena); cuenta.setAttribute("aria-label", tx(`${p.ocupados} of ${p.huecos} slots`, `${p.ocupados} de ${p.huecos} huecos`));
     rejilla.style.setProperty("--huecos", String(p.huecos));
     tarjeta();
     parpadean = new Set();

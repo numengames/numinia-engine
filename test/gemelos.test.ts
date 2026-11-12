@@ -2,6 +2,8 @@
 // agents («Imagen «X», a 5 m, delante a la izquierda»), nearest first; decoration is left out; a link is a real button only if it can open.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // Spanish text asserted below
 import { firmaGemelos, gemelosDe, GEMELOS_MAX } from "../apps/plaza/gemelos.ts";
 import { enlaceAbrible } from "../apps/plaza/enlaces.ts";
 

@@ -2,6 +2,7 @@
 // the choice by gaze (interactuar-mirada.ts, pure), the ring in the world and the prompt's own content. interactuar.ts imports only this file.
 import type { Object3D } from "three/webgpu";
 import { elegirMirada, marcaDe } from "./interactuar-mirada.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { medidaEnMundo } from "../../packages/render/src/centro-mundo.ts";
 await import("./interactuar-estilo.ts").catch(() => null); // the prompt's look (CSS) is in before this module is; where there is no CSS (the tests under node) it does not matter
 
@@ -31,7 +32,7 @@ export const crearPieza = (view: { cosa?(key: string): Object3D | undefined; mar
       tecla.hidden = !tecleada; tecla.textContent = tecleada ?? "";
       palabras.textContent = tactil ? mayuscula : prompt;
       boton.title = mayuscula;
-      boton.setAttribute("aria-label", tecleada ? `${mayuscula} (tecla ${tecleada})` : mayuscula);
+      boton.setAttribute("aria-label", tecleada ? tx(`${mayuscula} (key ${tecleada})`, `${mayuscula} (tecla ${tecleada})`) : mayuscula);
     },
   };
 };

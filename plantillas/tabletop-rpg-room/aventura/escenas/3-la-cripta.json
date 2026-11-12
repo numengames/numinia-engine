@@ -1,0 +1,17 @@
+{
+  "schema": "numinia-engine/escena@1",
+  "nombre": "The Crypt",
+  "preset": "noche",
+  "entorno": {
+    "tono": {
+      "exposicion": 0.4
+    },
+    "niebla": {
+      "cerca": 2,
+      "lejos": 25,
+      "color": "#0a0a0f",
+      "delCielo": false
+    }
+  },
+  "narracion": "The air is cold and still. Something moves beyond the light."
+}

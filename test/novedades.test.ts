@@ -3,6 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { fijarIdioma } from "../packages/feature/src/idioma.ts";
 import { novedadesDeRunlog, primeraFrase, debeMostrarNovedades, avisoDeNovedades } from "../packages/client/src/novedades.ts";
 
 const DIARIO_SINTETICO = `# Diario de turnos
@@ -62,7 +63,11 @@ test("the real docs/RUNLOG.md yields up to 3 non-empty novelties (catches a diar
 });
 
 test("ux2-barra: the news is a notice of the bell — its title, every line, one sentence for screen readers; none without lines", () => {
+  fijarIdioma("en");
+  assert.equal(avisoDeNovedades("0.23.0", ["x"])?.titulo, "What's new in v0.23.0");
+  fijarIdioma("es");
   const a = avisoDeNovedades("0.23.0", ["Una cosa nueva.", "  ", "Otra más."]);
+  fijarIdioma("en");
   assert.deepEqual(a, { titulo: "Novedades en v0.23.0", lineas: ["Una cosa nueva.", "Otra más."], texto: "Novedades en v0.23.0: Una cosa nueva. Otra más." });
   assert.equal(avisoDeNovedades("0.23.0", []), null);
   assert.equal(avisoDeNovedades("0.23.0", [" "]), null);

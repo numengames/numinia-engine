@@ -6,6 +6,7 @@
 // ever put in labels and `textContent`, never in markup. No DOM here.
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg } from "../../packages/feature/src/index.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { espejo as decl } from "./feature.ts";
 import { COLUMNAS_TABLERO, LIMITES, TEXTO_COLUMNA, TIPOS, TEXTO_FUNCION, tableroDeTexto, textoFuncion, textoIrA } from "./esquema.ts";
 export { TEXTO_FUNCION, textoFuncion, textoIrA };
@@ -19,14 +20,17 @@ export type Cosa = { clave: string; tipo: string; id: string; titulo: string; su
 export type Vista = { zonas: { id: string; nombre: string; cartel: string; x: number; z: number; ancho: number; fondo: number; tipos: string[] }[]; funciones: Record<string, boolean>; documentos?: { origenes: string[] }; guia?: { frases: Record<string, string>; recorrido: string[] } };
 export type Que = "cosas" | "ficha" | "pedido" | "resultado" | "rechazo" | "fuente" | "funcion";
 type Res = { ok: true } | { ok: false; why: string };
-const SIN: Res = { ok: false, why: "el espejo no está en este servidor" };
+const SIN: Res = { ok: false, get why() { return tx("the mirror is not on this server", "el espejo no está en este servidor"); } }; // a getter: read in the language of that moment
 
-/** The words a person reads for a state (Spanish, «usted» is not needed here: they are labels). */
-export const TEXTO_ESTADO: Record<EstadoCosa, string> = { activo: "activo", programado: "programado", pausado: "en pausa", fallo: "con fallo", apagado: "apagado", desconocido: "sin estado" };
+/** The words a person reads for a state (labels, in the active language). */
+export const TEXTO_ESTADO: Record<EstadoCosa, string> = {
+  get activo() { return tx("active", "activo"); }, get programado() { return tx("scheduled", "programado"); }, get pausado() { return tx("paused", "en pausa"); },
+  get fallo() { return tx("failed", "con fallo"); }, get apagado() { return tx("off", "apagado"); }, get desconocido() { return tx("no status", "sin estado"); },
+};
 /** The words for a verb, as buttons say them. Anything not listed is shown as the verb itself. */
 export const TEXTO_VERBO: Record<string, string> = {
-  "cron.pausar": "Pausar", "cron.reanudar": "Reanudar", "cron.ejecutar": "Ejecutar ahora",
-  "sesion.nueva": "Nueva sesión", "sesion.reanudar": "Reanudar sesión", "sesion.abrir": "Abrir sesión",
+  get "cron.pausar"() { return tx("Pause", "Pausar"); }, get "cron.reanudar"() { return tx("Resume", "Reanudar"); }, get "cron.ejecutar"() { return tx("Run now", "Ejecutar ahora"); },
+  get "sesion.nueva"() { return tx("New session", "Nueva sesión"); }, get "sesion.reanudar"() { return tx("Resume session", "Reanudar sesión"); }, get "sesion.abrir"() { return tx("Open session", "Abrir sesión"); },
 };
 /** Where a visitor can jump to: one per zone, the middle of its floor (the zone's own sign names it). Pure: the page hands each to the teleport piece (`irAPunto`). */
 export type Destino = { id: string; nombre: string; x: number; z: number };
@@ -41,8 +45,8 @@ export function estadoDeForma(tipo: string, estado: EstadoCosa): "off" | "starti
 }
 /** The word for the state of a thing, by kind: a profile (an agent) works, rests or is off; anything else uses the house words. Pure. */
 export function textoEstadoDe(tipo: string, estado: EstadoCosa): string {
-  if (tipo === "habilidad") return estado === "activo" ? "activa" : "inactiva";
-  if (tipo === "perfil") return estado === "activo" ? "trabajando" : estado === "apagado" ? "apagado" : estado === "fallo" ? "con fallo" : "en reposo";
+  if (tipo === "habilidad") return estado === "activo" ? tx("active", "activa") : tx("inactive", "inactiva");
+  if (tipo === "perfil") return estado === "activo" ? tx("working", "trabajando") : estado === "apagado" ? tx("off", "apagado") : estado === "fallo" ? tx("failed", "con fallo") : tx("resting", "en reposo");
   return TEXTO_ESTADO[estado] ?? TEXTO_ESTADO.desconocido;
 }
 
@@ -70,14 +74,14 @@ export function leerUso(subtitulo: string): LecturaUso {
  *  as an estimate, the rest as the source wrote it. For any other kind: its subtitle. Pure. */
 export const cortar = (t: string, n: number): string => { const a = [...t]; return a.length <= n ? t : `${a.slice(0, n - 1).join("").trimEnd()}…`; };
 export function detalleDe(c: Pick<Cosa, "tipo" | "subtitulo"> & Partial<Pick<Cosa, "grupo" | "descripcion" | "tablero" | "url">>): string[] {
-  if (c.tipo === "habilidad") return [...(c.grupo ? [`Grupo: ${c.grupo}`] : []), ...(c.descripcion ? [cortar(c.descripcion, LIMITES.descripcionVista)] : c.subtitulo ? [cortar(c.subtitulo, LIMITES.descripcionVista)] : [])];
-  if (c.tipo === "documento") return [...(c.descripcion ? [cortar(c.descripcion, LIMITES.descripcionVista)] : c.subtitulo ? [c.subtitulo] : []), ...(c.url ? [`Página: ${c.url}`] : [])];
+  if (c.tipo === "habilidad") return [...(c.grupo ? [tx(`Group: ${c.grupo}`, `Grupo: ${c.grupo}`)] : []), ...(c.descripcion ? [cortar(c.descripcion, LIMITES.descripcionVista)] : c.subtitulo ? [cortar(c.subtitulo, LIMITES.descripcionVista)] : [])];
+  if (c.tipo === "documento") return [...(c.descripcion ? [cortar(c.descripcion, LIMITES.descripcionVista)] : c.subtitulo ? [c.subtitulo] : []), ...(c.url ? [tx(`Page: ${c.url}`, `Página: ${c.url}`)] : [])];
   if (c.tipo === "tablero") { const t = tableroDeTexto(c.tablero ?? ""); return t ? COLUMNAS_TABLERO.flatMap((k) => [`${TEXTO_COLUMNA[k]}: ${t[k].n}`, ...t[k].top.map((x) => `  · ${x}`)]) : c.subtitulo ? [c.subtitulo] : []; }
   if (c.tipo !== "uso") return c.subtitulo ? [c.subtitulo] : [];
   const u = leerUso(c.subtitulo), l: string[] = [];
-  if (u.tokensTexto) l.push(`Entrada y salida: ${u.tokensTexto}`);
-  if (u.cacheTexto) l.push(`Caché (aparte): ${u.cacheTexto}`);
-  if (u.costeTexto) l.push(`Coste estimado: ${u.costeTexto} (estimado, no es lo facturado)`);
+  if (u.tokensTexto) l.push(tx(`In and out: ${u.tokensTexto}`, `Entrada y salida: ${u.tokensTexto}`));
+  if (u.cacheTexto) l.push(tx(`Cache (separate): ${u.cacheTexto}`, `Caché (aparte): ${u.cacheTexto}`));
+  if (u.costeTexto) l.push(tx(`Estimated cost: ${u.costeTexto} (an estimate, not what is billed)`, `Coste estimado: ${u.costeTexto} (estimado, no es lo facturado)`));
   if (u.otros.length) l.push(u.otros.join(" · "));
   return l.length ? l : c.subtitulo ? [c.subtitulo] : [];
 }
@@ -130,7 +134,7 @@ export function crearCliente() {
     const forma = ({ cron: "reloj", salud: "losa", perfil: "perfil", uso: "uso", documento: "estante", habilidad: "tableta", tablero: "tablero" } as Record<string, "reloj" | "losa" | "perfil" | "uso" | "estante" | "tableta" | "tablero">)[c.tipo] ?? "cubo";
     v.forma?.(`espejo:${clave}`, { forma, x: c.x, z: c.z, estado: estadoDeForma(c.tipo, c.estado), rumbo: 0, ...(forma === "reloj" ? { mano: manoDe(clave) } : {}), ...(forma === "losa" ? { luces: luces() } : {}), ...(forma === "perfil" && c.estado === "apagado" ? { discontinuo: true } : {}), ...(forma === "uso" ? { nivel: nivelDeUso(c, cosas.values()) ?? 0 } : {}), ...(forma === "tablero" ? { columnas: columnasDe(c.tablero) } : {}) });
     // a spend meter is labelled with its tokens (what it measures); anything else with its state, in the house words
-    const pie = c.tipo === "uso" ? leerUso(c.subtitulo).tokensTexto || textoEstadoDe(c.tipo, c.estado) : c.tipo === "habilidad" ? `${c.grupo} · ${textoEstadoDe(c.tipo, c.estado)}` : c.tipo === "documento" ? "documento" : c.tipo === "tablero" ? "tablero de trabajo" : textoEstadoDe(c.tipo, c.estado);
+    const pie = c.tipo === "uso" ? leerUso(c.subtitulo).tokensTexto || textoEstadoDe(c.tipo, c.estado) : c.tipo === "habilidad" ? `${c.grupo} · ${textoEstadoDe(c.tipo, c.estado)}` : c.tipo === "documento" ? tx("document", "documento") : c.tipo === "tablero" ? tx("work board", "tablero de trabajo") : textoEstadoDe(c.tipo, c.estado);
     v.tag?.(`espejo:${clave}`, { text: c.titulo, sub: pie, x: c.x, y: ALTO_ROTULO[c.tipo] ?? 3, z: c.z, plano: true, tope: TOPE_FIGURA[c.tipo] ?? 2.4, siempre: true });
   };
   /** The floors of the zones (a white edge on the black ground; dashed when everything the zone shows is switched off) and their signs. */

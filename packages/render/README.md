@@ -35,3 +35,11 @@ three.js camera. `view.draw()` calls `cam.update()`; while XR presents, the XR c
 Input map: `docs/JUGADOR.md` § Cámara y controles. Who owns what: the camera never stops an event; in build mode it
 ignores plain left presses (selection and gizmos are the builder's), and a left drag in play mode swallows only the
 `click` that would follow it.
+
+## Details moved from llms.txt
+
+These clauses were in the one-line `llms.txt` bullet for this package and are kept here verbatim.
+
+- AR and VR sessions (AR: the live plaza in miniature on your table; VR: dialogue panel, notes),
+- your hands in XR (`manos.ts`: a hand on each controller, tracked hands, reach + ray, J10),
+- VRM avatars (`avatares*.ts`, J1; three-vrm loaded after the first frame),

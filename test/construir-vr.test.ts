@@ -2,9 +2,11 @@
 // only build once the mode is on: pressing «Construir → Empezar» turns it on, «Dejar de construir» or leaving VR off.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { esInvitado, vistaConstruirVR, TEXTO_INVITADO, TEXTO_SIN_PERMISO } from "../apps/plaza/construir-vr-logica.ts";
+import { esInvitado, vistaConstruirVR, textoInvitado, textoSinPermiso } from "../apps/plaza/construir-vr-logica.ts";
 import { montarConstructorVR, NOTA_DEJADO } from "../apps/plaza/constructor-xr.ts";
 import { nombreDe } from "../packages/instance/src/identidad.ts";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // these checks assert the Spanish text; English is covered in test/idioma-simposio-b.test.ts
 
 test("a guest without the role is told to come in with their name; a named person without it, to ask for the role", () => {
   const id = "abcdef0123456789";
@@ -12,8 +14,8 @@ test("a guest without the role is told to come in with their name; a named perso
   assert.equal(esInvitado({ id, nombre: "Lía" }), false);
   assert.equal(esInvitado(null), false);
   assert.deepEqual(vistaConstruirVR({ puede: false, invitado: true, activo: false }), { tipo: "negado", texto: "Entra con tu nombre para construir" });
-  assert.equal(TEXTO_INVITADO, "Entra con tu nombre para construir");
-  assert.deepEqual(vistaConstruirVR({ puede: false, invitado: false, activo: false }), { tipo: "negado", texto: TEXTO_SIN_PERMISO });
+  assert.equal(textoInvitado(), "Entra con tu nombre para construir");
+  assert.deepEqual(vistaConstruirVR({ puede: false, invitado: false, activo: false }), { tipo: "negado", texto: textoSinPermiso() });
 });
 
 test("with the role: «Empezar» first, «Dejar de construir» once it is on", () => {

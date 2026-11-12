@@ -279,7 +279,7 @@ test("over the plug: a world WITHOUT `posiciones` never sends a `sitio`; its peo
   assert.equal(W.eventos(a, "sitio"), 0);
   const d = a.ultimo("pnj:cosimo")!;
   assert.deepEqual([d.x, d.z, d.ry, d.animate], [10, 0, 0, false]);
-  assert.deepEqual(d.vida, { id: "cosimo", reposo: true, mira: 3 }, "alive by default; `mira` = his radio");
+  assert.deepEqual(d.vida, { id: "cosimo", reposo: true, mira: 9 }, "alive by default; `mira` = 3 × his radio (Pablo 11-11: she follows you with her eyes)");
   assert.deepEqual(a.s.features.cards().find((c) => c.key === "cosimo")?.at, { x: 10, z: 0 });
   W.ir(a, 9, 0); a.m.hablar("cosimo"); W.pump(3);
   assert.equal(a.m.dialogo()?.nombre, "Cosimo");
@@ -292,7 +292,7 @@ test("over the plug: `reposo: false` and `mira: false` reach the page (mira 0 = 
 });
 
 test("vidaPnj: the flags of the state, atiende and camina only when asked", () => {
-  assert.deepEqual(vidaPnj("x", { radio: 2.5 }), { id: "x", reposo: true, mira: 2.5 });
+  assert.deepEqual(vidaPnj("x", { radio: 2.5 }), { id: "x", reposo: true, mira: 8 });
   assert.deepEqual(vidaPnj("x", { radio: 2.5, reposo: false, mira: false }, true, true), { id: "x", reposo: false, mira: 0, atiende: true, camina: true });
 });
 

@@ -1,0 +1,184 @@
+{
+  "formato": "pnj@1",
+  "id": "comisaria",
+  "nombre": "La comisaria",
+  "descripcion": "Cuida la galería y su taquilla: sabe qué hay colgado y qué hueco sigue libre.",
+  "apariencia": {
+    "modelo": "5382156604e4f5867fd968699c27028e1363ea6e10487814fee5338fd362214a",
+    "escala": 1
+  },
+  "posicion": {
+    "x": -4.4,
+    "z": 16.9
+  },
+  "giro": 59,
+  "radio": 3,
+  "dialogo": {
+    "entradas": [
+      {
+        "si": {
+          "mision": "primera-visita",
+          "estado": "disponible"
+        },
+        "nodo": "bienvenida"
+      },
+      {
+        "si": {
+          "mision": "primera-visita",
+          "estado": "activa"
+        },
+        "nodo": "visita"
+      },
+      {
+        "si": {
+          "mision": "coleccionista",
+          "estado": "activa",
+          "paso": "volver"
+        },
+        "nodo": "postales"
+      },
+      {
+        "si": {
+          "mision": "coleccionista",
+          "estado": "activa"
+        },
+        "nodo": "buscando"
+      },
+      {
+        "si": {
+          "mision": "coleccionista",
+          "estado": "hecha"
+        },
+        "nodo": "mecenas"
+      },
+      {
+        "si": {
+          "mision": "coleccionista",
+          "estado": "disponible"
+        },
+        "nodo": "coleccion"
+      },
+      {
+        "nodo": "hola"
+      }
+    ],
+    "nodos": {
+      "bienvenida": {
+        "texto": "Bienvenida a la stoa. Como en el Pórtico Pintado de Atenas, aquí las obras cuelgan bajo las columnas, alrededor de un patio. Hoy casi todos los huecos esperan a su artista. ¿Te enseño la galería?",
+        "opciones": [
+          {
+            "texto": "Sí, enséñamela.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "primera-visita"
+            },
+            "ir": "recorrido"
+          },
+          {
+            "texto": "Ahora no.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "recorrido": {
+        "texto": "Entra, asómate al patio de la fuente y busca al crítico en el pórtico del norte, junto al mural. Él sabe mirar.",
+        "opciones": [
+          {
+            "texto": "Voy.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "visita": {
+        "texto": "El patio está al cruzar la puerta; el crítico, al fondo, en el pórtico del norte. El libro de misiones (tecla J) te marca el paso.",
+        "opciones": [
+          {
+            "texto": "Gracias.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "coleccion": {
+        "texto": "Cada obra tiene su postal. Tráeme cuatro, una de cada pared: la del hueco 3 al oeste, la del 9 al norte, la del 17 al este y la del 20 al sur. Quien las reúne entra en el libro de mecenas.",
+        "opciones": [
+          {
+            "texto": "Las busco.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "coleccionista"
+            }
+          },
+          {
+            "texto": "Otro día.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "buscando": {
+        "texto": "Huecos 3, 9, 17 y 20: una postal en cada pared. Cuando las tengas, vuelve.",
+        "opciones": [
+          {
+            "texto": "Sigo buscando.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "postales": {
+        "texto": "¿Ya las tienes todas? Déjame verlas.",
+        "opciones": [
+          {
+            "texto": "Aquí están mis cuatro postales.",
+            "si": {
+              "mision": "coleccionista",
+              "estado": "activa",
+              "paso": "volver"
+            },
+            "accion": {
+              "tipo": "avanzar_paso",
+              "mision": "coleccionista"
+            }
+          },
+          {
+            "texto": "Aún no.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "mecenas": {
+        "texto": "Tu nombre ya está en el libro de mecenas de la stoa. Cuando un artista cuelgue aquí su obra, serás de los primeros en saberlo.",
+        "opciones": [
+          {
+            "texto": "Gracias.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "hola": {
+        "texto": "Soy la comisaria. La galería está abierta: pasa y mira.",
+        "opciones": [
+          {
+            "texto": "Adiós.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "notas": "Plantilla de galería. Junto a la taquilla, mirando a donde aparece la gente. Da «La primera visita» y, después, «Coleccionista de postales». Cuando un artista rellene la galería, cambia sus frases por las de su exposición."
+}

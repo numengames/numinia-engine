@@ -16,11 +16,15 @@ const FUENTES: Record<string, string> = {
   "100Avatars_027_Astrodisco.vrm": "https://github.com/PolygonalMind/100Avatars/blob/ff07c2ad0017819c4e5366656ee1e5bcc4029bd4/100Avatars_027/100Avatars_027_Astrodisco.vrm",
   "100Avatars_029_Skelly.vrm": "https://github.com/PolygonalMind/100Avatars/blob/ff07c2ad0017819c4e5366656ee1e5bcc4029bd4/100Avatars_029/100Avatars_029_Skelly.vrm",
   "100Avatars_051_Polybot.vrm": "https://github.com/PolygonalMind/100Avatars/blob/ff07c2ad0017819c4e5366656ee1e5bcc4029bd4/100Avatars_051/100Avatars_051_Polybot.vrm",
+  "Nomad_for_The_Oracles.vrm": "https://github.com/numengames/numinia-assets/blob/7ac28c6833cdabd5a6ffb69b59306265423f5e2d/content/avatars/nomad_for_the_oracles.vrm",
 };
+// Pablo, 2026-11-11: everyone arrives as the Nomad until they choose. The house default goes FIRST in the catalogue,
+// because a player who has not chosen wears model 0 (packages/render/src/avatares-politica.ts elegirAvatar).
+const POR_DEFECTO = "Nomad_for_The_Oracles.vrm";
 
 const modelos: Record<string, unknown>[] = [];
 let mal = 0;
-for (const f of readdirSync(AV).filter((n) => n.endsWith(".vrm")).sort()) {
+for (const f of readdirSync(AV).filter((n) => n.endsWith(".vrm")).sort((a, b) => Number(b === POR_DEFECTO) - Number(a === POR_DEFECTO) || (a < b ? -1 : a > b ? 1 : 0))) {
   const bytes = new Uint8Array(readFileSync(join(AV, f)));
   const r = infoVrm(bytes);
   const problemas = r.ok ? revisarAvatar(r.value) : r.issues;

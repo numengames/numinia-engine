@@ -180,7 +180,7 @@ test("pesca: a sensible angler lands a fish of the table; it is written down per
   const sp = PECES.find((p) => p.nombre === c[0].pez)!;
   assert.ok(sp && Number(c[0].cm) >= sp.cm[0] && Number(c[0].cm) <= sp.cm[1] && c[0].rareza === sp.rareza && c[0].total === 1);
   assert.ok(n / HZ >= 6 && n / HZ <= 30, `la pelea duró ${(n / HZ).toFixed(1)} s`);
-  assert.match(A.p.estado().aviso, /^Has pescado: /);
+  assert.match(A.p.estado().aviso, /^You caught: /);
   assert.ok(A.seen.some((s) => s.startsWith(`label ${A.s.entity} 🐟 ${sp.nombre}`)));
   assert.ok(A.s.features.announcements.some((a) => a.feature === "pesca" && a.text.startsWith("Has pescado: ") && a.sound === "exito"));
   assert.deepEqual(A.p.estado().cesta, { peces: 1, clases: 1, mejor: sp.nombre, mejorCm: Number(c[0].cm) });
@@ -218,7 +218,7 @@ test("pesca: no bite, no fish: reeling without fishing, casting from afar, casti
   assert.equal(A.p.estado().fase, "espera");
   assert.equal(A.p.soltar().ok, true); W.pump();
   assert.equal(A.p.estado().fase, "nada");
-  assert.equal(A.p.estado().aviso, "Has recogido la caña.");
+  assert.equal(A.p.estado().aviso, "You reeled in the rod.");
   assert.equal(W.evs(B, "fin").at(-1)?.resultado, "suelto");
   assert.equal(A.p.sitios()[0].ocupado, false);
   // walking away from the water loses the fish

@@ -27,7 +27,7 @@ export function centroDe(i: number, r: number, n = PORCIONES): { x: number; y: n
 /** An SVG path of slice `i` of a ring between radii `r0` and `r1` around (c, c), with a gap of `hueco` radians. */
 export function trazoDe(i: number, c: number, r0: number, r1: number, hueco = 0.02, n = PORCIONES): string {
   const paso = (2 * Math.PI) / n, a0 = i * paso - paso / 2 + hueco, a1 = i * paso + paso / 2 - hueco;
-  const p = (r: number, a: number) => `${(c + Math.sin(a) * r).toFixed(2)} ${(c - Math.cos(a) * r).toFixed(2)}`;
+  const p = (r: number, a: number) => `${(c + Math.sin(a) * r).toFixed(2)} ${(c - Math.cos(a) * r).toFixed(2)}`; // i18n-ok: SVG path numbers, not text
   return `M ${p(r1, a0)} A ${r1} ${r1} 0 0 1 ${p(r1, a1)} L ${p(r0, a1)} A ${r0} ${r0} 0 0 0 ${p(r0, a0)} Z`;
 }
 

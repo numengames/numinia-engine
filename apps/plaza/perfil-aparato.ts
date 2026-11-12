@@ -8,6 +8,7 @@
 import { APARATOS, PARAM_APARATO, PARAM_MARCO, decidirAparato, direccionCon, eleccionDesde, escalaMarco, leerReal } from "../../packages/client/src/aparato.ts";
 import type { Eleccion, Perfil } from "../../packages/client/src/aparato.ts";
 import { CLAVE_GUARDADO } from "../../packages/client/src/ajustes.ts";
+import { alCambiarIdioma, ligar, tx } from "../../packages/feature/src/idioma.ts";
 
 // Node tests import modules of the page (misiones.ts…): without a browser this is the plain desktop profile, untouched.
 const hayPagina = typeof location !== "undefined" && typeof document !== "undefined";
@@ -59,11 +60,13 @@ body.marco-aparato { display: flex; flex-direction: column; align-items: center;
 .marco-caja iframe { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; background: #c9d8e4; }`;
   document.head.appendChild(css);
   const barra = document.createElement("nav");
-  barra.className = "marco-barra"; barra.setAttribute("aria-label", "Perfil de aparato");
+  barra.className = "marco-barra"; ligar(barra, "aria-label", "Device profile", "Perfil de aparato");
   const titulo = document.createElement("span");
   const escala = document.createElement("span");
   const b = document.createElement("b"); b.textContent = elegido.clase;
-  titulo.append(b, ` · ${m.ancho}×${m.alto} · perfil forzado`);
+  const forzado = document.createTextNode("");
+  alCambiarIdioma(() => { forzado.data = tx(` · ${m.ancho}×${m.alto} · forced profile`, ` · ${m.ancho}×${m.alto} · perfil forzado`); });
+  titulo.append(b, forzado);
   barra.append(titulo, escala);
   for (const e of APARATOS) {
     const a = document.createElement("a");
@@ -75,17 +78,21 @@ body.marco-aparato { display: flex; flex-direction: column; align-items: center;
   const caja = document.createElement("div");
   caja.className = "marco-caja";
   const fr = document.createElement("iframe");
-  fr.title = `El mundo como en un ${elegido.clase.replace("-", " ")} (${m.ancho}×${m.alto})`;
+  const clase = elegido.clase.replace("-", " ");
+  alCambiarIdioma(() => { fr.title = tx(`The world as on a ${clase} (${m.ancho}×${m.alto})`, `El mundo como en un ${clase} (${m.ancho}×${m.alto})`); });
   fr.width = String(m.ancho); fr.height = String(m.alto);
   fr.style.width = `${m.ancho}px`; fr.style.height = `${m.alto}px`;
   fr.allow = "fullscreen; xr-spatial-tracking; microphone; clipboard-write; gamepad";
   fr.src = direccionCon(location.href, elegido.eleccion, true);
   caja.appendChild(fr);
+  let pct = 0; // the scale shown, in percent (0 = 1:1); the text follows the language
+  const ponerEscala = () => { escala.textContent = pct ? tx(`scale ${pct} %`, `escala ${pct} %`) : "1:1"; };
+  alCambiarIdioma(ponerEscala);
   const ajustar = () => {
     const s = escalaMarco(m, { ancho: innerWidth, alto: innerHeight });
     caja.style.width = `${Math.round(m.ancho * s)}px`; caja.style.height = `${Math.round(m.alto * s)}px`;
     fr.style.transform = s === 1 ? "" : `scale(${s})`;
-    escala.textContent = s === 1 ? "1:1" : `escala ${Math.round(s * 100)} %`;
+    pct = s === 1 ? 0 : Math.round(s * 100); ponerEscala();
   };
   ajustar();
   addEventListener("resize", ajustar);

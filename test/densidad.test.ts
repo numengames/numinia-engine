@@ -1,12 +1,13 @@
 // U20: the density dial — the table of panels, the levels, the key's cycle, the setting in the N2 registry, and that the page's
 // CSS and markup say what the table says. Pure and fast; the browser look is in the screenshots of the story (work/ux/b5-u20).
+import { ACCIONES } from "../apps/plaza/teclas.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   DENSIDADES, MARCOS_PLAZA, FUERA_DEL_DIAL, nivelDensidad, siguienteDensidad, visibleEn, seFunde, marcosVisibles, validarMarcos, esDensidad, SEGUNDOS_AL_CAMBIAR,
 } from "../packages/client/src/densidad.ts";
-import { crearAjustes, crearCapacidades, leerNavegador, AJUSTES_MOTOR, validarAjuste } from "../packages/client/src/ajustes.ts";
+import { crearAjustes, crearCapacidades, leerNavegador, AJUSTES_MOTOR, resolverTexto, validarAjuste } from "../packages/client/src/ajustes.ts";
 import type { Guardado } from "../packages/client/src/ajustes.ts";
 
 const leer = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
@@ -55,10 +56,10 @@ test("al_cambiar fades after 6 s; «menos movimiento» and the full level keep i
 
 test("the setting lives in N2: Interfaz group, three options, Normal by default, key U shown", () => {
   const d = AJUSTES_MOTOR.find((a) => a.grupo === "interfaz" && a.id === "densidad")!;
-  assert.deepEqual(validarAjuste(d, "densidad"), []);
+  assert.deepEqual(validarAjuste({ ...d, nombre: resolverTexto(d.nombre, "en"), describe: resolverTexto(d.describe, "en") } as never, "densidad"), []);
   assert.deepEqual(d.opciones!.map((o) => o.valor), [...DENSIDADES]);
-  assert.deepEqual(d.opciones!.map((o) => o.nombre), ["Mínimo", "Normal", "Completo"]);
-  assert.equal(d.nombre, "Densidad de interfaz"); assert.equal(d.defecto, "normal");
+  assert.deepEqual(d.opciones!.map((o) => o.nombre), ["Minimum", "Normal", "Full"]);
+  assert.equal(resolverTexto(d.nombre, "es"), "Densidad de interfaz"); assert.equal(d.defecto, "normal");
   const t = AJUSTES_MOTOR.find((a) => a.id === "teclaDensidad")!;
   assert.equal(t.defecto, "KeyU"); assert.equal(t.soloVer, true);
   const datos = new Map<string, string>(), guardado: Guardado = { leer: (k) => datos.get(k) ?? null, escribir: (k, v) => { datos.set(k, v); } };
@@ -78,7 +79,8 @@ test("the page says what the table says: CSS rules by attribute, the panels exis
   const css = leer("apps/plaza/tema.css"), html = leer("apps/plaza/index.html"), ts = leer("apps/plaza/densidad.ts");
   assert.ok(css.includes('html[data-densidad-nivel="minimo"] [data-densidad="normal"]') && css.includes('html[data-densidad-nivel="normal"] [data-densidad="completo"]'), "generic hiding by attribute");
   assert.ok(css.includes(".menos-movimiento") && css.includes("#chat-lista[data-cuando=\"al_cambiar\"]"), "the fade yields to «menos movimiento»");
-  assert.ok(ts.includes('"KeyU"') && ts.includes("marcarPaneles"));
+  assert.ok(ts.includes('"densidad"') && ts.includes("marcarPaneles"));
+  assert.deepEqual(ACCIONES.find((a) => a.id === "densidad")!.defecto, ["KeyU"]); // keymap v1: the key lives in the one table
   for (const m of MARCOS_PLAZA) {
     if (m.selector === "#reloj" || m.selector === "#minimapa") continue; // built by code, or not built yet
     if (m.selector.startsWith("#")) assert.ok(html.includes(`id="${m.selector.slice(1)}"`), `${m.selector} is in index.html`);

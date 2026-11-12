@@ -5,11 +5,12 @@ import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, ClientPart, Msg } from "../../packages/feature/src/index.ts";
 import { sucesos as decl } from "./feature.ts";
 import type { Fase } from "./feature.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 export type Suceso = { id: string; nombre: string; x: number; y: number; z: number; radio: number; fase: Fase; quedan: number; progreso: number; ayudan: number; texto: string };
 export type Que = "lista" | "anuncio" | "termina" | "recompensa" | "aviso";
 type Res = { ok: true } | { ok: false; why: string };
-const SIN: Res = { ok: false, why: "la función sucesos no está en este servidor" };
+const sinFuncion = (): Res => ({ ok: false, why: tx("the sucesos feature is not on this server", "la función sucesos no está en este servidor") });
 
 export function crearCliente() {
   let A: ClientApi | null = null;
@@ -24,8 +25,8 @@ export function crearCliente() {
     aviso: (): string => aviso,
     ultimoAnuncio: (): string => ultimoAnuncio,
     ultimaRecompensa: () => ultimaRecompensa,
-    mirar: (id: string): Res => (A ? A.send("mirar", { id }) : SIN),
-    lanzar: (id: string): Res => (A ? A.send("lanzar", { id }) : SIN),
+    mirar: (id: string): Res => (A ? A.send("mirar", { id }) : sinFuncion()),
+    lanzar: (id: string): Res => (A ? A.send("lanzar", { id }) : sinFuncion()),
     alCambiar: (fn: (que: Que) => void) => { oyentes.add(fn); return () => oyentes.delete(fn); },
   };
   const parte: ClientPart = clientPart(decl, (api) => {

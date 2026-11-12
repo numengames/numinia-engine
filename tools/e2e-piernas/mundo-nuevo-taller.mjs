@@ -56,7 +56,7 @@ async function entrar(ctx) {
 }
 async function abrirConstruir(p) {
   if (await panelAbierto(p)) return;
-  await p.mouse.move(640, 360); await p.keyboard.press("KeyC");
+  await p.mouse.move(640, 360); await p.keyboard.press("KeyB");
   await p.waitForFunction(() => !document.getElementById("panel-construir").hidden && globalThis.__numinia.view.editor.estado().cargado, null, { timeout: 15000 });
   await sleep(500);
 }
@@ -91,6 +91,20 @@ async function aceptar(p, id) {
   await cerrarLibro(p);
 }
 const senala = (p) => p.evaluate(() => globalThis.__numinia.misiones.senala());
+/** H3: the quest card while building: visible, says the quest, and sits clear of the other panels (the player card, the dock, the drawers, the object's card). */
+async function mirarTarjeta(p, titulo) {
+  const t = await p.evaluate(() => {
+    const e = document.getElementById("mision-ahora");
+    if (!e || e.hidden || getComputedStyle(e).display === "none") return null;
+    const box = (x) => { const r = x.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; };
+    const otros = ["#hud-personaje", "#dock-construir", "#panel-construir .cajon", "#ficha-objeto", "#panel-director"].flatMap((q) => [...document.querySelectorAll(q)].filter((x) => !x.hidden && getComputedStyle(x).visibility !== "hidden" && x.getClientRects().length).map((x) => ({ q, ...box(x) })));
+    return { txt: e.innerText.replace(/\s+/g, " ").slice(0, 160), r: box(e), otros };
+  });
+  paso(`tarjeta de misión visible al construir: «${titulo}»`, !!t && new RegExp(titulo).test(t.txt), { t: t && t.txt });
+  const choca = (t?.otros ?? []).filter((o) => o.w > 0 && o.h > 0 && t.r.x < o.x + o.w && o.x < t.r.x + t.r.w && t.r.y < o.y + o.h && o.y < t.r.y + t.r.h);
+  paso("la tarjeta no pisa otro panel", choca.length === 0, { r: t?.r, choca });
+  await p.screenshot({ path: `${FOTOS}h3-tarjeta-${titulo.split("|")[0].toLowerCase().replace(/[^a-z]+/g, "-")}.png` });
+}
 /** La flecha apunta a `id` (y está a ≤ 40 px) con la misión activa. */
 async function mirarFlecha(p, id, sen = id) {
   await p.waitForFunction((id) => globalThis.__numinia.misiones.senala() === id, sen, { timeout: 8000 }).catch(() => {});
@@ -127,8 +141,8 @@ const cableLi = (p, nombre) => p.locator("#cable-lista li", { hasText: nombre })
 
 try {
   paso("el servidor dijo que el mundo nació con el onboarding", /mundo nuevo: nace con el onboarding del Taller/.test(srv.log), { log: srv.log.split("\n").find((l) => l.includes("mundo nuevo")) });
-  const ficheros = todos(MUNDO).filter((f) => !/^(datos|sesiones)\//.test(f) && f !== "claves.env" && f !== "mundo.json");
-  paso("la carpeta nueva trae el onboarding (y el LEEME-IA para las IAs) y nada más", ficheros.length === 11 + 1 + 1 + 1 + 7 && ficheros.includes("aventura/LEEME-IA.md") && !ficheros.some((f) => /ejemplo|alma|bruno|teo|lia/i.test(f)), { ficheros });
+  const ficheros = todos(MUNDO).filter((f) => !/^(datos|sesiones)\//.test(f) && f !== "claves.env" && f !== "mundo.json"); // the folder is now born with LICENSE.md and idiomas/ too: «>=» below
+  paso("la carpeta nueva trae el onboarding (y el LEEME-IA para las IAs) y nada más", ficheros.length >= 11 + 1 + 1 + 1 + 7 && ficheros.includes("aventura/LEEME-IA.md") && !ficheros.some((f) => /ejemplo|alma|bruno|teo|lia/i.test(f)), { ficheros });
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   await ctx.addInitScript((v) => { try { localStorage.setItem("numinia.novedades.version", v); } catch {} }, version);
   const p = await entrar(ctx);
@@ -151,7 +165,7 @@ try {
   { const l1 = await libro(p); paso("tras hablar con Lumen el libro lista solo «abre-el-taller»", l1.length === 1 && l1[0].id === "abre-el-taller", { libro: l1 });
     await p.mouse.move(640, 360); await p.keyboard.press("KeyJ"); await sleep(800); await p.screenshot({ path: `${FOTOS}21-libro-tras-hablar-con-lumen.png` }); await cerrarLibro(p); }
   await mirarFlecha(p, "construir");
-  await p.mouse.move(640, 360); await p.keyboard.press("KeyC");
+  await p.mouse.move(640, 360); await p.keyboard.press("KeyB");
   await p.waitForFunction(() => !document.getElementById("panel-construir").hidden, null, { timeout: 15000 });
   await completa(p, "abre-el-taller");
   await foto(p, "30-m01-abre-el-taller");
@@ -196,6 +210,12 @@ try {
     if (s) { await p.mouse.click(s.x, s.y); await sleep(500); }
   }
   paso("farolillo elegido con un clic", (await sel(p)) === FID, { sel: await sel(p), o0 });
+  await mirarTarjeta(p, "Muévelo y gíralo|Move it and turn it"); // H3
+  // Galatea (Lumen redesign H2): the step names the tool; with the Precisión drawer shut the arrow leads to it, once open it points at the tool itself
+  await mirarFlecha(p, "dock-precision", "herr-mover");
+  await p.locator("#dock-precision").click(); await sleep(500);
+  await mirarFlecha(p, "herr-mover");
+  await p.locator("#dock-precision").click(); await sleep(400); // shut it again: the gizmo is what we drag next
   await p.keyboard.press("Digit2"); await sleep(500); // mover
   console.log("modo", await p.evaluate(() => globalThis.__numinia.constructor.estado.modo));
   const cy = (o0.y ?? 0);
@@ -208,7 +228,8 @@ try {
   paso("movido con la flecha X (el servidor lo guarda)", Math.abs(o1.x - o0.x) >= 0.3, { x0: o0.x, x1: o1.x });
   let l = await libro(p);
   console.log("tras mover:", JSON.stringify(l.filter((m) => m.id === "muevelo")));
-  // girar: tecla R + aro
+  await mirarFlecha(p, "dock-precision", "herr-girar"); // second step of mission 3: the arrow names Girar
+  // girar: tecla R + aro (build mode keeps its own keyboard: 3 or R rotate — teclas.ts OTROS_MODOS; I is the bag only outside it)
   await p.mouse.move(640, 130); await sleep(300);
   await p.keyboard.press("KeyR"); await sleep(600);
   console.log("modo", await p.evaluate(() => globalThis.__numinia.constructor.estado.modo));
@@ -236,7 +257,10 @@ try {
     if (s) { await p.mouse.click(s.x, s.y); await sleep(500); }
   }
   paso("farolillo elegido con un clic", (await sel(p)) === FID, { sel: await sel(p) });
+  await mirarTarjeta(p, "Apágalo|Switch it off"); // H3
+  await mirarFlecha(p, "dock-inspector", "inspector-visible"); // Galatea (H2): «se ve al jugar» has an arrow too
   await p.locator("#dock-inspector").click(); await sleep(600);
+  await mirarFlecha(p, "inspector-visible");
   console.log("inspector", await p.evaluate(() => ({ sel: globalThis.__numinia.constructor.estado.seleccionado, hidden: document.getElementById("cajon-inspector").hidden, txt: document.getElementById("cajon-inspector").innerText.slice(0, 300) })));
   await p.screenshot({ path: `${FOTOS}dbg-inspector.png` });
   const casilla = p.locator("#cajon-inspector .inspector label", { hasText: "se ve al jugar" }).locator("input[type=checkbox]");
@@ -258,7 +282,10 @@ try {
   console.log("tras abrir Cable:", JSON.stringify(l.filter((m) => m.id === "mira-el-cable")));
   await mirarFlecha(p, "cable-probar-boton-rojo");
   await foto(p, "34-m05-mira-el-cable-1");
-  await cableLi(p, "Botón rojo").locator(".cable-probar").first().click();
+  await cableLi(p, "Red button").locator(".cable-probar").first().click();
+  await sleep(400);
+  const respuesta = await cableLi(p, "Red button").locator(".cable-nota").first().innerText().catch(() => "");
+  paso("«Probar» responde en la fila del cable (H5)", /Probado: has pulsado «Red button»/.test(respuesta), { respuesta });
   await completa(p, "mira-el-cable");
   await sleep(800);
   await foto(p, "34-m05-mira-el-cable");
@@ -348,7 +375,7 @@ try {
   // insignia «Constructor» en el libro
   await p.mouse.move(640, 360); await p.keyboard.press("KeyJ"); await sleep(800);
   const libroTxt = await p.evaluate(() => document.getElementById("libro").innerText);
-  paso("insignia «Constructor» en el libro", /Constructor/.test(libroTxt), { extracto: libroTxt.slice(-400) });
+  paso("insignia «Builder» en el libro", /Builder/.test(libroTxt), { extracto: libroTxt.slice(-400) });
   await p.screenshot({ path: `${FOTOS}41-final.png` });
   { const lf = await libro(p); paso("al final el libro lista las 11 misiones del onboarding, hechas, y ninguna más", JSON.stringify(lf.map((m) => m.id).sort()) === JSON.stringify([...MISIONES].sort()) && lf.every((m) => m.estado === "hecha"), { libro: lf.map((m) => `${m.id}:${m.estado}`) }); }
   paso("sin errores de página", p.errores.length === 0, { errores: p.errores });

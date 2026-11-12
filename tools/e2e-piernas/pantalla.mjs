@@ -8,7 +8,7 @@
 // does nothing; with no video screen near, P shares into the floating window (a <video> with a live srcObject) and says so;
 // P again stops: tracks ended, window hidden, srcObject gone. Then a tiny .webm (datos/pantalla.webm) is dropped on the
 // world as a video screen; sharing goes to that screen (estado.pantalla = its key; no floating window), stopping restores
-// it; the screen is deleted. Nothing is sent: the second tab's feature log carries no event about a share.
+// it; the screen is deleted. The share has no feature event: the second tab's feature log carries none (the pieces travel as PANTALLA, tools/e2e-piernas/pantalla-red.mjs).
 // Gets BASE and SERVER_HTTP (tools/e2e-piernas/README.md); prints JSON; exit 0 only when right.
 import { createRequire } from "node:module";
 import { existsSync, readFileSync } from "node:fs";

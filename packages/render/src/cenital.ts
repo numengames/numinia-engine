@@ -24,6 +24,7 @@ export type ImagenCenital = { canvas: HTMLCanvasElement; rgba: Uint8ClampedArray
 
 const ALTO = 80;              // camera height (m); things taller than this are cut at the top (a map does not mind)
 const SUELO = "#a7b89c";      // the ground's colour, for the footprint picture
+const FONDO_SIN_SUELO = new THREE.Color(SUELO); // the map's background where no ground plane is drawn
 const COSA = "#6b5b4b";       // things whose material is a texture (glTF models): a neutral brown
 const LADO_MIN = 24, LADO_MAX = 256, MARGEN = 10; // half-side of the picture (m): around what stands in the zone
 const TRIANGULOS_MAX = 2_000_000; // U14: the cut looks at no more triangles than this (the TRG26 Nave: 142k, 3–6 ms)
@@ -141,11 +142,15 @@ export function crearCenital(renderer: THREE.WebGPURenderer, scene: THREE.Scene,
       const ocultos: THREE.Object3D[] = [], sombras: [THREE.LightShadow, number][] = [];
       for (const o of scene.children) if (o !== world && !(o as THREE.Light).isLight && o.visible) { o.visible = false; ocultos.push(o); }
       for (const o of world.children) if (!esZona(o) && o.visible) { o.visible = false; ocultos.push(o); }
+      // a world with no ground (entorno `suelo: "ninguno"`) has no plane behind the things, and its sky is among what was just hidden: a plain
+      // colour stands in as the map's background, put back at once with the rest (a world with a ground never sees it)
+      const fondo = scene.background; if (fondo === null) scene.background = FONDO_SIN_SUELO;
       if (corte > 0) scene.traverse((o) => { const s = (o as THREE.DirectionalLight).shadow; if ((o as THREE.Light).isLight && o.castShadow && s) { sombras.push([s, s.intensity]); s.intensity = 0; } });
       const niebla = scene.fog as (THREE.Fog & THREE.FogExp2) | null, antes = niebla && { near: niebla.near, far: niebla.far, density: niebla.density };
       if (niebla) { if (niebla.isFog) { niebla.near = 1e5; niebla.far = 2e5; } else niebla.density = 0; }
       return () => {
         for (const o of ocultos) o.visible = true;
+        if (scene.background === FONDO_SIN_SUELO) scene.background = fondo;
         for (const [s, i] of sombras) s.intensity = i;
         if (niebla && antes) { if (niebla.isFog) { niebla.near = antes.near; niebla.far = antes.far; } else niebla.density = antes.density; }
       };

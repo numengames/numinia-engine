@@ -17,23 +17,23 @@ const imgs = [{ sha: "a".repeat(64), ext: "png", nombre: "Sol de Ravena" }, { sh
 
 test("the view lists each uploaded image with «Poner», and says which hole and how big", () => {
   const v = vistaObra(hueco, imgs);
-  assert.match(v.titulo, /Marco grande/); assert.match(v.titulo, /2,4 × 1,6 m/);
+  assert.match(v.titulo, /Marco grande/); assert.match(v.titulo, /2\.4 × 1\.6 m/);
   assert.equal(v.filas.length, 2);
   assert.equal(v.filas[0].texto, "Sol de Ravena"); assert.equal(v.filas[0].detalle, ".png");
-  assert.equal(v.filas[1].texto, "Imagen b1c2d3", "a nameless image is never shown as a bare hash");
-  assert.ok(v.filas.every((f) => f.boton?.texto === "Poner" && f.boton.poner));
-  assert.match(v.nota, /ya están en este mundo/);
-  assert.match(vistaObra({ ...hueco, lleno: true }, imgs).nota, /sustituye/);
+  assert.equal(v.filas[1].texto, "Image b1c2d3", "a nameless image is never shown as a bare hash");
+  assert.ok(v.filas.every((f) => f.boton?.texto === "Place" && f.boton.poner));
+  assert.match(v.nota, /already in this world/);
+  assert.match(vistaObra({ ...hueco, lleno: true }, imgs).nota, /replaces it/);
 });
 test("no images: the view says so and where to get them; a hole that vanished says that", () => {
   const v = vistaObra(hueco, []);
-  assert.deepEqual(v.filas, []); assert.match(v.vacio, /Aún no hay imágenes/);
-  assert.match(vistaObra(null, imgs).vacio, /ya no está/);
+  assert.deepEqual(v.filas, []); assert.match(v.vacio, /No images have been uploaded/);
+  assert.match(vistaObra(null, imgs).vacio, /slot is gone/);
   assert.deepEqual(vistaObra(null, imgs).filas, [], "no hole, nothing to press");
 });
 test("a press asks the server for exactly that file in that hole; no permission or no hole = no request", () => {
   assert.deepEqual(pedidoPoner(hueco, imgs[0], true), { ok: true, id: "o7", sha: imgs[0].sha, ext: "png", nombre: "Sol de Ravena" });
-  assert.equal((pedidoPoner(hueco, imgs[1], true) as { nombre: string }).nombre, "Imagen b1c2d3");
+  assert.equal((pedidoPoner(hueco, imgs[1], true) as { nombre: string }).nombre, "Image b1c2d3");
   assert.equal(pedidoPoner(hueco, imgs[0], false).ok, false);
   assert.equal(pedidoPoner(null, imgs[0], true).ok, false);
 });

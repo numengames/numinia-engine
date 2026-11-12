@@ -66,7 +66,7 @@ try {
   // L opens «Gente»; B is listed in «Aquí ahora»; picking B shows their sheet with «Ir a su lado»
   await a.bringToFront();
   await a.mouse.click(640, 420);
-  await a.keyboard.press("KeyL");
+  await a.keyboard.press("Tab");
   await a.waitForFunction((q) => document.getElementById("gente")?.open && !!document.querySelector(`#gente [data-quien="${q}"] .gente-fila`), B, { timeout: 8000 });
   const lista = await a.evaluate(() => [...document.querySelectorAll("#gente [data-quien]")].map((l) => Number(l.dataset.quien)));
   ok("lista", lista.includes(B) && !lista.includes(A), { lista, A, B });

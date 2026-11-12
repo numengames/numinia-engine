@@ -3,7 +3,7 @@
 // hand (view.lleva) instead of on the floor; `soltar` (Q, the button, or /soltar) leaves it where you stand; leaving the
 // world drops it too. One thing in hand per person. A world brings them in MUNDO_DIR/interacciones.json (`cosas`).
 // Not a quest item (those are cosa@1 of features/misiones) nor a good you own (features/bienes): just a thing of the
-// world anyone may carry. Recipe: docs/EXTENDER.md «Puertas, botones y cosas que se cogen».
+// world anyone may carry. Recipe: docs/extender/puertas-botones-y-cosas-que-se-cogen.md.
 import { defineFeature } from "../../packages/feature/src/index.ts";
 
 export const ALCANCE_M = 64;

@@ -1,0 +1,18 @@
+{
+  "formato": "cosa@1",
+  "id": "fragmento-espejo",
+  "nombre": "Astilla del Espejo Astillado",
+  "descripcion": "Un trozo de espejo que no refleja la sala: enseña una calle que no está en ningún mapa.",
+  "posicion": {
+    "x": -5.528,
+    "z": -2.578,
+    "y": 0.35
+  },
+  "radio": 1.4,
+  "aviso": "coger la astilla del espejo",
+  "apariencia": {
+    "escala": 0.16,
+    "color": "#45B5AC"
+  },
+  "notas": "Plantilla de la mesa de rol: junto al olivo (-6.484, -2.36), al suroeste, cerca del muro."
+}

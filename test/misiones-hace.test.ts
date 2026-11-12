@@ -129,7 +129,7 @@ test("T1 machine: coloca (with `modelo` only that model counts), mueve, crea_cab
   assert.equal(w.m.misiones.libro()[0].lista[3].accion, "abre_construir");
   assert.deepEqual(w.m.misiones.objetivos(), [], "a `hace` step has no place: no beacon, no map pin");
   // the page's own action, through the client controller (the page asks only while a step wants it)
-  assert.deepEqual(w.m.misiones.hace("abre_cable"), { ok: false, why: "ningún paso de tus misiones pide eso ahora" }, "no noise: the page sends nothing for another action");
+  assert.deepEqual(w.m.misiones.hace("abre_cable"), { ok: false, why: "no step of your quests asks for that now" }, "no noise: the page sends nothing for another action");
   assert.equal(w.m.misiones.hace("coloca").ok, false, "the page cannot send what the server sees itself");
   assert.ok(w.m.misiones.hace("abre_construir").ok); w.pump();
   assert.equal(w.avances(), 4);

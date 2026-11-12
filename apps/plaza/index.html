@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-  <title>Mundo</title>
+  <title data-en="World" data-es="Mundo">World</title>
   <!-- Save to the Quest library / "Add to home screen": icon + fullscreen, named from the manifest ("Numinia"); the link was lost in #87 and a test now guards it -->
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="./iconos/numinia-192.webp" type="image/webp" />
@@ -232,55 +232,56 @@
 <body>
   <div id="carga" aria-hidden="true"><!-- MVL3 step 1: moon + running dots, gone by main.ts once the first frame is drawn -->
     <svg class="c-malla" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false"><path pathLength="1" style="--a:0.02;--d:.3" d="M-60 96L80 36"/><path pathLength="1" style="--a:0.06;--d:.3" d="M-12 96L80 36"/><path pathLength="1" style="--a:0.10;--d:.3" d="M24 96L80 36"/><path pathLength="1" style="--a:0.14;--d:.3" d="M52 96L80 36"/><path pathLength="1" style="--a:0.18;--d:.3" d="M80 96L80 36"/><path pathLength="1" style="--a:0.22;--d:.3" d="M108 96L80 36"/><path pathLength="1" style="--a:0.26;--d:.3" d="M136 96L80 36"/><path pathLength="1" style="--a:0.30;--d:.3" d="M172 96L80 36"/><path pathLength="1" style="--a:0.34;--d:.3" d="M220 96L80 36"/><path pathLength="1" style="--a:0.04;--d:.2" d="M-20 88L180 88"/><path pathLength="1" style="--a:0.11;--d:.2" d="M-20 72L180 72"/><path pathLength="1" style="--a:0.17;--d:.2" d="M-20 60L180 60"/><path pathLength="1" style="--a:0.24;--d:.2" d="M-20 52L180 52"/><path pathLength="1" style="--a:0.30;--d:.2" d="M-20 46L180 46"/><path pathLength="1" style="--a:0.36;--d:.2" d="M-20 42L180 42"/><path pathLength="1" style="--a:0.43;--d:.2" d="M-20 39.5L180 39.5"/><path pathLength="1" style="--a:0.49;--d:.2" d="M-20 38L180 38"/><path class="h" pathLength="1" style="--a:0;--d:.12" d="M-20 36L180 36"/><path class="r z" pathLength="1" style="--a:.66;--d:.3" d="M-10 36L8 25L20 30L38 14L52 26L66 19L80 31L96 17L112 27L128 12L146 28L160 22L170 36"/></svg>
-    <p class="c-pie">Cargando <span class="c-pct">0 %</span> <span class="c-piezas"></span></p><!-- H4: only with the mesh («eb») -->
+    <p class="c-pie"><span data-en="Loading" data-es="Cargando">Loading</span> <span class="c-pct">0 %</span> <span class="c-piezas"></span></p><!-- H4: only with the mesh («eb») -->
     <div class="c-caja">
       <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
         <defs><mask id="c-luna-mask"><rect width="64" height="64" fill="#fff" /><circle cx="40" cy="24" r="22" fill="#000" /></mask></defs>
         <circle cx="32" cy="32" r="26" fill="#eef2f6" mask="url(#c-luna-mask)" />
       </svg>
-      <p class="c-texto">Cargando<span class="c-puntos"></span></p>
+      <p class="c-texto"><span data-en="Loading" data-es="Cargando">Loading</span><span class="c-puntos"></span></p>
       <p class="c-piezas" role="status"></p>
     </div>
   </div>
-  <div id="hud">Conectando…</div>
+  <div id="hud" data-en="Connecting…" data-es="Conectando…">Connecting…</div>
   <p id="mundo-lleno" role="alert" hidden></p><!-- H7: the world is full (ficha `aforo`): the door's reason, read at once by screen readers -->
-  <div id="barra-arriba" role="toolbar" aria-label="Botones del mundo"></div>
+  <div id="barra-arriba" role="toolbar" aria-label="World buttons" data-en-aria-label="World buttons" data-es-aria-label="Botones del mundo"></div>
   <!-- t_5cff4f06: the city, top left (HUD simétrico: mirrors the gear's corner); hidden until a world's
        mundo.ajustes.json sets ciudadUrl (ciudad-logica.ts). The engine names no city here: main.ts fills the text. -->
   <button id="volver-ciudad" type="button" hidden></button>
-  <div id="help">WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · R: bolsa · M: dónde estoy · I: ficha · C: construir · Q: micrófono · L: gente · P: cámara (foto, grabar, compartir pantalla) · K: grabar</div>
-  <button id="ar" type="button" hidden>Entrar en AR</button>
-  <button id="vr" type="button" hidden>Entrar en VR</button>
-  <button id="construir" type="button" aria-expanded="false" aria-controls="panel-construir">Construir</button>
-  <button id="pantalla" type="button" hidden>Pantalla completa</button>
-  <button id="foto-abrir" type="button">Foto</button>
-  <section id="panel-construir" aria-label="Construir" hidden></section>
+  <div id="help" data-en="WASD: walk · Shift: run · Space: jump · drag: look · wheel: zoom · Enter: chat · E: talk or pick up · J: quests · R: bag · M: where am I · I: sheet · C: build · Q: microphone · L: people · P: camera (photo, record, share screen) · K: record" data-es="WASD: andar · Mayús: correr · Espacio: saltar · arrastra: mirar · rueda: acercar · Intro: chat · E: hablar o coger · J: misiones · R: bolsa · M: dónde estoy · I: ficha · C: construir · Q: micrófono · L: gente · P: cámara (foto, grabar, compartir pantalla) · K: grabar">WASD: walk · Shift: run · Space: jump · drag: look · wheel: zoom · Enter: chat · E: talk or pick up · J: quests · R: bag · M: where am I · I: sheet · C: build · Q: microphone · L: people · P: camera (photo, record, share screen) · K: record</div>
+  <button id="ar" type="button" hidden data-en="Enter AR" data-es="Entrar en AR">Enter AR</button>
+  <button id="vr" type="button" hidden data-en="Enter VR" data-es="Entrar en VR">Enter VR</button>
+  <button id="construir" type="button" aria-expanded="false" aria-controls="panel-construir" data-en="Build" data-es="Construir">Build</button>
+  <button id="pantalla" type="button" hidden data-en="Full screen" data-es="Pantalla completa">Full screen</button>
+  <button id="foto-abrir" type="button" data-en="Photo" data-es="Foto">Photo</button>
+  <section id="panel-construir" aria-label="Build" data-en-aria-label="Build" data-es-aria-label="Construir" hidden></section>
   <button id="interactuar" type="button" hidden></button>
   <section id="dialogo" hidden></section>
-  <button id="misiones" type="button" aria-expanded="false" aria-controls="libro">Misiones (J)</button>
-  <button id="inventario-abrir" type="button" aria-expanded="false" aria-controls="inventario">Bolsa (R)</button>
-  <section id="libro" aria-label="Libro de misiones" hidden></section>
+  <button id="misiones" type="button" aria-expanded="false" aria-controls="libro" data-en="Quests (J)" data-es="Misiones (J)">Quests (J)</button>
+  <button id="inventario-abrir" type="button" aria-expanded="false" aria-controls="inventario" data-en="Bag (I)" data-es="Bolsa (I)">Bag (I)</button>
+  <section id="libro" aria-label="Quest book" data-en-aria-label="Quest book" data-es-aria-label="Libro de misiones" hidden></section>
   <section id="evaluacion" hidden></section>
   <p id="mision-seguida" hidden></p>
+  <section id="mision-ahora" aria-label="Current quest" data-en-aria-label="Current quest" data-es-aria-label="Misión en curso" hidden></section><!-- H3: the followed quest as a card while building (misiones.ts, tema.css) -->
   <p id="mision-nota" aria-hidden="true" hidden></p>
   <div id="mision-completada" role="status" aria-live="polite" aria-atomic="true"></div><!-- U14 (6): «Misión completada» (misiones.ts; empty when idle) -->
   <div id="acciones"></div>
   <div id="burbuja-cartel" role="status" aria-live="polite" hidden></div>
-  <section id="objetivo" role="group" aria-label="Objetivo" hidden></section><!-- M5: the creature in reach (objetivo.ts) -->
-  <section id="habilidades" role="group" aria-label="Habilidades" hidden></section><!-- M5: hidden until the page hears of fighting, then the Eclipse Mnémico kit's three slots (combate.ts) -->
-  <p id="reloj" title="Hora local de tu aparato"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg><time id="reloj-hora"></time></p><!-- U3: the clock beside the minimap (reloj.ts) -->
-  <section id="hud-personaje" role="group" hidden><button id="hud-personaje-abrir" type="button" title="Tú (I)" aria-label="Tú (I)"></button></section><!-- M4: your character — Estado (4 steps), Carga, Aliento del Velo (hud-personaje.ts) -->
+  <section id="objetivo" role="group" aria-label="Target" data-en-aria-label="Target" data-es-aria-label="Objetivo" hidden></section><!-- M5: the creature in reach (objetivo.ts) -->
+  <section id="habilidades" role="group" aria-label="Abilities" data-en-aria-label="Abilities" data-es-aria-label="Habilidades" hidden></section><!-- M5: hidden until the page hears of fighting, then the Eclipse Mnémico kit's three slots (combate.ts) -->
+  <p id="reloj" title="Your device's local time" data-en-title="Your device's local time" data-es-title="Hora local de tu aparato"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg><time id="reloj-hora"></time></p><!-- U3: the clock beside the minimap (reloj.ts) -->
+  <section id="hud-personaje" role="group" hidden><button id="hud-personaje-abrir" type="button" title="You (C)" aria-label="You (C)" data-en-title="You (C)" data-es-title="Tú (C)" data-en-aria-label="You (C)" data-es-aria-label="Tú (C)"></button></section><!-- M4: your character — Estado (4 steps), Carga, Aliento del Velo (hud-personaje.ts) -->
   <div id="avisos-pila" aria-hidden="true"></div><!-- U3: the notices of #avisos, for eyes: ≤ 3, 6 s (avisos.ts) -->
   <section id="pesca-hud" hidden></section>
   <section id="dardos-hud" hidden></section>
   <section id="video-mandos" hidden></section>
   <div id="joy"><div id="knob"></div></div>
   <section id="chat" aria-label="Chat">
-    <ol id="chat-lista" role="log" aria-live="polite" aria-label="Mensajes del chat"></ol>
+    <ol id="chat-lista" role="log" aria-live="polite" aria-label="Chat messages" data-en-aria-label="Chat messages" data-es-aria-label="Mensajes del chat"></ol>
     <form id="chat-form" hidden>
-      <label for="chat-texto" class="solo-lector">Mensaje para el chat</label>
-      <input id="chat-texto" type="text" autocomplete="off" enterkeyhint="send" placeholder="Escribe y pulsa Enter (Esc cierra)" />
-      <button id="chat-canal" type="button">Cerca</button>
+      <label for="chat-texto" class="solo-lector" data-en="Message for the chat" data-es="Mensaje para el chat">Message for the chat</label>
+      <input id="chat-texto" type="text" autocomplete="off" enterkeyhint="send" placeholder="Type and press Enter (Esc closes)" data-en-placeholder="Type and press Enter (Esc closes)" data-es-placeholder="Escribe y pulsa Enter (Esc cierra)" />
+      <button id="chat-canal" type="button" data-en="Nearby" data-es="Cerca">Nearby</button>
     </form>
     <p id="chat-estado" class="estado" role="status"></p>
     <button id="chat-boton" type="button" aria-expanded="false" aria-controls="chat-form" hidden>Chat</button>
@@ -289,12 +290,12 @@
   <div id="avisos" class="solo-lector" role="status" aria-live="polite"></div>
   <div id="avisos-urgentes" class="solo-lector" role="alert" aria-live="assertive"></div>
   <!-- N2: settings (gear or O; Escape closes). Filled by menu-ajustes.ts from the settings registry -->
-  <button id="ajustes-abrir" type="button" aria-haspopup="dialog" aria-controls="ajustes" aria-expanded="false" title="Ajustes"><span aria-hidden="true">⚙</span><span class="solo-lector">Ajustes</span></button>
+  <button id="ajustes-abrir" type="button" aria-haspopup="dialog" aria-controls="ajustes" aria-expanded="false" title="Settings" data-en-title="Settings" data-es-title="Ajustes"><span aria-hidden="true">⚙</span><span class="solo-lector" data-en="Settings" data-es="Ajustes">Settings</span></button>
   <dialog id="ajustes" aria-labelledby="ajustes-titulo">
-    <div class="cabecera"><h2 id="ajustes-titulo" tabindex="-1">Ajustes</h2><button id="ajustes-cerrar" type="button">Cerrar</button></div>
+    <div class="cabecera"><h2 id="ajustes-titulo" tabindex="-1" data-en="Settings" data-es="Ajustes">Settings</h2><button id="ajustes-cerrar" type="button" data-en="Close" data-es="Cerrar">Close</button></div>
     <p id="ajustes-estado" class="estado" role="status" aria-live="polite"></p>
     <div id="ajustes-grupos"></div>
-    <div class="pie"><button id="ajustes-restablecer" type="button">Restablecer todo</button></div>
+    <div class="pie"><button id="ajustes-restablecer" type="button" data-en="Reset all" data-es="Restablecer todo">Reset all</button></div>
     <p id="version-motor" class="version-motor"></p>
   </dialog>
   <!-- t_bdc2c2db + ux2-barra: «Qué hay de nuevo» is a notice in the bell's history now (apps/plaza/novedades.ts) -->

@@ -4,6 +4,7 @@
 // The zone's list reaches everyone who enters (no `at`: scenery is seen from afar); changes go to the whole zone.
 import { defineFeature } from "../../packages/feature/src/index.ts";
 import type { Fields } from "../../packages/feature/src/index.ts";
+import { textoObjetos } from "./textos.ts";
 
 export const PASO = { pos: 0.01, grados: 0.1, escala: 0.01 } as const;
 /** Most things one zone holds (the whole list reaches whoever enters: measured in test/objetos.test.ts). */
@@ -93,15 +94,16 @@ export const ENLACE_MAX = 300;
 const ENLACE_LOCAL = new Set(["127.0.0.1", "localhost", "[::1]"]);
 /** J4: is this a link a thing may open («clic sobre cosas del mundo»)? "" clears it. Returns why not, or "" when ok:
  * a full https URL (http only for this machine, in tests), no user:password, not longer than ENLACE_MAX bytes. */
-export function motivoEnlace(valor: unknown): string {
+export function motivoEnlace(valor: unknown, idioma?: string): string {
+  const tx = (clave: string, vars?: Record<string, string | number>) => textoObjetos(idioma, clave, vars);
   const s = String(valor ?? "").trim();
   if (!s) return "";
-  if (new TextEncoder().encode(s).length > ENLACE_MAX) return `El enlace es demasiado largo (más de ${ENLACE_MAX} caracteres).`;
+  if (new TextEncoder().encode(s).length > ENLACE_MAX) return tx("enlace_largo", { max: ENLACE_MAX });
   let u: URL;
-  try { u = new URL(s); } catch { return "Eso no es una dirección completa (empieza por https://)."; }
-  if (u.username || u.password) return "El enlace no puede llevar usuario ni contraseña.";
+  try { u = new URL(s); } catch { return tx("enlace_incompleto"); }
+  if (u.username || u.password) return tx("enlace_usuario");
   const local = ENLACE_LOCAL.has(u.hostname.toLowerCase());
-  if (u.protocol !== "https:" && !(u.protocol === "http:" && local)) return "Solo enlaces https (http solo para esta misma máquina, en pruebas).";
+  if (u.protocol !== "https:" && !(u.protocol === "http:" && local)) return tx("enlace_https");
   return "";
 }
 

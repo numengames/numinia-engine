@@ -79,6 +79,8 @@ export function sembrar(c: Carpeta, log: (l: string) => void = () => {}, ejemplo
   if (nuevo && existsSync(join(taller, "aventura")) && existsSync(join(taller, "entorno"))) {
     copiarEntero(join(taller, "entorno"), c.entorno, c.raiz);
     copiarEntero(join(taller, "aventura"), c.aventura, c.raiz);
+    // A template that ships a world's built things (plantillas/art-gallery/datos: objects, elements, uploaded files) hands them over too.
+    if (existsSync(join(taller, "datos"))) copiarEntero(join(taller, "datos"), c.datos, c.raiz);
     log(nombrePlantilla === PLANTILLA_DEFECTO
       ? `[mundo] mundo nuevo: nace con el onboarding del Taller (Lumen, 11 misiones y un cable de muestra; ${c.aventura}, ${c.entorno}); nace en el espacio base y desde ahora es suyo`
       : `[mundo] mundo nuevo: nace de la plantilla «${nombrePlantilla}» (${c.aventura}, ${c.entorno}); desde ahora es suyo`);

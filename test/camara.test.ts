@@ -6,6 +6,8 @@ const G = Math.PI / 180;
 const pies = { x: 0, y: 0, z: 0 };
 const pose = (): Pose => ({ x: 0, y: 0, z: 0, fx: 0, fy: 0, fz: 0, dentro: false });
 const near = (a: number, b: number, eps = 1e-6) => assert.ok(Math.abs(a - b) < eps, `${a} ≉ ${b}`);
+/** The starting play distance (Pablo 11-11: 6 m, closer than the old 10.4) and what it puts over the eye and behind at 30°. */
+const D = CAMARA.inicio.dist, ARRIBA = D / 2, ATRAS = D * Math.sqrt(3) / 2;
 /** settle the drawn pose (≤ 5 s of 60 Hz frames); returns how many frames it moved */
 const asentar = (o: ReturnType<typeof crearOrbita>) => { let n = 0; while (o.paso(1 / 60) && n < 300) n++; return n; };
 
@@ -21,9 +23,9 @@ test("movement turns with the camera: W at yaw 0 = -z (tools/e2e.mjs), at 90° l
   near(Math.hypot(...haciaMundo(0.3, 0.4, 1.234)), 0.5);
 });
 
-test("the starting camera is the old one: 5.2 m over the eye, 9 m back, looking 30° down along -z", () => {
+test("the starting camera: D/2 over the eye, D·cos 30° back, looking 30° down along -z", () => {
   const o = crearOrbita(), p = o.pose(pies, pose());
-  near(p.x, 0); near(p.y, CAMARA.ojo + 5.2, 1e-3); near(p.z, 9.007, 1e-3);
+  near(p.x, 0); near(p.y, CAMARA.ojo + ARRIBA, 1e-3); near(p.z, ATRAS, 1e-3);
   near(p.fx, 0); near(p.fy, -0.5); near(p.fz, -Math.sqrt(3) / 2);
   assert.equal(p.dentro, false);
   assert.equal(o.quieta(), true); // nothing to animate: the page may rest
@@ -60,7 +62,7 @@ test("the drawn pose chases the wanted one smoothly and then stops exactly (no w
   assert.equal(o.quieta(), false);
   assert.ok(o.paso(1 / 60));
   const half = o.ahora.dist;
-  assert.ok(half < 10.4 && half > 5.2, `${half}`);
+  assert.ok(half < D && half > D / 2, `${half}`);
   const n = asentar(o);
   assert.ok(n > 5 && n < 120, `settled in ${n} frames`);
   assert.equal(o.quieta(), true);
@@ -93,7 +95,7 @@ test("build mode: free pivot, frame() moves it, zoom up to 80 m, leaving it retu
   asentar(o);
   const back = o.pivote(pies);
   near(back.x, 0, 1e-3); near(back.y, CAMARA.ojo, 1e-3); near(back.z, 0, 1e-3);
-  near(o.ahora.dist, 10.4, 1e-3); // the play distance from before building
+  near(o.ahora.dist, D, 1e-3); // the play distance from before building
 });
 
 test("build mode: zoom toward the cursor keeps the point under it still", () => {
@@ -109,7 +111,7 @@ test("build mode: zoom toward the cursor keeps the point under it still", () => 
   const c = o.pose(pies, pose()), r = rayo(nx, ny, fov, aspect, o.ahora.yaw, o.ahora.pitch);
   const t = -c.y / r.y;
   near(c.x + r.x * t, P.x, 1e-2); near(c.z + r.z * t, P.z, 1e-2);
-  near(o.ahora.dist, 10.4 * 0.7, 1e-2);
+  near(o.ahora.dist, Math.max(D, CAMARA.distConstruir) * 0.7, 1e-2); // build mode starts no closer than distConstruir
 });
 
 test("build mode: panning moves the pivot along the screen; play mode ignores it", () => {
@@ -128,7 +130,7 @@ test("V toggles first person and back; reset returns behind the avatar the short
   o.alternarVista();
   assert.equal(o.meta.dist, 0);
   o.alternarVista();
-  near(o.meta.dist, 10.4);
+  near(o.meta.dist, D);
   o.orbitar(3, 0.3);
   asentar(o);
   o.reiniciar();
@@ -150,9 +152,9 @@ test("N1b: the pivot follows the feet's height (a jump, a tower floor) a little 
   o.seguir(1.5);                           // the top of a jump
   o.paso(1 / 60);
   const p1 = o.pose(alto, pose());
-  assert.ok(p1.y > CAMARA.ojo + 5.2 && p1.y < CAMARA.ojo + 5.2 + 1.5, `a little behind: ${p1.y}`);
+  assert.ok(p1.y > CAMARA.ojo + ARRIBA && p1.y < CAMARA.ojo + ARRIBA + 1.5, `a little behind: ${p1.y}`);
   asentar(o);
-  near(o.pose(alto, pose()).y, 1.5 + CAMARA.ojo + 5.2, 1e-2);  // then exactly over the new height
+  near(o.pose(alto, pose()).y, 1.5 + CAMARA.ojo + ARRIBA, 1e-2);  // then exactly over the new height
   assert.equal(o.quieta(), true);           // and the page may rest again
   o.seguir(12); o.paso(1 / 60);             // a teleport to a tower's top (more than saltoAltura): taken at once
   near(o.pivote({ x: 0, y: 12, z: 0 }).y, 12 + CAMARA.ojo, 1e-9);
@@ -168,7 +170,7 @@ test("N1b: a sphere swept against boxes stops at the first face, grown by its ra
 
 test("N1b: in play mode a wall behind you pulls the camera in at once, and it eases back out when the wall goes", () => {
   const o = crearOrbita();
-  o.orbitar(0, -30 * G);                    // level camera, 10.4 m behind along +z
+  o.orbitar(0, -30 * G);                    // level camera, D m behind along +z
   asentar(o);
   const pared = new Float32Array([-3, 0, 4, 3, 6, 4.5]);
   o.paredes(pared);
@@ -180,9 +182,9 @@ test("N1b: in play mode a wall behind you pulls the camera in at once, and it ea
   o.pose(pies, pose());                     // the frame that finds the way clear
   o.paso(1 / 60);
   const p2 = o.pose(pies, pose());
-  assert.ok(p2.z > 3.8 && p2.z < 10.4, `easing out: ${p2.z}`);
+  assert.ok(p2.z > 3.8 && p2.z < D, `easing out: ${p2.z}`);
   asentar(o); o.pose(pies, pose()); asentar(o);
-  near(o.pose(pies, pose()).z, 10.4, 1e-2);
+  near(o.pose(pies, pose()).z, D, 1e-2);
   assert.equal(o.quieta(), true);
 });
 
@@ -191,8 +193,9 @@ test("N1b: zooming in past a wall does not snap the camera into your head; build
   o.orbitar(0, -30 * G); asentar(o);
   o.paredes(new Float32Array([-3, 0, 4, 3, 6, 4.5]));
   o.pose(pies, pose());
-  o.acercar(0.25);                          // 10.4 → 2.6 m: nearer than the wall
-  for (let i = 0; i < 300; i++) { o.paso(1 / 60); const z = o.pose(pies, pose()).z; assert.ok(z >= 2.6 - 1e-3 && z <= 3.8 + 1e-6, `z ${z}`); }
+  o.acercar(0.25);                          // D → a quarter (never under juego.cerca): nearer than the wall
+  const cerca = Math.max(D * 0.25, CAMARA.juego.cerca);
+  for (let i = 0; i < 300; i++) { o.paso(1 / 60); const z = o.pose(pies, pose()).z; assert.ok(z >= cerca - 1e-3 && z <= 3.8 + 1e-6, `z ${z}`); }
   o.cambiarModo("construir"); asentar(o);
   assert.ok(o.pose(pies, pose()).z > 4.5, "the editor camera flies through walls");
 });

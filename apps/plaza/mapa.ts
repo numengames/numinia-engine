@@ -7,6 +7,10 @@
 // the waypoint, an adventure's own) and look as their kind says in a registry (packages/client/src/mapa.ts). Both are
 // open: `__numinia.mapa.registrar(...)`, `.rol(...)`, `.fuente(...)`. Recipe: docs/entregas/mapa.md.
 // U14: a world whose environment says `mapa.corte` (m) is drawn as a floor plan on both maps: the zone's picture cut at
+// Map v2.2: by default the zone is drawn as a PAINTED old map (mapa-pintado.ts: flat tones of the house palette, soft ink
+// outlines, repainted at the screen's own resolution so a zoom never shows pixels; `mapa.estilo: "foto"` keeps the render as it
+// comes), the kinds are the house icons in round badges, people are dots, and the filter is ONE list in a panel apart
+// (the magnifying glass), grouped by kind.
 // that height (view.cenital) as the minimap's background too, and the cut's walls and columns as lines over it. The
 // picture is made when the minimap first needs it, then again only when the zone changes (at most every IMAGEN_MS),
 // never in XR (this clock stops there); until it exists, the minimap draws only what stands under the cut.
@@ -15,13 +19,20 @@ import type { Vista, Marcador, Tipo, Fuente, Entrada } from "../../packages/clie
 import type { ImagenCenital, Huella } from "../../packages/render/src/index.ts";
 import { bajoElCorte } from "../../packages/render/src/corte.ts";
 import { MARCA_IA } from "../../packages/instance/src/identidad.ts";
+import { CAPAS, capasActivas, filtrar, leerCapas, leerMapa, textoCapas, CLAVE_CAPAS, encuadre, esDecorativo, marcadorDePunto, tipoDePunto, agrupar } from "../../packages/client/src/mapa-interes.ts";
+import { PALETAS, preparar, pintarVentana, ventanaDeVista, leerFondo } from "../../packages/client/src/mapa-pintado.ts";
+import type { Preparado } from "../../packages/client/src/mapa-pintado.ts";
+import type { Capas } from "../../packages/client/src/mapa-interes.ts";
+import "./iconos-mapa.ts"; // the map's own icons, only in this lazy chunk
+import { t as tr } from "../../packages/client/src/idioma.ts";
 import { crearDialogo, anunciar } from "./paneles.ts";
 import { perfil, esTactil } from "./perfil-aparato.ts";
-import { icono } from "./iconos.ts";
+import { icono, pathsIcono } from "./iconos.ts";
 import { frase } from "../../packages/client/src/ir-andando.ts";
 import type { Fin } from "../../packages/client/src/ir-andando.ts";
 import { tituloDe } from "../../packages/render/src/menu-secciones.ts"; // v2 paridad: the map's name is the one list's
 import { esMovil } from "../../packages/client/src/movil.ts"; // U24
+import { tx, ligar, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
 import "./mapa.css";
 
 type Vec = { x: number; z: number };
@@ -51,6 +62,8 @@ export type HostMapa = {
    * `alEditar` opens the builder on it and returns whether it did (then the big map closes so you see it). Omitted = no button. */
   puedeEditar?(donde: { id: string; nombre: string; x: number; z: number }): boolean;
   alEditar?(donde: { id: string; nombre: string; x: number; z: number }): boolean;
+  /** Map v2: what the world declares for its map (ficha.json `mapa`, served by /status): its points of interest and which characters are decoration. The raw `mapa` object (the server validated it; leerMapa reads it again, never trusting the wire). Omitted = no points: the map shows the doors, people and quests only. */
+  mundo?: unknown;
   /** ia-visible S8: the marker picked is an AI in the world; the page opens its card (gente.tarjeta). Omitted = the map only shows its detail. */
   alAgente?(quien: number): void;
 };
@@ -64,18 +77,50 @@ const RADIOS = [15, 30, 60, 120];  // minimap zoom: metres from the centre to th
 const ZOOM_INICIAL = 1;            // the radius the minimap starts with, and the one the north button brings back
 const LLEGADA_M = 2.5;             // a waypoint this close is reached (and cleared, with a notice)
 const ESTABLE_MS = 1500, ESPERA_MAX_MS = 10_000; // E4: a cut world's minimap picture waits until the zone stood still this long (at most ESPERA_MAX_MS)
+const IMAGEN_PINTADA_MS = 30_000; // Map v2.2: a painted (not cut) world's minimap picture is regenerated at most this often while the big map is closed
 const IMAGEN_MS = 5000;            // the zone's picture is regenerated at most every 5 s, only while the big map is open (U14: or, in a world cut with mapa.corte, when its minimap's zone changed)
-let SUELO = "#b7c6ab";
+let SUELO = "#F9EBDC"; // Arena (STD-023): the map is paper; «foto» style sets the old green back (montarMapa)
+const PAPEL = "#F9EBDC", TINTA = "#3A332D", TURQUESA = "1, 142, 161";
 let BYN = false; // mundo-hermes: pure black-and-white palette (entorno.json `tema`); markers differ by SHAPE
 /** Switch the map to the black-and-white palette (the page does it once, before the first frame, when /status says `tema: "black-and-white"`). */
-export function temaMapa(byn: boolean): void { BYN = byn; SUELO = byn ? "#000" : "#b7c6ab"; }
+export function temaMapa(byn: boolean): void { BYN = byn; SUELO = byn ? "#000" : "#F9EBDC"; }
 const tinta = (c: string): string => (BYN ? "#fff" : c);
 const CUARTOS = 4;                 // E4: the cut's lines go to the canvas in whole quarter pixels (see corteEnMapa)
 
 /** Draw one marker shape centred at (x, y), half-size `s`, turned `ang` (arrows only). */
-function forma(g: CanvasRenderingContext2D, t: Tipo, x: number, y: number, s: number, ang = 0): void {
+const trazos = new Map<string, Path2D[]>();
+const luz = (c: string): number => { const m = /^#([0-9a-f]{6})$/i.exec(c); if (!m) return 0; const n = parseInt(m[1], 16); return (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255; };
+/** Map v2.2: a kind with a house icon is a small round badge in the kind's colour with the icon in it (a paper ring around it).
+ * Shape (the icon) AND colour tell kinds apart. A sleeping AI is hollow. «¡» marks something for you. Returns whether it drew. */
+function insignia(g: CanvasRenderingContext2D, t: Tipo, id: string, x: number, y: number, s: number): boolean {
+  if (!t.icono || typeof Path2D === "undefined") return false;
+  let ps = trazos.get(t.icono);
+  if (!ps) { ps = pathsIcono(t.icono).map((d) => new Path2D(d)); trazos.set(t.icono, ps); }
+  if (!ps.length) return false;
+  const R = s * 1.2, hueca = id === "agente-dormida", color = tinta(t.color);
   g.save(); g.translate(x, y);
-  g.fillStyle = tinta(t.color); g.strokeStyle = BYN ? "#000" : "#fff"; g.lineWidth = 1.5;
+  g.beginPath(); g.arc(0, 0, R, 0, Math.PI * 2);
+  g.fillStyle = hueca ? (BYN ? "#000" : PAPEL) : BYN ? "#000" : color; g.fill();
+  g.lineWidth = hueca ? 2 : 1.6; g.strokeStyle = hueca ? color : BYN ? "#fff" : PAPEL; g.stroke();
+  const k = (R * 1.28) / 256;
+  g.translate(-R * 0.64, -R * 0.64); g.scale(k, k);
+  g.fillStyle = hueca ? color : BYN ? "#fff" : luz(t.color) > 0.6 ? TINTA : "#fff";
+  for (const p of ps) g.fill(p);
+  g.restore();
+  if (id === "para-ti") { // «!»: a small red disc at the badge's shoulder
+    g.save(); g.translate(x + R * 0.8, y - R * 0.8);
+    g.beginPath(); g.arc(0, 0, R * 0.5, 0, Math.PI * 2); g.fillStyle = BYN ? "#fff" : "#D33440"; g.fill(); g.lineWidth = 1.2; g.strokeStyle = BYN ? "#000" : PAPEL; g.stroke();
+    g.fillStyle = BYN ? "#000" : "#fff"; g.font = `700 ${Math.max(7, Math.round(R * 0.8))}px system-ui, sans-serif`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("!", 0, R * 0.04);
+    g.restore();
+  }
+  return true;
+}
+
+/** Draw one marker shape centred at (x, y), half-size `s`, turned `ang` (arrows only). `id` = the kind's id (badges need it). */
+function forma(g: CanvasRenderingContext2D, t: Tipo, x: number, y: number, s: number, ang = 0, id = ""): void {
+  if (id && insignia(g, t, id, x, y, s)) return;
+  g.save(); g.translate(x, y);
+  g.fillStyle = tinta(t.color); g.strokeStyle = BYN ? "#000" : PAPEL; g.lineWidth = 1.5;
   g.beginPath();
   switch (t.forma) {
     case "flecha": g.rotate(ang); g.moveTo(0, -s); g.lineTo(s * 0.75, s * 0.8); g.lineTo(0, s * 0.35); g.lineTo(-s * 0.75, s * 0.8); g.closePath(); break;
@@ -84,6 +129,18 @@ function forma(g: CanvasRenderingContext2D, t: Tipo, x: number, y: number, s: nu
     case "rombo-hueco": // ia-visible S5: a sleeping AI — the diamond's outline in its green over a pale fill
       g.moveTo(0, -s * 1.2); g.lineTo(s, 0); g.lineTo(0, s * 1.2); g.lineTo(-s, 0); g.closePath();
       g.fillStyle = BYN ? "#000" : "rgba(255,255,255,0.7)"; g.fill(); g.strokeStyle = tinta(t.color); g.lineWidth = 2; g.stroke(); g.restore(); return;
+    case "hexagono": for (let i = 0; i < 6; i++) { const a = (i * Math.PI) / 3 - Math.PI / 2; if (i) g.lineTo(Math.cos(a) * s * 1.2, Math.sin(a) * s * 1.2); else g.moveTo(Math.cos(a) * s * 1.2, Math.sin(a) * s * 1.2); } g.closePath(); break; // Map v2: a zone
+    case "portal": // Map v2: a door to another space — two rings
+      g.arc(0, 0, s * 1.1, 0, Math.PI * 2); g.fillStyle = BYN ? "#000" : "rgba(255,255,255,0.85)"; g.fill(); g.lineWidth = 3; g.strokeStyle = tinta(t.color); g.stroke();
+      g.beginPath(); g.arc(0, 0, s * 0.55, 0, Math.PI * 2); g.lineWidth = 2.5; g.stroke(); g.fillStyle = tinta(t.color); g.beginPath(); g.arc(0, 0, s * 0.18, 0, Math.PI * 2); g.fill(); g.restore(); return;
+    case "pantalla": g.rect(-s * 1.3, -s * 0.85, s * 2.6, s * 1.7); g.fill(); g.stroke(); // Map v2: a screen — a wide rectangle on a stand
+      g.beginPath(); g.moveTo(0, s * 0.85); g.lineTo(0, s * 1.3); g.moveTo(-s * 0.6, s * 1.3); g.lineTo(s * 0.6, s * 1.3); g.lineWidth = 2; g.stroke();
+      g.fillStyle = "rgba(255,255,255,0.75)"; g.fillRect(-s * 0.9, -s * 0.5, s * 1.8, s * 1.0); g.restore(); return;
+    case "libro": // Map v2: information — an open book
+      g.moveTo(0, -s * 0.7); g.lineTo(-s * 1.25, -s * 0.9); g.lineTo(-s * 1.25, s * 0.8); g.lineTo(0, s * 1.0); g.lineTo(s * 1.25, s * 0.8); g.lineTo(s * 1.25, -s * 0.9); g.closePath(); g.fill(); g.stroke();
+      g.beginPath(); g.moveTo(0, -s * 0.7); g.lineTo(0, s * 1.0); g.strokeStyle = "rgba(255,255,255,0.9)"; g.lineWidth = 1.5; g.stroke(); g.restore(); return;
+    case "agenda": // Map v2: the schedule — a calendar page
+      g.rect(-s, -s, 2 * s, 2 * s); g.fill(); g.stroke(); g.fillStyle = "rgba(255,255,255,0.9)"; g.fillRect(-s * 0.7, -s * 0.35, s * 1.4, s * 0.25); g.fillRect(-s * 0.7, s * 0.2, s * 1.4, s * 0.25); g.fillRect(-s * 0.7, -s * 0.85, s * 1.4, s * 0.2); g.restore(); return;
     case "triangulo": g.moveTo(0, -s * 1.1); g.lineTo(s, s * 0.8); g.lineTo(-s, s * 0.8); g.closePath(); break;
     case "estrella": for (let i = 0; i < 10; i++) { const r = i % 2 ? s * 0.5 : s * 1.25, a = (i * Math.PI) / 5 - Math.PI / 2; if (i) g.lineTo(Math.cos(a) * r, Math.sin(a) * r); else g.moveTo(Math.cos(a) * r, Math.sin(a) * r); } g.closePath(); break;
     case "anillo": g.arc(0, 0, s, 0, Math.PI * 2); g.lineWidth = 3; g.strokeStyle = tinta(t.color); g.stroke(); g.beginPath(); g.arc(0, 0, s * 0.35, 0, Math.PI * 2); g.fill(); g.restore(); return;
@@ -95,7 +152,7 @@ function forma(g: CanvasRenderingContext2D, t: Tipo, x: number, y: number, s: nu
       g.arc(0, 0, s, 0, Math.PI * 2); g.fill(); g.stroke();
       g.beginPath(); g.moveTo(-s * 0.48, s * 0.02); g.lineTo(-s * 0.12, s * 0.38); g.lineTo(s * 0.5, -s * 0.36);
       g.lineWidth = Math.max(1.5, s * 0.3); g.lineCap = "round"; g.lineJoin = "round"; g.stroke(); g.restore(); return;
-    default: g.arc(0, 0, s, 0, Math.PI * 2);
+    default: g.arc(0, 0, t.forma === "punto" ? s * 0.8 : s, 0, Math.PI * 2); // people: a small dot
   }
   g.fill(); g.stroke(); g.restore();
 }
@@ -104,17 +161,19 @@ function forma(g: CanvasRenderingContext2D, t: Tipo, x: number, y: number, s: nu
 function rejilla(g: CanvasRenderingContext2D, v: Vista, paso: number): void {
   const alcance = Math.hypot(v.ancho, v.alto) / 2 / v.escala;
   if (paso * v.escala < 10) return;
-  g.strokeStyle = BYN ? "rgba(255,255,255,0.35)" : "rgba(55,70,50,0.2)"; g.lineWidth = 1; g.beginPath();
+  g.strokeStyle = BYN ? "rgba(255,255,255,0.35)" : `rgba(${TURQUESA},0.16)`; g.lineWidth = 1; g.beginPath(); // a faint Turquesa grid: the cyberpunk touch
   for (let k = Math.ceil((v.cx - alcance) / paso); k * paso <= v.cx + alcance; k++) { const a = proyectar(v, k * paso, v.cz - alcance), b = proyectar(v, k * paso, v.cz + alcance); g.moveTo(a.px, a.py); g.lineTo(b.px, b.py); }
   for (let k = Math.ceil((v.cz - alcance) / paso); k * paso <= v.cz + alcance; k++) { const a = proyectar(v, v.cx - alcance, k * paso), b = proyectar(v, v.cx + alcance, k * paso); g.moveTo(a.px, a.py); g.lineTo(b.px, b.py); }
   g.stroke();
 }
 
+let pintado = true; // Map v2.2: the painted look (the world's `mapa.estilo` unless «foto»), set in montarMapa
 function huella(g: CanvasRenderingContext2D, v: Vista, h: Huella): void {
   const p = [proyectar(v, h.x0, h.z0), proyectar(v, h.x1, h.z0), proyectar(v, h.x1, h.z1), proyectar(v, h.x0, h.z1)];
-  g.fillStyle = BYN ? "#fff" : h.color; g.beginPath(); g.moveTo(p[0].px, p[0].py);
+  g.fillStyle = BYN ? "#fff" : pintado ? "#D6C6B3" : h.color; g.beginPath(); g.moveTo(p[0].px, p[0].py);
   for (let i = 1; i < 4; i++) g.lineTo(p[i].px, p[i].py);
   g.closePath(); g.fill();
+  if (pintado && !BYN) { g.strokeStyle = "rgba(58,51,45,0.7)"; g.lineWidth = 1.2; g.lineJoin = "round"; g.stroke(); } // soft ink outline
 }
 
 /** U14: the zone's picture under a view (turned with the minimap), the ground's colour beyond its edge. */
@@ -170,8 +229,17 @@ const boton = (texto: string, etiqueta?: string): HTMLButtonElement => {
 
 export function montarMapa(h: HostMapa) {
   const reg = crearRegistro();
+  const mundo = leerMapa(h.mundo).mapa; // Map v2: the world's declared points and decoration
+  const estilo = mundo?.estilo ?? "pintado"; // Map v2.2: how the zone is drawn (default: a painted old map)
+  pintado = estilo !== "foto";
+  if (!pintado && !BYN) SUELO = "#b7c6ab";
+  const paleta = PALETAS[estilo === "pintado-noche" ? "pintado-noche" : "pintado"], papelCss = `rgb(${paleta.papel.join(",")})`;
   const fuentes = new Map<string, Fuente>();
-  let ultimos: Marcador[] = [], fallos: string[] = [];
+  let ultimos: Marcador[] = [], todos: Marcador[] = [], fallos: string[] = []; // `todos` = every marker the sources gave; `ultimos` = what the layers let show (all the maps and the list read it)
+  // Map v2: the layers (legend toggles), remembered per browser
+  let capas: Capas = capasActivas(null);
+  try { capas = leerCapas(localStorage.getItem(CLAVE_CAPAS)); } catch { /* no storage: defaults */ }
+  const refiltrar = (): void => { ultimos = filtrar(todos, capas); };
   const dibujado = { mini: {} as Record<string, number>, grande: {} as Record<string, number> };
 
   // ---------- where you are and where you face (the camera's yaw when the camera branch gives it; else your steps) ----------
@@ -189,11 +257,11 @@ export function montarMapa(h: HostMapa) {
 
   // ---------- the built-in sources ----------
   let fichas: Marcador[] = [], fichasT = -Infinity, marcasAntes: unknown = null;
-  const nombreDe = (id: number): string => { const n = h.otros().chat?.nombres?.get?.(id); return typeof n === "string" && n ? n : `Persona ${id}`; };
+  const nombreDe = (id: number): string => { const n = h.otros().chat?.nombres?.get?.(id); return typeof n === "string" && n ? n : tx(`Person ${id}`, `Persona ${id}`); };
   // AGW-007/J5: the server is the one that ever adds the IA marker to a name — a client that sees it may
   // trust it. Groups AI inhabitants and organization agents apart from people on the map and its list.
   const esIA = (nombre: string): boolean => nombre.endsWith(MARCA_IA);
-  fuentes.set("tu", () => (yo ? [{ id: "tu", tipo: "tu", nombre: h.session.who?.nombre ?? "Tú", x: yo.x, z: yo.z, yaw: yawYo }] : []));
+  fuentes.set("tu", () => (yo ? [{ id: "tu", tipo: "tu", nombre: h.session.who?.nombre ?? tx("You", "Tú"), x: yo.x, z: yo.z, yaw: yawYo }] : []));
   fuentes.set("gente", () => h.session.remotePositions().map((r) => { const nombre = nombreDe(r.id); return { id: `p${r.id}`, tipo: esIA(nombre) ? (h.otros().ia?.de?.(r.id)?.estado === "dormida" ? "agente-dormida" : "agente") : "persona", nombre, x: r.x, z: r.z }; })); // ia-visible S5: a sleeping AI is drawn hollow (features/ia says its state)
   // U14 (4): a person or a quest thing the server marks for you is drawn as «!» or «✓» (misiones.marcaDe), and a
   // person's trade goes next to the name in the list (misiones.oficioDe); re-read at once when the marks change.
@@ -210,16 +278,21 @@ export function montarMapa(h: HostMapa) {
       for (const c of h.session.features.cards()) {
         if (!c.at) continue;
         const marca = mis?.marcaDe?.(c.feature, c.key), oficio = c.feature === "pnj" ? mis?.oficioDe?.(c.key) : "";
-        fichas.push({ id: `c:${c.feature}:${c.key}`, tipo: marca === "!" ? "para-ti" : marca === "✓" ? "hecho" : reg.tipoDeRol(c.role), nombre: oficio ? `${c.name} (${oficio})` : c.name, x: c.at.x, z: c.at.z, ...(c.description ? { detalle: c.description } : {}) });
+        // Map v2: what is only furniture or decoration goes to its own (quiet) layer: seats; characters the world declares as background (unless they have something for you)
+        const capa = c.feature === "asiento" ? "asientos" : c.feature === "pnj" && !marca && esDecorativo(mundo?.ocultar.pnj, c.key) ? "decorativos" : undefined;
+        fichas.push({ id: `c:${c.feature}:${c.key}`, ...(capa ? { capa } : {}), tipo: marca === "!" ? "para-ti" : marca === "✓" ? "hecho" : reg.tipoDeRol(c.role), nombre: oficio ? `${c.name} (${oficio})` : c.name, x: c.at.x, z: c.at.z, ...(c.description ? { detalle: c.description } : {}) });
       }
     }
     return fichas;
   });
+  // Map v2: the world's declared points of interest (not inferred from objects)
+  const puntos = (mundo?.puntos ?? []).map(marcadorDePunto);
+  fuentes.set("interes", () => puntos);
   // misiones (another branch): `objetivos()` → [{ mision, paso, nombre, x, z }]; absent = no objectives
   fuentes.set("misiones", () => {
     const o = (h.otros().misiones?.senalados ?? h.otros().misiones?.objetivos)?.(); // P3: a quest with pistas:false is not on the map
     if (!Array.isArray(o)) return [];
-    return o.map((m: { mision?: unknown; paso?: unknown; nombre?: unknown; x?: unknown; z?: unknown }) => ({ id: `m:${String(m.mision)}:${String(m.paso)}`, tipo: "objetivo", nombre: String(m.nombre ?? "Objetivo"), x: Number(m.x), z: Number(m.z), detalle: `Misión: ${String(m.mision ?? "")}` }));
+    return o.map((m: { mision?: unknown; paso?: unknown; nombre?: unknown; x?: unknown; z?: unknown }) => ({ id: `m:${String(m.mision)}:${String(m.paso)}`, tipo: "objetivo", nombre: String(m.nombre ?? tx("Objective", "Objetivo")), x: Number(m.x), z: Number(m.z), detalle: tx(`Quest: ${String(m.mision ?? "")}`, `Misión: ${String(m.mision ?? "")}`) }));
   });
   let destino: { id: string; nombre: string; x: number; z: number; baliza: number; lejos: boolean } | null = null;
   fuentes.set("destino", () => (destino ? [{ id: "destino", tipo: "destino", nombre: destino.nombre, x: destino.x, z: destino.z }] : []));
@@ -228,7 +301,7 @@ export function montarMapa(h: HostMapa) {
   const ordenados: Marcador[] = [], porOrdenDe = (a: Marcador, b: Marcador) => reg.tipo(a.tipo).orden - reg.tipo(b.tipo).orden;
   const porOrden = (ms: readonly Marcador[]): Marcador[] => { ordenados.length = 0; for (const m of ms) ordenados.push(m); return ordenados.sort(porOrdenDe); };
   const flechas = new WeakMap<Tipo, Tipo>(); // a kind pinned to the minimap's edge is drawn as its arrow (one copy per kind)
-  const comoFlecha = (t: Tipo): Tipo => { let f = flechas.get(t); if (!f) flechas.set(t, (f = { ...t, forma: "flecha" })); return f; };
+  const comoFlecha = (t: Tipo): Tipo => { let f = flechas.get(t); if (!f) flechas.set(t, (f = { ...t, forma: "flecha", icono: undefined })); return f; };
 
   // ---------- the waypoint ----------
   const limMini = crearLimitador(PASO_MS), limGrande = crearLimitador(PASO_MS);
@@ -236,7 +309,7 @@ export function montarMapa(h: HostMapa) {
   let origenViaje: (Vec & { nombre: string }) | null = null;
   function irA(m: { id: string; nombre: string; x: number; z: number }): void {
     if (!h.teletransporte?.activo()) return;
-    if (yo) origenViaje = { x: yo.x, z: yo.z, nombre: "donde estabas" };
+    if (yo) origenViaje = { x: yo.x, z: yo.z, nombre: tx("where you were", "donde estabas") };
     h.andar?.parar(); // a trip by teleport replaces a walk
     h.teletransporte.ir(m.x, m.z, m.nombre);
     h.alIr?.({ id: m.id, nombre: m.nombre, x: m.x, z: m.z });
@@ -271,12 +344,12 @@ export function montarMapa(h: HostMapa) {
   function marcarDestino(m: { id: string; nombre: string; x: number; z: number }): void {
     if (destino && destino.id === m.id) { quitarDestino("quitado"); return; }
     quitarDestino(null);
-    const texto = `Destino: ${m.nombre}`;
+    const texto = tx(`Destination: ${m.nombre}`, `Destino: ${m.nombre}`);
     let baliza = -1;
     if (h.view.waypoint) baliza = h.view.waypoint(m.x, m.z, texto); else h.view.beacon(m.x, m.z, texto, 10 * 60_000);
     const d = yo ? Math.hypot(m.x - yo.x, m.z - yo.z) : Infinity;
     destino = { id: m.id, nombre: m.nombre, x: m.x, z: m.z, baliza, lejos: d > LLEGADA_M + 2 };
-    anunciar(`Destino marcado: ${m.nombre}, ${yo ? enPalabras(m.x - yo.x, m.z - yo.z) : ""}.`);
+    anunciar(tx(`Destination set: ${m.nombre}, ${yo ? enPalabras(m.x - yo.x, m.z - yo.z) : ""}.`, `Destino marcado: ${m.nombre}, ${yo ? enPalabras(m.x - yo.x, m.z - yo.z) : ""}.`));
     cambio();
   }
   function quitarDestino(motivo: "quitado" | "llegada" | null): void {
@@ -284,29 +357,33 @@ export function montarMapa(h: HostMapa) {
     if (destino.baliza >= 0) h.view.dropWaypoint?.(destino.baliza);
     const n = destino.nombre;
     destino = null;
-    if (motivo === "quitado") anunciar(`Destino quitado: ${n}.`);
-    if (motivo === "llegada") anunciar(`Has llegado: ${n}.`);
+    if (motivo === "quitado") anunciar(tx(`Destination cleared: ${n}.`, `Destino quitado: ${n}.`));
+    if (motivo === "llegada") anunciar(tx(`You have arrived: ${n}.`, `Has llegado: ${n}.`));
     cambio();
   }
   function cambio(): void { limMini.forzar(); limGrande.forzar(); listaT = -Infinity; pintarDetalle(); }
 
   // ---------- minimap (corner) ----------
   const mini = document.createElement("section");
-  mini.id = "minimapa"; mini.setAttribute("aria-label", "Minimapa");
+  mini.id = "minimapa"; ligar(mini, "aria-label", "Minimap", "Minimapa");
   const miniCanvas = document.createElement("canvas"); miniCanvas.setAttribute("aria-hidden", "true");
   const miniTexto = document.createElement("p"); miniTexto.className = "solo-lector"; miniTexto.id = "minimapa-texto";
   // ux2-barra: the minimap IS the button of the big map (M): no «−», «+», «Mapa», «Ficha» under it (MIS-257: and the N is the compass button on its rim). The wheel over it
   // zooms; turning with the camera is a setting (Ajustes › Interfaz, interfaz.minimapaGira); the sheet is your card (I).
   const bMapa = document.createElement("button"); bMapa.type = "button"; bMapa.id = "minimapa-abrir";
-  bMapa.title = `${tituloDe("mapa")} · rueda: acercar y alejar`; bMapa.setAttribute("aria-label", tituloDe("mapa")); // v2 paridad: the name is the list's
+  alCambiarIdioma(() => { bMapa.title = tx(`${tituloDe("mapa")} · wheel: zoom in and out`, `${tituloDe("mapa")} · rueda: acercar y alejar`); bMapa.setAttribute("aria-label", tituloDe("mapa")); }); // v2 paridad: the name is the list's
   bMapa.append(miniCanvas);
   // MIS-257: the north is a button, not a letter painted on the canvas: it rides just inside the rim where north is (up, or swinging
   // round when the minimap turns with the camera) and pressing it puts the minimap back: centred on you, north up,
   // the usual radius. Phosphor «compass» (house icons); on a phone the folded minimap has no buttons (movil.css).
   const caja = document.createElement("div"); caja.className = "caja";
   const bNorte = document.createElement("button"); bNorte.type = "button"; bNorte.className = "norte"; bNorte.id = "minimapa-norte";
-  bNorte.innerHTML = icono("compass", 16); bNorte.setAttribute("aria-label", "Norte arriba: centrar el minimapa en ti"); bNorte.title = "Norte arriba · centrar el minimapa en ti";
-  caja.append(bMapa, bNorte);
+  bNorte.innerHTML = icono("compass", 16); ligar(bNorte, "aria-label", "North up: centre the minimap on you", "Norte arriba: centrar el minimapa en ti"); ligar(bNorte, "title", "North up · centre the minimap on you", "Norte arriba · centrar el minimapa en ti");
+  // Map v2.2: the filter is a panel apart, opened by a small magnifying glass on the minimap's lower-left rim (and one on the big map)
+  const bFiltroMini = document.createElement("button"); bFiltroMini.type = "button"; bFiltroMini.className = "filtro-boton"; bFiltroMini.id = "minimapa-filtro";
+  bFiltroMini.innerHTML = icono("magnifying-glass", 16); ligar(bFiltroMini, "aria-label", "Filter the map: what to show", "Filtrar el mapa: qué mostrar"); ligar(bFiltroMini, "title", "Filter the map: what to show", "Filtrar el mapa: qué mostrar");
+  bFiltroMini.setAttribute("aria-haspopup", "dialog"); bFiltroMini.setAttribute("aria-controls", "mapa-filtro");
+  caja.append(bMapa, bNorte, bFiltroMini);
   mini.append(caja, miniTexto);
   document.body.appendChild(mini);
   // a touch here is not the walking joystick; a mouse click leaves no focus behind (Space must jump, not open the map)
@@ -327,9 +404,10 @@ export function montarMapa(h: HostMapa) {
   /** The north button: centred on you, north up, the usual radius. Says so for screen readers, and redraws at once. */
   function recentrarMini(): void {
     ponerZoom(ZOOM_INICIAL); ponerGiro(false); recentrados++; limMini.forzar(); textoT = -Infinity;
-    anunciar("Minimapa centrado en ti, norte arriba.");
+    anunciar(tx("Minimap centred on you, north up.", "Minimapa centrado en ti, norte arriba."));
   }
   bNorte.addEventListener("click", (e) => { recentrarMini(); if (e.detail > 0) bNorte.blur(); });
+  bFiltroMini.addEventListener("click", (e) => { abrirFiltro(bFiltroMini); if (e.detail > 0) bFiltroMini.blur(); });
   // on touch screens the features' buttons live in the bottom-right corner: sit to their left
   const acciones = document.getElementById("acciones");
   const sitio = () => { if (!esTactil()) return; /* U3: on a mouse screen the frame table places the map */ mini.style.right = acciones && acciones.childElementCount ? `${acciones.offsetWidth + 20}px` : ""; };
@@ -339,6 +417,36 @@ export function montarMapa(h: HostMapa) {
   let huellas: Huella[] = [], huellasBajas: Huella[] = [], huellasV = NaN, corte = 0;
   let imagen: ImagenCenital | null = null, imagenV = NaN, imagenT = -Infinity, generando = false, imagenes = 0, vCambioT = -Infinity, pedidaT = NaN;
   const bufMini = { a: new Int32Array(0) }, bufGrande = { a: new Int32Array(0) };
+  // ---------- Map v2.2: the painted zone. The render (`imagen`) is only the input; `prep` = its soft masks (once per picture);
+  // `capaMini` = the whole picture painted once (the minimap's background); `capa` = the window the big map is looking at,
+  // painted at the screen's own resolution and repainted (debounced) when the view moves away from it: never a stretched bitmap.
+  let prep: Preparado | null = null, prepDe: ImagenCenital | null = null, capaMini: (ImagenCenital & { canvas: HTMLCanvasElement }) | null = null;
+  let capa: { canvas: HTMLCanvasElement; x0: number; z0: number; x1: number; z1: number; escala: number } | null = null, capaT = 0, capaPintadas = 0;
+  const mobil = h.view.power.mobile;
+  const lienzoNuevo = (w: number, hh: number): HTMLCanvasElement => { const c = document.createElement("canvas"); c.width = w; c.height = hh; return c; };
+  const aCanvas = (px: Uint8ClampedArray, w: number, hh: number, c?: HTMLCanvasElement): HTMLCanvasElement => { const cv = c && c.width === w && c.height === hh ? c : lienzoNuevo(w, hh); cv.getContext("2d")!.putImageData(new ImageData(px as Uint8ClampedArray<ArrayBuffer>, w, hh), 0, 0); return cv; };
+  function prepararPintado(): void {
+    if (!pintado || !imagen || prepDe === imagen) return;
+    prep = preparar(imagen.rgba, imagen.px, leerFondo(imagen.fondo)); prepDe = imagen; capa = null;
+    const S = mobil ? 640 : 1024; // the minimap's bitmap: it is shown small, one whole-zone painting is plenty
+    capaMini = { ...imagen, fondo: papelCss, px: S, canvas: aCanvas(pintarVentana(prep, { u0: 0, v0: 0, u1: imagen.px, v1: imagen.px }, S, S, paleta, 1.1), S, S) };
+    limMini.forzar(); limGrande.forzar();
+  }
+  /** Paint the window the big map sees (plus an eighth around it) at the screen's resolution. */
+  function pintarCapa(): void {
+    if (!prep || !imagen) return;
+    const dpr = Math.min(2, devicePixelRatio || 1), vis = { x0: gv.cx - gv.ancho / 2 / gv.escala, z0: gv.cz - gv.alto / 2 / gv.escala, x1: gv.cx + gv.ancho / 2 / gv.escala, z1: gv.cz + gv.alto / 2 / gv.escala };
+    const w = ventanaDeVista(imagen, vis, gv.escala, dpr, mobil ? 900 : 1600);
+    const salida = w.w / (w.mundo.x1 - w.mundo.x0); // output px per metre
+    const px = pintarVentana(prep, w.ventana, w.w, w.h, paleta, 1.1 * Math.min(1.5, Math.max(0.8, dpr)));
+    capa = { canvas: aCanvas(px, w.w, w.h, capa?.canvas), ...w.mundo, escala: salida / dpr }; capaPintadas++;
+  }
+  /** The painted window covers the view and is not much smaller/bigger than the screen needs. */
+  const capaVale = (): boolean => {
+    if (!capa) return false;
+    const x0 = gv.cx - gv.ancho / 2 / gv.escala, x1 = gv.cx + gv.ancho / 2 / gv.escala, z0 = gv.cz - gv.alto / 2 / gv.escala, z1 = gv.cz + gv.alto / 2 / gv.escala, r = capa.escala / gv.escala;
+    return x0 >= capa.x0 && x1 <= capa.x1 && z0 >= capa.z0 && z1 <= capa.z1 && r > 0.6 && r < 1.7;
+  };
   const vistaMini = (): Vista => {
     const t = lm.ancho;
     return { cx: yo!.x, cz: yo!.z, escala: (t / 2 - 4) / RADIOS[zoom], giro: gira ? yawYo : 0, ancho: t, alto: t };
@@ -348,7 +456,11 @@ export function montarMapa(h: HostMapa) {
     if (t < 8) return; // U20: hidden by the density dial (Mínimo) it has no size: draw nothing (and no negative radius)
     g.clearRect(0, 0, t, t);
     g.save(); g.beginPath(); g.arc(c, c, r, 0, Math.PI * 2); g.clip();
-    if (corte > 0 && imagen && imagen.corte > 0) { // U14: the floor plan (picture + cut) instead of footprints
+    if (pintado && capaMini && imagen) { // Map v2.2: the painted zone (one cached bitmap of the whole picture), the cut's lines over it
+      imagenEnMapa(g, v, capaMini);
+      rejilla(g, v, 10);
+      if (corte > 0 && imagen.corte > 0) corteEnMapa(g, v, imagen, bufMini);
+    } else if (corte > 0 && imagen && imagen.corte > 0) { // U14: the floor plan (picture + cut) instead of footprints
       imagenEnMapa(g, v, imagen);
       rejilla(g, v, 10);
       corteEnMapa(g, v, imagen, bufMini);
@@ -369,11 +481,11 @@ export function montarMapa(h: HostMapa) {
         if (!ti.alBorde) continue;
         px = c + (ex / d) * rb; py = c + (ey / d) * rb; ang = anguloBorde(px, py, c, c); dibujo = comoFlecha(ti); // GPS-style: point the way, not just a pinned dot
       }
-      forma(g, dibujo, px, py, fuera ? ti.tam * 0.8 : ti.tam, ang);
+      forma(g, dibujo, px, py, fuera ? ti.tam * 0.8 : ti.tam, ang, fuera ? "" : m.tipo);
       vistos[m.tipo] = (vistos[m.tipo] ?? 0) + 1;
     }
     g.restore();
-    g.strokeStyle = BYN ? "#fff" : "rgba(20,24,30,0.85)"; g.lineWidth = 2.5; g.beginPath(); g.arc(c, c, r, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = BYN ? "#fff" : pintado ? "rgba(58,51,45,0.9)" : "rgba(20,24,30,0.85)"; g.lineWidth = 2.5; g.beginPath(); g.arc(c, c, r, 0, Math.PI * 2); g.stroke();
     const n = puntoNorte(v.giro, c, r - 10); // the north button sits just inside the rim where north is (never over the clock above) (a CSS transform: no layout)
     bNorte.style.transform = `translate(${n.x.toFixed(1)}px, ${n.y.toFixed(1)}px) translate(-50%, -50%)`;
     dibujado.mini = vistos;
@@ -386,31 +498,31 @@ export function montarMapa(h: HostMapa) {
     const n = contar(ms), partes: string[] = [];
     for (const [id, ti] of reg.tipos()) if (n[id] && ti.enLista) partes.push(`${n[id]} ${ti.nombre.toLowerCase()}`);
     const cerca = cercanos(ms, yo, reg, 3).map((e) => `${e.nombre} (${reg.tipo(e.tipo).nombre.toLowerCase()}), ${e.texto}`);
-    const t = `Minimapa, ${gira ? "gira con la cámara" : "norte arriba"}, ${RADIOS[zoom]} m alrededor: ${partes.join(", ") || "nada cerca"}.` +
-      (cerca.length ? ` Lo más cerca: ${cerca.join("; ")}.` : "") + (destino ? ` Destino: ${destino.nombre}, ${enPalabras(destino.x - yo.x, destino.z - yo.z)}.` : "") + (esMovil(perfil().clase) ? " Toca el minimapa para ver dónde estás y la lista." : " Pulsa M para ver dónde estás y la lista.");
+    const t = tx(`Minimap, ${gira ? "turns with the camera" : "north up"}, ${RADIOS[zoom]} m around: ${partes.join(", ") || "nothing near"}.`, `Minimapa, ${gira ? "gira con la cámara" : "norte arriba"}, ${RADIOS[zoom]} m alrededor: ${partes.join(", ") || "nada cerca"}.`) +
+      (cerca.length ? tx(` Nearest: ${cerca.join("; ")}.`, ` Lo más cerca: ${cerca.join("; ")}.`) : "") + (destino ? tx(` Destination: ${destino.nombre}, ${enPalabras(destino.x - yo.x, destino.z - yo.z)}.`, ` Destino: ${destino.nombre}, ${enPalabras(destino.x - yo.x, destino.z - yo.z)}.`) : "") + (esMovil(perfil().clase) ? tx(" Tap the minimap to see where you are and the list.", " Toca el minimapa para ver dónde estás y la lista.") : tx(" Press M to see where you are and the list.", " Pulsa M para ver dónde estás y la lista."));
     if (t !== textoAntes) { miniTexto.textContent = t; textoAntes = t; }
   }
 
   // ---------- big map (dialog) ----------
-  const panel = crearDialogo({ id: "mapa-grande", titulo: tituloDe("mapa").replace(/ \(M\)$/, ""), tecla: "KeyM", boton: bMapa, alAbrir: () => abrirGrande(), alCerrar: () => { arrastre.clear(); } });
+  const panel = crearDialogo({ id: "mapa-grande", titulo: () => tituloDe("mapa").replace(/ \(\w+\)$/, ""), tecla: "KeyM", accion: "mapa", boton: bMapa, alAbrir: () => abrirGrande(), alCerrar: () => { arrastre.clear(); } });
   const zonaLienzo = document.createElement("div"); zonaLienzo.className = "lienzo";
   const gCanvas = document.createElement("canvas"); gCanvas.tabIndex = 0;
   gCanvas.setAttribute("role", "img");
-  gCanvas.setAttribute("aria-label", "La zona vista desde arriba, norte arriba. Flechas: mover la vista; + y −: acercar y alejar; 0: centrar en ti. La misma información está en la lista.");
+  ligar(gCanvas, "aria-label", "The area seen from above, north up. Arrow keys: move the view; + and −: zoom in and out; 0: centre on you. The same information is in the list.", "La zona vista desde arriba, norte arriba. Flechas: mover la vista; + y −: acercar y alejar; 0: centrar en ti. La misma información está en la lista.");
   const controles = document.createElement("div"); controles.className = "controles";
-  const gMas = boton("+", "Acercar la vista"), gMenos = boton("−", "Alejar la vista"), gCentro = boton("◎", "Centrarte en la vista");
-  controles.append(gMas, gMenos, gCentro);
+  const gMas = boton("+", ""), gMenos = boton("−", ""), gCentro = boton("◎", "");
+  ligar(gMas, "aria-label", "Zoom in", "Acercar la vista"); ligar(gMas, "title", "Zoom in", "Acercar la vista"); ligar(gMenos, "aria-label", "Zoom out", "Alejar la vista"); ligar(gMenos, "title", "Zoom out", "Alejar la vista"); ligar(gCentro, "aria-label", "Centre the view on you", "Centrarte en la vista"); ligar(gCentro, "title", "Centre the view on you", "Centrarte en la vista");
+  const gFiltro = boton("", ""); gFiltro.className = "filtro-boton"; ligar(gFiltro, "aria-label", "Filter the map: what to show", "Filtrar el mapa: qué mostrar"); ligar(gFiltro, "title", "Filter the map: what to show", "Filtrar el mapa: qué mostrar"); gFiltro.innerHTML = icono("magnifying-glass", 18); gFiltro.setAttribute("aria-haspopup", "dialog"); gFiltro.setAttribute("aria-controls", "mapa-filtro");
+  controles.append(gFiltro, gMas, gMenos, gCentro);
   const estadoImagen = document.createElement("p"); estadoImagen.className = "estado-imagen";
   zonaLienzo.append(gCanvas, controles, estadoImagen);
   const lado = document.createElement("aside");
-  const detalle = document.createElement("section"); detalle.className = "detalle"; detalle.setAttribute("aria-live", "polite"); detalle.setAttribute("aria-label", "Detalle");
-  const hLista = document.createElement("h3"); hLista.id = "mapa-lista-titulo"; hLista.textContent = "Todo el mundo"; hLista.tabIndex = -1;
-  const buscar = document.createElement("input"); buscar.type = "search"; buscar.id = "mapa-buscar"; buscar.placeholder = "Buscar en el mundo…"; buscar.setAttribute("aria-label", "Buscar en la lista del mundo");
+  const detalle = document.createElement("section"); detalle.className = "detalle"; detalle.setAttribute("aria-live", "polite"); ligar(detalle, "aria-label", "Details", "Detalle");
+  const buscar = document.createElement("input"); buscar.type = "search"; buscar.id = "mapa-buscar"; buscar.placeholder = tr("mapa.buscar"); buscar.setAttribute("aria-label", `${tr("mapa.buscar")} ${tr("mapa.lista.todo")}`);
+  const hLista = document.createElement("h3"); hLista.id = "mapa-lista-titulo"; hLista.textContent = tr("mapa.lista"); hLista.tabIndex = -1;
   buscar.addEventListener("input", () => { listaT = -Infinity; pintarLista(); });
   const lista = document.createElement("ul"); lista.id = "mapa-lista"; lista.setAttribute("aria-labelledby", hLista.id);
-  const hLeyenda = document.createElement("h3"); hLeyenda.textContent = "Leyenda";
-  const leyenda = document.createElement("ul"); leyenda.className = "leyenda";
-  lado.append(detalle, hLista, buscar, lista, hLeyenda, leyenda);
+  lado.append(detalle, hLista, buscar, lista); // Map v2.2: the switches are not here any more: the filter is a panel apart (the magnifying glass)
   panel.cuerpo.append(zonaLienzo, lado);
   const lg = lienzo(gCanvas);
   const gv: Vista = { cx: 0, cz: 0, escala: 3, giro: 0, ancho: 1, alto: 1 };
@@ -422,7 +534,10 @@ export function montarMapa(h: HostMapa) {
     lg.ajustar();
     if (yo) { gv.cx = yo.x; gv.cz = yo.z; }
     gv.escala = Math.min(lg.ancho, lg.alto) / 90;
-    pintarLeyenda(); listaT = -Infinity; limGrande.forzar();
+    // Map v2: with declared places the map opens on all of them (you included), not on your feet
+    const pts = [...puntos, ...(yo ? [yo] : [])], fit = puntos.length ? encuadre(pts, lg.ancho, lg.alto, 56, 0.8, 6) : null;
+    if (fit) { gv.cx = fit.cx; gv.cz = fit.cz; gv.escala = fit.escala; }
+    listaT = -Infinity; limGrande.forzar();
     void generarImagen(true);
     pintarGrande(); pintarLista(); pintarDetalle();
   }
@@ -430,22 +545,27 @@ export function montarMapa(h: HostMapa) {
     const v = h.view.cenitalVersion?.() ?? 0, ahora = performance.now();
     if (!h.view.cenital || generando || (imagen && v === imagenV) || (!alAbrir && ahora - imagenT < IMAGEN_MS)) return;
     generando = true; imagenT = ahora;
-    estadoImagen.textContent = "Dibujando la zona desde arriba…";
+    estadoImagen.textContent = tx("Drawing the area from above…", "Dibujando la zona desde arriba…");
     try {
       const img = await h.view.cenital({ px: h.view.power.mobile ? 256 : 512, incluir: yo ?? undefined });
       imagen = img; imagenV = v; imagenes++;
       estadoImagen.textContent = "";
+      prepararPintado();
       limMini.forzar(); limGrande.forzar();
       if (panel.abierto) pedir(); // a picture made for the minimap (U14) does not redraw a closed big map
-    } catch (e) { estadoImagen.textContent = `No se pudo dibujar la zona: ${String((e as Error)?.message ?? e).slice(0, 80)}`; }
+    } catch (e) { estadoImagen.textContent = tx(`Could not draw the area: ${String((e as Error)?.message ?? e).slice(0, 80)}`, `No se pudo dibujar la zona: ${String((e as Error)?.message ?? e).slice(0, 80)}`); }
     finally { generando = false; }
   }
   function pintarGrande(): void {
     lg.ajustar();
     gv.ancho = lg.ancho; gv.alto = lg.alto;
     const g = lg.g;
-    g.fillStyle = imagen?.fondo ?? SUELO; g.fillRect(0, 0, lg.ancho, lg.alto); // the ground goes on beyond the picture
-    if (imagen) {
+    g.fillStyle = pintado ? SUELO : imagen?.fondo ?? SUELO; g.fillRect(0, 0, lg.ancho, lg.alto); // the ground goes on beyond the picture
+    if (imagen && pintado && prep) { // Map v2.2: the painted window; stale for a moment while you drag or zoom, then repainted sharp
+      if (!capa) pintarCapa();
+      else if (!capaVale()) { window.clearTimeout(capaT); capaT = window.setTimeout(() => { capaT = 0; if (panel.abierto) { pintarCapa(); pedir(); } }, 140) as unknown as number; }
+      if (capa) { const a = proyectar(gv, capa.x0, capa.z0), b = proyectar(gv, capa.x1, capa.z1); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = "high"; g.drawImage(capa.canvas, a.px, a.py, b.px - a.px, b.py - a.py); }
+    } else if (imagen) {
       const a = proyectar(gv, imagen.x0, imagen.z0), b = proyectar(gv, imagen.x1, imagen.z1);
       g.imageSmoothingEnabled = true; g.drawImage(imagen.canvas, a.px, a.py, b.px - a.px, b.py - a.py);
     } else {
@@ -458,49 +578,82 @@ export function montarMapa(h: HostMapa) {
     for (const m of porOrden(ultimos)) {
       const ti = reg.tipo(m.tipo), p = proyectar(gv, m.x, m.z);
       if (p.px < -20 || p.py < -20 || p.px > gv.ancho + 20 || p.py > gv.alto + 20) continue;
-      forma(g, ti, p.px, p.py, ti.tam * k, m.tipo === "tu" ? anguloFlecha(0, m.yaw ?? 0) : 0);
+      forma(g, ti, p.px, p.py, ti.tam * k, m.tipo === "tu" ? anguloFlecha(0, m.yaw ?? 0) : 0, m.tipo);
       vistos[m.tipo] = (vistos[m.tipo] ?? 0) + 1;
     }
-    if (elegido) { const p = proyectar(gv, elegido.x, elegido.z); g.strokeStyle = BYN ? "#fff" : "#ffd27a"; g.lineWidth = 3; g.beginPath(); g.arc(p.px, p.py, 14, 0, Math.PI * 2); g.stroke(); }
+    etiquetasInteres(g);
+    if (elegido) { const p = proyectar(gv, elegido.x, elegido.z); g.strokeStyle = BYN ? "#fff" : pintado ? `rgb(${TURQUESA})` : "#ffd27a"; g.lineWidth = 3; g.beginPath(); g.arc(p.px, p.py, 17, 0, Math.PI * 2); g.stroke(); }
     // scale bar: 10 m (or 50 m when far)
     const m10 = gv.escala >= 4 ? 10 : 50, w = m10 * gv.escala;
-    g.fillStyle = BYN ? "#000" : "rgba(20,24,30,0.75)"; g.fillRect(10, gv.alto - 26, w + 40, 18);
-    g.fillStyle = BYN ? "#fff" : "#ffd27a"; g.fillRect(14, gv.alto - 18, w, 3);
-    g.fillStyle = BYN ? "#fff" : "#eef2f6"; g.font = "11px system-ui, sans-serif"; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText(`${m10} m`, w + 18, gv.alto - 17);
+    if (pintado && !BYN) { // an ink scale bar with end ticks, haloed in paper
+      g.save(); g.lineCap = "butt"; g.lineJoin = "round";
+      const trazoEscala = (): void => { g.beginPath(); g.moveTo(14, gv.alto - 22); g.lineTo(14, gv.alto - 14); g.lineTo(14 + w, gv.alto - 14); g.lineTo(14 + w, gv.alto - 22); };
+      g.strokeStyle = "rgba(249,235,220,0.9)"; g.lineWidth = 5; trazoEscala(); g.stroke(); g.strokeStyle = TINTA; g.lineWidth = 1.8; trazoEscala(); g.stroke();
+      g.font = "italic 600 12px Georgia, 'Times New Roman', serif"; g.textAlign = "left"; g.textBaseline = "middle"; g.strokeStyle = "rgba(249,235,220,0.9)"; g.lineWidth = 4; g.strokeText(`${m10} m`, w + 20, gv.alto - 16); g.fillStyle = TINTA; g.fillText(`${m10} m`, w + 20, gv.alto - 16);
+      g.restore();
+    } else {
+      g.fillStyle = BYN ? "#000" : "rgba(20,24,30,0.75)"; g.fillRect(10, gv.alto - 26, w + 40, 18);
+      g.fillStyle = BYN ? "#fff" : "#ffd27a"; g.fillRect(14, gv.alto - 18, w, 3);
+      g.fillStyle = BYN ? "#fff" : "#eef2f6"; g.font = "11px system-ui, sans-serif"; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText(`${m10} m`, w + 18, gv.alto - 17);
+    }
     dibujado.grande = vistos;
+  }
+
+  /** Map v2: the names of the places, WoW style: a zone's name large over its marker, the other places' names small under theirs. */
+  function etiquetasInteres(g: CanvasRenderingContext2D): void {
+    g.textAlign = "center"; g.lineJoin = "round";
+    const k = Math.min(1.8, Math.max(1.1, gv.escala / 4));
+    const zonaT = tipoDePunto("zona");
+    for (const m of [...ultimos.filter((x) => x.tipo !== zonaT), ...ultimos.filter((x) => x.tipo === zonaT)]) { // zone names last: they win where labels meet
+      if (!m.tipo.startsWith("poi-")) continue;
+      const p = proyectar(gv, m.x, m.z);
+      if (p.px < -80 || p.py < -20 || p.px > gv.ancho + 80 || p.py > gv.alto + 20) continue;
+      const zona = m.tipo === tipoDePunto("zona"), ti = reg.tipo(m.tipo), r = ti.tam * k;
+      if (!zona && gv.escala < 1.2) continue;
+      const tipo = pintado && !BYN; // lettered like an old map: a zone in large spaced serif capitals, the rest in small italic; paper halo
+      const nombre = tipo && zona ? m.nombre.toUpperCase() : m.nombre;
+      g.font = tipo ? (zona ? `600 ${Math.round(Math.max(16, Math.min(34, 10 + gv.escala * 3.2)))}px Georgia, "Times New Roman", serif` : `italic 600 12px Georgia, "Times New Roman", serif`)
+        : zona ? `700 ${Math.round(Math.max(14, Math.min(22, 9 + gv.escala * 2)))}px system-ui, sans-serif` : "600 11px system-ui, sans-serif";
+      (g as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = tipo && zona ? "0.16em" : "0px";
+      g.textBaseline = zona ? "bottom" : "top";
+      const y = zona ? p.py - r - 3 : p.py + r + 3;
+      g.lineWidth = zona ? 6 : 4; g.strokeStyle = BYN ? "#000" : tipo ? "rgba(249,235,220,0.92)" : "rgba(14,18,28,0.88)"; g.strokeText(nombre, p.px, y);
+      g.fillStyle = BYN ? "#fff" : tipo ? TINTA : zona ? "#ffe9a8" : "#ffffff"; g.fillText(nombre, p.px, y);
+      (g as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "0px";
+    }
   }
 
   // details of what you picked (a marker, or a point of the map) with «Marcar destino»
   function pintarDetalle(): void {
     detalle.replaceChildren();
     if (origenViaje && h.teletransporte) {
-      const v = boton("", "Volver a donde estabas"); v.className = "ic volver"; v.innerHTML = icono("arrow-u-up-left", 18);
+      const v = boton("", tx("Back to where you were", "Volver a donde estabas")); v.className = "ic volver"; v.innerHTML = icono("arrow-u-up-left", 18);
       v.disabled = !h.teletransporte.activo();
       v.addEventListener("click", () => volver());
       detalle.append(v);
     }
-    if (!elegido) { const p = document.createElement("p"); p.textContent = "Elige algo en la vista o en la lista para ver su detalle y marcarlo como destino."; detalle.append(p); return; }
+    if (!elegido) { const p = document.createElement("p"); p.textContent = tx("Pick something on the view or in the list to see its details and set it as your destination.", "Elige algo en la vista o en la lista para ver su detalle y marcarlo como destino."); detalle.append(p); return; }
     const t = document.createElement("h3"); t.textContent = elegido.nombre;
     const p = document.createElement("p");
     p.textContent = `${reg.tipo(elegido.tipo).nombre}${yo ? ` · ${enPalabras(elegido.x - yo.x, elegido.z - yo.z)}` : ""}${elegido.detalle ? ` · ${elegido.detalle}` : ""}`;
     const es = destino?.id === elegido.id;
-    const b = boton(es ? "Quitar destino" : "Marcar destino");
+    const b = boton(es ? tx("Clear destination", tx("Remove destination", "Quitar destino")) : tx("Set destination", "Marcar destino"));
     const e = elegido;
     b.addEventListener("click", () => marcarDestino(e));
     detalle.append(t, p, b);
     if (h.andar) { // MIS-257: «Ir» walks there by itself
-      const a = boton("Ir", `Ir andando a ${e.nombre}`); a.className = "andar";
+      const a = boton(tx("Go", "Ir"), tx(`Walk to ${e.nombre}`, `Ir andando a ${e.nombre}`)); a.className = "andar";
       a.addEventListener("click", () => { irAndando(e); });
       detalle.append(a);
     }
     if (h.puedeEditar?.(e) && h.alEditar) { // MIS-240: a thing of the world, and you may build: open it in the builder
-      const ed = boton("Editar este objeto", `Abrir ${e.nombre} en Construir`); ed.className = "editar";
+      const ed = boton(tx("Edit this object", "Editar este objeto"), tx(`Open ${e.nombre} in Build`, `Abrir ${e.nombre} en Construir`)); ed.className = "editar";
       ed.addEventListener("click", () => { if (h.alEditar!(e) && panel.abierto) panel.cerrar(); });
       detalle.append(ed);
     }
     if (h.teletransporte) { // U27 (MVL1): pick a site, press «Ir de golpe», appear there (the server decides; same in VR)
       const activo = h.teletransporte.activo();
-      const g = boton(activo ? "Ir de golpe" : "Ir de golpe (apagado en este mundo)");
+      const g = boton(activo ? tx("Jump there", "Ir de golpe") : tx("Jump there (off in this world)", "Ir de golpe (apagado en este mundo)"));
       g.disabled = !activo;
       g.addEventListener("click", () => irA(e));
       detalle.append(g);
@@ -520,9 +673,9 @@ export function montarMapa(h: HostMapa) {
   function pintarLista(): void {
     if (!yo) return;
     // the waypoint is listed only when it is a point of the map (a marker that is the destination already says so)
-    const real = destino && ultimos.some((m) => m.id === destino!.id) ? "destino" : "";
+    const real = destino && todos.some((m) => m.id === destino!.id) ? "destino" : "";
     const q = buscar.value.trim().toLowerCase();
-    const entradas = cercanos(ultimos.filter((m) => m.id !== real), yo, reg, LISTA_MAX).filter((e) => !q || `${e.nombre} ${reg.tipo(e.tipo).nombre}`.toLowerCase().includes(q)).map((e) => (e.id === "destino" && destino ? { ...e, id: destino.id } : e));
+    const entradas = cercanos((q ? todos : ultimos).filter((m) => m.id !== real), yo, reg, LISTA_MAX).filter((e) => !q || `${e.nombre} ${reg.tipo(e.tipo).nombre}`.toLowerCase().includes(q)).map((e) => (e.id === "destino" && destino ? { ...e, id: destino.id } : e));
     const vivos = new Set(entradas.map((e) => e.id));
     const foco = lista.contains(document.activeElement);
     for (const [id, f] of filas) if (!vivos.has(id)) { if (f.li.contains(document.activeElement)) hLista.focus(); f.li.remove(); filas.delete(id); }
@@ -545,41 +698,112 @@ export function montarMapa(h: HostMapa) {
       f.e = e;
       const texto = `${e.nombre} · ${reg.tipo(e.tipo).nombre.toLowerCase()} · ${e.texto}`;
       if (f.ver.textContent !== texto) f.ver.textContent = texto;
-      const es = destino?.id === e.id, mt = es ? "Quitar destino" : "Marcar destino", ml = `${mt}: ${e.nombre}`;
+      const es = destino?.id === e.id, mt = es ? tx("Clear destination", tx("Remove destination", "Quitar destino")) : tx("Set destination", "Marcar destino"), ml = `${mt}: ${e.nombre}`;
       if (f.marcar.getAttribute("aria-label") !== ml) { f.marcar.setAttribute("aria-label", ml); f.marcar.title = mt; }
       if (h.andar) {
-        const al = `Ir andando a ${e.nombre}`;
+        const al = tx(`Walk to ${e.nombre}`, `Ir andando a ${e.nombre}`);
         if (f.andar.getAttribute("aria-label") !== al) { f.andar.setAttribute("aria-label", al); f.andar.title = al; }
       }
       if (h.teletransporte) {
-        const activo = h.teletransporte.activo(), il = activo ? `Ir de golpe a ${e.nombre}` : "Ir de golpe (apagado en este mundo)";
+        const activo = h.teletransporte.activo(), il = activo ? tx(`Jump to ${e.nombre}`, `Ir de golpe a ${e.nombre}`) : tx("Jump there (off in this world)", "Ir de golpe (apagado en este mundo)");
         if (f.ir.getAttribute("aria-label") !== il) { f.ir.setAttribute("aria-label", il); f.ir.title = il; }
         f.ir.disabled = !activo;
       }
     }
     if (!foco) for (const e of entradas) lista.appendChild(filas.get(e.id)!.li); // nearest first (moving rows only when focus is elsewhere)
-    if (!entradas.length && !lista.childElementCount) { const li = document.createElement("li"); li.textContent = q ? "Nada con ese nombre." : "No hay nada en el mundo."; li.dataset.id = ""; lista.appendChild(li); }
+    if (!entradas.length && !lista.childElementCount) { const li = document.createElement("li"); li.textContent = q ? tx("Nothing with that name.", "Nada con ese nombre.") : tr("mapa.nada"); li.dataset.id = ""; lista.appendChild(li); }
     else for (const li of [...lista.children] as HTMLElement[]) if (li.dataset.id === "") li.remove();
   }
-  function pintarLeyenda(): void {
-    leyenda.replaceChildren();
-    for (const [id, ti] of reg.tipos()) {
-      if (id === "otro" && !ultimos.some((m) => m.tipo === "otro")) continue;
-      const li = document.createElement("li"), c = document.createElement("canvas");
-      c.width = c.height = 36; c.setAttribute("aria-hidden", "true");
-      const g = c.getContext("2d")!; g.scale(2, 2); g.fillStyle = SUELO; g.fillRect(0, 0, 18, 18); forma(g, ti, 9, 9, 5);
-      const s = document.createElement("span"); s.textContent = ti.nombre;
-      li.append(c, s); leyenda.appendChild(li);
-    }
+  // Map v2.2: the filter — ONE list in a panel apart (like an MMO's «Tracking»): a single column grouped by kind, each group a heading
+  // with its switch and its count and, under it, what there is of that kind (a click shows it on the map; the pin sets it as destination).
+  // The choice is remembered per browser. The same filter drives the minimap, the big map and the big map's list.
+  function ponerCapa(id: string, si: boolean): void {
+    if (capas[id] === si) return;
+    capas = { ...capas, [id]: si };
+    try { localStorage.setItem(CLAVE_CAPAS, textoCapas(capas)); } catch { /* private mode: it lasts until you leave */ }
+    refiltrar(); limMini.forzar(); limGrande.forzar(); textoT = -Infinity; listaT = -Infinity;
+    pedir(); pintarLista(); pintarFiltro();
   }
+  const filtro = document.createElement("dialog"); filtro.id = "mapa-filtro"; filtro.className = "panel-j5"; filtro.setAttribute("aria-labelledby", "mapa-filtro-titulo");
+  {
+    const cab = document.createElement("header"), h2 = document.createElement("h2"), x = boton("", tr("mapa.filtro.cerrar")); h2.id = "mapa-filtro-titulo"; h2.textContent = tr("mapa.filtro");
+    x.className = "cerrar"; x.innerHTML = icono("x", 18); x.addEventListener("click", () => filtro.close()); cab.append(h2, x);
+    const cuerpo = document.createElement("div"); cuerpo.className = "cuerpo";
+    const ayuda = document.createElement("p"); ayuda.className = "nota"; ayuda.textContent = tr("mapa.filtro.ayuda");
+    const ul = document.createElement("ul"); ul.className = "filtro"; ul.setAttribute("aria-labelledby", h2.id);
+    cuerpo.append(ayuda, ul); filtro.append(cab, cuerpo); document.body.appendChild(filtro);
+    for (const t of ["pointerdown", "wheel", "keydown"]) filtro.addEventListener(t, (e) => e.stopPropagation()); // a panel's touches and keys are its own (the browser still closes it on Escape)
+  }
+  const listaFiltro = filtro.querySelector("ul.filtro") as HTMLUListElement;
+  let filtroFirma = "", filtroVolver: Element | null = null;
+  const insigniaHtml = (tipo: string): string => {
+    const ti = reg.tipo(tipo), c = tinta(ti.color);
+    return ti.icono && icono(ti.icono, 14) ? `<span class="insignia" style="background:${c};color:${BYN ? "#fff" : luz(ti.color) > 0.6 ? TINTA : "#fff"}">${icono(ti.icono, 14)}</span>` : `<span class="punto" style="background:${c}"></span>`; // people: a dot
+  };
+  function pintarFiltro(): void {
+    const grupos = agrupar(todos, capas);
+    const firma = JSON.stringify(grupos.map((g) => [g.id, g.activa, g.items.map((m) => [m.id, m.nombre, m.tipo, destino?.id === m.id])]));
+    if (firma === filtroFirma) return;
+    filtroFirma = firma;
+    const antes = document.activeElement instanceof HTMLElement && listaFiltro.contains(document.activeElement) ? document.activeElement.dataset.foco ?? "" : "";
+    listaFiltro.replaceChildren();
+    if (!grupos.length) { const li = document.createElement("li"); li.className = "vacio"; li.textContent = tr("mapa.filtro.vacio"); listaFiltro.append(li); return; }
+    for (const g of grupos) {
+      const li = document.createElement("li"), cab = document.createElement("label"), cb = document.createElement("input"), nom = document.createElement("span"), cuenta = document.createElement("span");
+      li.className = "grupo"; li.dataset.capa = g.id; li.dataset.activa = String(g.activa);
+      cb.type = "checkbox"; cb.checked = g.activa; cb.dataset.capa = g.id; cb.dataset.foco = `capa:${g.id}`;
+      const nombreCapa = tr(`mapa.capa.${g.id}`);
+      cb.setAttribute("aria-label", tr("mapa.filtro.mostrar").replace("{tipo}", nombreCapa));
+      cb.addEventListener("change", () => ponerCapa(g.id, cb.checked));
+      nom.className = "nombre"; nom.textContent = nombreCapa; cuenta.className = "cuenta"; cuenta.textContent = String(g.total);
+      cab.className = "cabeza"; cab.append(cb, nom, cuenta); li.append(cab);
+      if (g.activa) { // a switched-off group is collapsed: only its heading and its count
+        const ul = document.createElement("ul"); ul.className = "items";
+        for (const m of g.items) {
+          const fila = document.createElement("li"), ver = boton(""), fijar = boton("");
+          ver.className = "ver"; ver.dataset.foco = `ver:${m.id}`; ver.innerHTML = insigniaHtml(m.tipo); const rotulo = document.createElement("span"); rotulo.textContent = m.nombre; ver.append(rotulo);
+          ver.addEventListener("click", () => irAlPunto(m));
+          fijar.className = "fijar ic"; fijar.dataset.foco = `fijar:${m.id}`; fijar.innerHTML = icono("push-pin", 16);
+          const es = destino?.id === m.id, et = es ? tx("Remove destination", "Quitar destino") : tr("mapa.filtro.fijar").replace("{nombre}", m.nombre); fijar.setAttribute("aria-label", et); fijar.title = et; fijar.setAttribute("aria-pressed", String(es));
+          fijar.addEventListener("click", () => { marcarDestino(m); });
+          fila.append(ver, fijar); ul.append(fila);
+        }
+        li.append(ul);
+      }
+      listaFiltro.append(li);
+    }
+    if (antes) [...listaFiltro.querySelectorAll<HTMLElement>("[data-foco]")].find((e) => e.dataset.foco === antes)?.focus({ preventScroll: true }); // a rebuild keeps your place
+  }
+  /** A click in the list: show it on the big map (opening it if need be), centred and picked. */
+  function irAlPunto(m: Marcador): void {
+    filtro.close();
+    if (!panel.abierto) panel.abrir();
+    elegir({ id: m.id === "destino" && destino ? destino.id : m.id, nombre: m.nombre, tipo: m.tipo, x: m.x, z: m.z, detalle: m.detalle }, true);
+    gv.escala = Math.max(gv.escala, 3); pedir();
+  }
+  function abrirFiltro(desde?: Element | null): void {
+    if (filtro.open) return;
+    filtroVolver = desde ?? document.activeElement; filtroFirma = ""; pintarFiltro();
+    filtro.showModal();
+  }
+  filtro.addEventListener("close", () => { const v = filtroVolver; filtroVolver = null; if (v instanceof HTMLElement && v.isConnected) v.focus({ preventScroll: true }); });
+  gFiltro.addEventListener("click", () => abrirFiltro(gFiltro));
 
   // pan (drag), zoom (wheel, pinch, buttons, keys), pick (click or tap)
   const arrastre = new Map<number, { x: number; y: number }>();
   let movido = 0, pinza = 0;
   const punto = (e: PointerEvent | WheelEvent) => { const r = gCanvas.getBoundingClientRect(); return { px: e.clientX - r.left, py: e.clientY - r.top }; };
+  // QA 2026-11-11 (Pablo): the farthest zoom-out is the one where the whole space fits on screen, never smaller
+  function escalaMinima(): number {
+    const caja = imagen && Number.isFinite(imagen.x0) && imagen.x1 > imagen.x0 && imagen.z1 > imagen.z0
+      ? [{ x: imagen.x0, z: imagen.z0 }, { x: imagen.x1, z: imagen.z1 }]
+      : [...puntos, ...(yo ? [yo] : [])];
+    const fit = caja.length ? encuadre(caja, gv.ancho, gv.alto, 24, 0.05, 40) : null;
+    return fit ? Math.max(0.05, fit.escala) : 0.3;
+  }
   function zoomEn(factor: number, px = gv.ancho / 2, py = gv.alto / 2): void {
     const w = desproyectar(gv, px, py);
-    gv.escala = Math.min(40, Math.max(0.3, gv.escala * factor));
+    gv.escala = Math.min(40, Math.max(escalaMinima(), gv.escala * factor));
     gv.cx = w.x - (px - gv.ancho / 2) / gv.escala; gv.cz = w.z - (py - gv.alto / 2) / gv.escala;
     pedir();
   }
@@ -618,7 +842,7 @@ export function montarMapa(h: HostMapa) {
         if (d < d2) { d2 = d; mejor = m; }
       }
       if (mejor) elegir({ id: mejor.id === "destino" && destino ? destino.id : mejor.id, nombre: mejor.nombre, tipo: mejor.tipo, x: mejor.x, z: mejor.z, detalle: mejor.detalle });
-      else { const w = desproyectar(gv, p.px, p.py), x = Math.round(w.x * 10) / 10, z = Math.round(w.z * 10) / 10; elegir({ id: `punto:${x},${z}`, nombre: "Punto elegido", tipo: "lugar", x, z }); }
+      else { const w = desproyectar(gv, p.px, p.py), x = Math.round(w.x * 10) / 10, z = Math.round(w.z * 10) / 10; elegir({ id: `punto:${x},${z}`, nombre: tx("Chosen point", "Punto elegido"), tipo: "lugar", x, z }); }
     }
     if (arrastre.size < 2) pinza = 0;
   };
@@ -650,7 +874,7 @@ export function montarMapa(h: HostMapa) {
     if (!yo) return;
     vueltas++;
     const ahora = performance.now();
-    const r = reunir(fuentes); ultimos = r.marcadores; fallos = r.fallos;
+    const r = reunir(fuentes); todos = r.marcadores; fallos = r.fallos; refiltrar();
     if (destino) {
       const d = Math.hypot(destino.x - yo.x, destino.z - yo.z);
       destino.lejos ||= d > LLEGADA_M + 2;
@@ -667,7 +891,9 @@ export function montarMapa(h: HostMapa) {
     // still for ESTABLE_MS (or waited ESPERA_MAX_MS): reading the picture back waits for the GPU (≈0,2-0,4 s of a
     // frozen page in software GL), and while the models arrive the zone changes every look — the TRG26 template made
     // two pictures on entering, the first without its models; now one.
-    if (corte > 0 && v !== imagenV) {
+    // Map v2.2: a painted world's minimap wants the picture too (not only a cut world's): made once the zone stands still, then
+    // again when it changed, but not more than every IMAGEN_PINTADA_MS while the big map is closed (cool phones)
+    if ((corte > 0 || (pintado && (!imagen || ahora - imagenT >= IMAGEN_PINTADA_MS))) && v !== imagenV) {
       if (Number.isNaN(pedidaT)) pedidaT = ahora;
       if (ahora - vCambioT >= ESTABLE_MS || ahora - pedidaT >= ESPERA_MAX_MS) { pedidaT = NaN; void generarImagen(false); }
     }
@@ -675,6 +901,7 @@ export function montarMapa(h: HostMapa) {
     const vm = vistaMini();
     if (limMini.debe(ahora, `${firma(vm, ultimos, alBordeDe)}|${huellasV}|${imagenes}`)) pintarMini(vm, ultimos);
     if (ahora - textoT >= TEXTO_MS) { textoT = ahora; textoMini(ultimos); }
+    if (filtro.open) pintarFiltro(); // the filter list follows the world while it is open (it rebuilds only when its content changed)
     if (panel.abierto) {
       if (limGrande.debe(ahora, `${firma(gv, ultimos, alBordeDe)}|${huellasV}|${imagenes}`)) pintarGrande();
       if (ahora - listaT >= LISTA_MS) { listaT = ahora; pintarLista(); }
@@ -694,6 +921,9 @@ export function montarMapa(h: HostMapa) {
     /** What the map knows right now (for checks and agents): markers, counts by kind, sources that failed. */
     marcadores: (): readonly Marcador[] => ultimos,
     contar: () => contar(ultimos),
+    /** Map v2: counts by kind of everything the sources gave, shown or not; and the layers (switch one: the maps and the list follow at once). */
+    contarTodos: () => contar(todos),
+    capas: { estado: (): Capas => ({ ...capas }), poner: (id: string, si: boolean): void => ponerCapa(id, si), ids: (): string[] => CAPAS.map((c) => c.id) },
     fallos: () => fallos,
     /** Counts by kind at the last draw of each map, and how often each drew (redraw rate). */
     dibujado: () => ({ mini: { ...dibujado.mini }, grande: { ...dibujado.grande } }),
@@ -721,7 +951,7 @@ export function montarMapa(h: HostMapa) {
     /** Mark a marker (by id) as your destination; again = clear it. N13: or a place of your own ({ id, nombre, x, z }):
      * a photo's link leads you to where the photo was made. */
     marcarDestino(id: string | { id: string; nombre: string; x: number; z: number }): boolean {
-      const m = typeof id === "string" ? ultimos.find((x) => x.id === id) : id;
+      const m = typeof id === "string" ? todos.find((x) => x.id === id) : id;
       if (!m) return false; marcarDestino(m); return true;
     },
     quitarDestino: () => quitarDestino("quitado"),

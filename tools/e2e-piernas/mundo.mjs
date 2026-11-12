@@ -73,7 +73,7 @@ try {
   // ---- H7: the owner sets title and limit from the panel ----
   await a.evaluate((c) => globalThis.__numinia.chat.decir(`/dueño ${c}`), ADMIN);
   await a.waitForFunction(() => globalThis.__numinia.constructor.estado.puede, null, { timeout: 10000 });
-  await a.bringToFront(); await a.mouse.move(400, 300); await a.keyboard.press("KeyC"); // build mode (the settings live in the builder's «Entorno» drawer)
+  await a.bringToFront(); await a.mouse.move(400, 300); await a.keyboard.press("KeyB"); // build mode (the settings live in the builder's «Entorno» drawer)
   await a.waitForFunction(() => !document.getElementById("panel-construir").hidden, null, { timeout: 10000 });
   await a.evaluate(() => globalThis.__numinia.constructorUI.abrirCajon("entorno"));
   await a.waitForFunction(() => { const f = document.getElementById("ficha-mundo"); return f && !f.hidden && f.getBoundingClientRect().height > 0; }, null, { timeout: 10000 }).catch(async (e) => {
@@ -101,7 +101,7 @@ try {
   await c.close();
 
   // ---- H6 + J4: a named picture with a link, a decorative one ----
-  await a.keyboard.press("KeyC"); // back to playing (building never opens links)
+  await a.keyboard.press("KeyB"); // back to playing (building never opens links)
   await a.waitForFunction(() => document.getElementById("panel-construir").hidden, null, { timeout: 5000 });
   const tono = Date.now() % 50;
   const cartel = png(512, 256, [249, 200 - tono, 120]), hc = await sha(cartel), deco = png(64, 64, [10, 10, 10 + tono]), hd = await sha(deco);

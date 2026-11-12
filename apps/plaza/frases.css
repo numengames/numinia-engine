@@ -1,0 +1,6 @@
+/* Y29: the fixed phrases — a vertical list per group, every phrase a button of at least 44 px with its text visible */
+#frases .frases-lista { display: flex; flex-direction: column; gap: 12px; max-height: 60vh; overflow: auto; }
+#frases .frases-grupo { display: flex; flex-direction: column; gap: 6px; }
+#frases .frases-grupo h3 { margin: 0; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--n-texto2, var(--n-texto)); }
+#frases .frases-grupo button { min-height: 44px; padding: 8px 14px; text-align: left; font-size: 15px; }
+#frases .estado { min-height: 1.4em; margin: 8px 0 0; color: var(--n-texto2, var(--n-texto)); }

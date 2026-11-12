@@ -1,8 +1,8 @@
 {
   "formato": "mision@1",
   "id": "pon-un-farolillo",
-  "titulo": "Pon un farolillo",
-  "descripcion": "Abre Añadir y coloca un farolillo en la plaza.",
+  "titulo": "Place a lantern",
+  "descripcion": "Open Add and place a lantern in the plaza.",
   "requisitos": {
     "misiones": [
       "abre-el-taller"
@@ -12,7 +12,7 @@
     {
       "id": "coloca",
       "tipo": "hace",
-      "texto": "Abre Añadir y arrastra un Farolillo a la plaza",
+      "texto": "Open Add and drag a Lantern into the plaza",
       "accion": "coloca",
       "modelo": "farolillo",
       "senala": "dock-anadir"
@@ -20,8 +20,8 @@
   ],
   "recompensas": [],
   "textos": {
-    "aceptada": "En el cajón Añadir está la biblioteca: arrastra «Farolillo» al suelo.",
-    "completada": "Así se coloca un objeto: de la biblioteca al mundo."
+    "aceptada": "The Add drawer holds the library: drag «Farolillo» (Lantern) onto the ground.",
+    "completada": "That is how you place an object: from the library into the world."
   },
   "repetible": false
 }

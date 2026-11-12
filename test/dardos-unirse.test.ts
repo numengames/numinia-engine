@@ -15,6 +15,8 @@ import { entradas, estadoEntrada, estaLejos, tituloEntrada, CERCA_EXTRA_M } from
 import type { SitioU } from "../apps/plaza/dardos-unirse.ts";
 import { elegirSitioAR } from "../apps/plaza/dardos-duelo.ts";
 import { panelUnirse } from "../packages/render/src/dardos-duelo.ts";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // these checks read the Spanish second language
 
 const s = (id: string, o: Partial<SitioU> = {}): SitioU => ({ id, nombre: `Diana ${id}`, x: 10, z: 0, radio: 3, ocupado: false, ...o });
 
@@ -158,4 +160,13 @@ test("leaving AR mid-match: the wrapped game's fin() runs the HUD hook and leave
     assert.equal(A.d.duelo()!.fin?.gane, true);
     assert.equal(panelUnirse("Torre").boton, "unirse"); assert.equal(panelUnirse("x".repeat(40)).ronda.length, 24);
   } finally { delete (globalThis as { document?: unknown }).document; }
+});
+
+
+test("the chip speaks English by default", () => {
+  fijarIdioma("en");
+  assert.equal(tituloEntrada("Torre"), "Darts: play at Torre");
+  assert.equal(estadoEntrada({ ocupado: false }).texto, "Free");
+  fijarIdioma("es");
+  assert.equal(tituloEntrada("Torre"), "Dardos: jugar en Torre");
 });

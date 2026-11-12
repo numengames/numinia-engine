@@ -3,6 +3,7 @@
 // one per stack in the order the server keeps them; what you carry (1 weapon + 3 relics) lives in 4 equipment slots
 // and takes no bag slot. Colours, type lines, keyboard moves and drag targets live here so they are tested too.
 import { BOLSA_HUECOS } from "../../features/inventario/reglas.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 export type Objeto = { id: string; tipo: "arma" | "reliquia" | "token" | "captura"; clase: string; nombre: string; icono: string; color: string; valor: number; n: number; portado: boolean };
 export type Zona = "equipo" | "bolsa";
@@ -14,9 +15,13 @@ export const ICONO_TIPO: Record<Objeto["tipo"], string> = { arma: "crosshair", r
 /** The faint silhouette of an empty equipment slot. */
 export const SILUETA: Record<"arma" | "reliquia", string> = { arma: "sword", reliquia: "sparkle" };
 /** A catch's rarity as the server writes it into the colour (features/pesca/otorga.ts: plateada común, azul rara, dorada legendaria). */
-export const RAREZA_DE_COLOR: Record<string, string> = { plateada: "común", azul: "rara", dorada: "legendaria" };
+export const RAREZA_DE_COLOR: Record<string, string> = {
+  get plateada() { return tx("common", "común"); },
+  get azul() { return tx("rare", "rara"); },
+  get dorada() { return tx("legendary", "legendaria"); },
+};
 /** The little line under a catch's name: «pez · rara». */
-export const detalleDeCaptura = (o: Pick<Objeto, "color">): string => `pez · ${RAREZA_DE_COLOR[o.color] ?? "común"}`;
+export const detalleDeCaptura = (o: Pick<Objeto, "color">): string => [tx("fish", "pez"), RAREZA_DE_COLOR[o.color] ?? tx("common", "común")].join(" · ");
 
 /** Slot border / glow colour: the object's own colour (tokens, catches: their rarity), else its type's. */
 const COLOR_HEX: Record<string, string> = { verde: "#6fcf7f", azul: "#5aa2ff", plateada: "#c3ceda", dorada: "#ffc247", roja: "#ff6b64" };
@@ -43,19 +48,19 @@ export function plano(objetos: readonly Objeto[], huecos: number = BOLSA_HUECOS)
 /** «12 / 42». */
 export const cuentaTexto = (p: Pick<Plano, "ocupados" | "huecos">): string => `${p.ocupados} / ${p.huecos}`;
 /** The line under the name: «pez · rara», «arma», «semilla · verde». */
-export const lineaTipo = (o: Objeto): string => o.tipo === "captura" ? detalleDeCaptura(o) : o.tipo === "token" ? [o.clase, o.color].filter(Boolean).join(" · ") : o.tipo;
+export const lineaTipo = (o: Objeto): string => o.tipo === "captura" ? detalleDeCaptura(o) : o.tipo === "token" ? [o.clase, o.color].filter(Boolean).join(" · ") : o.tipo === "arma" ? tx("weapon", "arma") : tx("relic", "reliquia");
 export const nombreConCuenta = (o: Objeto): string => (o.n > 1 || o.tipo === "captura") && o.n > 0 ? `${o.nombre} × ${o.n}` : o.nombre;
 /** What the detail card says about its worth. */
 export function lineaValor(o: Objeto): string {
-  if (o.tipo === "token") return o.valor ? `${o.valor * o.n} ${o.valor * o.n === 1 ? "punto" : "puntos"} de Prestigio` : "";
-  if (o.tipo === "captura") return o.valor ? `Valor ${o.valor}${o.n > 1 ? ` cada uno · ${o.valor * o.n} en total` : ""}` : "";
-  return o.portado ? "Lo llevas contigo" : "Guardado en la Bolsa";
+  if (o.tipo === "token") return o.valor ? tx(`${o.valor * o.n} Prestige ${o.valor * o.n === 1 ? "point" : "points"}`, `${o.valor * o.n} ${o.valor * o.n === 1 ? "punto" : "puntos"} de Prestigio`) : "";
+  if (o.tipo === "captura") return o.valor ? tx(`Value ${o.valor}${o.n > 1 ? ` each · ${o.valor * o.n} in total` : ""}`, `Valor ${o.valor}${o.n > 1 ? ` cada uno · ${o.valor * o.n} en total` : ""}`) : "";
+  return o.portado ? tx("You are carrying it", "Lo llevas contigo") : tx("Stored in the Backpack", "Guardado en la Bolsa");
 }
 /** The accessible name of a slot (the colour alone never tells the rarity). */
 export const etiquetaHueco = (o: Objeto | null, i: number, zona: Zona): string =>
-  o ? `${nombreConCuenta(o)}, ${lineaTipo(o)}${o.portado ? ", contigo" : ""}` : zona === "equipo" ? `${i === 0 ? "Arma" : `Reliquia ${i}`}: vacío` : `Hueco ${i + 1} de la Bolsa: vacío`;
+  o ? `${nombreConCuenta(o)}, ${lineaTipo(o)}${o.portado ? tx(", carried", ", contigo") : ""}` : zona === "equipo" ? tx(`${i === 0 ? "Weapon" : `Relic ${i}`}: empty`, `${i === 0 ? "Arma" : `Reliquia ${i}`}: vacío`) : tx(`Backpack slot ${i + 1}: empty`, `Hueco ${i + 1} de la Bolsa: vacío`);
 /** «Llevar» / «Guardar» where it applies (weapons and relics only). */
-export const accionDe = (o: Objeto): "Llevar" | "Guardar" | null => o.tipo === "arma" || o.tipo === "reliquia" ? (o.portado ? "Guardar" : "Llevar") : null;
+export const accionDe = (o: Objeto): string | null => o.tipo === "arma" || o.tipo === "reliquia" ? (o.portado ? tx("Stow", "Guardar") : tx("Equip", "Llevar")) : null;
 /** Dropping an object on a zone: what the server is asked (null = nothing to do). Only weapons and relics move, only across the two zones. */
 export const destinoDeSoltar = (o: Objeto, zona: Zona | null): "equipar" | "desequipar" | null =>
   accionDe(o) === null || !zona ? null : zona === "equipo" && !o.portado ? "equipar" : zona === "bolsa" && o.portado ? "desequipar" : null;

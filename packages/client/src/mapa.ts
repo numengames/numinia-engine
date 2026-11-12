@@ -4,6 +4,7 @@
 // the camera looks at points up. Markers come only from what the page already receives (area of interest): nothing
 // here asks the server for anyone's position.
 
+import { tx } from "./idioma.ts";
 /** How a map looks at the world: centre (m), px per metre, turn (rad; 0 = north up), size in px. */
 export type Vista = { cx: number; cz: number; escala: number; giro: number; ancho: number; alto: number };
 
@@ -71,6 +72,7 @@ export function segmentosEnVista(v: Vista, seg: ArrayLike<number>, out: { [i: nu
 }
 
 // ---------- words: what a screen reader says (and what the list shows) ----------
+const RUMBOS_EN: Record<string, string> = { norte: "north", noreste: "northeast", este: "east", sureste: "southeast", sur: "south", suroeste: "southwest", oeste: "west", noroeste: "northwest" };
 export const RUMBOS = ["norte", "noreste", "este", "sureste", "sur", "suroeste", "oeste", "noroeste"] as const;
 export type Rumbo = (typeof RUMBOS)[number];
 /** Below this distance (m) a thing is «aquí mismo» (no direction). */
@@ -84,28 +86,31 @@ export function rumbo(dx: number, dz: number): Rumbo {
 
 /** «a 23 m», «a 1,2 km» (Spanish decimal comma), «a menos de 1 m». */
 export function distancia(m: number): string {
-  if (!(m >= 1)) return "a menos de 1 m";
-  if (m < 999.5) return `a ${Math.round(m)} m`;
-  return `a ${(m / 1000).toFixed(1).replace(".", ",")} km`;
+  if (!(m >= 1)) return tx("under 1 m away", "a menos de 1 m");
+  if (m < 999.5) return tx(`${Math.round(m)} m away`, `a ${Math.round(m)} m`);
+  const km = (m / 1000).toFixed(1);
+  return tx(`${km} km away`, `a ${km.replace(".", ",")} km`);
 }
 
 /** «al noreste, a 23 m»; «aquí mismo» when closer than AQUI_M. */
 export function enPalabras(dx: number, dz: number): string {
   const d = Math.hypot(dx, dz);
-  return d < AQUI_M ? "aquí mismo" : `al ${rumbo(dx, dz)}, ${distancia(d)}`;
+  if (d < AQUI_M) return tx("right here", "aquí mismo");
+  const r = rumbo(dx, dz);
+  return tx(`${RUMBOS_EN[r]}, ${distancia(d)}`, `al ${r}, ${distancia(d)}`);
 }
 
-const LADOS = ["delante", "delante a la derecha", "a tu derecha", "detrás a la derecha", "detrás", "detrás a la izquierda", "a tu izquierda", "delante a la izquierda"] as const;
+const LADOS = () => [tx("ahead", "delante"), tx("ahead right", "delante a la derecha"), tx("on your right", "a tu derecha"), tx("behind right", "detrás a la derecha"), tx("behind", "detrás"), tx("behind left", "detrás a la izquierda"), tx("on your left", "a tu izquierda"), tx("ahead left", "delante a la izquierda")];
 /** Where a thing is for someone facing `yaw` (V4/V5 say «a tu izquierda»): eight sides of 45°. */
-export function lado(dx: number, dz: number, yaw: number): (typeof LADOS)[number] {
+export function lado(dx: number, dz: number, yaw: number): string {
   const rel = Math.atan2(dx, -dz) + yaw; // bearing minus the facing bearing (which is -yaw)
-  return LADOS[((Math.round(rel / (Math.PI / 4)) % 8) + 8) % 8];
+  return LADOS()[((Math.round(rel / (Math.PI / 4)) % 8) + 8) % 8];
 }
 
 /** Time connected: «menos de 1 min», «12 min», «1 h 05 min» (the player sheet). */
 export function duracion(ms: number): string {
   const min = Math.floor(Math.max(0, ms) / 60_000);
-  if (min < 1) return "menos de 1 min";
+  if (min < 1) return tx("under 1 min", "menos de 1 min");
   if (min < 60) return `${min} min`;
   return `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")} min`;
 }
@@ -128,7 +133,7 @@ export function crearLimitador(minMs = 200) {
 }
 
 // ---------- markers and their kinds (a registry: an adventure adds its own) ----------
-export type Forma = "flecha" | "punto" | "cuadrado" | "rombo" | "estrella" | "anillo" | "triangulo" | "exclamacion" | "visto" | "rombo-hueco";
+export type Forma = "flecha" | "punto" | "cuadrado" | "rombo" | "estrella" | "anillo" | "triangulo" | "exclamacion" | "visto" | "rombo-hueco" | "hexagono" | "portal" | "pantalla" | "libro" | "agenda";
 /** How a kind of marker looks and behaves. Shape AND colour: colour alone never tells kinds apart. */
 export type Tipo = {
   nombre: string;    // the legend's word, and what a screen reader says
@@ -138,28 +143,37 @@ export type Tipo = {
   orden: number;     // drawing order: higher on top
   enLista: boolean;  // listed in the HTML twin (you are not)
   alBorde: boolean;  // when out of the minimap, pinned to its edge (where to go)
+  /** Map v2.2: the house icon (numinia.org web/src/icons, Phosphor regular; paths in apps/plaza/iconos.ts) drawn in the kind's round badge; none = the plain `forma`. */
+  icono?: string;
 };
 /** One thing on the map. `id` unique across sources; `yaw` only for whoever has a heading (the arrow). */
-export type Marcador = { id: string; tipo: string; nombre: string; x: number; z: number; detalle?: string; yaw?: number };
+export type Marcador = { id: string; tipo: string; nombre: string; x: number; z: number; detalle?: string; yaw?: number;
+  /** Map v2: the layer it belongs to when that is not its kind's (seats, decorative characters); see mapa-interes.ts. */ capa?: string };
 
 export const TIPOS_BASE: Readonly<Record<string, Tipo>> = {
-  tu: { nombre: "Tú", color: "#e07a3f", forma: "flecha", tam: 7, orden: 100, enLista: false, alBorde: false },
-  destino: { nombre: "Destino", color: "#d6336c", forma: "anillo", tam: 6, orden: 95, enLista: true, alBorde: true },
-  objetivo: { nombre: "Objetivo de misión", color: "#e0a800", forma: "estrella", tam: 6, orden: 90, enLista: true, alBorde: true },
+  tu: { get nombre() { return tx("You", "Tú"); }, color: "#e07a3f", forma: "flecha", tam: 7, orden: 100, enLista: false, alBorde: false },
+  destino: { get nombre() { return tx("Destination", "Destino"); }, color: "#d6336c", forma: "anillo", tam: 6, orden: 95, enLista: true, alBorde: true, icono: "push-pin" },
+  objetivo: { get nombre() { return tx("Quest objective", "Objetivo de misión"); }, color: "#e0a800", forma: "estrella", tam: 6, orden: 90, enLista: true, alBorde: true, icono: "target" },
   // U14 (4): a person (or quest thing) the server marks for you: «!» something for you now (drawn over an objective's
   // star, whose points still show), «✓» you are done with them
-  "para-ti": { nombre: "Algo para ti", color: "#ffb21e", forma: "exclamacion", tam: 5.5, orden: 92, enLista: true, alBorde: false },
-  hecho: { nombre: "Ya hecho", color: "#2f9e44", forma: "visto", tam: 5, orden: 75, enLista: true, alBorde: false },
-  persona: { nombre: "Persona", color: "#2f6fd0", forma: "punto", tam: 4, orden: 80, enLista: true, alBorde: false },
-  agente: { nombre: "Agente (IA)", color: "#14897a", forma: "rombo", tam: 4, orden: 75, enLista: true, alBorde: false },
+  "para-ti": { get nombre() { return tx("Something for you", "Algo para ti"); }, color: "#ffb21e", forma: "exclamacion", tam: 5.5, orden: 92, enLista: true, alBorde: false, icono: "scroll" },
+  hecho: { get nombre() { return tx("Done", "Ya hecho"); }, color: "#2f9e44", forma: "visto", tam: 5, orden: 75, enLista: true, alBorde: false, icono: "check" },
+  // Map v2: the points a world declares (aventura/ficha.json `mapa.puntos`, mapa-interes.ts): one kind each, shape AND colour
+  "poi-zona": { get nombre() { return tx("Island or zone", "Isla o zona"); }, color: "#4338ca", forma: "hexagono", tam: 7, orden: 85, enLista: true, alBorde: false, icono: "map-pin" },
+  "poi-portal": { get nombre() { return tx("Portal to another space", "Portal a otro espacio"); }, color: "#0891b2", forma: "portal", tam: 6, orden: 84, enLista: true, alBorde: false, icono: "sign-out" },
+  "poi-pantalla": { get nombre() { return tx("Screen", "Pantalla"); }, color: "#be123c", forma: "pantalla", tam: 6, orden: 83, enLista: true, alBorde: false, icono: "desktop" },
+  "poi-info": { get nombre() { return tx("Information", "Información"); }, color: "#a16207", forma: "libro", tam: 6, orden: 82, enLista: true, alBorde: false, icono: "book-open" },
+  "poi-agenda": { get nombre() { return tx("Schedule", "Programa"); }, color: "#15803d", forma: "agenda", tam: 6, orden: 81, enLista: true, alBorde: false, icono: "calendar-blank" },
+  persona: { get nombre() { return tx("Person", "Persona"); }, color: "#2f6fd0", forma: "punto", tam: 4, orden: 80, enLista: true, alBorde: false },
+  agente: { get nombre() { return tx("Agent (AI)", "Agente (IA)"); }, color: "#14897a", forma: "rombo", tam: 4, orden: 75, enLista: true, alBorde: false, icono: "robot" },
   // ia-visible S5: an AI that sleeps (state `dormida` of features/ia): the same green diamond, but hollow — shape AND fill tell it from an awake one
-  "agente-dormida": { nombre: "Agente (IA) dormida", color: "#14897a", forma: "rombo-hueco", tam: 4, orden: 74, enLista: true, alBorde: false },
-  npc: { nombre: "Personaje", color: "#8a3fc0", forma: "rombo", tam: 5, orden: 70, enLista: true, alBorde: false },
-  portal: { nombre: "Salida o portal", color: "#0f8a6a", forma: "anillo", tam: 5, orden: 60, enLista: true, alBorde: true },
-  elemento: { nombre: "Elemento (agua, fuego…)", color: "#1679a8", forma: "triangulo", tam: 5, orden: 50, enLista: true, alBorde: false },
-  lugar: { nombre: "Lugar", color: "#3d6b2f", forma: "anillo", tam: 4, orden: 40, enLista: true, alBorde: false },
-  objeto: { nombre: "Objeto", color: "#5a4632", forma: "cuadrado", tam: 4, orden: 30, enLista: true, alBorde: false },
-  otro: { nombre: "Otra cosa", color: "#3b4450", forma: "punto", tam: 3, orden: 10, enLista: true, alBorde: false },
+  "agente-dormida": { get nombre() { return tx("Agent (AI), asleep", "Agente (IA) dormida"); }, color: "#14897a", forma: "rombo-hueco", tam: 4, orden: 74, enLista: true, alBorde: false, icono: "robot" },
+  npc: { get nombre() { return tx("Character", "Personaje"); }, color: "#8a3fc0", forma: "rombo", tam: 5, orden: 70, enLista: true, alBorde: false, icono: "mask-happy" },
+  portal: { get nombre() { return tx("Exit or portal", "Salida o portal"); }, color: "#0f8a6a", forma: "anillo", tam: 5, orden: 60, enLista: true, alBorde: true, icono: "sign-out" },
+  elemento: { get nombre() { return tx("Element (water, fire…)", "Elemento (agua, fuego…)"); }, color: "#1679a8", forma: "triangulo", tam: 5, orden: 50, enLista: true, alBorde: false },
+  lugar: { get nombre() { return tx("Place", "Lugar"); }, color: "#3d6b2f", forma: "anillo", tam: 4, orden: 40, enLista: true, alBorde: false },
+  objeto: { get nombre() { return tx("Object", "Objeto"); }, color: "#5a4632", forma: "cuadrado", tam: 4, orden: 30, enLista: true, alBorde: false },
+  otro: { get nombre() { return tx("Something else", "Otra cosa"); }, color: "#3b4450", forma: "punto", tam: 3, orden: 10, enLista: true, alBorde: false },
 };
 /** The roles of a card (packages/feature ROLES) and how the map draws each. An unknown role is «otro» (a dot). */
 export const ROL_A_TIPO: Readonly<Record<string, string>> = {

@@ -72,12 +72,13 @@ test("it never slows down as the push grows (no dip at the walk/run hand-over)",
 });
 
 test("the setting, the view's clamp and limits.json publish the same cap", () => {
-  const a = AJUSTES_MOTOR.find((x) => x.id === "velocidadVR") as { min: number; max: number; defecto: number; describe: string };
+  const a = AJUSTES_MOTOR.find((x) => x.id === "velocidadVR") as { min: number; max: number; defecto: number; describe: { en: string; es: string } };
   assert.equal(a.max, VELOCIDAD_MAX * 100);
   assert.equal(a.min, VELOCIDAD_MIN * 100);
   assert.equal(a.defecto, 100, "the default is still the walking pace");
   assert.equal(VELOCIDAD.max, VELOCIDAD_MAX);
   const lim = JSON.parse(readFileSync("limits.json", "utf8")).limits.find((e: { key: string }) => e.key === "vr_stick_speed_cap");
   assert.equal(lim.value, a.max, "limits.json says the number the setting allows");
-  assert.match(a.describe, /200 %/, "the setting's own words name the cap");
+  assert.match(a.describe.en, /200 %/, "the setting's own words name the cap");
+  assert.match(a.describe.es, /200 %/, "…in Spanish too");
 });

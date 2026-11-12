@@ -5,10 +5,12 @@
 // browser), then one per group. Escape closes. While it is open the world keys (WASD, Space…) do nothing: walking
 // would end the move you are choosing. The arithmetic (slices, dead zone, favourites) is packages/client/src/rueda.ts.
 // main.ts passes the gestures of features/gestos/client.ts (only composition roots import features/).
+import { teclas } from "./teclas.ts";
 import "./rueda.css";
 import { PORCIONES, ZONA_MUERTA_PALANCA, alternarFavorito, anillos, centroDe, esToque, leerFavoritos, porcionDe, siguiente, trazoDe } from "../../packages/client/src/rueda.ts";
 import { escribiendo } from "./escribiendo.ts";
 import { icono } from "./iconos.ts";
+import { alCambiarIdioma, ligar, tx } from "../../packages/feature/src/idioma.ts";
 import { esTactil } from "./perfil-aparato.ts"; // U25: the page's one answer to «touch controls or not»
 
 type Mov = { id: string; nombre: string; grupo: string; describe: string; modo: string };
@@ -32,24 +34,24 @@ export function montarRueda(o: { gestos: Gestos; favoritosIniciales: readonly st
   const conocidos = g.lista.map((m) => m.id);
   let favs = leerFavoritos(guardado(), conocidos, o.favoritosIniciales);
   const grupos: Anillo[] = g.grupos.flatMap((gr) => anillos(g.lista.filter((m) => m.grupo === gr.id)).map((ranuras, k, todos) => ({ id: `${gr.id}${k ? `-${k + 1}` : ""}`, nombre: gr.nombre + (todos.length > 1 ? ` ${k + 1}` : ""), ranuras })));
-  const anillo = (k: number): Anillo => (k === 0 ? { id: "favoritos", nombre: "Favoritos", ranuras: favs.map((id) => (id ? porId.get(id) ?? null : null)) } : grupos[k - 1]);
+  const anillo = (k: number): Anillo => (k === 0 ? { id: "favoritos", nombre: tx("Favourites", "Favoritos"), ranuras: favs.map((id) => (id ? porId.get(id) ?? null : null)) } : grupos[k - 1]);
   const nAnillos = grupos.length + 1;
 
   // ---- the DOM: a non-modal dialog (role=dialog) with a tab list, eight buttons on an SVG ring, and the middle ----
   const raiz = document.createElement("div");
   raiz.id = "rueda"; raiz.hidden = true;
-  raiz.setAttribute("role", "dialog"); raiz.setAttribute("aria-label", "Movimientos"); raiz.setAttribute("aria-describedby", "rueda-ayuda");
+  raiz.setAttribute("role", "dialog"); ligar(raiz, "aria-label", "Moves", "Movimientos"); raiz.setAttribute("aria-describedby", "rueda-ayuda");
   raiz.innerHTML = `
-    <div class="pestanas" role="tablist" aria-label="Grupos de movimientos"></div>
+    <div class="pestanas" role="tablist"></div>
     <div class="disco">
       <svg viewBox="0 0 400 400" aria-hidden="true" focusable="false"><circle class="fondo" cx="200" cy="200" r="198"/><g class="porciones"></g></svg>
-      <div class="ranuras" role="group" aria-label="Movimientos de este grupo"></div>
+      <div class="ranuras" role="group"></div>
       <div class="centro">
         <p class="nombre" id="rueda-nombre"></p>
         <p class="describe"></p>
         <div class="botones-centro">
           <button type="button" class="fijar" aria-pressed="false"></button>
-          <button type="button" class="parar" hidden>Parar</button>
+          <button type="button" class="parar" hidden></button>
         </div>
       </div>
     </div>
@@ -61,9 +63,14 @@ export function montarRueda(o: { gestos: Gestos; favoritosIniciales: readonly st
   const nombre = $<HTMLParagraphElement>(".nombre"), describe = $<HTMLParagraphElement>(".describe"), fijar = $<HTMLButtonElement>(".fijar"), parar = $<HTMLButtonElement>(".parar");
   const ayuda = $<HTMLParagraphElement>(".ayuda"), estado = $<HTMLParagraphElement>(".estado"), disco = $<HTMLDivElement>(".disco");
   const tactil = esTactil();
-  ayuda.innerHTML = tactil
-    ? "Toca un movimiento · desliza desde el botón y suelta"
-    : "<kbd>←</kbd><kbd>→</kbd> elegir · <kbd>↑</kbd><kbd>↓</kbd> grupo · <kbd>1</kbd>–<kbd>8</kbd> o <kbd>Intro</kbd> hacer · <kbd>F</kbd> favorito · <kbd>0</kbd> parar · <kbd>Esc</kbd> cerrar";
+  ligar(pestanas, "aria-label", "Move groups", "Grupos de movimientos"); ligar($<HTMLDivElement>(".ranuras"), "aria-label", "Moves in this group", "Movimientos de este grupo");
+  ligar(parar, "textContent", "Stop", "Parar");
+  alCambiarIdioma(() => { // static markup of this file only (no player text goes in as HTML)
+    ayuda.innerHTML = tactil
+      ? tx("Tap a move · slide from the button and let go", "Toca un movimiento · desliza desde el botón y suelta")
+      : tx("<kbd>←</kbd><kbd>→</kbd> choose · <kbd>↑</kbd><kbd>↓</kbd> group · <kbd>1</kbd>–<kbd>8</kbd> or <kbd>Enter</kbd> do · <kbd>F</kbd> favourite · <kbd>0</kbd> stop · <kbd>Esc</kbd> close",
+        "<kbd>←</kbd><kbd>→</kbd> elegir · <kbd>↑</kbd><kbd>↓</kbd> grupo · <kbd>1</kbd>–<kbd>8</kbd> o <kbd>Intro</kbd> hacer · <kbd>F</kbd> favorito · <kbd>0</kbd> parar · <kbd>Esc</kbd> cerrar");
+  });
 
   const trazos: SVGPathElement[] = [], botones: HTMLButtonElement[] = [];
   for (let i = 0; i < PORCIONES; i++) {
@@ -90,6 +97,7 @@ export function montarRueda(o: { gestos: Gestos; favoritosIniciales: readonly st
   let abierta = false, actual = 0, marcada = -1;
   let sujeta: null | { por: "tecla" | "dedo" | "mando"; x0: number; y0: number; desde: number; movido: boolean; id?: number } = null;
   let antesFoco: Element | null = null;
+  alCambiarIdioma(() => { if (abierta) pintar(); }); // an open wheel follows a language change
 
   function guardado(): string | null { try { return localStorage.getItem(GUARDA); } catch { return null; } }
   function guardar(): void { try { localStorage.setItem(GUARDA, JSON.stringify(favs)); } catch { /* private mode: they last this visit */ } }
@@ -104,8 +112,8 @@ export function montarRueda(o: { gestos: Gestos; favoritosIniciales: readonly st
     a.ranuras.forEach((m, i) => {
       const b = botones[i], p = trazos[i];
       const fav = !!m && actual !== 0 && favs.includes(m.id);
-      b.innerHTML = m ? `<span class="num" aria-hidden="true">${i + 1}</span><span class="txt">${m.nombre}</span>${fav ? `<span class="pin" aria-hidden="true">${icono("push-pin", 12)}</span>` : ""}` : `<span class="txt vacia">${actual === 0 ? "Libre" : ""}</span>`;
-      b.setAttribute("aria-label", m ? `${m.nombre}. ${m.describe}${fav ? ". En favoritos" : ""}${ahora === m.id ? ". Lo estás haciendo" : ""}` : actual === 0 ? `Hueco libre ${i + 1}: fija aquí un movimiento con F desde otro grupo` : "Vacío");
+      b.innerHTML = m ? `<span class="num" aria-hidden="true">${i + 1}</span><span class="txt">${m.nombre}</span>${fav ? `<span class="pin" aria-hidden="true">${icono("push-pin", 12)}</span>` : ""}` : `<span class="txt vacia">${actual === 0 ? tx("Free", "Libre") : ""}</span>`;
+      b.setAttribute("aria-label", m ? `${m.nombre}. ${m.describe}${fav ? tx(". In favourites", ". En favoritos") : ""}${ahora === m.id ? tx(". You are doing it", ". Lo estás haciendo") : ""}` : actual === 0 ? tx(`Free slot ${i + 1}: pin a move here with F from another group`, `Hueco libre ${i + 1}: fija aquí un movimiento con F desde otro grupo`) : tx("Empty", "Vacío"));
       b.disabled = !m; b.classList.toggle("haciendo", !!m && ahora === m.id);
       p.classList.toggle("vacia", !m); p.classList.toggle("marcada", i === marcada && !!m); p.classList.toggle("haciendo", !!m && ahora === m.id);
       b.classList.toggle("marcada", i === marcada && !!m);
@@ -117,11 +125,11 @@ export function montarRueda(o: { gestos: Gestos; favoritosIniciales: readonly st
       nombre.textContent = m.nombre; describe.textContent = m.describe;
       const es = favs.includes(m.id);
       fijar.hidden = false; fijar.setAttribute("aria-pressed", String(es)); // a toggle: the state is said by aria-pressed
-      fijar.title = es ? "Quitar de favoritos (F)" : "Fijar en favoritos (F)";
-      fijar.innerHTML = `${icono("push-pin", 14)}<span>Favorito</span>`;
+      fijar.title = es ? tx("Remove from favourites (F)", "Quitar de favoritos (F)") : tx("Pin to favourites (F)", "Fijar en favoritos (F)");
+      fijar.innerHTML = `${icono("push-pin", 14)}<span>${tx("Favourite", "Favorito")}</span>`;
     } else {
       nombre.textContent = ahora ? porId.get(ahora)?.nombre ?? "" : a.nombre;
-      describe.textContent = ahora ? "Lo estás haciendo. Andar también lo para." : actual === 0 && favs.every((x) => !x) ? "Sin favoritos: fija alguno con F." : "Elige un movimiento";
+      describe.textContent = ahora ? tx("You are doing it. Walking stops it too.", "Lo estás haciendo. Andar también lo para.") : actual === 0 && favs.every((x) => !x) ? tx("No favourites: pin some with F.", "Sin favoritos: fija alguno con F.") : tx("Pick a move", "Elige un movimiento");
       fijar.hidden = true;
     }
   }
@@ -162,20 +170,20 @@ export function montarRueda(o: { gestos: Gestos; favoritosIniciales: readonly st
     const r = g.hacer(m.id);
     if (!r.ok) { decir(r.why); marcar(i); return; } // stays open: the person sees why
     cerrar();
-    o.aviso(`Haces: ${m.nombre}`);
+    o.aviso(tx(`Doing: ${m.nombre}`, `Haces: ${m.nombre}`));
   }
   function alternar(): void {
     const m = marcada >= 0 ? anillo(actual).ranuras[marcada] : null;
     if (!m) return;
     const r = alternarFavorito(favs, m.id);
-    if (r.lleno) { decir("Favoritos llenos: quita uno antes (ve a Favoritos y pulsa F sobre él)."); return; }
+    if (r.lleno) { decir(tx("Favourites full: remove one first (go to Favourites and press F on it).", "Favoritos llenos: quita uno antes (ve a Favoritos y pulsa F sobre él).")); return; }
     favs = r.favs; guardar();
-    decir(r.puesto ? `${m.nombre}: en favoritos` : `${m.nombre}: fuera de favoritos`);
+    decir(r.puesto ? tx(`${m.nombre}: in favourites`, `${m.nombre}: en favoritos`) : tx(`${m.nombre}: out of favourites`, `${m.nombre}: fuera de favoritos`));
     if (actual === 0 && !r.puesto) marcada = siguiente(marcada, 1, ocupada);
     pintar();
   }
   fijar.addEventListener("click", alternar);
-  parar.addEventListener("click", () => { const r = g.parar(); if (!r.ok) decir(r.why); else { cerrar(); o.aviso("Paras"); } });
+  parar.addEventListener("click", () => { const r = g.parar(); if (!r.ok) decir(r.why); else { cerrar(); o.aviso(tx("You stop", "Paras")); } });
   g.abrirRueda = () => abrir("clic");
 
   // ---- picking by direction: from where the hold started (mouse, finger) or the disc's centre (a click) ----
@@ -219,7 +227,7 @@ export function montarRueda(o: { gestos: Gestos; favoritosIniciales: readonly st
   addEventListener("keydown", (e) => {
     if (e.ctrlKey || e.altKey || e.metaKey) return;
     if (!abierta) {
-      if (e.code !== "KeyG" || escribiendo(e) || document.body.classList.contains("construyendo")) return; // building: G moves things
+      if (!teclas.es(e, "gestos") || escribiendo(e) || document.body.classList.contains("construyendo")) return; // building: G moves things
       if (e.repeat) return;
       gAbajo = performance.now();
       clearTimeout(gTemporizador);
@@ -242,13 +250,13 @@ export function montarRueda(o: { gestos: Gestos; favoritosIniciales: readonly st
       else if (marcada >= 0) hacer(marcada);
     } else if (k === "KeyF" && !e.repeat) alternar();
     else if (k === "Tab") { atrapar(e); usada = false; }
-    else if (k === "KeyG") { /* the held key itself */ }
+    else if (teclas.es(e, "gestos")) { /* the held key itself */ }
     else usada = false;
     if (usada) e.preventDefault();
     e.stopImmediatePropagation(); // no world key while choosing (walking would end the move)
   }, true);
   addEventListener("keyup", (e) => {
-    if (e.code !== "KeyG" || gAbajo < 0) return;
+    if (!teclas.es(e, "gestos") || gAbajo < 0) return;
     const abajo = gAbajo; gAbajo = -1; clearTimeout(gTemporizador);
     if (abierta && sujeta?.por === "tecla") { e.stopImmediatePropagation(); soltar(); return; }
     if (!abierta && esToque(abajo, performance.now()) && !escribiendo(e)) { const r = g.hacer("saludar"); if (!r.ok) o.aviso(r.why); }
@@ -266,7 +274,7 @@ export function montarRueda(o: { gestos: Gestos; favoritosIniciales: readonly st
   // ---- touch: a «Movimientos» button; a tap opens it, a finger dragged from it picks and lets go to make the move ----
   if (tactil) {
     const b = document.createElement("button");
-    b.type = "button"; b.id = "rueda-boton"; b.textContent = "Movimientos"; b.title = "Movimientos: toca, o desliza y suelta";
+    b.type = "button"; b.id = "rueda-boton"; ligar(b, "textContent", "Moves", "Movimientos"); ligar(b, "title", "Moves: tap, or slide and let go", "Movimientos: toca, o desliza y suelta");
     b.setAttribute("aria-haspopup", "dialog");
     b.addEventListener("pointerdown", (e) => { e.stopPropagation(); e.preventDefault(); if (abierta) return cerrar(); abrir("dedo", e.clientX, e.clientY, e.pointerId); }); // not a joystick touch
     b.addEventListener("click", (e) => { if (e.detail === 0) abrir("clic"); }); // screen readers click

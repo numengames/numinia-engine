@@ -1,8 +1,8 @@
 {
   "formato": "mision@1",
   "id": "mira-el-cable",
-  "titulo": "Mira el cable",
-  "descripcion": "Abre el panel Cable, lee el cable de muestra y pulsa el Botón rojo.",
+  "titulo": "Look at the cable",
+  "descripcion": "Open the Cable panel, read the sample cable and press the Red button.",
   "requisitos": {
     "misiones": [
       "apagalo"
@@ -12,23 +12,22 @@
     {
       "id": "abre-cable",
       "tipo": "hace",
-      "texto": "Abre el cajón Cable",
+      "texto": "Open the Cable drawer",
       "accion": "abre_cable",
       "senala": "dock-cable"
     },
     {
       "id": "prueba",
       "tipo": "hace",
-      "texto": "Pulsa el Botón rojo y mira qué enciende",
+      "texto": "Press the Red button and see what it lights",
       "accion": "dispara_cable",
-      "disparador": "boton-rojo",
       "senala": "cable-probar-boton-rojo"
     }
   ],
   "recompensas": [],
   "textos": {
-    "aceptada": "Un cable es «cuando pasa ESTO → pasa AQUELLO». El de muestra: al pulsar el Botón rojo, el farolillo se muestra.",
-    "completada": "Cuándo, cuánto, qué: la anatomía de un cable."
+    "aceptada": "A cable is «when THIS happens → THAT happens». The sample one: when you press the Red button, the lantern appears.",
+    "completada": "When, how much, what: the anatomy of a cable."
   },
   "repetible": false
 }

@@ -1,0 +1,26 @@
+{
+  "formato": "mision@1",
+  "id": "apagalo",
+  "titulo": "Apágalo",
+  "descripcion": "En el Inspector, desmarca «se ve al jugar».",
+  "requisitos": {
+    "misiones": [
+      "muevelo"
+    ]
+  },
+  "pasos": [
+    {
+      "id": "oculta",
+      "tipo": "hace",
+      "texto": "En el Inspector, desmarca «se ve al jugar»",
+      "accion": "oculta",
+      "senala": "inspector-visible"
+    }
+  ],
+  "recompensas": [],
+  "textos": {
+    "aceptada": "Tú lo sigues viendo al construir; quien juega, no.",
+    "completada": "El Inspector muestra todos los campos de un objeto. Esto prepara el truco de los cables."
+  },
+  "repetible": false
+}

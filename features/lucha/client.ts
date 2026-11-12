@@ -1,7 +1,7 @@
 // lucha — client part (v1, L1). Draws each creature as the house block (`casa/bloque.glb`, 1 m, CC0) scaled to its box
 // and painted in its sheet's colour, through the same `view.place` every placed thing uses (one draw call, no new 3D
 // code, click-to-interact understood as `lucha:<key>`), and a name over it (`view.tag`). Feedback is cheap and all by
-// state: the tint fades towards grey as coherence drops; a blow flashes the block white for 80 ms and shows «−N» in the
+// state: the tint fades towards grey as coherence drops; a blow flashes the block white for 100 ms (plus a few frames of hit pause and a low thud: peso.ts; with «reduce motion» no flash and no pause) and shows «−N» in the
 // tag for 700 ms; a dissolved creature is taken out of the scene; a returned one comes back. The page only asks
 // (`golpear`); the server decides. Nothing here touches the simulation. PVP (L8): the `estado` event puts the rung
 // (icon + word, ROTULO) over the struck person through `view.label`, for whoever sees the blow; `reaparece` clears it.
@@ -12,20 +12,24 @@ import { ESCALERA, CALMA_TICKS, NIVEL_ALETARGADO } from "./estados.ts";
 import type { Estado } from "./estados.ts";
 import { CARGA_MAX } from "./habilidades.ts";
 import { intermedios } from "./persecucion.ts";
+import { crearPeso, DESTELLO_MS, SONIDO_GOLPE } from "./peso.ts";
+import { tx, idiomaActivo } from "../../packages/feature/src/idioma.ts";
+import type { Idioma } from "../../packages/feature/src/idioma.ts";
 import biblioteca from "../objetos/biblioteca.json" with { type: "json" };
 
 const BLOQUE = biblioteca.modelos.find((m) => m.id === "bloque")?.modelo ?? "";
-/** The white flash on a blow (ms) and how long «−N» stays in the name (ms). */
-export const FLASH_MS = 80, DANO_MS = 700;
+/** The white flash on a blow (ms, Y25: 80-120, see peso.ts) and how long «−N» stays in the name (ms). */
+export const FLASH_MS = DESTELLO_MS, DANO_MS = 700;
 /** Flash colour of a critical (gold, not white) and its damage text. */
 export const COLOR_CRITICO = "#ffd24a";
 /** A walking creature's lunge: red flash and «¡ataca!» in its tag (MIS-245). */
 export const COLOR_ATAQUE = "#e5503f";
 /** A step of a walking creature (0,2 s apart) is drawn as this many in-between positions, one every PASO_MS: smooth, and nothing runs while it stands. */
 export const SUAVIZAR_PASOS = 4, PASO_MS = 50;
-export const textoDano = (dano: number, critico: boolean): string => (critico ? `  ¡CRÍTICO! −${dano}` : `  −${dano}`);
-/** The Estado rungs as the character HUD names them (index = rung, 0 = ninguno → no name = stable). */
-export const NOMBRE_ESTADO = ["", "Desestabilizado", "Confundido", "Colapsado", "Aletargado"] as const;
+export const textoDano = (dano: number, critico: boolean, idioma: Idioma = idiomaActivo()): string => (critico ? `  ${idioma === "es" ? "¡CRÍTICO!" : "CRITICAL!"} −${dano}` : `  −${dano}`);
+/** The Estado rungs by their canonical name (index = rung, 0 = ninguno → no name = stable). This is a KEY, not display text: apps/plaza/hud-personaje.ts
+ * maps it back with ESCALERA.indexOf and translates the label itself. */
+export const NOMBRE_ESTADO = ["", "Desestabilizado", "Confundido", "Colapsado", "Aletargado"] as const; // i18n-ok: canonical ladder key read by the HUD (ESCALERA.indexOf), not shown as is
 /** The rung the page SHOWS, from the last one the server announced (`nivel`, at `desde` ms) and the clock (pure; display only).
  * The server forgets one rung per CALMA_TICKS of calm without saying so, so the page counts the same calm; Aletargado is only left by
  * `reaparece`. The server stays the authority: the next `estado` event overwrites whatever this guessed. */
@@ -39,11 +43,18 @@ const GRIS = [0x6e, 0x6e, 0x6e];
 /** How long a person's Estado label stays over them (ms) before it fades; each new blow renews it. */
 export const ESTADO_MS = 8000, REAPARECE_MS = 2500;
 /** The icon + word over a person at each rung (same pattern as the creatures' coherence tint: by state, flat text, no new 3D). */
-export const ROTULO: Record<Estado, string> = { ninguno: "", desestabilizado: "≈ Desestabilizado", confundido: "? Confundido", colapsado: "‼ Colapsado", aletargado: "☾ Aletargado" };
+// getters: the word is read in the active language each time it is shown
+export const ROTULO: Record<Estado, string> = {
+  ninguno: "",
+  get desestabilizado() { return `≈ ${tx("Destabilised", "Desestabilizado")}`; },
+  get confundido() { return `? ${tx("Confused", "Confundido")}`; },
+  get colapsado() { return `‼ ${tx("Collapsed", "Colapsado")}`; },
+  get aletargado() { return `☾ ${tx("Lethargic", "Aletargado")}`; },
+};
 
 export type Criatura = { key: string; nombre: string; especie: string; x: number; y: number; z: number; radio: number; coherencia: number; coherenciaMax: number; modo: string; solido: boolean };
 type Res = { ok: true } | { ok: false; why: string };
-const SIN: Res = { ok: false, why: "la función lucha no está en este servidor" };
+const SIN = (): Res => ({ ok: false, why: tx("fighting is not on this server", "la función lucha no está en este servidor") });
 
 /** «#rrggbb» mixed towards grey by (1 − coherencia/max) (pure; tests use it). */
 export function tinte(color: string, coherencia: number, max: number): string {
@@ -63,6 +74,8 @@ const nombre = (v: Msg, extra = "") => ({ text: `${v.nombre}${extra}`, x: Number
 /** One per page (tests make one per client). `lucha` is what the page and an agent call; `espia` sees every event (tests). */
 export function crearCliente(espia?: (event: string, msg: Msg) => void, reloj: () => number = Date.now) {
   let A: ClientApi | null = null;
+  // Y25: the weight of a blow (hit pause, flash, thud) obeys «reduce motion», asked of the view on every blow
+  const peso = crearPeso({ reducido: () => A?.view.movimientoReducido?.() === true, reloj });
   const temporizadores = new Map<string, ReturnType<typeof setTimeout>[]>();
   const oyentes = new Set<() => void>();
   const rechazos = new Set<(motivo: string) => void>();
@@ -101,17 +114,17 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void, reloj: (
     /** The last line worth showing (a rejection). */
     aviso: () => ultimo,
     golpear: (objetivo?: string): Res => {
-      if (!A) return SIN;
+      if (!A) return SIN();
       const key = objetivo ?? lucha.criaturas().find((c) => c.modo !== "disuelta")?.key;
-      if (!key) return { ok: false, why: "no hay ninguna criatura cerca" };
+      if (!key) return { ok: false, why: tx("no creature nearby", "no hay ninguna criatura cerca") };
       A.send("golpear", { objetivo: key });
       return { ok: true };
     },
     /** Ask the server to use an ability of the kit on a creature (default: the first one standing). The server decides. */
     habilidad: (cual: string, objetivo?: string): Res => {
-      if (!A) return SIN;
+      if (!A) return SIN();
       const key = objetivo ?? lucha.criaturas().find((c) => c.modo !== "disuelta")?.key;
-      if (!key) return { ok: false, why: "no hay ninguna criatura cerca" };
+      if (!key) return { ok: false, why: tx("no creature nearby", "no hay ninguna criatura cerca") };
       A.send("habilidad", { objetivo: key, cual });
       return { ok: true };
     },
@@ -132,16 +145,20 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void, reloj: (
 
   const part: ClientPart = clientPart(decl, (a) => {
     A = a;
+    // a flash on the creature for `ms` (then its own look again) and the tag with `extra` for DANO_MS (then its name alone)
+    const brillo = (key: string, v: Msg, color: string | boolean, ms: number) => { a.view.place?.(`lucha:${key}`, aspecto(v, color)); luego(key, ms, () => { const w = a.state.get(key); if (w && w.modo !== "disuelta") a.view.place?.(`lucha:${key}`, aspecto(w)); }); };
+    const rotulo = (key: string, v: Msg, extra: string) => { a.view.tag?.(`lucha:${key}`, nombre(v, extra)); luego(key, DANO_MS, () => { const w = a.state.get(key); if (w && w.modo !== "disuelta") a.view.tag?.(`lucha:${key}`, nombre(w)); }); };
     a.state.onChange((key, v) => { if (v) visto = true; dibujar(key, v); avisar(); });
     a.on("golpe", (m) => {
       espia?.("golpe", m);
       const key = String(m.objetivo), v = a.state.get(key);
       if (!v || v.modo === "disuelta") return;
       limpiar(key);
-      a.view.place?.(`lucha:${key}`, aspecto(v, true));
-      a.view.tag?.(`lucha:${key}`, nombre(v, `  −${m.dano}`));
-      luego(key, FLASH_MS, () => { const w = a.state.get(key); if (w && w.modo !== "disuelta") a.view.place?.(`lucha:${key}`, aspecto(w)); });
-      luego(key, DANO_MS, () => { const w = a.state.get(key); if (w && w.modo !== "disuelta") a.view.tag?.(`lucha:${key}`, nombre(w)); });
+      const p = peso.golpe(Number(m.de) === a.self());   // Y25: pause + flash (neither with «reduce motion»); the «−N», the notice and the thud always
+      if (p.destello) brillo(key, v, true, FLASH_MS);
+      rotulo(key, v, `  −${m.dano}`);
+      if (p.pausa) a.view.pausa?.(p.pausa);
+      a.view.sonido?.({ id: SONIDO_GOLPE, semilla: (Number(m.dano) * 31 + Number(m.queda)) | 0, donde: { x: Number(v.x), y: Number(v.y) || 0, z: Number(v.z) }, texto: "" });
     });
     a.on("carga", (m) => { espia?.("carga", m); carga = Math.max(0, Math.min(CARGA_MAX, Number(m.valor) || 0)); visto = true; avisar(); });
     a.on("habilidad", (m) => {                      // same feedback as a blow; a critical flashes gold and shows ¡CRÍTICO!
@@ -149,10 +166,9 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void, reloj: (
       const key = String(m.objetivo), v = a.state.get(key), crit = m.critico === true;
       if (!v || v.modo === "disuelta") return;
       limpiar(key);
-      a.view.place?.(`lucha:${key}`, aspecto(v, crit ? COLOR_CRITICO : true));
-      a.view.tag?.(`lucha:${key}`, nombre(v, textoDano(Number(m.dano), crit)));
-      luego(key, crit ? FLASH_MS * 3 : FLASH_MS, () => { const w = a.state.get(key); if (w && w.modo !== "disuelta") a.view.place?.(`lucha:${key}`, aspecto(w)); });
-      luego(key, DANO_MS, () => { const w = a.state.get(key); if (w && w.modo !== "disuelta") a.view.tag?.(`lucha:${key}`, nombre(w)); });
+      const flash = peso.destello();                // Y25: the same rules as a blow's flash
+      if (flash) brillo(key, v, crit ? COLOR_CRITICO : true, crit ? FLASH_MS * 3 : FLASH_MS);
+      rotulo(key, v, textoDano(Number(m.dano), crit));
     });
     a.on("critico", (m) => { espia?.("critico", m); });
     a.on("ataca", (m) => {                          // the creature lunges at someone: red flash and «¡ataca!»; the wounded person's own number comes as jugadorHerido
@@ -160,10 +176,9 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void, reloj: (
       const key = String(m.objetivo), v = a.state.get(key);
       if (!v || v.modo === "disuelta") return;
       limpiar(key);
-      a.view.place?.(`lucha:${key}`, aspecto(v, COLOR_ATAQUE));
-      a.view.tag?.(`lucha:${key}`, nombre(v, "  ¡ataca!"));
-      luego(key, FLASH_MS * 2, () => { const w = a.state.get(key); if (w && w.modo !== "disuelta") a.view.place?.(`lucha:${key}`, aspecto(w)); });
-      luego(key, DANO_MS, () => { const w = a.state.get(key); if (w && w.modo !== "disuelta") a.view.tag?.(`lucha:${key}`, nombre(w)); });
+      const flash = peso.destello();                // Y25: the same rules as a blow's flash
+      if (flash) brillo(key, v, COLOR_ATAQUE, FLASH_MS * 2);
+      rotulo(key, v, `  ${tx("attacks!", "¡ataca!")}`);
     });
     a.on("aire", (m) => { espia?.("aire", m); });
     a.on("estado", (m) => {                          // my own rung feeds the HUD; every rung heard also puts the icon over that person
@@ -178,7 +193,7 @@ export function crearCliente(espia?: (event: string, msg: Msg) => void, reloj: (
     a.on("reaparece", (m) => {
       espia?.("reaparece", m);
       const e = Number(String(m.objetivo).slice(2));
-      if (Number.isInteger(e)) { estados.delete(e); a.view.label(e, "Reaparece", REAPARECE_MS); }
+      if (Number.isInteger(e)) { estados.delete(e); a.view.label(e, tx("Respawns", "Reaparece"), REAPARECE_MS); }
       if (String(m.objetivo) === `p:${a.self()}`) { rung = { nivel: 0, desde: reloj() }; avisar(); }
     });
     a.on("disuelta", (m) => { espia?.("disuelta", m); limpiar(String(m.objetivo)); });

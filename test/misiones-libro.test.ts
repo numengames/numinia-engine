@@ -19,6 +19,8 @@ import type { EstadoPaso } from "../apps/plaza/misiones.ts";
 import { montarXR } from "../apps/plaza/xr.ts";
 import { icono } from "../apps/plaza/iconos.ts";
 import { aplicarTema } from "../apps/plaza/tema-mundo.ts";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // these checks assert the Spanish text; English is covered in test/idioma-simposio-b.test.ts
 
 const G = "Piezas reunidas";
 /** The states of a quest's steps as the page computes them: «ahora» from the controller's objetivos() (here, the same
@@ -168,4 +170,15 @@ test("the TRG26 quest over the plug: the states at each moment, the VR panel's m
   assert.deepEqual(ahora(), [H, H, H, H, H], "completed: all checks");
   assert.deepEqual(aperturas, ["al cerrarse el diálogo"], "talking to the others never opened it again");
   assert.deepEqual(avances, ["objeto: Has recibido: Telas ligeras", "objeto: Has recibido: Bastidor de madera", "objeto: Has recibido: Plano de equilibrio", "paso: Entrega las tres piezas a Leonardo", "paso: Abre el cofre"]);
+});
+
+test("estadoPaso: a quest of `hace` steps (no place in the world, so none in objetivos()) shows its current step as «ahora», the rest locked (H3)", () => {
+  const m = { id: "muevelo", estado: "activa", paso: 1 };
+  const lista = [{ n: 0, hecho: true }, { n: 1, hecho: false }, { n: 2, hecho: false }];
+  assert.deepEqual(lista.map((s) => estadoPaso(m, s, new Set())), ["hecho", "ahora", "bloqueado"]);
+  // when the quest does have a step to do «now» in the world, that one decides (no second «ahora» from `paso`)
+  assert.deepEqual(lista.map((s) => estadoPaso(m, s, new Set(["muevelo:2"]))), ["hecho", "bloqueado", "ahora"]);
+  // another quest's steps do not count; no `paso` known: as before
+  assert.equal(estadoPaso({ id: "otra", estado: "activa", paso: 0 }, { n: 0, hecho: false }, new Set(["muevelo:2"])), "ahora");
+  assert.equal(estadoPaso({ id: "x", estado: "activa" }, { n: 0, hecho: false }, new Set()), "bloqueado");
 });

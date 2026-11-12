@@ -5,7 +5,7 @@
 //     (`"enlace": { "servidor": "wss://…/ws", "diana": "torre" }`, or `"enlace": false`), see `leerEnlace`;
 //   · `enlaceVigente`: what a page does with it — a world never links to itself, and a world with its own board that takes remote
 //     duels (`duelo` + `remoto`: what the AR wall joins) uses that one, as always.
-// Recipe: docs/EXTENDER.md «Dardos enlazados».
+// Recipe: docs/extender/dardos.md.
 
 /** `nombre`: how people call the linked world, in the sentence «Dardos de <nombre> en tu pared» (optional; a world that links elsewhere says it in its dardos.json). */
 export type EnlaceDardos = { servidor: string; diana: string; nombre?: string };

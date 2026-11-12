@@ -7,6 +7,7 @@
 // (`numinia.bloqueados`: the server's /bloquear does the blocking; this only remembers the mark). Pure functions; the page
 // reads and writes localStorage around them (apps/plaza/gente.ts).
 
+import { tx } from "../../packages/feature/src/idioma.ts";
 export const CLAVE_AMIGOS = "numinia.amigos";
 export const CLAVE_SILENCIADOS = "numinia.silenciados";
 export const CLAVE_BLOQUEADOS = "numinia.bloqueados";
@@ -99,21 +100,23 @@ export const filtrar = <T extends { nombre: string }>(xs: readonly T[], q: strin
 /** «hace un momento», «hace 5 min», «hace 3 h», «hace 2 días», «hace 3 meses» (never a date nobody reads). */
 export function haceTexto(desde: number, ahora: number): string {
   const s = Math.max(0, (ahora - desde) / 1000);
-  if (!desde || s < 60) return desde ? "hace un momento" : "sin ver todavía";
-  if (s < 3600) return `hace ${Math.floor(s / 60)} min`;
-  if (s < 86400) return `hace ${Math.floor(s / 3600)} h`;
+  if (!desde || s < 60) return desde ? tx("just now", "hace un momento") : tx("not seen yet", "sin ver todavía");
+  if (s < 3600) return tx(`${Math.floor(s / 60)} min ago`, `hace ${Math.floor(s / 60)} min`);
+  if (s < 86400) return tx(`${Math.floor(s / 3600)} h ago`, `hace ${Math.floor(s / 3600)} h`);
   const d = Math.floor(s / 86400);
-  if (d < 60) return d === 1 ? "hace 1 día" : `hace ${d} días`;
-  return `hace ${Math.floor(d / 30)} meses`;
+  if (d < 60) return d === 1 ? tx("1 day ago", "hace 1 día") : tx(`${d} days ago`, `hace ${d} días`);
+  return tx(`${Math.floor(d / 30)} months ago`, `hace ${Math.floor(d / 30)} meses`);
 }
-const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+const MESES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]; // i18n-ok: month names, picked by tx() below
+const MESES_EN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 /** «3 de octubre» (and the year when it is not this one). Local time. */
 export function fechaTexto(ms: number, ahora: number): string {
   const f = new Date(ms), h = new Date(ahora);
-  return `${f.getDate()} de ${MESES[f.getMonth()]}${f.getFullYear() !== h.getFullYear() ? ` de ${f.getFullYear()}` : ""}`;
+  const otroAnio = f.getFullYear() !== h.getFullYear();
+  return tx(`${MESES_EN[f.getMonth()]} ${f.getDate()}${otroAnio ? `, ${f.getFullYear()}` : ""}`, `${f.getDate()} de ${MESES_ES[f.getMonth()]}${otroAnio ? ` de ${f.getFullYear()}` : ""}`);
 }
 /** «a 12 m» from metres (rounded; under 2 m, «a tu lado»). */
-export const distanciaTexto = (m: number): string => (m < 2 ? "a tu lado" : `a ${Math.round(m)} m`);
+export const distanciaTexto = (m: number): string => (m < 2 ? tx("right next to you", "a tu lado") : tx(`${Math.round(m)} m away`, `a ${Math.round(m)} m`));
 
 /** A set of keys as stored (muted, blocked): key -> the name it had, never throws. */
 export function leerMarcas(guardado: string | null): Map<string, string> {

@@ -4,6 +4,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FILTROS, PALETA, filtro, valoresSvg, aplicarMatriz, marco, nombreArchivo, codificarSitio, leerSitio, enlaceSitio, tomarSitioDeLaDireccion, rumboHacia } from "../apps/plaza/foto-nucleo.ts";
 import { crearOrbita, CAMARA, haciaMundo } from "../packages/render/src/camara-orbita.ts";
+import { fijarIdioma } from "../packages/client/src/idioma.ts";
+fijarIdioma("es"); // these checks assert the Spanish text; English is covered in test/idioma-simposio-b.test.ts
 
 const px = (...c: number[][]) => { const a = new Uint8ClampedArray(c.length * 4); c.forEach((v, i) => a.set([...v, 255], i * 4)); return a; };
 const cerca = (a: ArrayLike<number>, b: ArrayLike<number>, tol = 1) => { for (let i = 0; i < b.length; i++) assert.ok(Math.abs(a[i] - b[i]) <= tol, `${Array.from(a)} ≈ ${Array.from(b)}`); };

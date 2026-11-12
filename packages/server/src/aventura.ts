@@ -13,6 +13,7 @@ import { AGENTE_ID, MARCA_IA } from "../../instance/src/identidad.ts";
 import { clavePublica } from "../../agent/src/llave.ts";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { IDIOMA_CODIGO, idiomaDelMundo, IDIOMA_DEFECTO, leerTraduccion } from "./idiomas.ts";
 import catalogoAvatares from "../../../activos/avatares/catalogo.json" with { type: "json" };
 
 export const AVENTURA_FICHERO_MAX = 64 * 1024; // bytes per file
@@ -20,8 +21,9 @@ export const AVENTURA_FICHEROS_MAX = 500;      // files per folder
 export const AVENTURA_CARPETA = /^[a-z0-9][a-z0-9-]{0,31}$/, AVENTURA_NOMBRE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,80}\.(json|md|txt)$/;
 const CARPETA = AVENTURA_CARPETA, FICHERO = AVENTURA_NOMBRE;
 
-/** A reader over one adventure folder; `null` = no adventure (every folder is empty). */
-export function lectorAventura(dir: string | null, log: (l: string) => void = () => {}) {
+/** A reader over one adventure folder; `null` = no adventure (every folder is empty). A file the world has translated into its
+ * language (ficha.json `idioma`, idiomas.ts) is read from its translation; English (the default) and any file without one read the file itself. */
+export function lectorAventura(dir: string | null, log: (l: string) => void = () => {}, idioma: string = idiomaDelMundo(dir)) {
   return (carpeta: string): { fichero: string; texto: string }[] => {
     if (!dir || !CARPETA.test(carpeta)) return [];
     let nombres: string[];
@@ -33,7 +35,7 @@ export function lectorAventura(dir: string | null, log: (l: string) => void = ()
         const st = statSync(p);
         if (!st.isFile()) continue;
         if (st.size > AVENTURA_FICHERO_MAX) { log(`[aventura] ${carpeta}/${f}: más de ${AVENTURA_FICHERO_MAX} bytes; no lo leo`); continue; }
-        out.push({ fichero: `${carpeta}/${f}`, texto: readFileSync(p, "utf8") });
+        out.push({ fichero: `${carpeta}/${f}`, texto: leerTraduccion(dir, idioma, `${carpeta}/${f}`, AVENTURA_FICHERO_MAX) ?? readFileSync(p, "utf8") });
       } catch (e) { log(`[aventura] ${carpeta}/${f}: ${(e as Error).message}`); }
     }
     return out;
@@ -76,7 +78,7 @@ export const AVISOS_MISION = ["recibida", "entregada", "completada"] as const;
  *   - `audio.ambiente_sintetizado`: las camas y capas SINTETIZADAS que este mundo enciende por nombre. De serie,
  *     ninguna: una receta del bus «ambiente» no suena hasta que un mundo la nombra aquí. */
 export type Audio = { ambiente?: string; ambiente_ganancia?: number; ambiente_sintetizado?: string[]; avisos?: Partial<Record<(typeof AVISOS_MISION)[number], string>> };
-export type Ficha = { formato: typeof FICHA; nombre: string; descripcion?: string; portada?: string; avatar?: string; aforo?: number; audio?: Audio; [otro: string]: unknown };
+export type Ficha = { formato: typeof FICHA; nombre: string; descripcion?: string; idioma?: string; portada?: string; carga?: string; carga_credito?: string; avatar?: string; aforo?: number; audio?: Audio; [otro: string]: unknown };
 
 const letras = (t: string): number => [...t].length;
 
@@ -89,7 +91,10 @@ export function validarFicha(o: unknown, donde = FICHA_FICHERO): { ok: true; val
   if (typeof f.nombre !== "string" || !f.nombre.trim() || letras(f.nombre) > FICHA_NOMBRE_MAX || /[<>\u0000-\u001f]/.test(f.nombre)) bad("nombre", `texto no vacío de hasta ${FICHA_NOMBRE_MAX} caracteres, sin < > ni saltos de línea`);
   if (f.descripcion !== undefined && (typeof f.descripcion !== "string" || letras(f.descripcion) > FICHA_DESCRIPCION_MAX)) bad("descripcion", `texto de hasta ${FICHA_DESCRIPCION_MAX} caracteres`);
   if (f.portada !== undefined && (typeof f.portada !== "string" || !FICHA_PORTADA.test(f.portada))) bad("portada", "«<sha256>.png|jpg|webp» de una imagen que ya está en el servidor (la biblioteca o datos/activos/, que viaja en el zip)");
+  if (f.carga !== undefined && (typeof f.carga !== "string" || !FICHA_PORTADA.test(f.carga))) bad("carga", "«<sha256>.png|jpg|webp» de la imagen de la pantalla de carga de este mundo (una imagen ya en el servidor, mejor webp de menos de 150 kB; sin ella queda la luna)");
+  if (f.carga_credito !== undefined && (typeof f.carga_credito !== "string" || letras(f.carga_credito) > 120)) bad("carga_credito", "texto de hasta 120 caracteres con el crédito de la imagen de carga");
   if (f.avatar !== undefined && (typeof f.avatar !== "string" || !AVATARES_CASA.includes(f.avatar))) bad("avatar", `uno de los avatares de la casa: ${AVATARES_CASA.join(", ")}`);
+  if (f.idioma !== undefined && (typeof f.idioma !== "string" || !IDIOMA_CODIGO.test(f.idioma))) bad("idioma", `the language of the world's words: a short code such as «${IDIOMA_DEFECTO}» or «es» (default «${IDIOMA_DEFECTO}»; idiomas.ts)`);
   if (f.aforo !== undefined && (typeof f.aforo !== "number" || !Number.isInteger(f.aforo) || f.aforo < 1 || f.aforo > AFORO_MAX)) bad("aforo", `un número entero de 1 a ${AFORO_MAX} (personas a la vez; limits.json world_people_cap)`);
   // S6f: `audio` — lo que este mundo pide del sonido. Todo opcional; lo que no se dice, no suena.
   if (f.audio !== undefined) {
@@ -129,6 +134,15 @@ export function leerFicha(dir: string | null): { ficha: Ficha | null; problemas:
   let o: unknown;
   try { o = JSON.parse(texto); } catch (e) { return { ficha: null, problemas: [`${FICHA_FICHERO}: JSON roto (${(e as Error).message})`] }; }
   const r = validarFicha(o);
+  if (r.ok) { // the world's words in its language: name and description from idiomas/<lang>.ficha.json (a bad translation is said and left out)
+    const t = leerTraduccion(dir, r.value.idioma ?? IDIOMA_DEFECTO, FICHA_FICHERO, AVENTURA_FICHERO_MAX);
+    if (t !== null) {
+      let o2: unknown; try { o2 = JSON.parse(t); } catch (e) { return { ficha: r.value, problemas: [`idiomas/${r.value.idioma}.${FICHA_FICHERO}: JSON roto (${(e as Error).message})`] }; }
+      const v = validarFicha(o2, `idiomas/${r.value.idioma}.${FICHA_FICHERO}`);
+      if (!v.ok) return { ficha: r.value, problemas: v.issues.map((i) => `${i.path}: ${i.message}`) };
+      return { ficha: { ...r.value, nombre: v.value.nombre, ...(v.value.descripcion !== undefined ? { descripcion: v.value.descripcion } : {}) }, problemas: [] };
+    }
+  }
   return r.ok ? { ficha: r.value, problemas: [] } : { ficha: null, problemas: r.issues.map((i) => `${i.path}: ${i.message}`) };
 }
 

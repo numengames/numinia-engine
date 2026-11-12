@@ -1,0 +1,22 @@
+{
+  "schema": "numinia-engine/escena@1",
+  "nombre": "The Museum Storeroom",
+  "preset": "noche",
+  "entorno": {
+    "cielo": {
+      "tipo": "degradado",
+      "arriba": "#04110f",
+      "horizonte": "#0f3b37"
+    },
+    "niebla": {
+      "cerca": 3,
+      "lejos": 30,
+      "color": "#0f3b37",
+      "delCielo": false
+    },
+    "tono": {
+      "exposicion": 0.55
+    }
+  },
+  "narracion": "The Möbius Corridor ends here. At the back of the storeroom, something gives back a reflection that is not yours."
+}

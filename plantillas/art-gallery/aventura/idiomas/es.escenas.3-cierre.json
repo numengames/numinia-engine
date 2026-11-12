@@ -1,0 +1,11 @@
+{
+  "schema": "numinia-engine/escena@1",
+  "nombre": "Cierre",
+  "preset": "noche",
+  "entorno": {
+    "tono": {
+      "exposicion": 0.7
+    }
+  },
+  "narracion": "La galería cierra. Gracias por venir: las obras se quedan aquí."
+}

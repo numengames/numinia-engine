@@ -10,6 +10,8 @@
 //   · Esc closes (while focus is in the overlay), Tab cycles inside the overlay; keys never reach the world while it is open. A cross-origin frame keeps the keys
 //     typed inside it: there the white «Cerrar» button is the way out (a page cannot listen to keys inside a foreign frame).
 import { direccionPermitida } from "../../features/espejo/origenes.ts";
+import { tx, ligar } from "../../packages/feature/src/idioma.ts";
+import { pintarCerrar } from "./cerrar.ts";
 
 export const ESPERA_MS = 6000;
 export const COMANDO = "hermes palace docs";
@@ -39,13 +41,13 @@ export function abrirVisor(o: Opciones): Abierto | { error: string } {
   if (!v.ok) return { error: v.why };
   if (!d.getElementById("visor-doc-css")) { const s = d.createElement("style"); s.id = "visor-doc-css"; s.textContent = CSS; d.head.appendChild(s); }
   d.getElementById("visor-doc")?.remove();
-  const raiz = d.createElement("div"); raiz.id = "visor-doc"; raiz.setAttribute("role", "dialog"); raiz.setAttribute("aria-modal", "true"); raiz.setAttribute("aria-label", "Documentación");
+  const raiz = d.createElement("div"); raiz.id = "visor-doc"; raiz.setAttribute("role", "dialog"); raiz.setAttribute("aria-modal", "true"); ligar(raiz, "aria-label", "Documentation", "Documentación");
   const cab = d.createElement("header"), tit = d.createElement("h2"), cerrarB = d.createElement("button");
-  tit.textContent = o.titulo || "Documento"; cerrarB.type = "button"; cerrarB.textContent = "Cerrar (Esc)"; cerrarB.dataset.verbo = "cerrar-visor";
+  if (o.titulo) tit.textContent = o.titulo; else ligar(tit, "textContent", "Document", "Documento"); cerrarB.type = "button"; pintarCerrar(cerrarB); cerrarB.dataset.verbo = "cerrar-visor";
   cab.append(tit, cerrarB);
   const cuerpo = d.createElement("div"); cuerpo.className = "cuerpo";
   const aviso = d.createElement("div"); aviso.className = "aviso"; aviso.setAttribute("role", "status"); aviso.hidden = false;
-  const msg = d.createElement("p"); msg.textContent = "Abriendo la documentación…"; aviso.appendChild(msg);
+  const msg = d.createElement("p"); ligar(msg, "textContent", "Opening the documentation…", "Abriendo la documentación…"); aviso.appendChild(msg);
   cuerpo.appendChild(aviso); raiz.append(cab, cuerpo);
   const antes = d.activeElement as HTMLElement | null;
   d.body.appendChild(raiz);
@@ -56,7 +58,7 @@ export function abrirVisor(o: Opciones): Abierto | { error: string } {
     w.clearTimeout(plazo); marco?.remove(); marco = null; result.marco = null;
     aviso.hidden = false; aviso.dataset.estado = "fallo"; aviso.replaceChildren();
     const a = d.createElement("p"), b = d.createElement("p"), c = d.createElement("code"), e = d.createElement("p");
-    a.textContent = "No he podido abrir la documentación."; b.textContent = "Arranque el visor con este comando y vuelva a pulsar «Abrir»:"; c.textContent = COMANDO; e.textContent = `Dirección: ${v.url}`;
+    a.textContent = tx("I could not open the documentation.", "No he podido abrir la documentación."); b.textContent = tx("Start the viewer with this command and press «Open» again:", "Arranque el visor con este comando y vuelva a pulsar «Abrir»:"); c.textContent = COMANDO; e.textContent = tx(`Address: ${v.url}`, `Dirección: ${v.url}`);
     aviso.append(a, b, c, e);
   };
   const cerrar = (): void => {
@@ -87,7 +89,7 @@ export function abrirVisor(o: Opciones): Abierto | { error: string } {
   fetch(v.url, { mode: "no-cors", cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer", signal: ctl.signal }).then(() => {
     w.clearTimeout(parar);
     if (!abierto) return;
-    marco = d.createElement("iframe"); marco.title = o.titulo || "Documentación";
+    marco = d.createElement("iframe"); marco.title = o.titulo || tx("Documentation", "Documentación");
     marco.setAttribute("sandbox", "allow-scripts allow-same-origin"); marco.setAttribute("referrerpolicy", "no-referrer"); marco.setAttribute("allow", ""); marco.setAttribute("loading", "eager");
     marco.addEventListener("load", () => { if (!abierto) return; w.clearTimeout(plazo); aviso.hidden = true; aviso.dataset.estado = "listo"; });
     marco.src = v.url; result.marco = marco; cuerpo.appendChild(marco);

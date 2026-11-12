@@ -3,6 +3,7 @@
 // first, with a real button when the picture carries a link (the same confirm and the same https-only open as the click: enlaces.ts).
 // Pictures marked as decoration (`decorado`, the alt="" of the world) are left out on purpose. The list is invisible to sight
 // (`.solo-lector`), is rewritten only when what it says changes (phones stay cool), and never moves focus: rows are updated in place.
+import { tx, ligar } from "../../packages/feature/src/idioma.ts";
 import { distancia, lado } from "../../packages/client/src/mapa.ts";
 
 type Obj = Record<string, unknown> & { id: string };
@@ -19,7 +20,7 @@ export function gemelosDe(objetos: readonly Obj[], yo: { x: number; z: number },
     if (!nombre || o.decorado === true) continue; // decoration says nothing, as alt=""
     const dx = Number(o.x) - yo.x, dz = Number(o.z) - yo.z;
     if (!Number.isFinite(dx) || !Number.isFinite(dz)) continue;
-    const d = Math.hypot(dx, dz), l = d < 1 ? "aquí mismo" : lado(dx, dz, yaw);
+    const d = Math.hypot(dx, dz), l = d < 1 ? tx("right here", "aquí mismo") : lado(dx, dz, yaw);
     const url = String(o.enlace ?? "").trim();
     out.push({ id: o.id, nombre, distancia: d, lado: l, texto: `Imagen «${nombre}», ${distancia(d)}${d < 1 ? "" : `, ${l}`}`, enlace: url && abrible(url) ? url : null });
   }
@@ -42,8 +43,8 @@ export type OpcionesGemelos = {
 export function montarGemelos(o: OpcionesGemelos) {
   const raiz = document.createElement("section");
   raiz.id = "gemelos-mundo"; raiz.className = "solo-lector"; raiz.setAttribute("aria-labelledby", "gemelos-mundo-h");
-  const h = document.createElement("h2"); h.id = "gemelos-mundo-h"; h.textContent = "Imágenes del mundo";
-  const ul = document.createElement("ul"); ul.setAttribute("aria-label", "Imágenes del mundo, de la más cercana a la más lejana");
+  const h = document.createElement("h2"); h.id = "gemelos-mundo-h"; ligar(h, "textContent", "World images", "Imágenes del mundo");
+  const ul = document.createElement("ul"); ligar(ul, "aria-label", "World images, from the nearest to the farthest", "Imágenes del mundo, de la más cercana a la más lejana");
   raiz.append(h, ul); (o.padre ?? document.body).append(raiz);
   let ultima: Gemelo[] = [], firma = "";
   const filas = new Map<string, HTMLLIElement>();
@@ -75,7 +76,7 @@ export function montarGemelos(o: OpcionesGemelos) {
         li.append(btn);
       } else if (!x.enlace && b) b.remove();
       const btn = li.querySelector("button");
-      if (btn) { btn.textContent = `Abrir el enlace de ${x.nombre}`; btn.dataset.id = x.id; }
+      if (btn) { btn.textContent = tx(`Open the link of ${x.nombre}`, `Abrir el enlace de ${x.nombre}`); btn.dataset.id = x.id; }
     }
     if (!ul.contains(document.activeElement)) for (const x of g) ul.appendChild(filas.get(x.id)!); // nearest first; rows move only when focus is elsewhere
   }

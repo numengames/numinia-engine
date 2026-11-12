@@ -68,10 +68,11 @@ export function distanciaVRM(c: { mobile: boolean; xr: boolean }): number {
   return c.xr ? VRM_HASTA_M.visor : c.mobile ? VRM_HASTA_M.movil : VRM_HASTA_M.escritorio;
 }
 
-/** Which of the `n` house avatars a player gets: fixed by its entity id until players can choose (row H10). */
-export function elegirAvatar(id: number, n: number): number {
-  if (n <= 0) return -1;
-  return ((id % n) + n) % n;
+/** Which of the `n` house avatars a player who has not chosen one wears: the house default, the first of the catalogue
+ * (Pablo, 2026-11-11: everyone arrives as the Nomad; tools/avatares-catalogo.ts puts it first). It was one per entity id
+ * (id mod n) until then; `id` stays in the signature so every caller keeps asking per player. -1 = no catalogue. */
+export function elegirAvatar(_id: number, n: number): number {
+  return n > 0 ? 0 : -1;
 }
 
 export function estadoPor(velocidad: number, altura: number): Estado {
@@ -185,7 +186,9 @@ export function decaerBoca(anterior: number, rms: number | null, factor = 0.55):
 /** A move as the view plays it (same shape as the feature's MovimientoVista; render does not import packages/feature). */
 export type Movimiento = { id: string; clips: readonly string[]; modo: "una" | "bucle" | "quedarse"; hastaS: number; viva: boolean;
   /** a posture that keeps the feet on the floor (sitting, crouching): the page lifts or lowers the body so they are (apoyoDePies) */
-  apoya?: boolean };
+  apoya?: boolean;
+  /** held by its owner (a seat): walking does not end it, only its owner does */
+  sujeto?: boolean };
 /** One avatar's move in progress. `desde` = when its first clip started (ms), null while its files are still loading. */
 export type EnCurso = { mov: Movimiento; pedido: number; desde: number | null; serie: number };
 /** A move whose files have not all arrived after this long is dropped (a slow network must not freeze someone later). */
@@ -198,7 +201,7 @@ export const empezarMovimiento = (mov: Movimiento, ahora: number): EnCurso => ({
  * (`estado` other than quieto) ends any move at once, on every screen, because every screen sees the same walk. */
 export function pasoDeMovimiento(e: EnCurso, ahora: number, estado: Estado, duracion: (clip: string) => number | undefined, listo: (clip: string) => boolean):
   { fin: true } | { fin: false; esperar: true } | { fin: false; esperar: false; clip: string; bucle: boolean; tramo: number; mantener: boolean } {
-  if (estado !== "quieto") return { fin: true };
+  if (estado !== "quieto" && !e.mov.sujeto) return { fin: true };
   const clips = e.mov.clips;
   if (!clips.length) return { fin: true };
   if (e.desde === null) {

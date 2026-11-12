@@ -1,0 +1,38 @@
+{
+  "formato": "pnj@1",
+  "id": "iris",
+  "nombre": "Iris",
+  "oficio": "Visitante",
+  "descripcion": "Mira el hueco 18 (este) con calma.",
+  "apariencia": {
+    "modelo": "aa55e19df393de6a032ef43a3b68d8be6ac21a3eb8b572bb0e06b239d256750b",
+    "escala": 1
+  },
+  "posicion": {
+    "x": 15.69,
+    "z": 3.2
+  },
+  "giro": 57,
+  "radio": 3,
+  "dialogo": {
+    "entradas": [
+      {
+        "nodo": "hola"
+      }
+    ],
+    "nodos": {
+      "hola": {
+        "texto": "Me traje el cuaderno por si algo me pide un dibujo. Todavía no.",
+        "opciones": [
+          {
+            "texto": "Hasta luego.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "notas": "Plantilla de galería: de pie delante del hueco 18 (este), mirándolo. Modelo propio (modelos/iris.glb, CC0). No da misiones."
+}

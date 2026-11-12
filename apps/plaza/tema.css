@@ -24,7 +24,7 @@
 html, body { font-family: "Geist", system-ui, sans-serif; }
 
 /* ---- frames: one surface, one hairline, 8px ---- */
-#hud, #dock-construir, #panel-construir .cajon, #panel-construir .estado:not(:empty), #libro, #dialogo, #ajustes, #chat-lista:not(:empty), #ficha-objeto, #mision-seguida,
+#hud, #dock-construir, #panel-construir .cajon, #panel-construir .estado:not(:empty), #libro, #mision-ahora, #dialogo, #ajustes, #chat-lista:not(:empty), #ficha-objeto, #mision-seguida,
 .panel-j5, #subida-estado.con-texto {
   background: var(--n-sup) !important; color: var(--n-texto) !important; border: 1px solid var(--n-linea); border-radius: 8px !important; box-shadow: none !important;
 }
@@ -74,18 +74,18 @@ html, body { font-family: "Geist", system-ui, sans-serif; }
 #libro .cabeza { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 6px; }
 #libro .cabeza h2 { margin: 0 !important; }
 #libro .cabeza .cerrar { padding: 3px 10px !important; font-size: 12px; }
-#libro ol.pasos, #libro ul.hechas { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-#libro li.paso { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 8px; align-items: start; padding: 3px 8px; border-radius: 6px; }
-#libro li.paso > .marca { grid-column: 1; height: 1.45em; display: flex; align-items: center; justify-content: center; }
-#libro li.paso > .texto, #libro li.paso > .donde { grid-column: 2; min-width: 0; }
-#libro li.paso > .donde { font-size: 12px; font-weight: 400; color: var(--n-verdemar); }
-#libro li.paso.hecho { color: var(--n-texto2); }
-#libro li.paso.hecho > .texto { opacity: .85; }
-#libro li.paso.hecho > .marca { color: var(--n-hecho); }
-#libro li.paso.ahora { color: var(--n-texto); font-weight: 600; background: color-mix(in srgb, var(--n-ambar) 14%, transparent); }
-#libro li.paso.ahora > .marca::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--n-ambar); outline: 2px solid color-mix(in srgb, var(--n-ambar) 45%, transparent); outline-offset: 2px; }
-#libro li.paso.bloqueado { color: var(--n-texto2); }
-#libro li.paso.bloqueado > .texto, #libro li.paso.bloqueado > .marca { opacity: .75; } /* dimmed, still ≥ 4.5:1 on the house surface */
+:is(#libro, #mision-ahora) ol.pasos, #libro ul.hechas { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+:is(#libro, #mision-ahora) li.paso { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 8px; align-items: start; padding: 3px 8px; border-radius: 6px; }
+:is(#libro, #mision-ahora) li.paso > .marca { grid-column: 1; height: 1.45em; display: flex; align-items: center; justify-content: center; }
+:is(#libro, #mision-ahora) li.paso > .texto, :is(#libro, #mision-ahora) li.paso > .donde { grid-column: 2; min-width: 0; }
+:is(#libro, #mision-ahora) li.paso > .donde { font-size: 12px; font-weight: 400; color: var(--n-verdemar); }
+:is(#libro, #mision-ahora) li.paso.hecho { color: var(--n-texto2); }
+:is(#libro, #mision-ahora) li.paso.hecho > .texto { opacity: .85; }
+:is(#libro, #mision-ahora) li.paso.hecho > .marca { color: var(--n-hecho); }
+:is(#libro, #mision-ahora) li.paso.ahora { color: var(--n-texto); font-weight: 600; background: color-mix(in srgb, var(--n-ambar) 14%, transparent); }
+:is(#libro, #mision-ahora) li.paso.ahora > .marca::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--n-ambar); outline: 2px solid color-mix(in srgb, var(--n-ambar) 45%, transparent); outline-offset: 2px; }
+:is(#libro, #mision-ahora) li.paso.bloqueado { color: var(--n-texto2); }
+:is(#libro, #mision-ahora) li.paso.bloqueado > .texto, :is(#libro, #mision-ahora) li.paso.bloqueado > .marca { opacity: .75; } /* dimmed, still ≥ 4.5:1 on the house surface */
 
 /* ---- controls: ghost by default, ink-on-paper when active, 6px (a world's tema may round them: --n-r-control) ---- */
 #panel-construir button, #libro button, #dialogo button:not(.adios), #ajustes button, #panel-entorno button, #minimapa button, .panel-j5 button, #ficha-objeto button, #barra-arriba button {
@@ -449,6 +449,12 @@ html.menos-movimiento #ajustes.acordeon .cat-cab > svg:last-child { transition: 
 #minimapa #minimapa-norte:hover { background: var(--n-ambar) !important; color: var(--n-fondo) !important; border-color: var(--n-ambar) !important; }
 #minimapa #minimapa-norte:focus-visible { outline: 2px solid var(--n-verdemar); outline-offset: 2px; }
 #minimapa #minimapa-norte .icono { pointer-events: none; }
+/* Map v2.2: the filter's magnifying glass, on the minimap's lower-left rim (the north button's twin) */
+#minimapa #minimapa-filtro { position: absolute; left: 0; bottom: 0; width: 26px; height: 26px; min-width: 0 !important; min-height: 0 !important; padding: 0 !important; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50% !important; border: 1px solid var(--n-ambar) !important; background: var(--n-fondo) !important; color: var(--n-ambar) !important; box-shadow: 0 1px 5px rgba(0, 0, 0, .45); cursor: pointer; line-height: 0; transition: background .15s, color .15s; }
+#minimapa #minimapa-filtro:hover { background: var(--n-ambar) !important; color: var(--n-fondo) !important; }
+#minimapa #minimapa-filtro:focus-visible { outline: 2px solid var(--n-verdemar); outline-offset: 2px; }
+#minimapa #minimapa-filtro .icono { pointer-events: none; }
 :root { --botones-alto: 0px !important; }
 @media (pointer: coarse) { :root { --botones-alto: 0px !important; } }
 /* your card, top left: a real button laid over it opens your sheet (I) */
@@ -855,3 +861,59 @@ html[data-aparato^="movil"] #ficha-objeto .acciones { margin-top: 10px; }
 
 /* P13: the «Ver evaluación» button in the book (the card's own look is in evaluacion.css, a lazy chunk) */
 #libro li.paso > button.ver-evaluacion { grid-column: 2; justify-self: start; margin-top: 4px; padding: 2px 10px; font-size: 12px; }
+
+/* keymap v1: Settings → Controls, two columns (Default | Yours) */
+#ajustes .controles-tabla { margin-top: 10px; }
+#ajustes .controles-tabla table { width: 100%; border-collapse: collapse; font-size: 13px; }
+#ajustes .controles-tabla caption { text-align: left; color: var(--n-texto); opacity: .75; padding: 4px 0; }
+#ajustes .controles-tabla th, #ajustes .controles-tabla td { padding: 4px 8px; text-align: left; border-bottom: 1px solid rgba(238, 242, 246, .12); vertical-align: middle; }
+#ajustes .controles-tabla thead th { position: sticky; top: 0; background: var(--n-fondo, #14181e); }
+#ajustes .controles-tabla tr.grupo th { padding-top: 12px; color: var(--n-verdemar); font: 600 12px "Geist Mono", ui-monospace, monospace; text-transform: uppercase; letter-spacing: .06em; }
+#ajustes .controles-tabla td.defecto kbd { margin-right: 2px; }
+#ajustes .controles-tabla td.fija { opacity: .55; }
+#ajustes .controles-tabla .suya-boton { min-width: 5.5em; padding: 2px 10px; border: 1px dashed currentColor; border-radius: 6px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+#ajustes .controles-tabla .suya-boton.escuchando { border-style: solid; outline: 2px solid #ffd27a; }
+#ajustes .controles-tabla .suya-borrar { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 16px; }
+#ajustes .controles-tabla .controles-aviso { min-height: 1.6em; margin: 6px 0; }
+#ajustes .controles-tabla .controles-reset { float: right; margin: 4px 0; }
+#ajustes .controles-tabla .controles-otros { margin-top: 12px; font-size: 12px; opacity: .8; }
+#ajustes .controles-tabla .controles-otros ul { margin: 4px 0 0; padding-left: 18px; }
+#teclas .teclas-lista dt.grupo, #teclas .teclas-lista dd.grupo { margin-top: 6px; color: var(--n-verdemar); text-transform: uppercase; font-size: 11px; letter-spacing: .06em; }
+
+/* keymap v1: Ctrl+H hides the whole interface; only the 3D view and the microphone warning stay */
+html.ui-oculta body > *:not(canvas):not(#microfono-aviso) { display: none !important; }
+
+/* H3 (Lumen redesign): the followed quest as a card while building. The book, the «now» line and the minimap hide then (the
+   dock owns the top centre and the object's card the right), so this is the one place the instruction stays. Top left under the
+   player card; desktop only (a phone keeps its own layout: movil.css). Same step rows, colours and radii as the book. */
+#mision-ahora { display: none; position: fixed; left: 16px; top: 152px; z-index: 4; width: 300px; max-height: calc(100% - 300px); overflow: auto; box-sizing: border-box; padding: 12px 14px 10px; border-left: 3px solid var(--n-ambar); }
+body.construyendo #mision-ahora:not([hidden]) { display: block; }
+html[data-aparato^="movil"] #mision-ahora { display: none !important; }
+#mision-ahora .cab { margin: 0; font: 500 11px "Geist Mono", ui-monospace, monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--n-verdemar); }
+#mision-ahora h2 { margin: 6px 0 0; font-size: 17px; line-height: 1.25; }
+#mision-ahora .barra { display: flex; gap: 3px; margin: 8px 0 8px; }
+#mision-ahora .barra i { flex: 1; height: 5px; border-radius: 3px; background: var(--n-linea); }
+#mision-ahora .barra i.hecho { background: var(--n-hecho); }
+#mision-ahora .barra i.ahora { background: var(--n-ambar); }
+#mision-ahora ol.pasos { margin: 0; }
+#mision-ahora li.paso { font-size: 14px; }
+
+/* QA Pablo 2026-11-11 (Galatea, playground only, not in a PR yet): on a computer, panels are glass (the same --cr glass
+   móvil already uses, movil.css) instead of opaque Nocturno brown, and the dialogue sits beside your character
+   (Pablo: the eye should not travel far from it), never over the gesture bar. Radii 8px, no shadows (STD-023). */
+html:not([data-aparato^="movil"]) {
+  --cr: rgba(20, 17, 15, .55); --cr-borde: rgba(166, 218, 213, .20); --cr-blur: blur(12px) saturate(120%);
+}
+html:not([data-aparato^="movil"]) :is(#dialogo, #libro, #mision-seguida, #minimapa, #barra-arriba button, #mas, #mas-menu, #chat-pill, #hud-personaje, #ficha-objeto) {
+  background: var(--cr) !important; -webkit-backdrop-filter: var(--cr-blur); backdrop-filter: var(--cr-blur);
+  border: 1px solid var(--cr-borde) !important;
+}
+html:not([data-aparato^="movil"]) body #dialogo { /* Pablo 11-11: next to your character, so the eye does not travel */
+  right: calc(50% + 90px) !important; left: auto !important; top: 34% !important; bottom: auto !important; transform: none !important;
+  width: 360px !important; max-height: 52% !important; border-radius: 8px !important; padding: 14px 16px !important;
+}
+html:not([data-aparato^="movil"]) #dialogo button:not(.adios) { background: rgba(1, 124, 141, .22) !important; border-color: rgba(166, 218, 213, .30) !important; }
+html:not([data-aparato^="movil"]) #dialogo button:not(.adios):hover { background: #017C8D !important; }
+
+/* Pablo 11-11: while a person talks to you, the box stays beside them (dialogo.ts sitioJunto sets --dlg-x / --dlg-y every frame) */
+html:not([data-aparato^="movil"]) body :is(#dialogo, #mision-ahora).anclado { left: var(--dlg-x) !important; top: var(--dlg-y) !important; right: auto !important; bottom: auto !important; transform: none !important; }

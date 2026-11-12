@@ -39,7 +39,7 @@ function sincronizar(): void {
 }
 
 export function registrar(c: Capa): Capa {
-  if (capas.some((x) => x.id === c.id)) throw new Error(`capas: «${c.id}» ya está registrada`);
+  if (capas.some((x) => x.id === c.id)) throw new Error(`capas: «${c.id}» ya está registrada`); // i18n-ok: developer error
   capas.push({ ...c, desde: 0 });
   return c;
 }

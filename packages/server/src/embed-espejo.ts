@@ -21,7 +21,7 @@ export const TTL_MAX_MS = 24 * 3600_000, TTL_DEFECTO_MS = 3600_000, RUTA = "/esp
 const firma = (clave: string, cuerpo: string): string => createHmac("sha256", clave).update(`numinia-embed@1\n${cuerpo}`).digest("hex");
 const igual = (a: string, b: string): boolean => { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); };
 
-/** A credential good for `ttlMs` (at most 24 h) from `ahora`. The plugin does the same with the same key (docs/EXTENDER.md «Embed (v1)»). */
+/** A credential good for `ttlMs` (at most 24 h) from `ahora`. The plugin does the same with the same key (docs/extender/espejo.md). */
 export function acunarCredencial(clave: string, o: { ahora?: number; ttlMs?: number } = {}): string {
   const exp = (o.ahora ?? Date.now()) + Math.min(TTL_MAX_MS, Math.max(1000, o.ttlMs ?? TTL_DEFECTO_MS)), cuerpo = `${exp}.${randomBytes(12).toString("base64url")}`;
   return `e1.${cuerpo}.${firma(clave, cuerpo)}`;

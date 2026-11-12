@@ -9,7 +9,7 @@
 // v2 adds the DUEL: a board with `duelo: true` takes a second player and plays a match (rounds of three darts, turns
 // alternate, the higher total wins); `remoto: true` lets a player join from a real wall (AR) far from the board, and
 // both players get every dart and the score whatever the distance. A board without those fields behaves as in v1.
-// Recipe: docs/EXTENDER.md «Dardos».
+// Recipe: docs/extender/dardos.md.
 import { defineFeature } from "../../packages/feature/src/index.ts";
 import { EQUIPOS_DEFECTO, EQUIPOS_MAX } from "./equipos.ts";
 

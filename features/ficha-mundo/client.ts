@@ -3,6 +3,7 @@
 // the server checks who, writes aventura/ficha.json and every page — this one too — applies the new state through the same `onChange`.
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi } from "../../packages/feature/src/index.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { AJUSTES, fichaMundo } from "./feature.ts";
 
 export type Ajustes = { nombre: string; portada: string; avatar: string; aforo: number; capacidad: number; guardado: boolean };
@@ -22,7 +23,7 @@ export function crearCliente() {
     /** The world's settings as the server last said (null = a server without the piece). */
     actual: leer,
     /** Ask the server to set them all (the message carries the whole form). */
-    guardar: (c: Entrada) => api?.send("ajustar", c) ?? { ok: false as const, why: "la página aún no ha arrancado" },
+    guardar: (c: Entrada) => api?.send("ajustar", c) ?? { ok: false as const, why: tx("the page has not started yet", "la página aún no ha arrancado") },
     /** Be told when they change (on arrival and after every save, from anybody). Returns the way to stop. */
     alCambiar: (fn: (a: Ajustes) => void) => { oyentes.push(fn); const a = leer(); if (a) fn(a); return () => { const i = oyentes.indexOf(fn); if (i >= 0) oyentes.splice(i, 1); }; },
   };

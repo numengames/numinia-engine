@@ -1,7 +1,7 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
 import { rngNext, fxToFloat, fx, FX_ONE } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, groundHeight, PISO_SIN_SUELO, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX, MODO_SENTADO, getMotionExtra } from "../../sim/src/index.ts";
+import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, groundHeight, PISO_SIN_SUELO, sinSueloDelEstado, SUELO_MINIMO_SIN_SUELO, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX, MODO_SENTADO, getMotionExtra } from "../../sim/src/index.ts";
 import type { SimState, SpawnArea, Bvh } from "../../sim/src/index.ts";
 import { terrenoDelEstado, terrenoMalla, claveTerreno, combinarMallas, sueloMinimoTerreno } from "../../sim/src/terreno-malla.ts";
 import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
@@ -9,9 +9,11 @@ import {
   MSG, SILENCIO_MS, SILENCIO_OCULTA_MS, decodeLatido, buildGrid, selectVisible, encodeSnapshot, cuantizar, decodeSnapshot, encodeInput, decodeInput,
   encodePong, decodeTime, encodeWelcome, decodeWelcome, loopbackPair, decodeReport,
   decodeIdentityRequest, decodePase, encodeIdentity, leerVozSubida, codificarVozBajada, elegirVoces, VOZ_RADIO_M, VOZ_TRAMAS_S, VOZ_TOPE,
-  encodeCondiciones, decodeAceptar, encodeLeyendo, LEYENDO_POR_MENSAJE,
+  encodeCondiciones, decodeAceptar, encodeLeyendo, LEYENDO_POR_MENSAJE, PANTALLA_TRAMA_BAJADA,
 } from "../../net/src/index.ts";
 import { agenteDe, emitir, nombreDe, nuevoId, today, verificar, verificarAgente } from "./identidad.ts";
+import { Pantallas, pantallasDelEstado } from "./pantallas.ts";
+import type { PantallaMundo } from "./pantallas.ts";
 import type { Who } from "./identidad.ts";
 export type { Who } from "./identidad.ts";
 import type { Aceptacion, CondicionesMensaje, Transport, Viewer, Welcome } from "../../net/src/index.ts";
@@ -192,7 +194,37 @@ export class Instance {
       sentado: (e) => !!this.byEntity[e] && !!this.sim.world.alive[e] && getMotionExtra(this.sim, e).modo === MODO_SENTADO,
       vozBurbujas: (v) => { this.burbujas = v; },
     });
+    this.pantallasVivas = this.montarPantallas();
     this.seguro = new Int32Array(opts.capacity * 3); this.tieneSeguro = new Uint8Array(opts.capacity);
+  }
+
+  /** M18 trozo 3: the screens people share onto the world's video screens (pantallas.ts holds the rules; here only the world it asks about). */
+  readonly pantallasVivas: Pantallas;
+  private pantallasLista: { version: number; lista: PantallaMundo[] } = { version: -1, lista: [] };
+  private montarPantallas(): Pantallas {
+    const pos = (e: number) => (this.byEntity[e] && this.sim.world.alive[e] ? { x: fxToFloat(this.sim.tf.cols.x[e]), z: fxToFloat(this.sim.tf.cols.z[e]) } : null);
+    const aqui = (e: number) => { const c = this.byEntity[e]; return c && !c.enlace && !this.cerrada(c) ? c : null; }; // a visit by link and a person behind the gate neither show nor see
+    return new Pantallas({
+      pantallas: () => {
+        const v = this.features.stateVersion;
+        if (this.pantallasLista.version !== v) this.pantallasLista = { version: v, lista: pantallasDelEstado(this.features.allState()) };
+        return this.pantallasLista.lista;
+      },
+      posicion: pos,
+      entidades: () => this.conns.map((c) => c.entity),
+      puedeEmitir: (e) => aqui(e) !== null,
+      puedeParar: (e) => { const c = this.byEntity[e]; return !!c && (this.opts.puede?.(c.who ?? null, "dirigir", e) === true || this.opts.puede?.(c.who ?? null, "mandar", e) === true); },
+      puedeVer: (emisor, esp) => {
+        if (!aqui(esp)) return false;
+        const B = this.burbujas;
+        if (B) { // the same privacy as the voice: a closed bubble keeps its screen in and the square out
+          const bh = B.de(emisor), bo = B.de(esp);
+          if (!(bh >= 0 && bh === bo) && (bh >= 0 || bo >= 0) && ((bh >= 0 && !B.abierta(bh)) || (bo >= 0 && !B.abierta(bo)))) return false;
+        }
+        return !this.opts.oye || this.opts.oye(emisor, esp); // a personal block hides the screen too
+      },
+      enviar: (e, bytes) => { this.byEntity[e]?.transport.send(bytes, bytes[1] !== PANTALLA_TRAMA_BAJADA); },
+    });
   }
 
   // ---- D-045: the last safe spot of each avatar, the orders waiting for the next step, the returns made ----
@@ -303,7 +335,7 @@ export class Instance {
     if (conn.enlace) this.ocultas.add(entity);
     t.onMessage((bytes) => {
       if (conn.latido) conn.latido.visto = this.reloj(); // anything it sends is a sign of life
-      if (conn.enlace && (bytes[0] === MSG.INPUT || bytes[0] === MSG.VOICE)) { conn.bad++; return; } // a visit does not walk and does not talk aloud
+      if (conn.enlace && (bytes[0] === MSG.INPUT || bytes[0] === MSG.VOICE || bytes[0] === MSG.PANTALLA)) { conn.bad++; return; } // a visit does not walk and does not talk aloud
       if (bytes[0] === MSG.INPUT && (bytes.length === 6 || bytes.length === 5)) { // 5 = from before J2 (no buttons)
         if (this.cerrada(conn)) { this.puertaStats.entradas++; return; } // condiciones/c2: frozen where it arrived until it accepts
         conn.queue.push(decodeInput(bytes));
@@ -333,6 +365,9 @@ export class Instance {
         if (this.cerrada(conn)) { this.puertaStats.voz++; return; } // condiciones/c2: nothing of its microphone is relayed
         const sinVoz = typeof this.opts.sinVoz === "function" ? this.opts.sinVoz() : this.opts.sinVoz;
         if (!sinVoz) this.relayVoice(conn, bytes);
+      } else if (bytes[0] === MSG.PANTALLA) { // M18 trozo 3: a piece of the screen this person shows (or its start / stop); the rules are pantallas.ts
+        if (this.cerrada(conn)) { this.puertaStats.voz++; return; } // condiciones/c2: behind the gate nothing of it is relayed
+        if (!this.pantallasVivas.recibir(entity, bytes, this.sim.tick)) conn.bad++;
       } else if (bytes[0] === MSG.CONDICIONES && this.opts.condiciones) { // condiciones/c2: «send me the conditions» (one byte), asked at any time
         if (bytes.length !== 1) conn.bad++;
         else t.send(encodeCondiciones(this.estadoDe(conn, true)), true);
@@ -485,6 +520,7 @@ export class Instance {
     const enlace = this.conns[i].enlace;
     this.conns.splice(i, 1); this.playersView = null; this.ocultas.delete(entity);
     this.byEntity[entity] = undefined; this.saltos.delete(entity);
+    this.pantallasVivas.salir(entity); // its share ends (and every viewer is told) while it still has a position
     this.features.leave(entity, enlace); // still has a position here; no longer among the players
     this.sim.world.despawn(entity);
     this.tieneSeguro[entity] = 0; this.pendiente.delete(entity);
@@ -536,6 +572,7 @@ export class Instance {
     }
     b = performance.now(); f[3] = b - a; a = b; // seguro
     this.features.tick();   // game features: queued intents, then their tick hooks (no effect on the sim)
+    this.pantallasVivas.tick(this.sim.tick); // M18 trozo 3: who is within reach of a shared screen (nothing to do when nobody shares)
     b = performance.now(); f[4] = b - a; a = b; // piezas
     if (this.sim.tick % this.opts.snapshotEvery === 0) { // 20 Hz sim, 10 Hz snapshots by default
       const grid = buildGrid(this.sim), q = cuantizar(this.sim); // E1: every avatar quantized once, not once per viewer
@@ -590,6 +627,8 @@ export class Instance {
   // ---- N5: the seeded terrain of naturaleza.json is part of the world's collision mesh (same `sim.mesh` the GLB mesh uses) ----
   private terreno: TerrenoMalla | null = null;
   private terrenoVersion = -1;
+  /** The world has no ground (entorno `suelo: "ninguno"`): the mesh has no flat floor under it, like a terrain, and the void is 100 m down unless the world says. */
+  private sinSuelo = false;
   private mallaGlb: Bvh | null = null;
   /** N5: follows the shared state's «naturaleza:mundo»: builds the terrain mesh from `alturaEn` (a few ms, once per change of the
    * world's numbers, never inside `step`) and merges it with the GLB mesh. A world without naturaleza.json never gets here:
@@ -598,9 +637,11 @@ export class Instance {
     const v = this.features.stateVersion;
     if (v === this.terrenoVersion) return;
     this.terrenoVersion = v;
+    const sin = sinSueloDelEstado(this.features.allState()), cambioSuelo = sin !== this.sinSuelo; // entorno `suelo: "ninguno"`: no flat floor
+    this.sinSuelo = sin;
     const m = terrenoDelEstado(this.features.allState());
     const clave = m ? claveTerreno(m) : null;
-    if (clave === (this.terreno?.clave ?? null)) return;
+    if (clave === (this.terreno?.clave ?? null)) { if (cambioSuelo) this.aplicarMalla(); return; }
     this.terreno = m ? terrenoMalla(m) : null;
     this.aplicarMalla();
     this.asentarAvatares();
@@ -621,11 +662,11 @@ export class Instance {
   }
   /** The GLB mesh and the terrain are ONE tree for the sim; with a terrain there is no flat floor under it (`piso`). */
   private aplicarMalla(): void {
-    setMesh(this.sim, combinarMallas(this.mallaGlb, this.terreno?.bvh ?? null), this.terreno ? PISO_SIN_SUELO : 0);
+    setMesh(this.sim, combinarMallas(this.mallaGlb, this.terreno?.bvh ?? null), this.terreno || this.sinSuelo ? PISO_SIN_SUELO : 0);
   }
   /** D-045: the world's void, or (naturaleza on, world gives none) a little under the lowest ground, so a fall off the map comes back. */
   private sueloEfectivo(): Suelo | null {
-    return this.opts.suelo ?? (this.terreno ? { minimo: sueloMinimoTerreno(this.terreno.hmin), vuelta: null } : null);
+    return this.opts.suelo ?? (this.terreno ? { minimo: sueloMinimoTerreno(this.terreno.hmin), vuelta: null } : this.sinSuelo ? { minimo: SUELO_MINIMO_SIN_SUELO, vuelta: null } : null);
   }
   /** N5: with naturaleza on and no `aparicion` in the world, people appear inside the flat plaza (its disc, 60 % of the radius so the square's corners stay in). */
   private aparicionTerreno(): SpawnArea | null {

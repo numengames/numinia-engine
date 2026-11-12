@@ -7,7 +7,7 @@
 // senal from another feature (api.listen), counts the cooldown in ticks, tells whoever is near (`disparado`) and
 // emits one server-only `accion` per receiver, which the feature that owns that action hears
 // (`api.listen("disparadores", "accion", …)`): features/objetos answers `muestra`/`oculta`, features/movedores
-// answers `mueve`, the rest live in this feature's own server part. Recipe: docs/EXTENDER.md «El cable».
+// answers `mueve`, the rest live in this feature's own server part. Recipe: docs/extender/el-cable.md.
 import { defineFeature } from "../../packages/feature/src/index.ts";
 
 export const ALCANCE_M = 64;

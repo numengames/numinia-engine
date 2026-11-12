@@ -3,45 +3,139 @@
 // Decide by capability, never by browser name (AGENTS.md, principle 2). No DOM: the browser is read through an
 // `entorno` argument (globalThis by default), so Node tests pass a fake one. The `requiere` grammar lives with the
 // settings format (packages/feature/src/ajustes.ts). A new capability = one line in CAPACIDADES (what it means) + one
-// probe (how to read it): docs/EXTENDER.md «Añadir una capacidad».
+// probe (how to read it): docs/extender/anadir-una-capacidad.md.
 import { NIVELES } from "../../feature/src/ajustes.ts";
+import { tx } from "./idioma.ts";
 import type { Capacidades, Nivel, ValorCapacidad } from "../../feature/src/ajustes.ts";
 export { NIVELES, cumple, faltan, exprValida } from "../../feature/src/ajustes.ts";
 export type { Capacidades, Nivel, ValorCapacidad } from "../../feature/src/ajustes.ts";
 
-/** What each capability means (people and agents read this; `describir()` lists it next to the value). */
-export const CAPACIDADES: Record<string, string> = {
-  nivel: "Nivel del aparato: A escritorio, B visor autónomo, C móvil medio, D móvil viejo (limits.json). ?nivel=X lo fuerza.",
-  movil: "Clase móvil (puntero grueso o ≤ 4 GB): tope de 30 fps y resolución contenida (render/power.ts).",
-  backend: "Con qué dibuja three.js: WebGPU o WebGL2.",
-  webgpu: "El navegador ofrece WebGPU (navigator.gpu), aunque se dibuje con WebGL2.",
-  xrApi: "El navegador tiene WebXR (navigator.xr).",
-  xrVr: "Puede entrar en VR inmersiva (immersive-vr).",
-  xrAr: "Puede entrar en AR (immersive-ar).",
-  tactil: "Pantalla táctil (maxTouchPoints > 0).",
-  punteroGrueso: "El puntero principal es un dedo (pointer: coarse).",
-  raton: "Hay un puntero fino: ratón o panel táctil (any-pointer: fine).",
-  mando: "Hay un mando conectado ahora (Gamepad API).",
-  menosMovimiento: "El sistema pide menos movimiento (prefers-reduced-motion: reduce).",
-  masContraste: "El sistema pide más contraste (prefers-contrast: more).",
-  oscuro: "El sistema usa el tema oscuro (prefers-color-scheme: dark).",
-  memoriaGB: "Memoria del aparato en GB según el navegador (0 = no lo dice; Chromium redondea y topa en 8).",
-  nucleos: "Núcleos lógicos (hardwareConcurrency; 0 = no lo dice).",
-  bateriaApi: "El navegador dice el nivel de batería (Battery API).",
-  ahorroDatos: "El sistema pide ahorrar datos (Save-Data).",
-  dpr: "Píxeles físicos por píxel CSS (devicePixelRatio).",
-  maxTextura: "Lado máximo de una textura en esta gráfica, en píxeles (0 = no se sabe).",
-  pantallaCompleta: "Puede ponerse a pantalla completa (Fullscreen API).",
-  vibracion: "Puede vibrar (navigator.vibrate).",
-  voz: "Puede hablar con la voz del sistema (speechSynthesis; V3).",
-  webTransport: "Tiene WebTransport (M9).",
-  aparato: "Clase de disposición de la interfaz: escritorio, movil-vertical, movil-horizontal o vr (U25, aparato.ts). ?aparato=X la fuerza en desarrollo.",
-  aparatoForzado: "La clase de aparato la fijó una persona (?aparato o el ajuste), no el aparato: tactil, punteroGrueso, raton y movil son los declarados.",
-  pantallaPequena: "Pantalla de móvil: el lado corto de la ventana mide menos de 600 px CSS (o lo declara el perfil forzado).",
-  interfazTactil: "La interfaz enseña los mandos táctiles (joystick, «Saltar», botones de acción).",
-  desarrollo: "Página de desarrollo (vite dev) o abierta con ?debug: enseña los ajustes de desarrollo.",
-  debug: "La página se abrió con ?debug (quien desarrolla): en escritorio enseña las estadísticas por defecto (U23).",
+/** What each capability means, English first then Spanish (people and agents read this; `describir()` lists it next to the value).
+ * Each value is a getter: it reads the active language when asked, not at import. */
+const T = (en: string, es: string): [string, string] => [en, es];
+const TABLA_CAPACIDADES: Record<string, [string, string]> = {
+  nivel: T(
+    "Device tier: A desktop, B standalone headset, C mid phone, D old phone (limits.json). ?nivel=X forces it.",
+    "Nivel del aparato: A escritorio, B visor autónomo, C móvil medio, D móvil viejo (limits.json). ?nivel=X lo fuerza.",
+  ),
+  movil: T(
+    "Phone class (coarse pointer or ≤ 4 GB): 30 fps cap and contained resolution (render/power.ts).",
+    "Clase móvil (puntero grueso o ≤ 4 GB): tope de 30 fps y resolución contenida (render/power.ts).",
+  ),
+  backend: T(
+    "What three.js draws with: WebGPU or WebGL2.",
+    "Con qué dibuja three.js: WebGPU o WebGL2.",
+  ),
+  webgpu: T(
+    "The browser offers WebGPU (navigator.gpu), even if it draws with WebGL2.",
+    "El navegador ofrece WebGPU (navigator.gpu), aunque se dibuje con WebGL2.",
+  ),
+  xrApi: T(
+    "The browser has WebXR (navigator.xr).",
+    "El navegador tiene WebXR (navigator.xr).",
+  ),
+  xrVr: T(
+    "Can enter immersive VR (immersive-vr).",
+    "Puede entrar en VR inmersiva (immersive-vr).",
+  ),
+  xrAr: T(
+    "Can enter AR (immersive-ar).",
+    "Puede entrar en AR (immersive-ar).",
+  ),
+  tactil: T(
+    "Touch screen (maxTouchPoints > 0).",
+    "Pantalla táctil (maxTouchPoints > 0).",
+  ),
+  punteroGrueso: T(
+    "The main pointer is a finger (pointer: coarse).",
+    "El puntero principal es un dedo (pointer: coarse).",
+  ),
+  raton: T(
+    "There is a fine pointer: mouse or trackpad (any-pointer: fine).",
+    "Hay un puntero fino: ratón o panel táctil (any-pointer: fine).",
+  ),
+  mando: T(
+    "A gamepad is connected right now (Gamepad API).",
+    "Hay un mando conectado ahora (Gamepad API).",
+  ),
+  menosMovimiento: T(
+    "The system asks for less motion (prefers-reduced-motion: reduce).",
+    "El sistema pide menos movimiento (prefers-reduced-motion: reduce).",
+  ),
+  masContraste: T(
+    "The system asks for more contrast (prefers-contrast: more).",
+    "El sistema pide más contraste (prefers-contrast: more).",
+  ),
+  oscuro: T(
+    "The system uses the dark theme (prefers-color-scheme: dark).",
+    "El sistema usa el tema oscuro (prefers-color-scheme: dark).",
+  ),
+  memoriaGB: T(
+    "Device memory in GB as the browser reports it (0 = it does not say; Chromium rounds and caps at 8).",
+    "Memoria del aparato en GB según el navegador (0 = no lo dice; Chromium redondea y topa en 8).",
+  ),
+  nucleos: T(
+    "Logical cores (hardwareConcurrency; 0 = it does not say).",
+    "Núcleos lógicos (hardwareConcurrency; 0 = no lo dice).",
+  ),
+  bateriaApi: T(
+    "The browser reports the battery level (Battery API).",
+    "El navegador dice el nivel de batería (Battery API).",
+  ),
+  ahorroDatos: T(
+    "The system asks to save data (Save-Data).",
+    "El sistema pide ahorrar datos (Save-Data).",
+  ),
+  dpr: T(
+    "Physical pixels per CSS pixel (devicePixelRatio).",
+    "Píxeles físicos por píxel CSS (devicePixelRatio).",
+  ),
+  maxTextura: T(
+    "Largest texture side on this GPU, in pixels (0 = unknown).",
+    "Lado máximo de una textura en esta gráfica, en píxeles (0 = no se sabe).",
+  ),
+  pantallaCompleta: T(
+    "Can go full screen (Fullscreen API).",
+    "Puede ponerse a pantalla completa (Fullscreen API).",
+  ),
+  vibracion: T(
+    "Can vibrate (navigator.vibrate).",
+    "Puede vibrar (navigator.vibrate).",
+  ),
+  voz: T(
+    "Can speak with the system voice (speechSynthesis; V3).",
+    "Puede hablar con la voz del sistema (speechSynthesis; V3).",
+  ),
+  webTransport: T(
+    "Has WebTransport (M9).",
+    "Tiene WebTransport (M9).",
+  ),
+  aparato: T(
+    "Interface layout class: escritorio, movil-vertical, movil-horizontal or vr (U25, aparato.ts). ?aparato=X forces it in development.",
+    "Clase de disposición de la interfaz: escritorio, movil-vertical, movil-horizontal o vr (U25, aparato.ts). ?aparato=X la fuerza en desarrollo.",
+  ),
+  aparatoForzado: T(
+    "The device class was set by a person (?aparato or the setting), not by the device: tactil, punteroGrueso, raton and movil are the declared ones.",
+    "La clase de aparato la fijó una persona (?aparato o el ajuste), no el aparato: tactil, punteroGrueso, raton y movil son los declarados.",
+  ),
+  pantallaPequena: T(
+    "Phone screen: the short side of the window is under 600 CSS px (or the forced profile says so).",
+    "Pantalla de móvil: el lado corto de la ventana mide menos de 600 px CSS (o lo declara el perfil forzado).",
+  ),
+  interfazTactil: T(
+    "The interface shows the touch controls (joystick, «Jump», action buttons).",
+    "La interfaz enseña los mandos táctiles (joystick, «Saltar», botones de acción).",
+  ),
+  desarrollo: T(
+    "Development page (vite dev) or opened with ?debug: shows the development settings.",
+    "Página de desarrollo (vite dev) o abierta con ?debug: enseña los ajustes de desarrollo.",
+  ),
+  debug: T(
+    "The page was opened with ?debug (whoever develops): on desktop it shows the stats by default (U23).",
+    "La página se abrió con ?debug (quien desarrolla): en escritorio enseña las estadísticas por defecto (U23).",
+  ),
 };
+export const CAPACIDADES: Record<string, string> = Object.defineProperties({}, Object.fromEntries(Object.entries(TABLA_CAPACIDADES).map(([k, [en, es]]) => [k, { get: () => tx(en, es), enumerable: true }])));
 
 type MQ = { matches: boolean };
 /** The parts of a browser global this module reads. Node tests pass a fake. */
@@ -114,7 +208,7 @@ export type Sonda = { id: string; describe: string; leer: () => ValorCapacidad |
 
 export function crearCapacidades(inicial: Capacidades, opts: { nivel?: Nivel } = {}) {
   const valores: Capacidades = { ...inicial };   // ONE object, changed in place: window.__numinia.capacidades stays valid
-  const info: Record<string, string> = { ...CAPACIDADES };
+  const info: Record<string, string> = Object.defineProperties({}, Object.getOwnPropertyDescriptors(CAPACIDADES)); // keeps the getters: the meaning follows the language
   const oyentes: ((cambiadas: string[]) => void)[] = [];
   const forzado = opts.nivel && NIVELES.includes(opts.nivel) ? opts.nivel : undefined;
   /** Change some values; the tier is recomputed (unless forced) and listeners hear which ids changed. */

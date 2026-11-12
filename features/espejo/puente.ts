@@ -1,5 +1,5 @@
 // puente — the postMessage bridge of the embed mode (mundo-hermes M7), pure: no DOM, no network, no clock of its own. The world page runs inside a sandboxed
-// frame of a host app (Hermes Desktop); its parent window is the host's plugin page. Contract (docs/EXTENDER.md «Embed (v1)»), every message `{ v: 1, kind, … }`:
+// frame of a host app (Hermes Desktop); its parent window is the host's plugin page. Contract (docs/extender/espejo.md), every message `{ v: 1, kind, … }`:
 //   parent → world   snapshot { objetos[] }                       ≡ the local link's `lote` (replaces everything published)
 //                    event { evento: "alta"|"cambio"|"baja", objeto }  ≡ alta / cambio / baja
 //                    event { evento: "resultado", peticion, ok, texto } ≡ resultado (the answer to a `peticion`)

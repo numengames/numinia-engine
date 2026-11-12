@@ -3,6 +3,8 @@
 // on a code lock opens it instead of sending the intent at once (huecos' `local()` trick, U12); a key lock needs
 // nothing typed, so it keeps the plain J4 flow (interactuar.ts sends `abrir` straight away). The server still checks
 // everything: this file only shows the digits typed and the server's answer.
+import { tx, ligar, alCambiarIdioma } from "../../packages/feature/src/idioma.ts";
+import { pintarCerrar } from "./cerrar.ts";
 type Res = { ok: true } | { ok: false; why: string };
 /** What interactuar.ts offers: a thing in reach whose use runs here, on the page (`local`), instead of an intent. */
 export type Oferta = { feature: string; key: string; intent: string; prompt: string; name: string; distance: number; local: () => Res };
@@ -28,7 +30,7 @@ export function montarCerradura(o: OpcionesCerradura) {
   capa.hidden = true;
   capa.setAttribute("role", "dialog");
   capa.setAttribute("aria-modal", "true");
-  capa.setAttribute("aria-label", "Teclado de la cerradura");
+  ligar(capa, "aria-label", "Lock keypad", "Teclado de la cerradura");
   Object.assign(capa.style, { position: "fixed", inset: "0", display: "none", placeItems: "center", background: "rgba(10,14,20,.55)", zIndex: "30" });
   const caja = document.createElement("div");
   Object.assign(caja.style, { width: "min(260px, 88vw)", padding: "18px", borderRadius: "12px", background: "#1b222c", color: "#eef2f6", font: "16px/1.4 system-ui, sans-serif", textAlign: "center" });
@@ -43,21 +45,21 @@ export function montarCerradura(o: OpcionesCerradura) {
   const rejilla = document.createElement("div");
   Object.assign(rejilla.style, { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" });
   const refrescarPantalla = () => { pantalla.textContent = digitos ? "•".repeat(digitos.length) : "– – – –"; };
-  const tecla = (t: string, fn: () => void, titulo2: string) => {
+  const tecla = (t: string, fn: () => void, titulo2: () => string, texto?: () => string) => {
     const b = document.createElement("button");
-    b.type = "button"; b.textContent = t; b.title = titulo2; b.setAttribute("aria-label", titulo2);
+    b.type = "button"; b.textContent = t; alCambiarIdioma(() => { if (texto) b.textContent = texto(); b.title = titulo2(); b.setAttribute("aria-label", titulo2()); });
     Object.assign(b.style, { padding: "14px 0", fontSize: "20px", borderRadius: "8px", border: "1px solid #2e3947", background: "#232c38", color: "#eef2f6", cursor: "pointer" });
     b.addEventListener("click", fn);
     return b;
   };
-  for (const d of "123456789") rejilla.append(tecla(d, () => { if (digitos.length < 8) { digitos += d; refrescarPantalla(); } }, `Cifra ${d}`));
-  rejilla.append(tecla("⌫", () => { digitos = digitos.slice(0, -1); refrescarPantalla(); }, "Borrar la última cifra"));
-  rejilla.append(tecla("0", () => { if (digitos.length < 8) { digitos += "0"; refrescarPantalla(); } }, "Cifra 0"));
-  const abrirBtn = tecla("Abrir", () => { if (abierto) { c.abrir(abierto, digitos); } }, "Abrir con este código");
+  for (const d of "123456789") rejilla.append(tecla(d, () => { if (digitos.length < 8) { digitos += d; refrescarPantalla(); } }, () => tx(`Digit ${d}`, `Cifra ${d}`)));
+  rejilla.append(tecla("⌫", () => { digitos = digitos.slice(0, -1); refrescarPantalla(); }, () => tx("Delete the last digit", "Borrar la última cifra")));
+  rejilla.append(tecla("0", () => { if (digitos.length < 8) { digitos += "0"; refrescarPantalla(); } }, () => tx("Digit 0", "Cifra 0")));
+  const abrirBtn = tecla("", () => { if (abierto) { c.abrir(abierto, digitos); } }, () => tx("Open with this code", "Abrir con este código"), () => tx("Open", "Abrir"));
   abrirBtn.type = "submit";
   rejilla.append(abrirBtn);
   const cerrar = document.createElement("button");
-  cerrar.type = "button"; cerrar.textContent = "Cerrar"; cerrar.title = "Cerrar el teclado sin abrir";
+  cerrar.type = "button"; pintarCerrar(cerrar); ligar(cerrar, "title", "Close the keypad without opening", "Cerrar el teclado sin abrir");
   cerrar.style.marginTop = "10px";
   caja.append(titulo, pantalla, aviso, rejilla, cerrar);
   capa.append(caja);
@@ -71,7 +73,7 @@ export function montarCerradura(o: OpcionesCerradura) {
   /** Open the keypad for this lock. Call it inside the click or the key press, like the J4 convention. */
   const abrirTeclado = (id: string): Res => {
     const l = c.cerraduras().find((x) => x.id === id);
-    if (!l) return { ok: false, why: `«${id}» no es una cerradura` };
+    if (!l) return { ok: false, why: `«${id}» no es una cerradura` }; // i18n-ok: developer-facing refusal, the keypad is only opened by a known lock id
     abierto = id; digitos = ""; aviso.textContent = ""; refrescarPantalla();
     titulo.textContent = l.nombre;
     capa.hidden = false; capa.style.display = "grid"; // an inline display beats the [hidden] attribute, so show/hide drives display too
@@ -89,7 +91,7 @@ export function montarCerradura(o: OpcionesCerradura) {
     .map((l) => ({ l, d: Math.hypot(l.x - x, l.z - z) }))
     .filter(({ d }) => d <= CERRADURA_ALCANCE_M)
     .sort((a, b) => a.d - b.d)
-    .map(({ l, d }) => ({ feature: "cerradura", key: l.id, intent: "", prompt: `abrir ${l.nombre}`, name: l.nombre, distance: d, local: () => abrirTeclado(l.id) }));
+    .map(({ l, d }) => ({ feature: "cerradura", key: l.id, intent: "", prompt: tx(`open ${l.nombre}`, `abrir ${l.nombre}`), name: l.nombre, distance: d, local: () => abrirTeclado(l.id) }));
   /** A code lock never goes through the plain J4 flow (it has nothing to type there): main.ts's `ofrece` excludes it. */
   const ofrece = (feature: string, key: string): boolean => feature !== "cerradura" || c.cerraduras().find((l) => l.id === key)?.metodo !== "codigo";
 

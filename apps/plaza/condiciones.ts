@@ -15,10 +15,11 @@
 // no brand here. c4 (VR) and c5 (the bubble seen from outside) read `estado` and call the same methods.
 import type { CondicionesAceptado, CondicionesCapa, CondicionesMensaje, CondicionesPunto } from "../../packages/net/src/index.ts";
 import {
-  aceptacion, botonesDePie, conservados, ETIQUETAS, esVuelta, flechaVersion, lineaQuitado, marcasVacias, NOTA_DATOS_VUELVE, pideBurbuja, planificar, porcentajeLeido, puedeSeguir,
-  rotuloNormas, textosDePaso, TITULO_CAMBIOS, todoMarcado,
+  aceptacion, botonesDePie, conservados, ETIQUETAS, esVuelta, flechaVersion, lineaQuitado, marcasVacias, notaDatosVuelve, pideBurbuja, planificar, porcentajeLeido, puedeSeguir,
+  rotuloNormas, textosDePaso, tituloCambios, todoMarcado,
 } from "./condiciones-logica.ts";
 import type { Marcas, Paso } from "./condiciones-logica.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 type Sesion = {
   condiciones: CondicionesMensaje | null;
@@ -53,7 +54,7 @@ export type OpcionesCondiciones = {
 const ESPERA_RESPUESTA_MS = 5000;
 const DURACION_ESTALLIDO_MS = 650;
 
-const CSS = `
+const CSS = /* i18n-ok: CSS, not text */ `
 #condiciones { position: fixed; inset: 0; z-index: 45; display: block; font: 15px/1.5 "Geist", system-ui, sans-serif; color: var(--n-texto, #F9EBDC);
   -webkit-backdrop-filter: blur(7px) saturate(.85) brightness(.75); backdrop-filter: blur(7px) saturate(.85) brightness(.75); touch-action: none; }
 #condiciones.movil { -webkit-backdrop-filter: blur(5px) saturate(.85) brightness(.7); backdrop-filter: blur(5px) saturate(.85) brightness(.7); }
@@ -237,12 +238,12 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     titulo = el("h1", "", t.titulo); titulo.id = "condiciones-titulo"; titulo.tabIndex = -1;
     const sub = el("p", "sub", t.subtitulo); sub.id = "condiciones-sub";
     cab!.append(titulo, sub);
-    const lista = el("ol", "pasos"); lista.setAttribute("aria-label", "Pasos"); lista.hidden = vuelta() && pasos.length === 1; // one page, no steps to count
+    const lista = el("ol", "pasos"); lista.setAttribute("aria-label", tx("Steps", "Pasos")); lista.hidden = vuelta() && pasos.length === 1; // one page, no steps to count
     pasos.forEach((x, k) => {
       const li = el("li", `paso${k === i ? " activo" : ""}${k < i ? " hecho" : ""}`);
       if (k === i) li.setAttribute("aria-current", "step");
       const n = el("b", "", k < i ? "✓" : String(k + 1)); n.setAttribute("aria-hidden", "true");
-      li.append(n, document.createTextNode(x.tipo === "capa" ? x.nombre : "Lo que tú eliges"));
+      li.append(n, document.createTextNode(x.tipo === "capa" ? x.nombre : tx("Your choices", "Lo que tú eliges")));
       lista.append(li);
     });
     cab!.append(lista);
@@ -261,7 +262,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
   /** c6: only what changed on this layer: each point with its tag, the removed ones in a line, and the box for the new version. */
   function paginaDeCambios(p: Extract<Paso, { tipo: "capa" }>): void {
     const cb = p.cambios!, col = el("div", "col");
-    const ul = el("ul", "cambios"); ul.setAttribute("aria-label", "Lo que ha cambiado");
+    const ul = el("ul", "cambios"); ul.setAttribute("aria-label", tx("What changed", "Lo que ha cambiado"));
     for (const n of p.normas) {
       const etq = cb.etiquetas[n.id] ?? "nuevo", antes = cb.antes[n.id];
       const li = el("li", `cambio ${etq}`); li.dataset.punto = n.id; li.dataset.cambio = etq;
@@ -278,7 +279,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     }
     if (!ul.children.length) {
       const otros = Object.keys(cb.etiquetas).length > 0; // only data permissions changed: they are the next step
-      const li = el("li", "cambio igual", otros ? "Las normas son las mismas. Lo que cambia son permisos opcionales: están en el paso siguiente." : "Las normas son las mismas: solo ha cambiado el número de versión.");
+      const li = el("li", "cambio igual", otros ? tx("The rules are the same. Only optional permissions changed: they are on the next step.", "Las normas son las mismas. Lo que cambia son permisos opcionales: están en el paso siguiente.") : tx("The rules are the same: only the version number changed.", "Las normas son las mismas: solo ha cambiado el número de versión."));
       li.dataset.cambio = "igual"; ul.append(li);
     }
     col.append(ul);
@@ -293,30 +294,30 @@ export function montarCondiciones(o: OpcionesCondiciones) {
   function paginaDeCapa(p: Extract<Paso, { tipo: "capa" }>): void {
     if (p.cambios) { paginaDeCambios(p); return; }
     const izq = el("div", "col"), der = el("div", "col");
-    izq.append(el("div", "etq", "Lo esencial"));
+    izq.append(el("div", "etq", tx("The essentials", "Lo esencial")));
     const ul = el("ul", "esencial");
     p.normas.forEach((n, k) => { const li = el("li"); const ic = el("i", "", String(k + 1)); ic.setAttribute("aria-hidden", "true"); li.append(ic, document.createTextNode(n.titulo)); ul.append(li); });
     izq.append(ul);
-    der.append(el("div", "etq", "El texto entero"));
+    der.append(el("div", "etq", tx("The full text", "El texto entero")));
     const leer = el("button", "leer-mas"); leer.type = "button"; leer.setAttribute("aria-expanded", String(textoAbierto)); leer.setAttribute("aria-controls", "condiciones-texto");
-    leer.textContent = textoAbierto ? "Ocultar el texto entero" : "Leer el texto entero";
-    const texto = el("div", "texto"); texto.id = "condiciones-texto"; texto.tabIndex = 0; texto.setAttribute("role", "region"); texto.setAttribute("aria-label", `Texto entero · ${p.nombre} · versión ${p.version}`);
+    leer.textContent = textoAbierto ? tx("Hide the full text", "Ocultar el texto entero") : tx("Read the full text", "Leer el texto entero");
+    const texto = el("div", "texto"); texto.id = "condiciones-texto"; texto.tabIndex = 0; texto.setAttribute("role", "region"); texto.setAttribute("aria-label", tx(`Full text · ${p.nombre} · version ${p.version}`, `Texto entero · ${p.nombre} · versión ${p.version}`));
     for (const n of p.normas) { texto.append(el("h2", "", n.titulo), el("p", "", n.texto)); }
     texto.hidden = !textoAbierto;
     const barra = el("div", "lectura"); const llena = el("span"); barra.append(llena); barra.setAttribute("aria-hidden", "true");
-    const pieLectura = el("div", "lectura-pie"); const leido = el("span"); const ayuda = el("span", "", "Rueda o arrastra para leer"); pieLectura.append(leido, ayuda);
+    const pieLectura = el("div", "lectura-pie"); const leido = el("span"); const ayuda = el("span", "", tx("Scroll or drag to read", "Rueda o arrastra para leer")); pieLectura.append(leido, ayuda);
     pieLectura.hidden = barra.hidden = !textoAbierto;
-    const medir = () => { const n = porcentajeLeido(texto.scrollTop, texto.clientHeight, texto.scrollHeight); llena.style.width = `${n}%`; leido.textContent = `Has leído un ${n} %`; };
+    const medir = () => { const n = porcentajeLeido(texto.scrollTop, texto.clientHeight, texto.scrollHeight); llena.style.width = `${n}%`; leido.textContent = tx(`You have read ${n}%`, `Has leído un ${n} %`); };
     texto.addEventListener("scroll", medir, { passive: true });
     leer.addEventListener("click", () => {
       textoAbierto = !textoAbierto; texto.hidden = barra.hidden = pieLectura.hidden = !textoAbierto;
-      leer.setAttribute("aria-expanded", String(textoAbierto)); leer.textContent = textoAbierto ? "Ocultar el texto entero" : "Leer el texto entero"; medir();
+      leer.setAttribute("aria-expanded", String(textoAbierto)); leer.textContent = textoAbierto ? tx("Hide the full text", "Ocultar el texto entero") : tx("Read the full text", "Leer el texto entero"); medir();
     });
     der.append(leer, texto, barra, pieLectura);
     if (p.exige) {
       const c = caja(rotuloNormas(p, capas), marcas.normas[p.capa] === true, (v) => { marcas.normas[p.capa] = v; limpiarAviso(); pintarPie(); avisarCambio(); }, "oblig");
       c.input.id = `condiciones-ok-${p.capa}`;
-      const obl = el("em", "", "Obligatorio"); c.fila.append(obl);
+      const obl = el("em", "", tx("Required", "Obligatorio")); c.fila.append(obl);
       der.append(c.fila);
     }
     filas!.append(izq, der);
@@ -325,7 +326,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
 
   function paginaDeDatos(p: Extract<Paso, { tipo: "datos" }>): void {
     const col = el("div", "col");
-    col.append(el("div", "etq", "Tus datos · entras igual digas sí o no"));
+    col.append(el("div", "etq", tx("Your data · you get in whether you say yes or no", "Tus datos · entras igual digas sí o no")));
     const ul = el("ul", "permisos");
     for (const { punto } of p.permisos) {
       const li = el("li", "permiso");
@@ -337,7 +338,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
       c.zona.append(b, pequena);
       li.append(c.fila); ul.append(li);
     }
-    col.append(ul, el("p", "nota-datos", p.vuelve ? NOTA_DATOS_VUELVE : "Ninguna sale marcada."));
+    col.append(ul, el("p", "nota-datos", p.vuelve ? notaDatosVuelve() : tx("None is ticked.", "Ninguna sale marcada.")));
     filas!.append(col);
   }
 
@@ -345,9 +346,9 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     const p = pasos[i]; if (!p || !pie) return;
     pie.replaceChildren();
     const ver = el("div", "ver");
-    for (const x of pasos) if (x.tipo === "capa") ver.append(el("span", x === p ? "actual" : "otra", x.cambios ? `${x.nombre} · ${flechaVersion(x.cambios.desde, x.version)}` : `${x.nombre} · v${x.version}`));
+    for (const x of pasos) if (x.tipo === "capa") ver.append(el("span", x === p ? "actual" : "otra", x.cambios ? `${x.nombre} · ${flechaVersion(x.cambios.desde, x.version)}` : `${x.nombre} · v${x.version}`)); // i18n-ok: world name and version numbers only
     if (p.tipo === "capa" && p.cambios && p.normas.length) { // c6: the whole text of the changed points, on demand (maqueta 6, «Ver todo el texto»)
-      const t = el("button", "ver-todo", verTexto ? "Ocultar el texto entero" : "Ver todo el texto ↗"); t.type = "button"; t.id = "condiciones-ver-todo"; t.setAttribute("aria-pressed", String(verTexto));
+      const t = el("button", "ver-todo", verTexto ? tx("Hide the full text", "Ocultar el texto entero") : tx("See all the text ↗", "Ver todo el texto ↗")); t.type = "button"; t.id = "condiciones-ver-todo"; t.setAttribute("aria-pressed", String(verTexto));
       t.addEventListener("click", () => { verTexto = !verTexto; pintar(false); });
       ver.append(t);
     }
@@ -360,11 +361,11 @@ export function montarCondiciones(o: OpcionesCondiciones) {
       b.addEventListener("click", acciones[bt.id]); der.append(b);
     }
     if (o.vr?.soportado() && !o.vr.activo()) { // c4: the page behind is inert, so the bar's button is out of reach: this one enters VR (the bubble comes with you)
-      const v = el("button", "btn secundario", "Entrar en VR"); v.type = "button"; v.id = "condiciones-vr"; v.disabled = ocupado; v.title = "Sigues en este mismo paso, con las casillas como las dejaste";
+      const v = el("button", "btn secundario", tx("Enter VR", "Entrar en VR")); v.type = "button"; v.id = "condiciones-vr"; v.disabled = ocupado; v.title = tx("You stay on this same step, with the boxes as you left them", "Sigues en este mismo paso, con las casillas como las dejaste");
       v.addEventListener("click", () => o.vr!.entrar()); der.prepend(v);
     }
     pie.append(ver, der);
-    if (p.tipo === "capa" && p.exige && !puedeSeguir(p, marcas)) { const ayuda = el("span", "solo-lector", "Marca la casilla de aceptar para seguir."); ayuda.id = "condiciones-ayuda"; pie.append(ayuda); }
+    if (p.tipo === "capa" && p.exige && !puedeSeguir(p, marcas)) { const ayuda = el("span", "solo-lector", tx("Tick the accept box to go on.", "Marca la casilla de aceptar para seguir.")); ayuda.id = "condiciones-ayuda"; pie.append(ayuda); }
   }
 
   function pintar(enfocar: boolean): void {
@@ -386,7 +387,8 @@ export function montarCondiciones(o: OpcionesCondiciones) {
   function ir(k: number): void {
     if (enviando || saliendo || k < 0 || k >= pasos.length || (k > i && !puedeSeguir(pasos[i], marcas))) return;
     i = k; pintar(true);
-    decir(`Paso ${i + 1} de ${pasos.length}: ${pasos[i].tipo === "datos" ? "Lo que tú eliges" : pasos[i].tipo === "capa" ? pasos[i].nombre : ""}.`);
+    const paso = pasos[i], quien = paso.tipo === "datos" ? tx("Your choices", "Lo que tú eliges") : paso.tipo === "capa" ? paso.nombre : "";
+    decir(tx(`Step ${i + 1} of ${pasos.length}: ${quien}.`, `Paso ${i + 1} de ${pasos.length}: ${quien}.`));
   }
 
   // ---------- accepting ----------
@@ -394,9 +396,9 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     if (enviando || saliendo || !todoMarcado(pasos, marcas)) return;
     if (modo === "todo") for (const p of pasos) if (p.tipo === "datos") for (const x of p.permisos) marcas.datos.add(x.punto.id);
     const a = aceptacion(pasos, marcas, modo, conservados(capas, aceptado));
-    if (!s.aceptar(a.versiones, a.datos)) { fallo("No he podido enviar tu respuesta. Prueba otra vez."); return; }
-    enviando = true; pintarPie(); panel?.setAttribute("aria-busy", "true"); decir("Enviando tu respuesta…"); avisarCambio();
-    espera = setTimeout(() => { if (enviando) fallo("El servidor no contesta. Prueba otra vez."); }, o.esperaMs ?? ESPERA_RESPUESTA_MS);
+    if (!s.aceptar(a.versiones, a.datos)) { fallo(tx("I could not send your answer. Try again.", "No he podido enviar tu respuesta. Prueba otra vez.")); return; }
+    enviando = true; pintarPie(); panel?.setAttribute("aria-busy", "true"); decir(tx("Sending your answer…", "Enviando tu respuesta…")); avisarCambio();
+    espera = setTimeout(() => { if (enviando) fallo(tx("The server is not answering. Try again.", "El servidor no contesta. Prueba otra vez.")); }, o.esperaMs ?? ESPERA_RESPUESTA_MS);
   }
   function fallo(texto: string): void {
     enviando = false; if (espera) clearTimeout(espera); espera = null;
@@ -413,19 +415,19 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     const ciudad = sinCiudad ? null : o.ciudadUrl?.() ?? null;
     if (ciudad) { location.href = ciudad; return; }
     if (panel) {
-      cab!.replaceChildren(el("div", "etq", "Has salido"));
+      cab!.replaceChildren(el("div", "etq", tx("You left", "Has salido")));
       cuerpo!.replaceChildren();
       const d = el("div", "despedida");
-      titulo = el("h1", "", "Has salido de este mundo"); titulo.tabIndex = -1; titulo.id = "condiciones-titulo";
-      d.append(titulo, el("p", "sub", "No has aceptado las normas, así que no has entrado. Puedes cerrar esta pestaña, o volver a cargar la página si cambias de idea."));
+      titulo = el("h1", "", tx("You left this world", "Has salido de este mundo")); titulo.tabIndex = -1; titulo.id = "condiciones-titulo";
+      d.append(titulo, el("p", "sub", tx("You did not accept the rules, so you did not get in. You can close this tab, or reload the page if you change your mind.", "No has aceptado las normas, así que no has entrado. Puedes cerrar esta pestaña, o volver a cargar la página si cambias de idea.")));
       cuerpo.append(d);
       pie!.replaceChildren();
       const der = el("div", "der");
       const boton = (texto: string, id: string, f: () => void) => { const x = el("button", "btn prim", texto); x.type = "button"; x.id = id; x.addEventListener("click", f); return x; };
-      if (history.length > 1) der.append(boton("Volver atrás", "condiciones-volver", () => history.back())); // to wherever you came from (a link, the city); the page never throws you out by itself
-      der.append(boton("Volver a empezar", "condiciones-reiniciar", () => location.reload()));
+      if (history.length > 1) der.append(boton(tx("Go back", "Volver atrás"), "condiciones-volver", () => history.back())); // to wherever you came from (a link, the city); the page never throws you out by itself
+      der.append(boton(tx("Start over", "Volver a empezar"), "condiciones-reiniciar", () => location.reload()));
       pie!.append(el("div", "ver"), der);
-      titulo.focus(); decir("Has salido de este mundo.");
+      titulo.focus(); decir(tx("You left this world.", "Has salido de este mundo."));
     }
   }
 
@@ -456,8 +458,8 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     document.addEventListener("focusin", guardiaFoco);
     matchMedia("(max-width: 640px)").addEventListener?.("change", reajustar);
     pintar(true);
-    decir(o.enlazada ? `Normas de ${o.mundo() || "ese mundo"}: ${pasos.length === 1 ? "una página" : `${pasos.length} pasos`}. Si no las aceptas no juegas allí y sigues en este mundo.`
-      : `${vuelta() ? `${TITULO_CAMBIOS}. ` : ""}Antes de entrar: ${pasos.length === 1 ? "una página" : `${pasos.length} pasos`}. Hasta que aceptes las normas estás en una burbuja: ves el mundo, pero no puedes moverte ni hablar.`);
+    decir(o.enlazada ? tx(`Rules of ${o.mundo() || "that world"}: ${pasos.length === 1 ? "one page" : `${pasos.length} steps`}. If you do not accept them you do not play there and you stay in this world.`, `Normas de ${o.mundo() || "ese mundo"}: ${pasos.length === 1 ? "una página" : `${pasos.length} pasos`}. Si no las aceptas no juegas allí y sigues en este mundo.`)
+      : tx(`${vuelta() ? `${tituloCambios()}. ` : ""}Before you enter: ${pasos.length === 1 ? "one page" : `${pasos.length} steps`}. Until you accept the rules you are in a bubble: you can see the world, but you cannot move or talk.`, `${vuelta() ? `${tituloCambios}. ` : ""}Antes de entrar: ${pasos.length === 1 ? "una página" : `${pasos.length} pasos`}. Hasta que aceptes las normas estás en una burbuja: ves el mundo, pero no puedes moverte ni hablar.`));
   }
   function reajustar(): void { if (raiz) { raiz.classList.toggle("movil", movil()); } }
 
@@ -482,7 +484,7 @@ export function montarCondiciones(o: OpcionesCondiciones) {
     estallando = true; enviando = false;
     const r = raiz; const quieta = matchMedia("(prefers-reduced-motion: reduce)").matches;
     panel?.removeAttribute("aria-busy");
-    decir("Has entrado. Ya puedes moverte.", true);
+    decir(tx("You are in. You can move now.", "Has entrado. Ya puedes moverte."), true);
     for (const x of inertes) x.removeAttribute("inert"); // the world is already alive under the animation
     requestAnimationFrame(() => r.classList.add("estallando"));
     fin = setTimeout(() => { fin = null; if (raiz === r) retirar(); }, quieta ? 30 : DURACION_ESTALLIDO_MS + 60);
@@ -497,13 +499,13 @@ export function montarCondiciones(o: OpcionesCondiciones) {
       return;
     }
     if (saliendo) return;
-    if (!m.capas) { if (!raiz) s.pedirCondiciones(); else if (enviando) fallo("El servidor no ha dado por buenas las normas. Vuelve a leerlas y acepta otra vez."), s.pedirCondiciones(); return; }
+    if (!m.capas) { if (!raiz) s.pedirCondiciones(); else if (enviando) fallo(tx("The server did not accept the rules. Read them again and accept once more.", "El servidor no ha dado por buenas las normas. Vuelve a leerlas y acepta otra vez.")), s.pedirCondiciones(); return; }
     const nueva = huella(m.capas);
     if (!raiz) { mostrar(m); return; }
     if (nueva !== firma) { // the text changed under the person's feet: start again with the new one, and say so
-      const dicho = enviando; mostrar_de_nuevo(m); if (dicho) fallo("Las normas han cambiado mientras leías. Vuelve a leerlas."); return;
+      const dicho = enviando; mostrar_de_nuevo(m); if (dicho) fallo(tx("The rules changed while you were reading. Read them again.", "Las normas han cambiado mientras leías. Vuelve a leerlas.")); return;
     }
-    if (enviando) { fallo("El servidor no ha dado por buenas las normas. Vuelve a leerlas y acepta otra vez."); s.pedirCondiciones(); }
+    if (enviando) { fallo(tx("The server did not accept the rules. Read them again and accept once more.", "El servidor no ha dado por buenas las normas. Vuelve a leerlas y acepta otra vez.")); s.pedirCondiciones(); }
   }
   function mostrar_de_nuevo(m: CondicionesMensaje): void {
     capas = m.capas ?? []; aceptado = m.aceptado ?? null; pasos = planificar(capas, aceptado); firma = huella(capas); verTexto = false;

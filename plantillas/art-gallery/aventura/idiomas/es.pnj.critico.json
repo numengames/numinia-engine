@@ -1,0 +1,148 @@
+{
+  "formato": "pnj@1",
+  "id": "critico",
+  "nombre": "El crítico",
+  "descripcion": "Lleva años mirando cuadros y siempre encuentra lo que nadie ve.",
+  "apariencia": {
+    "modelo": "4c3d152797d88890360025e8689383e519babc195cd05ed47aee55d9ca3f69d8",
+    "escala": 1
+  },
+  "posicion": {
+    "x": -2.8,
+    "z": -11.29
+  },
+  "giro": 117,
+  "radio": 3,
+  "dialogo": {
+    "entradas": [
+      {
+        "si": {
+          "mision": "ojo-del-critico",
+          "estado": "activa",
+          "paso": "entregar"
+        },
+        "nodo": "postal"
+      },
+      {
+        "si": {
+          "mision": "ojo-del-critico",
+          "estado": "activa"
+        },
+        "nodo": "mira"
+      },
+      {
+        "si": {
+          "mision": "ojo-del-critico",
+          "estado": "hecha"
+        },
+        "nodo": "ojo"
+      },
+      {
+        "si": {
+          "mision": "ojo-del-critico",
+          "estado": "disponible"
+        },
+        "nodo": "encargo"
+      },
+      {
+        "si": {
+          "mision": "primera-visita",
+          "estado": "activa"
+        },
+        "nodo": "saludo"
+      },
+      {
+        "nodo": "hola"
+      }
+    ],
+    "nodos": {
+      "saludo": {
+        "texto": "Ah, una visita. Antes de mirar una obra hay que mirar el sitio: asómate al patio de la fuente y vuelve. Luego te pongo a prueba el ojo.",
+        "opciones": [
+          {
+            "texto": "Voy.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "encargo": {
+        "texto": "Al entrar, todo el mundo mira hacia aquí, al mural. Casi nadie se da la vuelta. En la pared de la puerta, a la derecha según entras, hay un hueco grande: el 21. Ve, míralo de cerca y tráeme su postal.",
+        "opciones": [
+          {
+            "texto": "Voy.",
+            "accion": {
+              "tipo": "dar_mision",
+              "mision": "ojo-del-critico"
+            }
+          },
+          {
+            "texto": "Ahora no.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "mira": {
+        "texto": "El hueco 21: en la pared de la puerta, a la derecha según entras. Míralo de cerca y trae su postal.",
+        "opciones": [
+          {
+            "texto": "Voy.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "postal": {
+        "texto": "¿La traes?",
+        "opciones": [
+          {
+            "texto": "Aquí tienes la postal del hueco 21.",
+            "si": {
+              "mision": "ojo-del-critico",
+              "estado": "activa",
+              "paso": "entregar",
+              "tiene": "postal-21"
+            },
+            "accion": {
+              "tipo": "entregar",
+              "mision": "ojo-del-critico"
+            }
+          },
+          {
+            "texto": "Todavía no.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "ojo": {
+        "texto": "Buen ojo: has mirado donde nadie mira. Cuando lleguen las obras, ven a contarme qué ves.",
+        "opciones": [
+          {
+            "texto": "Lo haré.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      },
+      "hola": {
+        "texto": "Mirar es un oficio. Pasa.",
+        "opciones": [
+          {
+            "texto": "Adiós.",
+            "accion": {
+              "tipo": "despedir"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "notas": "Plantilla de galería. En el pórtico norte, al lado del mural (hueco 11), mirándolo. Cierra «La primera visita» al hablarle y da «El ojo del crítico», que manda al lado opuesto: el hueco 21, junto a la puerta (lo que nadie mira al entrar)."
+}

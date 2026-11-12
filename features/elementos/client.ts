@@ -2,6 +2,7 @@
 // builder panel (apps/plaza/entorno.ts) and agents use. It only asks: the server decides, every page near sees it.
 import { clientPart } from "../../packages/feature/src/index.ts";
 import type { ClientApi, Msg } from "../../packages/feature/src/index.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { elementos as decl, TIPOS } from "./feature.ts";
 
 type Tipo = (typeof TIPOS)[number];
@@ -19,7 +20,7 @@ const acotar = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, 
 export function crearCliente() {
   let api: ClientApi | null = null;
   const estado = { puede: false, seleccionado: "", ultimoRechazo: "" };
-  const enviar = (intent: string, msg: Msg) => api?.send(intent, msg) ?? { ok: false as const, why: "la página aún no ha arrancado" };
+  const enviar = (intent: string, msg: Msg) => api?.send(intent, msg) ?? { ok: false as const, why: tx("the page has not started yet", "la página aún no ha arrancado") };
   const aqui = () => api?.view.here?.() ?? { x: 0, y: 0, z: 0 };
   const lista = () => (api ? api.state.keys().map((id) => ({ id, ...api!.state.get(id)! })) : []);
   /** The selected element, or the nearest within 12 m. */
@@ -32,7 +33,7 @@ export function crearCliente() {
     return mejor;
   };
   const todo = (o: Msg & { id: string }, cambios: Msg) => { const m: Msg = { id: o.id }; for (const k of CAMPOS) m[k] = o[k]; return { ...m, ...cambios }; };
-  const conSeleccion = (fn: (o: Msg & { id: string }) => ReturnType<typeof enviar>) => { const o = seleccion(); return o ? fn(o) : { ok: false as const, why: "no hay ningún elemento seleccionado ni a menos de 12 m" }; };
+  const conSeleccion = (fn: (o: Msg & { id: string }) => ReturnType<typeof enviar>) => { const o = seleccion(); return o ? fn(o) : { ok: false as const, why: tx("no element selected or within 12 m", "no hay ningún elemento seleccionado ni a menos de 12 m") }; };
   const controlador = {
     estado,
     tipos: TIPOS.slice(),
@@ -42,7 +43,7 @@ export function crearCliente() {
     aqui: () => { const h = aqui(); return { x: h.x, z: h.z }; },
     /** Put an element at `donde` (metres) or 3 m in front of me (the camera looks along -z). */
     poner: (tipo: string, donde?: { x: number; y?: number; z: number }, extra: Msg = {}) => {
-      if (!(TIPOS as readonly string[]).includes(tipo)) return { ok: false as const, why: `no hay ningún elemento «${tipo}» (hay: ${TIPOS.join(", ")})` };
+      if (!(TIPOS as readonly string[]).includes(tipo)) return { ok: false as const, why: tx(`no element «${tipo}» (there are: ${TIPOS.join(", ")})`, `no hay ningún elemento «${tipo}» (hay: ${TIPOS.join(", ")})`) };
       const p = donde ?? (() => { const h = aqui(); return { x: h.x, z: h.z - 3 }; })();
       const ini = INICIO[tipo as Tipo];
       return enviar("poner", { tipo, ...ini, x: p.x, z: p.z, y: p.y ?? ini.y, nombre: "", ...extra });

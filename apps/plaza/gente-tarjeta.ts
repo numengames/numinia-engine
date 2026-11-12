@@ -10,6 +10,7 @@
 import { icono } from "./iconos.ts";
 import { el, botonCon, luzEl, ojosEl, retrato, type Acciones, type Elegido, type Mirada } from "./gente-comun.ts";
 import { fichaIA, luzEscucha, subIA, textos } from "./gente-ia.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 
 export function montarTarjeta(o: {
   acciones: Acciones;
@@ -21,7 +22,7 @@ export function montarTarjeta(o: {
   pedir(): unknown;
 }) {
   const caja = el("div", { id: "gente-tarjeta", className: "gente-tarjeta" });
-  caja.setAttribute("role", "dialog"); caja.setAttribute("aria-label", "Tarjeta de la persona");
+  caja.setAttribute("role", "dialog"); caja.setAttribute("aria-label", tx("Person card", "Tarjeta de la persona"));
   caja.hidden = true;
   document.body.appendChild(caja);
   caja.addEventListener("pointerdown", (e) => e.stopPropagation()); // a tap here is not a joystick touch nor a click outside
@@ -51,37 +52,37 @@ export function montarTarjeta(o: {
     if (!p) { cerrar(); return; }
     const a = o.acciones, amigo = !!a.esAmigo(p);
     const que = o.mirada?.actividad(quien), d = o.mirada?.distancia(quien);
-    const dist = d === null || d === undefined ? "" : d < 2 ? "a tu lado" : `a ${Math.round(d)} m`;
-    const tx = textos(o.idioma?.()), ia = p.ia ? fichaIA(p.nombre, p.ia, o.idioma?.()) : null;
-    const sub = ia && p.ia ? subIA(p.ia, que ?? dist, o.idioma?.()) : [amigo ? "En tus amigos" : "", que ?? "", amigo || que ? "" : dist].filter(Boolean).join(" · ");
-    const mas = el("button", { type: "button", className: "solo-icono gente-mas", title: "Más" });
+    const dist = d === null || d === undefined ? "" : d < 2 ? tx("next to you", "a tu lado") : tx(`${Math.round(d)} m away`, `a ${Math.round(d)} m`);
+    const tl = textos(o.idioma?.()), ia = p.ia ? fichaIA(p.nombre, p.ia, o.idioma?.()) : null;
+    const sub = ia && p.ia ? subIA(p.ia, que ?? dist, o.idioma?.()) : [amigo ? tx("In your friends", "En tus amigos") : "", que ?? "", amigo || que ? "" : dist].filter(Boolean).join(" · ");
+    const mas = el("button", { type: "button", className: "solo-icono gente-mas", title: tx("More", "Más") });
     mas.innerHTML = icono("dots-three-vertical", 20); // constants only
-    mas.setAttribute("aria-label", `Más opciones con ${ia?.nombre ?? p.nombre}`); mas.setAttribute("aria-haspopup", "menu"); mas.setAttribute("aria-expanded", String(menu));
+    mas.setAttribute("aria-label", tx(`More options for ${ia?.nombre ?? p.nombre}`, `Más opciones con ${ia?.nombre ?? p.nombre}`)); mas.setAttribute("aria-haspopup", "menu"); mas.setAttribute("aria-expanded", String(menu));
     mas.addEventListener("click", () => { menu = !menu; pintar(); if (menu) (caja.querySelector(".gente-menu button") as HTMLButtonElement | null)?.focus(); });
     const nombreL = ia ? el("span", { className: "nombre-ia" }, el("b", { textContent: ia.nombre }), el("span", { className: "marca-ia", textContent: ia.marca })) : el("b", { textContent: p.nombre });
     const cab = el("div", { className: "cab" }, retrato(o.base, p.avatar, "busto", 64, ia?.estado === "dormida"), el("div", { className: "textos" }, nombreL, el("span", { className: "sub", textContent: sub })), mas);
-    const sal = botonCon("hand-waving", "Saludar", "principal"); sal.id = "gente-tarjeta-saludar";
+    const sal = botonCon("hand-waving", tx("Wave", "Saludar"), "principal"); sal.id = "gente-tarjeta-saludar";
     sal.addEventListener("click", () => { a.saludar(p); });
-    const msg = botonCon("chat-text", "Mensaje"); msg.id = "gente-tarjeta-mensaje";
+    const msg = botonCon("chat-text", tx("Message", "Mensaje")); msg.id = "gente-tarjeta-mensaje";
     msg.addEventListener("click", () => { a.mensaje(p); });
-    const fic = el("button", { type: "button", className: "solo-icono", id: "gente-tarjeta-ficha", title: "Ver ficha" });
+    const fic = el("button", { type: "button", className: "solo-icono", id: "gente-tarjeta-ficha", title: tx("View profile", "Ver ficha") });
     fic.innerHTML = icono("user", 20); // constants only
-    fic.setAttribute("aria-label", `Ver la ficha de ${p.nombre}`);
+    fic.setAttribute("aria-label", tx(`View ${p.nombre}'s profile`, `Ver la ficha de ${p.nombre}`));
     fic.addEventListener("click", () => a.verFicha(p));
     const fila = el("div", { className: "acciones" }, sal, msg, fic);
-    caja.setAttribute("aria-label", `${tx.tarjeta} ${ia?.nombre ?? p.nombre}`);
+    caja.setAttribute("aria-label", `${tl.tarjeta} ${ia?.nombre ?? p.nombre}`);
     if (ia) {
       // who answers for it and what it may do; the trip is the main button (no «Mensaje»: nothing reads a private note yet)
       const dato = (k: string, v: string) => el("p", { className: "ia-dato" }, el("span", { className: "k", textContent: k }), el("b", { textContent: v }));
       const datos = el("div", { className: "ia-datos" }, dato(ia.respondeEtiqueta, ia.respondeValor), el("p", { className: `ia-dato${ia.construye ? "" : " no"}`, textContent: ia.construyeTexto }), ojosEl(ia.ojos), luzEl(luzEscucha(p.ia!, o.idioma?.())));
-      const hablar = a.puedeHablar?.(p) ? botonCon("chat-circle-dots", tx.hablar, "principal") : null; // S11: the main button when the AI takes calls by button
-      if (hablar) { hablar.id = "gente-tarjeta-hablar"; hablar.title = tx.hablarTitulo; hablar.setAttribute("aria-label", `${tx.hablarAria} ${ia.nombre}`); hablar.addEventListener("click", () => { a.hablar?.(p); }); }
-      const ir = botonCon("navigation-arrow", tx.ir, hablar ? "" : "principal"); ir.id = "gente-tarjeta-ir";
-      ir.title = tx.irTitulo; ir.setAttribute("aria-label", `${tx.irAria} ${ia.nombre}`);
+      const hablar = a.puedeHablar?.(p) ? botonCon("chat-circle-dots", tl.hablar, "principal") : null; // S11: the main button when the AI takes calls by button
+      if (hablar) { hablar.id = "gente-tarjeta-hablar"; hablar.title = tl.hablarTitulo; hablar.setAttribute("aria-label", `${tl.hablarAria} ${ia.nombre}`); hablar.addEventListener("click", () => { a.hablar?.(p); }); }
+      const ir = botonCon("navigation-arrow", tl.ir, hablar ? "" : "principal"); ir.id = "gente-tarjeta-ir";
+      ir.title = tl.irTitulo; ir.setAttribute("aria-label", `${tl.irAria} ${ia.nombre}`);
       ir.addEventListener("click", () => { a.ir(p); });
-      const hola = el("button", { type: "button", className: "solo-icono", id: "gente-tarjeta-saludar", title: "Saludar" }); // icon only: the trip needs the room
+      const hola = el("button", { type: "button", className: "solo-icono", id: "gente-tarjeta-saludar", title: tx("Wave", "Saludar") }); // icon only: the trip needs the room
       hola.innerHTML = icono("hand-waving", 20); // constants only
-      hola.setAttribute("aria-label", `Saludar a ${ia.nombre}`);
+      hola.setAttribute("aria-label", tx(`Wave at ${ia.nombre}`, `Saludar a ${ia.nombre}`));
       hola.addEventListener("click", () => { a.saludar(p); });
       caja.replaceChildren(cab, datos, ...(hablar ? [el("div", { className: "acciones" }, hablar)] : []), el("div", { className: "acciones" }, ir, hola, fic));
     } else caja.replaceChildren(cab, fila);
@@ -89,10 +90,10 @@ export function montarTarjeta(o: {
       const m = el("div", { className: "gente-menu" }); m.setAttribute("role", "menu");
       const item = (ic: string, t: string, fn: () => unknown, clase = "") => { const b = botonCon(ic, t, clase); b.setAttribute("role", "menuitem"); b.addEventListener("click", () => { menu = false; fn(); pintar(); }); return b; };
       m.append(
-        item("speaker-simple-slash", a.silenciado(p) ? "Oír su voz" : "Silenciar", () => a.silenciar(p)),
-        item("prohibit", a.bloqueado(p) ? "Desbloquear" : "Bloquear", () => a.bloquear(p)),
-        item("flag", "Denunciar", () => a.denunciar(p), "peligro-texto"),
-        ...(ia ? [] : [amigo ? item("x", "Quitar de amigos", () => a.quitar(p)) : item("user-plus", "Añadir amigo", () => a.anadir(p))]),
+        item("speaker-simple-slash", a.silenciado(p) ? tx("Hear their voice", "Oír su voz") : tx("Mute", "Silenciar"), () => a.silenciar(p)),
+        item("prohibit", a.bloqueado(p) ? tx("Unblock", "Desbloquear") : tx("Block", "Bloquear"), () => a.bloquear(p)),
+        item("flag", tx("Report", "Denunciar"), () => a.denunciar(p), "peligro-texto"),
+        ...(ia ? [] : [amigo ? item("x", tx("Remove friend", "Quitar de amigos"), () => a.quitar(p)) : item("user-plus", tx("Add friend", "Añadir amigo"), () => a.anadir(p))]),
       );
       caja.append(m);
     }

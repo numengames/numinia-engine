@@ -7,6 +7,7 @@
 import { escribiendo } from "./escribiendo.ts";
 import { icono } from "./iconos.ts";
 import * as capas from "./capas.ts";
+import { tx } from "../../packages/feature/src/idioma.ts";
 import { ECLIPSE, HABILIDADES, CARGA_MAX, vistaCarga } from "../../features/lucha/habilidades.ts";
 
 type Res = { ok: true } | { ok: false; why: string };
@@ -31,10 +32,10 @@ export function casillas(carga: number): Casilla[] {
   const v = vistaCarga(carga);
   return HABILIDADES.map((clave, i) => {
     const h = ECLIPSE[clave], lista = v.listas[clave];
-    const efecto = h.coste ? `cuesta ${h.coste} de Carga` : `da ${h.genera} de Carga`;
+    const efecto = h.coste ? tx(`costs ${h.coste} Charge`, `cuesta ${h.coste} de Carga`) : tx(`gives ${h.genera} Charge`, `da ${h.genera} de Carga`);
     return {
       clave, tecla: i + 1, nombre: h.nombre, icono: ICONOS[clave] ?? "sword", coste: h.coste, genera: h.genera, lista,
-      etiqueta: `Habilidad ${i + 1}, ${h.nombre}: ${h.dano} de daño, enfriamiento ${h.enfriamiento} s, ${efecto}${lista ? "" : ". Te falta Carga"}`,
+      etiqueta: tx(`Skill ${i + 1}, ${h.nombre}: ${h.dano} damage, cooldown ${h.enfriamiento} s, ${efecto}${lista ? "" : ". Not enough Charge"}`, `Habilidad ${i + 1}, ${h.nombre}: ${h.dano} de daño, enfriamiento ${h.enfriamiento} s, ${efecto}${lista ? "" : ". Te falta Carga"}`),
     };
   });
 }
