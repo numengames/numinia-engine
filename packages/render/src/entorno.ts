@@ -275,7 +275,30 @@ export function crearEntorno(h: EntornoHooks) {
     espejoU.value = sin ? 1 : 0;
     return sin;
   }
+  // `suelo.forma: "disco"` (+ `suelo.radio`, m): the plane becomes a disc around the origin with a bright edge: a 2 m band on the floor along the rim (what you
+  // see from inside, at a grazing angle) and a wall hanging 1 m under it (what you see from outside or from the air). Anything else puts the big plane back.
+  // Render only: the simulation's floor does not change. Unlit on purpose: a lit edge is black at night, and it must read at any hour (fog still fades it).
+  const planoGeo = ground.geometry, matCanto = new THREE.MeshBasicMaterial({ color: 0xe9e4d8, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const canto = new THREE.Group(), pared = new THREE.Mesh(new THREE.BufferGeometry(), matCanto), banda = new THREE.Mesh(new THREE.BufferGeometry(), matCanto);
+  pared.userData.sinSombra = banda.userData.sinSombra = true; canto.visible = false; canto.add(pared, banda); ground.add(canto); // child of the ground: hidden with it (suelo "ninguno", terrain)
+  let formaPuesta = "plano";
+  function forma(v: EntornoDatos): void {
+    const r = n(v.sueloRadio, 0), disco = String(v.sueloForma) === "disco" && r > 0, clave = disco ? `disco|${r}` : "plano";
+    if (clave === formaPuesta) return;
+    formaPuesta = clave;
+    if (ground.geometry !== planoGeo) ground.geometry.dispose();
+    pared.geometry.dispose(); banda.geometry.dispose();
+    canto.visible = disco;
+    if (!disco) { ground.geometry = planoGeo; pared.geometry = banda.geometry = new THREE.BufferGeometry(); return; }
+    const seg = 128, circ = new THREE.CircleGeometry(r, seg), uv = circ.attributes.uv, pos = circ.attributes.position;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) / 4000 + 0.5, pos.getY(i) / 4000 + 0.5); // same tiling density as the 4000 m plane
+    ground.geometry = circ;
+    pared.geometry = new THREE.CylinderGeometry(r, r, 1, seg, 1, true); // axis Y → ground-local Z (= world up)
+    pared.rotation.x = Math.PI / 2; pared.position.z = -0.5;
+    banda.geometry = new THREE.RingGeometry(Math.max(0, r - 2), r, seg); banda.position.z = 0.03; // in the ground's own plane, a hair above it
+  }
   function suelo(v: EntornoDatos): void {
+    forma(v);
     const mapa = String(v.sueloMapa ?? ""), normal = h.aparato.mobile ? "" : String(v.sueloNormal ?? ""); // phones: no normal map (bytes, fragment cost)
     const reps = 1000 / Math.max(0.1, n(v.sueloMetros, 4));
     sueloMat.color.setHex(n(v.sueloColor, 0xffffff));

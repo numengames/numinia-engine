@@ -64,6 +64,12 @@
   también hacia abajo, y la simulación tampoco tiene suelo plano en y = 0: quien pisa el vacío cae hasta `sueloMinimo` (el vacío de
   D-045; sin él, −100 m) y vuelve a su última posición segura o a `vuelta`. Ponga `aparicion` y `vuelta` sobre una isla. También se
   elige en el panel de Entorno. Sin la clave todo queda como antes (suelo presente, misma huella). Prueba: `test/sin-suelo.test.ts`.
+- El suelo llano también puede ser **un disco** (una isla redonda): `"suelo": { "tipo": "liso", "forma": "disco", "radio": 70 }`
+  (`forma`: `plano` —por defecto, infinito— o `disco`; `radio` en metros, 5–1900, obligatorio con `disco`; el disco está centrado en el
+  origen). Dentro del radio el suelo es el de siempre; fuera la simulación no sostiene a nadie (cae, también en la página: misma
+  predicción) y, por debajo de `sueloMinimo` (sin él, −50 m), vuelve **al punto de `aparicion`** (su centro; sin `aparicion`, el origen),
+  siempre ahí; `vuelta` del mundo manda sobre ese punto. Una plataforma sólida fuera del disco sigue siendo suelo. Es del fichero del
+  mundo: ningún panel lo mueve. Sin las claves todo queda como antes (suelo infinito, misma huella). Prueba: `test/suelo-disco.test.ts`.
 - Una función puede mover a un jugador a propósito con `api.teletransportar(e, { x, y, z }, { radios, rumbo, caida })`
   (N16): la instancia busca el primer sitio libre cerca (dentro del mundo, en un suelo como mucho `caida` m más
   abajo, sin sólidos; anillos `radios` en metros, ocho rumbos desde `rumbo` 0-7) y devuelve dónde quedó, o null sin
