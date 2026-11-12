@@ -1,7 +1,7 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
 import { rngNext, fxToFloat, fx, FX_ONE } from "../../core/src/index.ts";
-import { createSim, setMovimiento, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, groundHeight, PISO_SIN_SUELO, sinSueloDelEstado, SUELO_MINIMO_SIN_SUELO, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX, MODO_SENTADO, getMotionExtra } from "../../sim/src/index.ts";
+import { createSim, setMovimiento, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, groundHeight, PISO_SIN_SUELO, sinSueloDelEstado, SUELO_MINIMO_SIN_SUELO, discoDelEstado, setDisco, SUELO_MINIMO_DISCO, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX, MODO_SENTADO, getMotionExtra } from "../../sim/src/index.ts";
 import type { SimState, SpawnArea, Bvh } from "../../sim/src/index.ts";
 import { terrenoDelEstado, terrenoMalla, claveTerreno, combinarMallas, sueloMinimoTerreno } from "../../sim/src/terreno-malla.ts";
 import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
@@ -632,6 +632,8 @@ export class Instance {
   private terrenoVersion = -1;
   /** The world has no ground (entorno `suelo: "ninguno"`): the mesh has no flat floor under it, like a terrain, and the void is 100 m down unless the world says. */
   private sinSuelo = false;
+  /** The flat floor is a disc of this radius (m; entorno `suelo.forma: "disco"`, 0 = endless): past it people fall and come back at the spawn point. */
+  private disco = 0;
   private mallaGlb: Bvh | null = null;
   /** N5: follows the shared state's «naturaleza:mundo»: builds the terrain mesh from `alturaEn` (a few ms, once per change of the
    * world's numbers, never inside `step`) and merges it with the GLB mesh. A world without naturaleza.json never gets here:
@@ -642,6 +644,8 @@ export class Instance {
     this.terrenoVersion = v;
     const sin = sinSueloDelEstado(this.features.allState()), cambioSuelo = sin !== this.sinSuelo; // entorno `suelo: "ninguno"`: no flat floor
     this.sinSuelo = sin;
+    const radio = discoDelEstado(this.features.allState());
+    if (radio !== this.disco) { this.disco = radio; setDisco(this.sim, radio); }
     const m = terrenoDelEstado(this.features.allState());
     const clave = m ? claveTerreno(m) : null;
     if (clave === (this.terreno?.clave ?? null)) { if (cambioSuelo) this.aplicarMalla(); return; }
@@ -669,7 +673,12 @@ export class Instance {
   }
   /** D-045: the world's void, or (naturaleza on, world gives none) a little under the lowest ground, so a fall off the map comes back. */
   private sueloEfectivo(): Suelo | null {
-    return this.opts.suelo ?? (this.terreno ? { minimo: sueloMinimoTerreno(this.terreno.hmin), vuelta: null } : this.sinSuelo ? { minimo: SUELO_MINIMO_SIN_SUELO, vuelta: null } : null);
+    const base = this.opts.suelo ?? (this.terreno ? { minimo: sueloMinimoTerreno(this.terreno.hmin), vuelta: null } : this.sinSuelo ? { minimo: SUELO_MINIMO_SIN_SUELO, vuelta: null } : null);
+    if (!this.disco) return base;
+    // a disc world: under the world's `sueloMinimo` (default −50 m) whoever fell off the edge comes back at the spawn point (the centre of
+    // `aparicion`, or of the house square), always there; the world's own `vuelta` wins
+    const a = this.opts.aparicion ?? this.aparicionTerreno();
+    return { minimo: base?.minimo ?? SUELO_MINIMO_DISCO, vuelta: base?.vuelta ?? { x: a?.x ?? 0, y: 0, z: a?.z ?? 0, siempre: true } };
   }
   /** N5: with naturaleza on and no `aparicion` in the world, people appear inside the flat plaza (its disc, 60 % of the radius so the square's corners stay in). */
   private aparicionTerreno(): SpawnArea | null {
