@@ -18,6 +18,7 @@ import { AGENTE_ID } from "../../instance/src/identidad.ts";
 
 export const FORMATO = "habitante@1";
 export const NOMBRE_MAX = 32;   // bytes: + « · IA» must fit the chat's 48
+export const OBJETO_MAX = 60;    // bytes: an object's name in the world (features/objetos NOMBRE), what `apariencia.objeto` points at
 export const FRASE_MAX = 200;   // bytes: one chat message (features/chat TEXTO_MAX)
 export const RUTA_MAX = 32;     // points of its walk
 export const LADO_M = 60;       // every point within ±60 m of the centre (the plaza)
@@ -45,8 +46,9 @@ export type Habitante = {
   saludo: { radio: number; cada: number; frases: string[]; gesto?: (typeof GESTOS)[number] }; // greets who comes near; {nombre} = their name
   respuestas: { si: string[]; dice: string }[]; // when called by its name: the first whose word appears answers
   siNoEntiende: string;       // when called and nothing matched
-  /** Its own body, like a person's (pnj@1 `apariencia`): the sha256 of a .glb the world carries (it faces +z) and its size. Without it: the house robot. */
-  apariencia?: { modelo: string; escala: number };
+  /** Its own body, like a person's (pnj@1 `apariencia`): the sha256 of a .glb the world carries (it faces +z) and its size. Without it: the house robot.
+   * `objeto` (optional): the exact name of an object planted in the world (e.g. «Moñoni 1»): the AI takes its place, so while it is connected the server hides that object (and its «<name> boca» companion), and it shows again when the AI leaves. */
+  apariencia?: { modelo: string; escala: number; objeto?: string };
 };
 
 const bytes = (t: string) => new TextEncoder().encode(t).length;
@@ -109,10 +111,11 @@ export function validarHabitante(o: unknown, donde = "habitante"): Result<Habita
   });
   if (h.apariencia !== undefined) {
     const a = h.apariencia as Record<string, unknown> | null;
-    if (!a || typeof a !== "object" || Array.isArray(a)) bad("apariencia", "{modelo: sha256 de un .glb del mundo, escala?}");
+    if (!a || typeof a !== "object" || Array.isArray(a)) bad("apariencia", "{modelo: sha256 de un .glb del mundo, escala?, objeto?}");
     else {
-      for (const k of Object.keys(a)) if (k !== "modelo" && k !== "escala") bad(`apariencia.${k}`, "campo desconocido (solo modelo y escala)");
+      for (const k of Object.keys(a)) if (k !== "modelo" && k !== "escala" && k !== "objeto") bad(`apariencia.${k}`, "campo desconocido (solo modelo, escala y objeto)");
       if (typeof a.modelo !== "string" || !/^[0-9a-f]{64}$/.test(a.modelo)) bad("apariencia.modelo", "el sha256 (64 letras hex) de un .glb que lleva el mundo (los modelos propios miran a +z)");
+      if (a.objeto !== undefined && (typeof a.objeto !== "string" || !a.objeto.trim() || a.objeto !== a.objeto.trim() || bytes(a.objeto) > OBJETO_MAX)) bad("apariencia.objeto", `el nombre exacto de un objeto plantado en el mundo (p. ej. «Moñoni 1»), hasta ${OBJETO_MAX} bytes: mientras esta IA esté conectada ese objeto no se ve`);
       if (a.escala !== undefined && (typeof a.escala !== "number" || !(a.escala >= 0.05 && a.escala <= 50))) bad("apariencia.escala", "un número entre 0,05 y 50 (1 = tal como viene el modelo)");
     }
   }
