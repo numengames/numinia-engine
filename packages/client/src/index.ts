@@ -2,7 +2,7 @@
 // Own avatar: predicted with the SAME sim step the server runs, reconciled exactly on each snapshot.
 // Others: drawn slightly in the past, interpolated between snapshots.
 import { fxToFloat } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, combinarMallas, barridoMalla, PISO_SIN_SUELO, sinSueloDelEstado, discoDelEstado, setDisco, TICK_HZ } from "../../sim/src/index.ts";
+import { createSim, setMovimiento, spawnAvatar, step, getBody, setBody, sameBody, groundHeight, setSolids, solidsFrom, setMesh, combinarMallas, barridoMalla, PISO_SIN_SUELO, sinSueloDelEstado, discoDelEstado, setDisco, TICK_HZ } from "../../sim/src/index.ts";
 import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
 import { crearSueloTerreno } from "./suelo-terreno.ts";
 import type { ConstruirMallaCliente } from "./malla-glb.ts"; // type only: the .glb reader (and its decoder) is the PAGE's chunk, never the AI bridge's
@@ -152,7 +152,7 @@ export class ClientSession {
     this.pending.push({ seq: this.seq, mx, mz, buttons });
     if (this.pending.length > 64) this.pending.shift();
     this.prev = this.cur;
-    if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; setSolids(this.local, solidsFrom(this.features.allState())); this.sincronizarSuelo(); this.sincronizarTerreno(); this.sincronizarMalla(); } // U10: the same walls as the server; N5: and the same hills
+    if (this.features.stateVersion !== this.solidsVersion) { this.solidsVersion = this.features.stateVersion; this.movimiento(this.features.stateOf("entorno").get("zona")); setSolids(this.local, solidsFrom(this.features.allState())); this.sincronizarSuelo(); this.sincronizarTerreno(); this.sincronizarMalla(); } // U10: the same walls as the server; N5: and the same hills
     step(this.local, new Int32Array([0, mx, mz, buttons]));
     this.cur = getBody(this.local, 0);
   }
@@ -344,6 +344,12 @@ export class ClientSession {
   barridoCamara = (ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, max: number, r: number,
     lx: number, ly: number, lz: number, ux: number, uy: number, uz: number): number =>
     barridoMalla(this.local.mesh, ox, oy, oz, dx, dy, dz, max, r, lx, ly, lz, ux, uy, uz);
+  /** The world's pace: the environment state's `movAndar` / `movCorrer` (m/s, 0 or missing = the house's). The page hands it over with every
+   * environment that arrives; the server's sim got the same numbers from the world's file, so the prediction stays exact. */
+  movimiento(v: Record<string, unknown> | null | undefined): void {
+    const a = Number(v?.movAndar), c = Number(v?.movCorrer);
+    setMovimiento(this.local, Number.isFinite(a) && a > 0 ? a : null, Number.isFinite(c) && c > 0 ? c : null);
+  }
   /** The ground the simulation walks on where the world has relieve (`suelo`: mesh + boxes, `malla`: mesh alone), or null in a flat world. */
   sueloTerreno(): ReturnType<typeof crearSueloTerreno> | null { return this.suelo; }
 

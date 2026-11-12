@@ -209,7 +209,7 @@ const session = new ClientSession(transport, {
     moverForma: (key, x, z, r) => view.moverForma(key, x, z, r),
     marcador: (key, t) => view.marcador(key, t), // P4: evidence markers (features/misiones)
     // H4/H8: the zone's environment and its elements (water, fire, smoke, dust)
-    entorno: (v) => { view.entorno.aplicar(v); view.cam.mundo(v); }, // P1: the same values carry the world's camera (camaraInicio, camaraMax, llegadaGira, llegadaGiro)
+    entorno: (v) => { view.entorno.aplicar(v); view.cam.mundo(v); }, // P1: the same values carry the world's camera (camaraInicio, camaraMax, llegadaGira, llegadaGiro) and its field of view (movFov); the pace (movAndar, movCorrer) reaches the prediction from ClientSession itself
 
     naturaleza: (v) => void view.naturaleza.aplicar(v), // N4
     espacioBase: (v) => void view.espacioBase.aplicar(v), // H2
@@ -391,7 +391,7 @@ alPrimerCuadro(() => import("./director.ts").then((m) => m.montarDirector({ dj: 
 // ux2-gente: friends kept in this browser, the sheet of whoever you pick, and the small card when you click someone in the
 // world (gente-tarjeta.ts). Silenciar = voz.ts drops their voice here; Bloquear = /bloquear; Denunciar = /denunciar.
 const distanciaA = (q: number): number | null => { if (session.entity < 0) return null; const r = session.remotePositions().find((x) => x.id === q); if (!r) return null; const y = session.selfPosition(1); return Math.hypot(r.x - y.x, r.z - y.z); };
-const llamarIA = montarLlamarIA({ llamar: llamarPagina, ia: iaPagina, burbuja: burbujaPagina, distancia: distanciaA, nombre: (q) => chatDePagina.nombres.get(q) ?? null, idioma: () => document.documentElement.lang });
+const llamarIA = montarLlamarIA({ llamar: llamarPagina, ia: iaPagina, burbuja: burbujaPagina, distancia: distanciaA, nombre: (q) => chatDePagina.nombres.get(q) ?? null, abrirAlEntrar: () => leerAjuste("llamar.abrirAlEntrar") !== false, idioma: () => document.documentElement.lang });
 const gente = montarGentePuerta({ viajar, llamar: { puede: llamarIA.puede, hablar: llamarIA.hablar }, barra: document.getElementById("barra-arriba"), orden: (t) => chatDePagina.decir(t),
   mundo: () => estado?.nombre ?? "",
   ia: iaPagina, idioma: () => document.documentElement.lang,

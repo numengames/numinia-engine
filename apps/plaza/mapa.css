@@ -37,9 +37,29 @@
 #mapa-lista .andar { background: #ffd27a; color: #23303b; }
 #mapa-lista .ic:disabled { opacity: .45; }
 #mapa-buscar { width: 100%; box-sizing: border-box; margin: 4px 0; }
-.leyenda { list-style: none; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; }
-.leyenda li { display: flex; align-items: center; gap: 6px; }
-.leyenda canvas { width: 18px; height: 18px; border-radius: 3px; }
+/* Map v2.2: the filter — one single column in a panel apart, grouped by kind (never two columns) */
+#mapa-filtro { width: min(94vw, 380px); max-height: min(86vh, 640px); }
+#mapa-filtro .cabeza-x, #mapa-filtro .cerrar { min-width: 34px; display: inline-flex; align-items: center; justify-content: center; }
+#mapa-filtro ul { list-style: none; margin: 0; padding: 0; }
+#mapa-filtro ul.filtro { display: flex; flex-direction: column; gap: 6px; }
+#mapa-filtro li.grupo { border: 1px solid rgba(238, 242, 246, .14); border-radius: 8px; padding: 4px 6px 6px; }
+#mapa-filtro li.grupo[data-activa="false"] { opacity: .65; }
+#mapa-filtro .cabeza { display: flex; align-items: center; gap: 8px; min-height: 30px; cursor: pointer; font-weight: 600; }
+#mapa-filtro .cabeza input { accent-color: #018EA1; width: 18px; height: 18px; }
+#mapa-filtro .cabeza .nombre { flex: 1; }
+#mapa-filtro .cabeza .cuenta { font-weight: 400; font-size: 12px; padding: 0 8px; border-radius: 999px; background: rgba(238, 242, 246, .14); }
+#mapa-filtro ul.items { margin-top: 2px; }
+#mapa-filtro ul.items li { display: flex; gap: 4px; margin: 2px 0; }
+#mapa-filtro .ver { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; text-align: left; font-weight: 400; background: rgba(238, 242, 246, .08); }
+#mapa-filtro .ver span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#mapa-filtro .fijar { flex: none; width: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: rgba(238, 242, 246, .14); }
+#mapa-filtro .fijar[aria-pressed="true"] { background: #ffd27a; color: #23303b; }
+#mapa-filtro .insignia { flex: none; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; border: 1.5px solid #F9EBDC; box-sizing: border-box; }
+#mapa-filtro .punto { flex: none; width: 10px; height: 10px; margin: 0 5px; border-radius: 50%; border: 1.5px solid #F9EBDC; box-sizing: border-box; }
+#mapa-filtro .vacio { padding: 8px; color: #c9d3dc; }
+#mapa-filtro .nota { margin: 0 0 8px; font-size: 12px; color: #c9d3dc; }
+#mapa-filtro button:focus-visible, #mapa-filtro input:focus-visible { outline: 3px solid #ffd27a; outline-offset: 1px; }
+#mapa-grande .controles .filtro-boton { display: inline-flex; align-items: center; justify-content: center; }
 /* «Tú» (#ficha, key I): its whole look is the ux2-tu block at the end of tema.css (rediseño v2, story B). */
 @media (max-width: 640px), (max-height: 420px) {
   #mapa-grande .cuerpo { flex-direction: column; overflow: auto; }

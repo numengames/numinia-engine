@@ -13,7 +13,7 @@ import * as THREE from "three/webgpu";
 
 export type EstadoForma = "off" | "starting" | "on" | "fail";
 export type FormaPlana = {
-  forma: "reloj" | "cubo" | "losa" | "suelo" | "perfil" | "uso" | "estante" | "tableta" | "tablero" | "guia";
+  forma: "reloj" | "cubo" | "losa" | "suelo" | "perfil" | "uso" | "estante" | "tableta" | "tablero" | "proyecto" | "guia";
   x: number; z: number;
   estado: EstadoForma;
   /** The way the front looks, radians around the vertical (0 = towards +z). */

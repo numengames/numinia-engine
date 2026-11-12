@@ -1,7 +1,7 @@
 // instance: the authoritative server loop, wired to clients through the Transport interface.
 // The same code runs over in-memory loopback (tests, headless runs) and over WebSocket (server).
 import { rngNext, fxToFloat, fx, FX_ONE } from "../../core/src/index.ts";
-import { createSim, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, groundHeight, PISO_SIN_SUELO, sinSueloDelEstado, SUELO_MINIMO_SIN_SUELO, discoDelEstado, setDisco, SUELO_MINIMO_DISCO, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX, MODO_SENTADO, getMotionExtra } from "../../sim/src/index.ts";
+import { createSim, setMovimiento, spawnAvatar, step, stateHash, setSolids, solidsFrom, sitioLibre, onFloor, rayBvh, setMesh, groundHeight, PISO_SIN_SUELO, sinSueloDelEstado, SUELO_MINIMO_SIN_SUELO, discoDelEstado, setDisco, SUELO_MINIMO_DISCO, BTN_JUMP, BTN_RUN, INPUT_STRIDE, ORDER_STRIDE, ORDER_PONER, ORDER_QUIETO, ORDER_EMPUJAR, ORDER_SENTAR, ORDER_VOLAR, QUIETO_MAX, MODO_SENTADO, getMotionExtra } from "../../sim/src/index.ts";
 import type { SimState, SpawnArea, Bvh } from "../../sim/src/index.ts";
 import { terrenoDelEstado, terrenoMalla, claveTerreno, combinarMallas, sueloMinimoTerreno } from "../../sim/src/terreno-malla.ts";
 import type { TerrenoMalla } from "../../sim/src/terreno-malla.ts";
@@ -61,6 +61,8 @@ export type InstanceOptions = {
   externos?: { verificar: (ticket: string, anfitrion: string | undefined) => { id: string; nombre: string } | null };
   /** Where new avatars appear (metres; the world's entorno@1 `aparicion`); none = the house square of 40 m around the origin. */
   aparicion?: SpawnArea | null;
+  /** The world's pace (entorno@1 `movimiento`): walking and running speed in m/s. None = the house's (1.5 and 4); the page's prediction is given the same numbers by the environment state. */
+  movimiento?: { andar?: number; correr?: number } | null;
   /** N10: the world's receipts for digital goods (server/recibos.ts crearRecibos); none = features get "" and refusals. */
   recibos?: { emisor: string; firmar(d: BienFirmable): string; verificar(token: string): ReciboLeido };
   /** D-045 («suelo de la muerte»): the world's `sueloMinimo` (metres; entorno.json): under it you have fallen into the void
@@ -164,6 +166,7 @@ export class Instance {
   private readonly byEntity: (Conn | undefined)[];
   constructor(opts: InstanceOptions) {
     this.opts = opts; this.sim = createSim(opts.capacity, opts.seed);
+    if (opts.movimiento) setMovimiento(this.sim, opts.movimiento.andar ?? null, opts.movimiento.correr ?? null);
     this.byEntity = new Array(opts.capacity);
     const tf = this.sim.tf;
     this.features = new ServerRuntime(opts.features ?? [], {

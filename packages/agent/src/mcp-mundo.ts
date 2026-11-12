@@ -27,6 +27,7 @@ import { BuzonLlamadas, ESPERA_LLAMADA_MAX_S } from "./buzon-llamadas.ts";
 import type { ModoLlamada, Novedades } from "./buzon-llamadas.ts";
 import { GESTOS_IA, TIPOS_GESTO } from "./gesto-ia.ts";
 import type { TipoGesto } from "./gesto-ia.ts";
+import { responderDeTarjeta } from "./respuesta-tarjeta.ts";
 import { ErrorHerramienta } from "./mcp.ts";
 import type { HerramientaMcp, RecursoMcp } from "./mcp.ts";
 import { LEEME_IA_VIGENCIA_MS, presentarLeemeIA, sinLeemeIA, URI_LEEME_IA } from "./leeme-ia.ts";
@@ -40,6 +41,7 @@ export const ESPERA_MAX_S = 30;            // backoff ceiling
 export const RENOVAR_PASE_MS = 8 * 60_000;  // renew the pass this long after getting it (it lasts 10 min)
 export const LLAMADA_VENTANA_MS = 60_000;   // asleep, a call by name lets it answer for this long
 export const ATENTA_CADA_MS = 5000;        // «my brain is listening» goes to the world at most this often (the server limits it too)
+export const ATENTA_VIGENCIA_MS = 90_000;   // the world shows «attentive» this long after the last report (feature ia): the brain answers calls, the card stays quiet
 export const REINTENTO_PASE_S = 30;         // a pass that could not be renewed: try again this often until it ends
 const HZ = 20;
 
@@ -98,11 +100,16 @@ export class PuenteMundo {
   private temporizador: ReturnType<typeof setTimeout> | null = null;
   private llamada = 0;               // ms of the last time someone called it (by the world's `llamada` event; on an old world, by its name in the chat)
   private pararGesto: ReturnType<typeof setTimeout> | null = null; // the pending «parar» of a gesture that would loop
+  private readonly tarjeta: (() => string | null) | null; // the agent's card (OPERATOR.md text), read at each call; null = no card to answer from
   private ultimaAtenta = -Infinity;  // ms of the last «attentive» report that left
 
   constructor(o: { url: string; id: string; firmar?: FirmarBillete; biblioteca?: readonly Modelo3D[]; log?: (l: string) => void; ahora?: () => number; abrir?: (url: string) => Conexion;
     /** Organization mode: asks numinia.com for the pass (pedirPaseHttp); `mundo` = this world's id in numinia.com (else read from the world's /status). */
-    pedirPase?: PedirPase; mundo?: string; renovarMs?: number }) {
+    pedirPase?: PedirPase; mundo?: string; renovarMs?: number;
+    /** Read-only answers from the agent's card: when someone calls this AI (`/nombre texto`, the button, its name) and its brain is not listening, the bridge says
+     * one short line taken from the card. No model, no writes. Returns the card's text, or null when it cannot be read (then it stays silent). */
+    tarjeta?: () => string | null }) {
+    this.tarjeta = o.tarjeta ?? null;
     this.url = o.url; this.id = o.id; this.firmar = o.firmar ?? null; this.mundo = mundoDeUrl(o.url);
     if (!this.mundo) throw new Error(`MUNDO_URL «${o.url}» no es una URL ws:// o wss://`);
     if (!this.firmar && !o.pedirPase) throw new Error("sin clave privada ni forma de pedir pase: el puente no puede entrar");
@@ -143,7 +150,7 @@ export class PuenteMundo {
       if (f === "objetos" && e === "permiso") this.puedeConstruir = m.construir === true;
       if (f === "chat" && e === "aviso") this.oir("el mundo", String(m.texto ?? ""), "aviso");
       // S12: the world tells this AI's page alone about its calls and its bubble (a stray one for another entity is ignored)
-      if (f === "llamar" && e === "llamada" && Number(m.ia) === c.entidad) { this.llamada = this.ahora(); this.buzon.llamada(m); }
+      if (f === "llamar" && e === "llamada" && Number(m.ia) === c.entidad) { this.llamada = this.ahora(); this.buzon.llamada(m); this.contestarDeTarjeta(m, c); }
       if (f === "burbuja" && Number(m.ia) === c.entidad) { if (e === "entraEnBurbuja") this.buzon.entra(m); else if (e === "saleDeBurbuja") this.buzon.sale(m); }
       this.oirMundo(c, f, e, m);
     });
@@ -297,6 +304,20 @@ export class PuenteMundo {
     const t = this.ahora();
     if (t - this.ultimaAtenta < ATENTA_CADA_MS || !this.cuerpo) return;
     try { if (this.cuerpo.hacer("ia", "atenta", {}).ok) this.ultimaAtenta = t; } catch { /* the connection is going away: the next call tries again */ }
+  }
+
+  /** `/ursa hello` and every call with no brain listening: one line from the agent's card, said near (the caller reads it in the chat bubble).
+   * Read-only by construction: it only reads the card text and uses `decir`. A brain that attends (its tools were used in the last 90 s) answers
+   * itself, so the two never talk over each other. */
+  private contestarDeTarjeta(m: Record<string, unknown>, c: Cuerpo): void {
+    if (!this.tarjeta || this.ahora() - this.ultimaAtenta < ATENTA_VIGENCIA_MS) return;
+    try {
+      const md = this.tarjeta();
+      if (md === null) return;
+      const respuesta = responderDeTarjeta(md, String(m.texto ?? ""), sinMarca(c.nombre ?? this.id));
+      const r = c.decir(respuesta, "cerca");
+      if (!r.ok) this.log(`[puente] la respuesta de la tarjeta no salió: ${limpia(r.why)}`);
+    } catch (e) { this.log(`[puente] la tarjeta no se pudo leer: ${limpia((e as Error).message)}`); }
   }
 
   /** What the brain reads about its calls (and bubble entries): the words of other people go inside one fence. */

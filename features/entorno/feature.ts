@@ -18,6 +18,8 @@ export const CIELOS = ["atmosfera", "degradado", "color"] as const;
 /** P1: the views a person may start in. «tercera» first: it is the house's, and an enum's default is its first value. */
 export const CAMARA_INICIOS = ["tercera", "primera"] as const;
 export const CAMARA_MAX_MIN = 1, CAMARA_MAX_MAX = 20;
+/** The world's pace (entorno.json `movimiento`): walking and running speed in m/s, and the camera's field of view in degrees. */
+export const MOV_ANDAR_MIN = 0.5, MOV_ANDAR_MAX = 10, MOV_CORRER_MIN = 0.5, MOV_CORRER_MAX = 20, MOV_FOV_MIN = 30, MOV_FOV_MAX = 110;
 export const TONOS = ["agx", "aces", "neutro", "ninguno"] as const;
 /** The zone's only state key (M16 will bring several zones per world). */
 export const ZONA = "zona";
@@ -76,6 +78,10 @@ export const CAMPOS: Fields = {
   camaraMax: { kind: "fixed", min: 0, max: CAMARA_MAX_MAX, step: 0.1, default: 0 },
   llegadaGira: { kind: "bool", default: false },
   llegadaGiro: { kind: "fixed", min: -180, max: 180, step: 0.1, default: 0 },
+  // The world's pace (entorno.json `movimiento`), the file's like the camera. 0 = the house's (walk 1.5 m/s, run 4 m/s, field of view 60°).
+  movAndar: { kind: "fixed", min: 0, max: MOV_ANDAR_MAX, step: 0.1, default: 0 },
+  movCorrer: { kind: "fixed", min: 0, max: MOV_CORRER_MAX, step: 0.1, default: 0 },
+  movFov: { kind: "fixed", min: 0, max: MOV_FOV_MAX, step: 1, default: 0 },
 };
 
 export const entorno = defineFeature({

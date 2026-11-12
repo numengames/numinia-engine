@@ -10,7 +10,7 @@ export function vistaFormas(h: { world: THREE.Object3D }) {
   let real: Real | null = null, carga: Promise<void> | null = null, fallo = "";
   const pedidas = new Map<string, FormaPlana>(); // what was asked, so shapes asked before the chunk arrives are drawn when it does
   // M6: estante / tableta / tablero / guia live in formas-extra.ts, a chunk of their own fetched when the first of them is asked for
-  const EXTRA = new Set(["estante", "tableta", "tablero", "guia"]), esExtra = (f: FormaPlana | null): boolean => !!f && EXTRA.has(f.forma);
+  const EXTRA = new Set(["estante", "tableta", "tablero", "proyecto", "guia"]), esExtra = (f: FormaPlana | null): boolean => !!f && EXTRA.has(f.forma);
   let extraListo = false, cargaExtra: Promise<void> | null = null;
   const pintarPedidas = () => { if (!real) return; for (const [k, f] of pedidas) if (extraListo || !EXTRA.has(f.forma)) real.poner(k, f); };
   const cargar = () => (carga ??= import("./formas-planas.ts").then((m) => {
