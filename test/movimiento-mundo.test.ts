@@ -133,7 +133,7 @@ test("movimiento: one invalid key elsewhere in entorno.json drops the whole file
   const log: string[] = [];
   assert.equal(movimientoDelMundo(() => roto, (l) => log.push(l)), null, "the sim keeps the house pace, like the page");
   assert.match(log.join("\n"), /entorno\.hora/);
-  const { v, correcciones } = correrDosSegundos(roto, movimientoDelMundo(() => roto));
+  const { v, correcciones } = correrDosSegundos(roto, movimientoDelMundo(() => roto) as { andar: number; correr: number; fov: number } | null);
   assert.equal(v.movCorrer, 0, "the page kept the house pace");
   assert.equal(correcciones, 0, "so the server and the prediction agree");
 });
