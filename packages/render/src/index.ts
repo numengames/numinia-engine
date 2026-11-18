@@ -112,7 +112,7 @@ export type { Calidad, Nivel } from "./calidad.ts";
 import { decidirLOD } from "./lod-politica.ts";
 import { personaEn, type Proyectada } from "./gente-politica.ts";
 import { REACCION_MS, reaccionDe } from "./reaccion.ts"; // lote 5: the hop of a clicked thing
-import { duracionHabla, FUNDIDO_GESTO_S, GIRO_HACIA_S, GIRO_VUELTA_S, LEJOS_REPOSO_M, caminaPaso, envuelve, esClipCamina, esClipHabla, esClipReposo, faseDe, gestoDe, gestoDisponible, giraHacia, noto, nuevoReposo, reposoDe, rumboHacia, vaACaminar } from "./vida.ts"; // P2: people who live
+import { duracionHabla, peticionCuerpoPropio, FUNDIDO_GESTO_S, GIRO_HACIA_S, GIRO_VUELTA_S, LEJOS_REPOSO_M, caminaPaso, envuelve, esClipCamina, esClipHabla, esClipReposo, faseDe, gestoDe, gestoDisponible, giraHacia, noto, nuevoReposo, reposoDe, rumboHacia, vaACaminar } from "./vida.ts"; // P2: people who live
 import type { Gesto } from "./vida.ts";
 import type { Fase, Giro, Reposo, Vida } from "./vida.ts";
 export { decidirLOD, LOD_LEJOS_M, LOD_HISTERESIS_M } from "./lod-politica.ts";
@@ -1508,10 +1508,9 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
           seguir(k.marcha, m.position.x, m.position.z, dtC);
           m.layers.mask = 0; // the capsule's way of saying «something else draws this one» (avatares.ts does the same)
           // Pablo 11-11: a body of its own lives like a person of the world (vida.ts): its idle clip (respira/idle), its talking clip
-          // (habla/talk) while its words are on screen, its walking clip (camina/walk) while it moves; a model without clips stays still.
+          // (habla/talk) while its words are on screen, its walking clip (camina/walk) while it moves; a model without clips stays still (animate:false: only an idle clip of its own makes the loader animate it, so a clipless body stays baked/LOD).
           const anda = k.marcha.velocidad > 0.3, ry = (!anda && k.rumboFijo !== undefined ? k.rumboFijo : k.marcha.rumbo) / RAD;
-          this.place(`cuerpo:${id}`, { model: c.sha, x: m.position.x, y: m.position.y - 0.85, z: m.position.z, rx: 0, ry, rz: 0, sx: c.escala, sy: c.escala, sz: c.escala, animate: true,
-            vida: { id: `cuerpo:${id}`, reposo: true, mira: 0, atiende: (hablaHasta.get(id) ?? 0) > now, andando: anda } });
+          this.place(`cuerpo:${id}`, { model: c.sha, x: m.position.x, y: m.position.y - 0.85, z: m.position.z, rx: 0, ry, rz: 0, sx: c.escala, sy: c.escala, sz: c.escala, ...peticionCuerpoPropio(id, hablaHasta.get(id) ?? 0, now, anda) });
         }
         for (const [id, k] of cuerposPropios) {
           const m = others.get(id);

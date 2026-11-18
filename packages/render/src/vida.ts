@@ -92,6 +92,11 @@ export const vaACaminar = (metros: number): boolean => metros > 0.05 && metros <
 /** How long a line takes to say (ms), for a body's talking clip: a floor, then per letter, never longer than its bubble (`ms`). */
 export const HABLA_MIN_MS = 1200, HABLA_MS_LETRA = 55;
 export const duracionHabla = (texto: string, ms: number): number => Math.max(0, Math.min(ms, HABLA_MIN_MS + texto.length * HABLA_MS_LETRA));
+/** What an AI's own .glb body asks of place(): `animate: false` ALWAYS. Only `vida.reposo` makes it animated, and only when the model has an idle clip
+ * of its own (the loader's `clipVida`); that keeps `vida.clip` set (no procedural breathing on top of the clip) and a clipless model on the cheap
+ * baked / LOD / instanced path, still, as before. `animate: true` would clone every body whole and loop `clips[0]`. */
+export const peticionCuerpoPropio = (id: number, hablaHasta: number, ahora: number, anda: boolean) =>
+  ({ animate: false, vida: { id: `cuerpo:${id}`, reposo: true, mira: 0, atiende: hablaHasta > ahora, andando: anda } }) as const;
 export const esClipHabla = (nombre: string): boolean => /talk|habla|gesto/i.test(nombre);
 /** ... a walking clip (played while the person walks to a new place): `walk`, `camina` or `andar`. */
 export const esClipCamina = (nombre: string): boolean => /(^|[^a-z])(walk|camina|andar)/i.test(nombre);
