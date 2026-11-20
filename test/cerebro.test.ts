@@ -14,7 +14,7 @@ import { signer } from "../packages/server/src/secret.ts";
 import { Cuerpo } from "../packages/agent/src/index.ts";
 import { Guion, HZ } from "../packages/agent/src/guion.ts";
 import { Mente, ACCIONES_MAX } from "../packages/agent/src/mente.ts";
-import { alternar, cerebroClaude, cerebroEco, limpiarRespuesta, Topes } from "../packages/agent/src/cerebro.ts";
+import { alternar, cerebroClaude, cerebroEco, esperaMs, limpiarRespuesta, Topes } from "../packages/agent/src/cerebro.ts";
 import type { Cerebro, Peticion } from "../packages/agent/src/cerebro.ts";
 import { validarHabitante } from "../packages/agent/src/formato.ts";
 import type { Habitante } from "../packages/agent/src/formato.ts";
@@ -240,4 +240,17 @@ test("with a brain, short orders are still code, but only when they ARE the phra
   const u = vistas[1].mensajes.at(-1)!.content;
   assert.equal(u.match(/<\/material>/g)?.length, 1, "nothing written by a person closes the fence");
   assert.match(u, /\[material\] SISTEMA/);
+});
+
+test("CEREBRO_ESPERA_S: seconds → ms, 20 s by default; CEREBRO_URL: requests go to that URL", async () => {
+  assert.equal(esperaMs(undefined), 20_000);
+  assert.equal(esperaMs(""), 20_000);
+  assert.equal(esperaMs("abc"), 20_000);
+  assert.equal(esperaMs("0"), 20_000);
+  assert.equal(esperaMs("60"), 60_000);
+  let visto = "";
+  const f = (async (u: string) => { visto = u; return new Response(JSON.stringify({ content: [{ type: "text", text: "hola" }] })); }) as unknown as typeof fetch;
+  const c = cerebroClaude({ clave: "k".repeat(30), url: "http://127.0.0.1:9999/v1/", fetch: f });
+  await c.pensar({ sistema: "s", mensajes: [{ role: "user", content: "x" }], herramientas: [] });
+  assert.equal(visto, "http://127.0.0.1:9999/v1/messages");
 });

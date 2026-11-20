@@ -9,6 +9,8 @@
 //   STATS_MS       one «[habitantes]» line every 60 s by default (alive, CPU, memory)
 // The brain (P5a, mente.ts) for inhabitants with escalón 2 or 4 — without a key they answer with their script:
 //   CEREBRO_CLAVE  the provider key (installed: /opt/numinia-engine/cerebro.env, made by `instalar-motor.sh --clave-ia`)
+//   CEREBRO_URL    base URL of the provider's Messages API (default Anthropic's; an external brain, e.g. Hermes, goes here)
+//   CEREBRO_ESPERA_S seconds to wait for one answer before the script answers (20)
 //   CEREBRO_MODELO the model (default cerebro.ts MODELO_POR_DEFECTO) · CEREBRO_DIA_MAX calls a day for all (300)
 //   (an inhabitant's file may name its own model, cerebro.modelo, and its own calls a day, cerebro.tope: the world's choice)
 //   (and cerebro.saber, a text file of its adventure — «saber/<nombre>.md», up to 16 kB — read ONCE here at start and put in
@@ -49,7 +51,7 @@ function ficheros(): { fichero: string; texto: string }[] {
 const clave = process.env.CEREBRO_CLAVE ?? process.env.ANTHROPIC_API_KEY ?? "";
 let cerebro: Cerebro | null = null;
 if (process.env.CEREBRO_ECO === "1") cerebro = cerebroEco();
-else if (clave) { try { cerebro = cerebroClaude({ clave, modelo: process.env.CEREBRO_MODELO }); } catch (e) { log(`cerebro: ${(e as Error).message}`); } }
+else if (clave) { try { cerebro = cerebroClaude({ clave, modelo: process.env.CEREBRO_MODELO, url: process.env.CEREBRO_URL }); } catch (e) { log(`cerebro: ${(e as Error).message}`); } }
 const topes = new Topes({ alDia: Number(process.env.CEREBRO_DIA_MAX ?? 300) || 300, porMinuto: Number(process.env.CEREBRO_MINUTO ?? 6) || 6 });
 let biblioteca: Modelo3D[] = [];
 try {

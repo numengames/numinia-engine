@@ -188,6 +188,42 @@ export const crearObjetos = (modelos: Modelo[] = biblioteca.modelos, sembrar: re
     return true;
   });
 
+  // habitante@1 `apariencia.objeto`: an AI that takes the place of a planted thing («Moñoni 1») leaves ONE body in the world. While it is
+  // connected the thing (and its «<name> boca» companion, how espaciobase plants a moñoni's smile) is `oculto`, like the cable's `oculta`;
+  // when the AI leaves, or a fresh pass says it no longer replaces it, the thing shows again. Only what THIS code hid is shown again, and
+  // the ids are kept in the store (`ocultosIA`) so a restart with nobody connected never leaves a thing hidden for good.
+  const ocultosPor = new Map<string, Set<number>>(), objetoDe = new Map<number, string>(); // thing id → AIs hiding it; AI entity → the name it replaces
+  const guardarOcultos = () => api.store.set("ocultosIA", [...ocultosPor.keys()]);
+  for (const id of (api.store.get("ocultosIA") as string[] | undefined) ?? []) { const o = api.state.get(id); if (o && o.oculto === true) api.state.set(id, { ...o, oculto: false }); }
+  api.store.set("ocultosIA", []);
+  const devolver = (entity: number) => {
+    if (!objetoDe.delete(entity)) return;
+    for (const [id, quienes] of [...ocultosPor]) {
+      if (!quienes.delete(entity) || quienes.size > 0) continue;
+      ocultosPor.delete(id);
+      const o = api.state.get(id);
+      if (o && o.oculto === true) api.state.set(id, { ...o, oculto: false });
+    }
+    guardarOcultos();
+  };
+  const sustituir = (entity: number, nombre: string) => {
+    if (objetoDe.get(entity) === nombre) return;
+    devolver(entity);
+    if (!nombre) return;
+    const ids = api.state.keys().filter((k) => { const n = String(api.state.get(k)?.nombre ?? ""); return n === nombre || n === `${nombre} boca`; });
+    if (ids.length === 0) { api.log(`[objetos] una IA pide sustituir «${nombre.slice(0, 60)}» y no hay tal objeto plantado`); return; }
+    objetoDe.set(entity, nombre);
+    for (const id of ids) {
+      const o = api.state.get(id);
+      if (!o || (o.oculto === true && !ocultosPor.has(id))) continue; // already hidden by somebody else: not ours to show again
+      (ocultosPor.get(id) ?? ocultosPor.set(id, new Set()).get(id)!).add(entity);
+      if (o.oculto !== true) api.state.set(id, { ...o, oculto: true });
+    }
+    guardarOcultos();
+  };
+  api.listen("roles", "ia", (m) => { sustituir(Number(m.quien), String(m.cuerpoObjeto ?? "")); });
+  api.onLeave((entity) => devolver(entity));
+
   api.on("colocar", (from, m) => {
     if (!puede(from) || !caben(from)) return;
     const modelo = String(m.modelo), nombre = String(m.nombre).trim(), decorado = m.decorado === true;

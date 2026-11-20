@@ -1,8 +1,9 @@
 // espacio-base (H7): the moñoni — the RICH bolita of Alchemist Towers (work/ayuntamiento/bolita.mjs; own work, CC0 1.0 declared inside each .glb) — born near the spawn. Pure numbers.
 // Pablo (20-10): ONE moñoni by default, «mucho más simpática»: the town hall's fluffy ball (1.246 triangles, 3 materials, two big eyes in the BODY file) plus its
 // smile as a SECOND piece (bolita-rica-boca, 2 materials) that shares the body's origin, so both are planted with the same pose. `agentes` still goes 0…5 for a
-// world that wants more. They are ordinary static objects planted OFF (they do not talk): turning one ON is the agents' own route (packages/agent: a `habitante@1`
-// file named like the body object, «Moñoni 1»). Nothing here costs money, and nothing is fetched until the page sees the objects (lazy, like the logo).
+// world that wants more. They are ordinary static objects planted OFF (they do not talk): turning one ON is the agents' own route (packages/agent): a `habitante@1` file whose `apariencia.objeto` is the body's name («Moñoni 1»)
+// takes its place. While that AI is connected the server hides the body AND its smile («Moñoni 1 boca») — `oculto`, like the cable's `oculta`, so builders still see them — so there
+// is ONE body, the AI's; when it disconnects (or the server restarts) they show again. Code: features/objetos/server.ts (`sustituir`), fed by roles.ia `cuerpoObjeto`. Without `objeto` nothing changes. Nothing here costs money, and nothing is fetched until the page sees the objects (lazy, like the logo).
 // Colour, place and shape come from the world's `semilla` only (same seed = same moñoni): 3–4 m in front of the spawn (the first camera looks along −z), inside the 26 m
 // flat plateau, off to one side so the logo (LOGO, (0, 1.38, −8), 2.5 m wide) stays in view behind it, and turned to face the spawn.
 import { semillaEntera, type SemillaBase } from "../../packages/relieve/src/espacio-base.ts";

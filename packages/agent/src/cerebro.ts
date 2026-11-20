@@ -28,7 +28,13 @@ export interface Cerebro {
 export const CLAUDE_URL = "https://api.anthropic.com/v1";
 export const MODELO_POR_DEFECTO = "claude-sonnet-5";  // overrideable: the installer offers the account's live list
 export const MAX_TOKENS = 700;                          // a short reply plus a dozen tool calls
-export const ESPERA_MS = 20_000;                        // longer than this, the script answers
+export const ESPERA_POR_DEFECTO_S = 20;                 // seconds
+/** CEREBRO_ESPERA_S (seconds) → milliseconds; unset, empty, not a number or ≤ 0 → the default (20 s). */
+export function esperaMs(valor: string | undefined): number {
+  const s = Number(valor);
+  return (valor?.trim() && Number.isFinite(s) && s > 0 ? s : ESPERA_POR_DEFECTO_S) * 1000;
+}
+export const ESPERA_MS = esperaMs(process.env.CEREBRO_ESPERA_S); // longer than this, the script answers
 
 /** Claude's Messages API with tools (docs read 2026-10-15: tools = {name, description, input_schema}; the answer is
  * content blocks of type text and tool_use). The rules and the tools are cached (they repeat on every call). */

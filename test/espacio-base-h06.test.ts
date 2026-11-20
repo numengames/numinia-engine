@@ -48,7 +48,7 @@ test("the rich models are the town hall's bolita.mjs: file present, sha matches,
   }
   const boca = biblioteca.modelos.find((x) => x.id === BOCA)!, d = readFileSync(join(ROOT, boca.fichero)), j = JSON.parse(d.subarray(20, 20 + d.readUInt32LE(12)).toString());
   assert.equal(createHash("sha256").update(d).digest("hex"), boca.modelo); assert.equal(boca.licencia, "CC0-1.0"); assert.match(j.asset.copyright, /CC0/); assert.equal(j.materials.length, 2); assert.equal(j.images, undefined);
-  assert.equal(biblioteca.modelos.filter((m) => m.id.startsWith("bolita-")).length, 7, "5 bodies + the elder + 1 smile, nothing else");
+  assert.equal(biblioteca.modelos.filter((m) => m.id.startsWith("bolita-")).length, 8, "5 bodies + the elder + 1 smile + the B/W moñoni (bolita-bn), nothing else");
   assert.equal(biblioteca.modelos.some((m) => /^bolita-(ambar|turquesa|coral|verde|verdemar)$/.test(m.id)), false, "the light ones are gone");
 });
 
