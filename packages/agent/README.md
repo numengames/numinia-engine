@@ -172,3 +172,10 @@ These clauses were in the one-line `llms.txt` bullet for this package and are ke
 
 - reads what a page has (`sentidos()`: untrusted names and words only inside one `<material>` fence);
 - reading `habitantes/*.json` (`habitante@1`; optional `cerebro.modelo` and `cerebro.tope` = that inhabitant's model and calls per UTC day, never a key; optional `cerebro.saber` = `saber/<name>.md|txt` of the adventure, up to 16 kB, a text it knows beyond the 1500-byte persona: read once at start and put in its system prompt after the persona, an inhabitant whose file is missing, too big or outside the adventure folder does not load; it travels in the world zip like the rest of `aventura/`) of the adventure.
+
+## Card answers: `/<agent> <text>` (read-only)
+
+Set `AGENTE_TARJETA` (or `--tarjeta`) to the agent's card (`agents/<id>/OPERATOR.md`) or to the numinia-archive folder. When someone calls the
+AI (`/ursa hello` in the world chat, the «Hablar con ella» button, its name) and its brain is not listening (no `llamadas` / `esperar_llamada`
+in the last 90 s), the bridge says one short line taken from the card, near. No model, no writes, no new protocol frame: it is the same
+`llamar` call the bubble uses. The caller's words only choose which part of the card is read; they are never echoed. Any agent with a card works.

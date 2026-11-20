@@ -34,6 +34,17 @@
   las cajas, con una esfera de 0,2 m (`barridoMalla` en `sim/bvh.ts`, sin reservar memoria); y en primera persona el
   plano cercano baja a 0,05 m, así que una pared pegada a la cara no se abre. En VR nada de esto mueve la cámara del
   visor.
+- **Ritmo del mundo** (`features/entorno`, `packages/sim`, `packages/render/src/camara.ts`). El mismo `entorno.json` puede decir
+  cuánto corre el personaje y cuánto abre la cámara: `"movimiento": { "andar": 3, "correr": 6, "fov": 70 }` (`andar` y
+  `correr` en metros por segundo, ambos 0,5–6 (con 20 m/s un paso mide 1 m y el cuerpo, que solo se comprueba donde acaba, atravesaba paredes finas; 6 m/s = 0,3 m por tic, menos que el radio del cuerpo, 0,35 m); `fov` en grados, 30–110; se redondean al paso del cable, 0,1 m/s y 1°). Cada clave es opcional y la que falta deja la
+  de la casa: andar 1,5 m/s, correr 4 m/s, campo de visión 60°. Sin `movimiento` no cambia nada (la huella de referencia de
+  la simulación sigue igual). La simulación recibe `andar` y `correr` por `InstanceOptions.movimiento` (la raíz de
+  composición los lee con `movimientoDelMundo`, que valida el fichero entero como la página: si una clave cualquiera está mal, los dos usan el paso de la casa) y la página los recibe en el estado del entorno (`movAndar`, `movCorrer`,
+  `movFov`; `0` = los de la casa), que entrega a su predicción con `ClientSession.movimiento` y a la cámara con `cam.mundo`,
+  para que servidor y página den el mismo paso y no haya correcciones. Son del fichero del mundo, como la cámara: ni el panel
+  ni un preset los mueven. En VR la cámara es del visor y el campo de visión no se toca. **No hay aceleración**: el
+  personaje sigue arrancando y parando a velocidad plena (un modelo de aceleración exige llevar la velocidad horizontal por
+  el cable y es otro cambio de formato). Valores mal puestos se rechazan con su ruta y cómo arreglarlos.
 - El mismo `entorno.json` dice si la gente puede golpearse (L8, `features/lucha`): `"pvp": true` (apagado si no está) y,
   para arenas o sitios en paz, `"zonasPvp": [{ "id", "x", "z", "radio", "pvp": true|false }]` (círculos en metros; una
   zona en `false` gana a una en `true`). Solo se golpea a otra persona (`objetivo: p:<entidad>`) si **las dos** están donde
@@ -53,6 +64,12 @@
   también hacia abajo, y la simulación tampoco tiene suelo plano en y = 0: quien pisa el vacío cae hasta `sueloMinimo` (el vacío de
   D-045; sin él, −100 m) y vuelve a su última posición segura o a `vuelta`. Ponga `aparicion` y `vuelta` sobre una isla. También se
   elige en el panel de Entorno. Sin la clave todo queda como antes (suelo presente, misma huella). Prueba: `test/sin-suelo.test.ts`.
+- El suelo llano también puede ser **un disco** (una isla redonda): `"suelo": { "tipo": "liso", "forma": "disco", "radio": 70 }`
+  (`forma`: `plano` —por defecto, infinito— o `disco`; `radio` en metros, 5–1900, obligatorio con `disco`; el disco está centrado en el
+  origen). Dentro del radio el suelo es el de siempre; fuera la simulación no sostiene a nadie (cae, también en la página: misma
+  predicción) y, por debajo de `sueloMinimo` (sin él, −50 m), vuelve **al punto de `aparicion`** (su centro; sin `aparicion`, el origen),
+  siempre ahí; `vuelta` del mundo manda sobre ese punto. Una plataforma sólida fuera del disco sigue siendo suelo. Es del fichero del
+  mundo: ningún panel lo mueve. Sin las claves todo queda como antes (suelo infinito, misma huella). Prueba: `test/suelo-disco.test.ts`.
 - Una función puede mover a un jugador a propósito con `api.teletransportar(e, { x, y, z }, { radios, rumbo, caida })`
   (N16): la instancia busca el primer sitio libre cerca (dentro del mundo, en un suelo como mucho `caida` m más
   abajo, sin sólidos; anillos `radios` en metros, ocho rumbos desde `rumbo` 0-7) y devuelve dónde quedó, o null sin

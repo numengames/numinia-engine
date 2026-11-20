@@ -1002,7 +1002,7 @@ export type ViewHooks = {
   /** H1: where this player is now (metres), so a feature can put things in front of them. */
   here?(): { x: number; y: number; z: number } | null;
   /** mundo-hermes: a flat black-and-white shape made by code at a world point — a clock, a cube, a slab or a zone's floor — in a state (off / starting / on / fail); `null` takes it away. */
-  forma?(key: string, f: { forma: "reloj" | "cubo" | "losa" | "suelo" | "perfil" | "uso" | "estante" | "tableta" | "tablero" | "guia"; x: number; z: number; estado: "off" | "starting" | "on" | "fail"; rumbo?: number; mano?: number; ancho?: number; fondo?: number; discontinuo?: boolean; luces?: boolean[]; nivel?: number; columnas?: { n: number; top: string[] }[] } | null): void;
+  forma?(key: string, f: { forma: "reloj" | "cubo" | "losa" | "suelo" | "perfil" | "uso" | "estante" | "tableta" | "tablero" | "proyecto" | "guia"; x: number; z: number; estado: "off" | "starting" | "on" | "fail"; rumbo?: number; mano?: number; ancho?: number; fondo?: number; discontinuo?: boolean; luces?: boolean[]; nivel?: number; columnas?: { n: number; top: string[] }[] } | null): void;
   /** mundo-hermes M6: move a flat shape that is already there (the guide walks) without rebuilding it. */
   moverForma?(key: string, x: number, z: number, rumbo: number): void;
   /** J3: the name over an avatar (null takes it away). The page decides from how far it is drawn. */

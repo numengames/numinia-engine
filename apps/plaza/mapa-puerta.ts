@@ -36,6 +36,8 @@ export function montarMapaPuerta(h: HostMapa): MapaPuerta {
     quitarFuente: (id) => luego((r) => r.quitarFuente(id)),
     marcadores: () => puerta.real()?.marcadores() ?? [],
     contar: () => puerta.real()?.contar() ?? ({} as ReturnType<Real["contar"]>),
+    contarTodos: () => puerta.real()?.contarTodos() ?? ({} as ReturnType<Real["contar"]>),
+    capas: { estado: () => puerta.real()?.capas.estado() ?? {}, poner: (id, si) => luego((r) => r.capas.poner(id, si)), ids: () => puerta.real()?.capas.ids() ?? [] },
     fallos: () => puerta.real()?.fallos() ?? [],
     dibujado: () => puerta.real()?.dibujado() ?? { mini: {}, grande: {} },
     stats: () => puerta.real()?.stats() ?? ({ mini: {}, grande: {}, imagenes: 0, vueltas: 0, ocultas: 0, corte: 0 } as unknown as ReturnType<Real["stats"]>),

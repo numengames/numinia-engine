@@ -2169,3 +2169,198 @@ Horas en UTC (`date -u`). Las entradas de los turnos hasta la de las 09:35 del 1
 - Consumo: sin medir · claude-sonnet-5-5.
 - Cambio: patch. Commit: branch `docs/split-extender-llms`.
 - Siguiente: que una pieza nueva documente en su fichero y añada una línea al índice (regla en CONTRIBUTING.md y AGENTS.md).
+
+## 2026-11-07 04:20 · plantillas · Art Gallery: the former Galeria Stoa as a public CC0 template · hecho
+- Qué: new template `plantillas/art-gallery` (chosen with `MOTOR_PLANTILLA=art-gallery`): the built stoa with its 21 holes (`datos/`, 30 files by sha256), the curator, the critic, Lia, Pau, Nora, three visitors, three missions, five postcards, three scenes. Every word is English, the 22 signs and object names too; the Spanish translation sits in `aventura/idiomas/es.*`. English sheet and note for AIs, semantic `version`, creator Numen Games, owner pending, CC0 licence file (marks excluded, none shipped), `REUSE.toml` annotation, world sheet `docs/FICHA-MUNDO-ART-GALLERY.md`. `sembrar` also copies a template's `datos/` when it has one (additive; the other templates have none). The huecos (U12) were already in `main`: no separate PR.
+- Números: `test/mundo-nuevo-art-gallery.test.ts` (8 tests, real server included); `node tools/aventura.ts plantillas/art-gallery/aventura` passes.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor. Commit: branch `motor-web-3d/t_6e535c94-art-gallery-p-blico-nombre-textos-en-ing`.
+- Siguiente: people still show as robots in game photos (documented in the sheet); play the Spanish files once the language mechanism (R-1) is merged; the Oraculo signature.
+
+## 2026-11-07 05:30 · plantillas · Tabletop RPG Room: the former tholos as a public CC0 template (1.0.0) · hecho
+- Qué: new template `plantillas/tabletop-rpg-room` (chosen with `MOTOR_PLANTILLA=tabletop-rpg-room`): the built tholos with the table and the hole for the director's map (`datos/`, 3 files by sha256), Senet, two missions, two things, six scenes, and an `entorno/` that switches on seats, director's staff, voice bubble and dice tower and keeps the house pond, target, creature and Hall of Ancestors out. Every word is English (object names, sign-free: the sample map was redrawn in English, the glb materials renamed); the Spanish translation sits in `aventura/idiomas/es.*`. English sheet and note for AIs, semantic `version` 1.0.0, creator Numen Games, owner pending, CC0 licence file (marks excluded, none shipped), `REUSE.toml` annotation, world sheet `docs/FICHA-MUNDO-TABLETOP-RPG-ROOM.md`. `sembrar` copies a template's `datos/` (same two lines as the Art Gallery PR). Seats, staff, voice bubble and dice were already in `main` (`features/asiento`, `baculo`, `burbujas`, `dados`): no separate PR.
+- Números: `test/mundo-nuevo-tabletop-rpg-room.test.ts` (9 tests, real server included); `node tools/aventura.ts plantillas/tabletop-rpg-room/aventura` passes.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor. Commit: branch `feat/tabletop-rpg-room-template`; git tag `tabletop-rpg-room-v1.0.0` after the merge.
+- Siguiente: play the Spanish files once the language mechanism (R-1) is merged; the Oraculo signature; the history scan (PUB-001..005).
+
+## 2026-11-07 06:00 · game · Weighty blow: hit pause, flash and thud, with a «Reduce motion» switch (Y25) · hecho
+- Qué: a blow you land now has weight on your page. The picture holds 3 frames (hit pause, only the page's draw; the ticks and the server are untouched), the creature flashes for 100 ms (never the whole screen, at most 3 flashes per second) and a low thud plays. Only your own blow pauses; no pause in VR/AR. The engine setting «Reducir movimiento» (`accesibilidad.menosMovimiento`, default from the system's prefers-reduced-motion, live) turns off pause and flash; the «−N» text, the announcement and the sound always stay. New optional view hooks `movimientoReducido()` and `pausa(frames)` (L5 will read the same switch). Piece: `features/lucha/peso.ts`; recipe in `docs/EXTENDER.md` (Lucha).
+- Números: `test/lucha-peso.test.ts` 8 tests green; fingerprint, wire format and `sim` untouched.
+- Consumo: not measured · Sonnet 5.5.
+- Cambio: minor. Commit: branch `motor-web-3d/t_2cf6aed3-ola-1-y25-golpe-con-peso-jugador-y-maest`.
+- Siguiente: L5 (camera shake and vignette) inherits the switch; Y26 (local acknowledgement) goes after this.
+
+## 2026-11-10 09:00 · cli · `check` and `replay` commands (M23, first slice) · hecho
+- Qué: `npm run check -- <folder>` validates a folder: every .json parses, `numinia-engine/<name>@<n>` manifests name files that exist with the sha256 they state, and every binary asset has an acceptable licence (CC0, CC-BY or propia) from a manifest entry, a LICENCIAS.md or a REUSE.toml annotation; exit 1 and one line per problem. `npm run replay -- <recording.json>` (or `--reference [--ticks N] [--write file]`) replays a recording of inputs and checks the fingerprint (`--expect`, or the file's own), naming the first bad tick. Format `numinia-engine/recording@1`.
+- Números: `test/cli-check-replay.test.ts`; `--reference` gives 7e630965, the pinned reference fingerprint; `check activos` passes on the repo.
+- Cambio: minor.
+- Siguiente: `shot` and `diff-shot` (need a headless browser; M25 uses them).
+
+## 2026-11-10 10:00 · docs · J16: recipe for writing adventures with an LLM, tested · hecho
+- Qué: `docs/extender/aventuras-con-llm.md`: the brief to give a model, the check-and-paste-back loop around `node tools/aventura.ts`, a worked example («The lighthouse lamp»: ficha, one quest of three steps, one person, one thing) and what a person must still review (the checker does not know the terrain or the tone).
+- Números: `test/aventuras-con-llm.test.ts` (4 tests) reads the example's files from the page itself, checks they pass `tools/aventura.ts`, that the page's typical mistake fails with the file and path, and plays the quest to the end over the real plug.
+- Siguiente: the e2e in a browser of the same adventure (the BACKLOG «hecho cuando» says e2e; this slice proves it headless over the plug); rewards that are objects, secuencias and AI inhabitants in the brief.
+
+## 2026-11-10 12:00 · game · Lucha L2: the player's Estado rungs slow the person on the server · hecho
+- Qué: Confundido walks at 3/4 speed and Colapsado at 1/2 (the server freezes the person one tick in 4 / in 2); Desestabilizado is the warning rung and Aletargado holds still then returns to the safe spot (already there). No hit points, server side only, no client code.
+- Cambio: minor.
+- Siguiente: a real speed factor in the sim (the slowed person's own prediction rubber-bands lightly); creature blows climbing the ladder.
+
+## 2026-11-10 13:58 · avatars · Avatars read a GLB collision floor as ground (no more «flying» on an island) · hecho
+- Qué: in a world whose floor is only a collision GLB (`colision: "malla"` things, no `naturaleza.json` hills) avatars no longer play the jump/fall clip all the time. The page's ground for avatars (`ClientSession.sueloTerreno()`) was only set when a terrain existed, so «in the air» was measured against the flat plaza; it now also comes from the GLB mesh. Seen live on an island at 19 m.
+- Números: `test/avatar-suelo-glb.test.ts` 3 tests (the first fails before the fix, all pass after); sim, wire format and fingerprint untouched.
+- Consumo: not measured · Sonnet 5.5.
+- Cambio: patch. Commit: branch `fix/avatar-ground-from-glb-mesh`.
+- Siguiente: with terrain and a GLB mesh together the avatar ground still reads the terrain alone; unify if a world needs both.
+
+## 2026-11-10 14:20 · limits · First-load cap 537 → 560 kB (brotli) · hecho
+- Qué: `first_load_br_bytes` in `limits.json` goes from 537.000 to 560.000 bytes. Main measures 536.4 kB, so any change to the page failed `npm run tamano` by a hair. Asked by Pablo (2026-11-10). No code changes.
+- Números: `node tools/tamano.mjs` and `test/tamano-primera-carga.test.ts` read the cap from `limits.json`.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: patch.
+
+## 2026-11-10 15:00 · feature · Flash limiter (V7, first slice) · hecho
+- Qué: `packages/feature/src/destellos.ts`, a pure sliding-window limiter (≤ 3 flash starts per second, WCAG 2.3.1; a caller may be stricter, never looser). The Y25 hit flash in `features/lucha/peso.ts` now asks it instead of its own copy. Not in the client first-load path.
+- Falta de V7: modo sentado, `prefers-reduced-motion`/`prefers-contrast` antes del primer cuadro, e2e con `reducedMotion: 'reduce'`, other effects (despertar column, H8 particles) asking the shared limiter.
+- Cambio: minor.
+
+## 2026-11-10 21:45 · test · Seeded fuzz of every network decoder (D3) · hecho
+- Qué: `test/decodificadores-fuzz.test.ts` feeds noise, bit-flipped, truncated, extended and offset-view bytes to the 20 wire decoders (core messages, voice, feature catalog/message/state, `readFields`) and the upload checkers (`comprobarGlb/Trazo/Fichero`, `medidasImagen`). Each must not throw, stay under 250 ms and stay within its size cap. No engine code changes.
+- Números: fixed seed, 400 cases per decoder; the file runs in about 0.3 s.
+- Cambio: patch.
+
+## 2026-11-11 13:04 · plaza · E responde a la primera opción de una conversación · hecho
+- Qué: con la caja de conversación abierta, E elige la primera respuesta (Continuar / Aceptar); la primera respuesta se rotula «E.». La misma pulsación que abre la conversación no responde (la caja se abre con la respuesta del servidor, en otro turno).
+- Números: `test/dialogo-e.test.ts` 2 pruebas con la aventura de ejemplo y las dos piezas de página; la primera falla sin el cambio.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor. Commit: branch `feat/plaza-dialogue-e-first-option`.
+- Siguiente: VR y móvil sin comprobar.
+
+## 2026-11-11 13:04 · asiento · Sentado se queda sentado y sin rótulo en muebles del mundo · hecho
+- Qué: el movimiento de sentarse lleva `sujeto`: la política de avatares ya no levanta al avatar al final del deslizamiento; un asiento con `dibujo: false` no pone rótulo sobre quien se sienta; `SITIOS_MAX` pasa de 24 a 64 (una sala tiene 34 sillas).
+- Números: `test/asiento.test.ts` 17 pruebas (+3); sin cambios en la simulación ni en la huella.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: patch. Commit: branch `fix/asiento-stays-seated-no-sign`.
+- Siguiente: ninguno conocido.
+
+## 2026-11-11 13:04 · aparato · Solo un puntero grueso hace móvil a un aparato · hecho
+- Qué: la clase móvil de potencia (`isMobileClass`, `decidirAparato`) depende solo del puntero grueso; `navigator.deviceMemory` (los navegadores lo recortan a 2-4 GB) ya no convierte un PC en móvil (sin antialias, sombras recortadas). `nivelDe` solo manda a la nivel D por memoria baja si el aparato es móvil.
+- Números: `test/aparato.test.ts` 14 pruebas, `test/power.test.ts` +2 (fallan antes del arreglo).
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: patch. Commit: branch `fix/client-mobile-class-pointer-only`.
+- Siguiente: `capacidades.ts` `esMovil` aún cuenta la memoria (la página lo pisa con el valor de power); alinearlo si hace falta.
+
+## 2026-11-11 13:04 · render · El aro de una persona se oculta tras tu propio cuerpo · hecho
+- Qué: el aro de una persona (en el suelo) se prueba contra la profundidad, así que el cuerpo del jugador delante lo tapa; el aro de una cosa sigue viéndose a través.
+- Números: `test/interactuar-mirada.test.ts` 18 pruebas (+1, falla antes del arreglo).
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: patch. Commit: branch `fix/render-talk-ring-depth-tested`.
+- Siguiente: ninguno conocido.
+
+## 2026-11-11 13:04 · colision · Un triángulo inclinado ya no bloquea el aire de su caja · hecho
+- Qué: un triángulo de pared muy inclinado (la tela de una tienda, 25 m de alto) ya no frena a quien camina por el aire de su AABB: tras el filtro por caja, `blockedMesh` pregunta a `triCrossesBox` (test de ejes separadores, float64 exacto en múltiplos de 1/64 m) si el triángulo cruza de verdad el cuerpo. Visto en vivo: no se podía entrar en una isla.
+- Números: `test/tri-cruza-caja.test.ts` 4 pruebas (la de simulación falla antes del arreglo); huella de referencia y formato de la simulación sin cambios (la referencia no usa malla).
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: patch. Commit: branch `fix/sim-steep-triangle-sat`.
+- Siguiente: si algún mundo tiene paredes inclinadas que antes frenaban de más y ahora dejan pasar, revisar su colisión.
+
+## 2026-11-11 14:15 · entorno · A world can have no ground: sky above and below (`suelo: "ninguno"`) · hecho
+- Qué: `entorno.json` accepts `suelo: { tipo: "ninguno" }` (flat field `suelo`, value `ninguno`, next to `hierba`, `tierra`, `arena`, `roca`, `nieve`, `liso`). The ground plane and grid are not drawn, the sky (atmosphere, gradient, colour, equirect image/HDR) is mirrored under the horizon so looking down shows sky, not a cut, the top-down map keeps a plain background, and the simulation has no flat floor at y = 0 (the world's own platforms/GLB mesh are the floor); falling ends in the existing `sueloMinimo`/`vuelta` void (100 m down when the world gives none). Server and page agree and follow the Entorno panel live.
+- Números: `test/sin-suelo.test.ts` 6 tests; reference fingerprint unchanged; a world without the key is untouched (ground present, `piso` 0).
+- Consumo: not measured · Sonnet 5.5.
+- Cambio: minor. Commit: branch `feat/entorno-no-ground`.
+- Siguiente: a sea or void colour under the islands is not a setting yet.
+
+## 2026-11-11 15:00 · game · M18 trozo 3: a shared screen is seen by everyone near the video screen · hecho
+- Qué: when you share your screen while standing near a video screen of the world (30 m), everyone within 40 m of that screen sees it there, live. The server relays it like the proximity voice: short encoded frames over the game's own WebSocket (new additive message type 17, `PANTALLA`), cut into pieces under the 1024-byte frame cap, never opened and never stored. The page encodes and decodes with WebCodecs (VP8, or H.264 where that is all the browser has) at most 1280 px a side and 15 fps, about 1.2 Mbit/s. No paid service, no TURN, no new dependency.
+- Reglas del servidor (`packages/instance/src/pantallas.ts`): one share per screen and per person (the second to ask gets «ocupada»); you must stand within 30 m; the share ends when you leave, walk far, are stopped by someone who directs, or the screen is deleted, and every viewer is told; people behind the conditions gate, visits by link, blocked people and closed voice bubbles neither share nor see it; a per-share bandwidth guard drops a whole frame (and the deltas after it) and asks the sharer for a key frame; a viewer who arrives mid-stream waits for the next key frame.
+- Página: `apps/plaza/pantalla-red.ts` sends from the stream you already share and draws what arrives on a canvas whose `captureStream()` goes to the same `pantallaEnVivo` the local share used. Without WebCodecs the page neither sends nor decodes and says so once; in the floating window nothing leaves the page. Includes the follow-you change (the share moves to the nearest screen when you walk up to it and back to the window when you walk away).
+- Números: `test/pantalla-red.test.ts` (14 tests): wire round-trips and fuzz, frame joining, the rules above with a fake world, a real `Instance` with three pages (near gets the pieces, far gets nothing, leaving ends it), page helpers, and the limits published in `limits.json` (`pantalla_alcance_m`, `pantalla_ancho_max`, `pantalla_fps`, `pantalla_bytes_s`). `docs/FICHA-TECNICA.md` has the four new rows. **Not measured on real devices or with two real browsers**: the encode/decode path needs a browser with WebCodecs.
+- Siguiente: a real two-browser e2e (`tools/e2e-piernas`) and a measurement of CPU and bandwidth on a phone; LiveKit remains the plan for audio of the screen.
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor.
+
+## 2026-11-11 15:00 · fix · Turning the camera no longer raycasts the whole scene · hecho
+- Qué: the link-hover pick (`apps/plaza/enlaces.ts`) no longer runs while a mouse button is held or the pointer is locked, and is spaced by 8x its own cost. Measured on the Symposium world (RTX 4080): the pick costs 47 ms p50; turning the camera fell to 26-43 fps, and 60 fps without the pick.
+- Falta: make `view.pickThing` itself cheap (only things with a link, or a BVH).
+- Cambio: patch.
+
+## 2026-11-11 16:27 · plaza · Conversation options show their key in a box: E first, Q last · hecho
+- Qué: in an open conversation the first answer is E, the last one (with two or more) is Q, the ones between keep their number. The key is drawn as a boxed <kbd> like the bottom bar's badges (no «E.»), phones show no keys. Q is caught in capture while the box is open, so it neither opens the microphone nor drops what you hold.
+- Números: tests for teclaDeOpcion and for Q not reaching other listeners (test/dialogo-e.test.ts).
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: patch.
+
+## 2026-11-11 16:35 · plaza · «Watch full screen» when seated in front of a live screen · hecho
+- Qué: seated in front of a 3D video screen that shows something (a share, local or relayed by #345, or a playing video), an extra bar button and the F key open that picture full screen (an overlay where the browser refuses real full screen). F, the × button or Esc closes it; standing up or the screen going quiet closes it too. Not offered in VR (no DOM full screen there). F yields to fishing, the builder, photo mode and the wheel. Lazy chunk, fetched the first time you sit while a screen shows something.
+- Números: test/pantalla-completa.test.ts (3 tests, the decision without a DOM).
+- Siguiente: keymap v1 will route the key through teclas.ts; real phone and browser full screen not exercised here.
+
+## 2026-11-11 17:15 · ia-presencia · Una IA te mira y se queda contigo cuando entras en su cúpula · hecho
+- Qué: la burbuja de acción de toda IA es ahora una cúpula por defecto, y al entrar en ella la IA te mira, deja su paseo y se queda contigo; se marcha 3 s después de quedarse sola. Las marcas de IA (cartel verde, aro, burbuja) ya salen también cuando la IA estaba dentro antes que tú.
+- Números: `features/burbuja` v2 con el campo `mira` (la persona con la que está: la primera que entró mientras siga dentro, luego la más cercana; nunca otra IA); pruebas 3269 bien, 0 mal; tick p99 de la plaza de 1.000 5,93 ms; página 646,3 kB gz. Comprobado en un navegador sin GPU contra el playground: al entrar, 1 aro y 1 cúpula dibujados (antes 0 y 0); al acercarse, la IA se para a mitad de ruta (0,00 m en 3 s) y la página la orienta hacia la persona. Sin medir en móvil ni en VR.
+- Consumo: sin medir · claude-opus-5-5 (Galatea).
+- Cambio: minor. Commit: branch `galatea/ia-presencia`.
+- Siguiente: que la página avise y se reconecte cuando el servidor se reinicia (hoy se queda congelada sin decir nada); revisar las demás piezas cuyo `alCambiar` no entrega lo que ya había (asiento, botones, puertas…); campo `burbuja` en `habitante@1`.
+
+## 2026-11-11 17:30 · feature · Client i18n: Language setting and menus in English and Spanish · hecho
+- Qué: `packages/client/src/idioma.ts` (`t()`, en/es catalogues, language detection), a Language / Idioma setting, and the settings menu plus `apps/plaza/index.html` texts in both languages. Test: every menu text exists in English and Spanish.
+- Falta: server feature texts (separate PR).
+- Cambio: minor (new optional setting, no format change).
+
+## 2026-11-11 17:30 · render · Names smaller and right above the head; quest «!» lower · hecho
+- Qué: name plates are 35 % smaller (`NOMBRE_ESCALA`), sit just over the top of the placed model's head (`yPlacaSobreCabeza`, measured once per model), and the quest-mark band is lower (`ROT_MARCA` 160 → 110 px).
+- Números: test/carteles.test.ts 11/11.
+- Consumo: sin medir · sonnet 5.5.
+- Cambio: patch. Commit: branch `motor-web-3d/t_271835e6-pr-names-smaller-and-right-above-the-hea`.
+- Siguiente: none.
+
+## 2026-11-11 17:50 · espejo · Q closes the card of a mirrored thing · hecho
+- Qué: the card of any mirrored thing (project, board, card, any type) opens with E and now closes with Q (Escape and «Cerrar (Q)» still work). Q is swallowed while the card is open, so it never toggles the microphone.
+- Números: 1 file of page code (lazy chunk `espejo.ts`), 1 test file (3 tests).
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: patch.
+
+## 2026-11-11 17:50 · feature · Server feature texts in English and Spanish by world language · hecho
+- Qué: the player-facing texts of misiones, pesca, teletransporte, web, disparadores, objetos, contadores, director and bienes exist in English and Spanish; the world's language picks one (English by default, Spanish falls back to English). New `textos.ts` per feature where the text table was large.
+- Falta: the rest of the features' texts, if any appear.
+- Cambio: minor (no wire or file format change; text only).
+
+## 2026-11-11 18:30 · plaza · Keymap v1: one key, one function, two-column Controls, push-to-talk microphone on V · hecho
+- Qué: `apps/plaza/teclas.ts` is the single table of the world's keys (E use, Q opposite, V microphone, I bag, C sheet, B build, Tab people, Ctrl+H hide the interface; fishing reels in with E and lets go with Q). Every listener asks it. Settings → Controls shows Default / Yours with swap-or-cancel on conflict and «Reset all»; F1 and the bar badges show the key in effect. The microphone is hold-to-talk on V (toggle in Settings), never opens by itself (also not when entering VR) and shows a fixed red «Your microphone is on».
+- Números: `test/teclas.test.ts` (12 tests); freed L, R, X, Q-as-microphone; battery mode no longer has the B key (Settings only).
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor.
+
+## 2026-11-11 18:58 · teclas · Los paneles se abren con las teclas del mapa nuevo y sus rótulos las dicen · hecho
+- Qué: la I abre la bolsa, la C tu ficha y el Tab la gente, como dice Ajustes › Controles (antes la I abría la ficha, la R la bolsa y la L la gente). Los rótulos dicen la tecla de verdad («Tú (C)», «Salir de construir (B)»…), también si cambias tus teclas, y la misión 1 del Taller dice «o la tecla B».
+- Números: medido en un navegador pulsando de verdad: antes I→ficha, C→nada, R→bolsa, L→gente, Tab→nada; ahora I→bolsa, C→ficha, Tab→gente, B→construir, R y L→nada; 0 errores de página. Prueba nueva `test/teclas-paneles.test.ts` (todo panel abre con una acción de la tabla; ningún texto nombra una tecla vieja).
+- Consumo: sin medir · claude-opus-5-5 (Galatea).
+- Cambio: patch. Commit: branch `galatea/teclas-paneles`.
+- Siguiente: la pierna e2e `misiones` sigue esperando «E: hablar con…» y desde #347 la tecla va en una cajita; está rota en main y no es de este cambio.
+
+## 2026-11-11 19:00 · i18n · Every menu and interface text in English, with Spanish second · hecho
+- Qué: the world's language wins when the player has not chosen one (stored choice > world > navigator > English). Every player-visible Spanish-only literal in `apps/plaza`, `packages/client`, `features/*/client.ts` moves into `tx(en, es)` / `ligar` / `data-en`+`data-es`; the notices (`avisos-en.ts`) and the bar, F1, E prompt and shared-screen texts follow the language live. Tests: a new Spanish-only literal in the swept files fails `test/idioma-barrido*.test.ts`; a Spanish announce without English fails `test/avisos-en.test.ts`.
+- Números: first load 548.8 → 561.4 kB brotli; cap 560 → 565 kB (`limits.json`, for Pablo to confirm).
+- Consumo: sin medir · Sonnet 5.5.
+- Cambio: minor.
+
+## 2026-11-11 20:00 · avatars · Second uploaded/world avatar no longer indexed past the catalogue (capsule instead of avatar) · hecho
+- Qué: in `apps/plaza/avatar.ts` the second uploaded or «De este mundo» avatar got index `casas.length + subidos.size`, one past its entry, so the player drew as a brown capsule after switching twice. The index is now `casas.length` (the entry about to be pushed).
+- Números: `test/avatar-segundo-del-mundo.test.ts` (fails before the fix, passes after); sim, wire format and fingerprint untouched.
+- Consumo: not measured · Sonnet 5.5.
+- Cambio: patch. Commit: branch `motor-web-3d/t_22deabcd-pr-second-uploaded-world-avatar-indexed`.
+- Siguiente: none.
+
+## 2026-11-11 20:45 · playground lote 1 · the Taller with Lumen, the Nomad by default and a calmer interface · hecho
+- Qué: primera subida del trabajo de interfaz con Pablo en el playground de Galatea. Lumen y sus 11 misiones del Taller
+  (flecha guía, tarjeta de la misión en construcción, «Probar» que contesta en su fila, textos en inglés sin nombres en
+  español); el Nómada (Nomad for The Oracles, CC0, original en numinia-assets) es el avatar por defecto de quien no ha
+  elegido; cámara de partida a 6 m (antes 10,4); el diálogo y la tarjeta de la misión se quedan junto a quien te habla
+  y nunca tapan otro panel (`apps/plaza/anclar.ts`); nombres sin tarjeta detrás (letras con contorno); aviso de «E» en
+  cristal; un solo botón de cerrar en todo (X + Close + Esc) y Escape cierra lo de arriba o, sin nada abierto, sale del
+  modo construir; la guía hace brillar el botón que pide la misión (sin flecha con palo); las personas del mundo te
+  siguen con la mirada hasta 3 veces su radio (mínimo 8 m); Lumen un 20 % más pequeña.
+- Números: Nómada 3,19 MB → 205 kB (1,80 m, 5.064 triángulos, 1 material); pruebas y puertas en verde (ver el PR).
+- Cambio: minor (nuevo avatar por defecto y comportamiento visible).

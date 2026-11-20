@@ -91,6 +91,8 @@ const P: Record<string, string> = {
   "lamp": "<path d=\"M247.35,148.85l-48-112A8,8,0,0,0,192,32H64a8,8,0,0,0-7.35,4.85l-48,112A8,8,0,0,0,16,160H120v48H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16H136V160h56v32a8,8,0,0,0,16,0V160h32a8,8,0,0,0,7.35-11.15ZM28.13,144,69.28,48H186.72l41.15,96Z\"/>",
   "mountains": "<path d=\"M164,80a28,28,0,1,0-28-28A28,28,0,0,0,164,80Zm0-40a12,12,0,1,1-12,12A12,12,0,0,1,164,40Zm90.88,155.92-54.56-92.08A15.87,15.87,0,0,0,186.55,96h0a15.85,15.85,0,0,0-13.76,7.84L146.63,148l-44.84-76.1a16,16,0,0,0-27.58,0L1.11,195.94A8,8,0,0,0,8,208H248a8,8,0,0,0,6.88-12.08ZM88,80l23.57,40H64.43ZM22,192l33-56h66l18.74,31.8,0,0L154,192Zm150.57,0-16.66-28.28L186.55,112,234,192Z\"/>",
 };
+/** A lazy module adds its own icons (the map's) the first time it loads, so the first page does not carry them. */
+export function anadirIconos(extra: Readonly<Record<string, string>>): void { Object.assign(P, extra); }
 export type Icono = keyof typeof P;
 /** An inline SVG of a house icon, currentColor, `px` square, hidden from screen readers (the button carries the words). */
 export function icono(nombre: string, px = 20): string {

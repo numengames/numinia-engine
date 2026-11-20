@@ -39,6 +39,8 @@ export class Pagina {
   titulo: string | null;
   /** MIS-265: the world's cover as this server serves it (`/a/<sha256>.<ext>`), read on every page; null = none. */
   portada: () => string | null = () => null;
+  /** The world's own loading-screen picture (ficha `carga`, served as `/a/<sha256>.<ext>`) and its credit line, read on every page; null = the engine's moon. */
+  carga: () => { url: string; credito?: string } | null = () => null;
   /** M7: true while the world's embed mode is on: every file then carries `access-control-allow-origin: *` (a page with an opaque origin, inside a sandboxed frame, may only load module scripts and styles that say so). */
   cors: () => boolean = () => false;
   private readonly raiz: string;
@@ -101,13 +103,14 @@ export class Pagina {
     // the world's name in <title> and its cover in og: tags (an HTML page only): the bytes change, so does the ETag
     const esHtml = extname(f).toLowerCase() === ".html", portada = esHtml ? this.portada() : null;
     const imagen = portada ? urlAbsoluta(req, portada) : null;
-    const titulo = this.titulo;
+    const titulo = this.titulo, carga = esHtml ? this.carga() : null;
     let html: string | null = null;
-    if (esHtml && (titulo || imagen)) {
+    if (esHtml && (titulo || imagen || carga)) {
       const crudo = readFileSync(f, "utf8"), conNombre = titulo ? conTitulo(crudo, titulo) : crudo;
-      html = imagen ? conCara(conNombre, { titulo, imagen }) : conNombre;
+      const conImagen = imagen ? conCara(conNombre, { titulo, imagen }) : conNombre;
+      html = carga ? conCarga(conImagen, carga) : conImagen;
     }
-    const marca = html ? `-${createHash("sha256").update(`${this.titulo ?? ""}\n${imagen ?? ""}`).digest("hex").slice(0, 8)}` : "";
+    const marca = html ? `-${createHash("sha256").update(`${this.titulo ?? ""}\n${imagen ?? ""}\n${carga?.url ?? ""}\n${carga?.credito ?? ""}`).digest("hex").slice(0, 8)}` : "";
     const etag = this.etagDe(f, st, marca), ext = extname(f).toLowerCase();
     const comprimible = COMPRIMIR.has(ext) && st.size >= MIN_COMPRIMIR;
     const cabeceras: Record<string, string> = {
@@ -170,4 +173,20 @@ export function conCara(html: string, c: { titulo: string | null; imagen: string
     `<meta name="twitter:card" content="summary_large_image" />`,
   ].map((t) => `  ${t}\n`).join("");
   return limpio.replace(/<\/head>/i, () => `${tags}</head>`);
+}
+
+/** The page with the world's loading-screen picture: a preload plus one <style> before </head>, so it paints before any script
+ * (the #carga screen is plain HTML + CSS). Full screen, centred, darkened; «Cargando» and the percentage stay on top; the moon
+ * goes. A world with the mesh screen («eb») keeps its own look. `url` must be one of this server's `/a/<sha256>.<ext>` paths
+ * (anything else is left out); `credito` goes small at the foot, stripped of anything that could leave a CSS string. */
+export function conCarga(html: string, c: { url: string; credito?: string }): string {
+  if (!/<\/head>/i.test(html) || !/^\/a\/[0-9a-f]{64}\.(png|jpg|webp)$/.test(c.url)) return html;
+  const credito = (c.credito ?? "").replace(/[^\p{L}\p{N} .,:;'()·©\/&+-]/gu, "").trim().slice(0, 120);
+  const css = [
+    `#carga:not(.eb){background:#000 url(${c.url}) center/cover no-repeat}`,
+    `#carga:not(.eb)::before{content:"";position:absolute;inset:0;background:rgba(0,0,0,.5)}`,
+    `#carga:not(.eb) .c-caja{position:relative}#carga:not(.eb) .c-caja svg{display:none}`,
+    ...(credito ? [`#carga:not(.eb)::after{content:"${credito}";position:absolute;left:0;right:0;bottom:2vh;text-align:center;font:11px/1 system-ui,sans-serif;color:#9a9a9a}`] : []),
+  ].join("");
+  return html.replace(/<\/head>/i, () => `  <link rel="preload" as="image" href="${c.url}" />\n  <style id="carga-mundo">${css}</style>\n</head>`);
 }

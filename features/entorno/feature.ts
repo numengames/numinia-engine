@@ -11,14 +11,26 @@ export const PRESETS = ["día", "amanecer", "atardecer", "noche", "niebla", "tor
 /** «ninguno» = a world with no ground at all (floating islands): no plane, no grid, the sky above AND below, no flat floor in the simulation
  * (a fall ends in the void of `sueloMinimo`, 100 m down if the world says none). Last, so the default stays «hierba». */
 export const SUELOS = ["hierba", "tierra", "arena", "roca", "nieve", "liso", "ninguno"] as const;
+/** The shape of the flat floor: «plano» (endless, as always) or «disco» (round, `sueloRadio` metres around the origin; past its edge you fall). */
+export const SUELO_FORMAS = ["plano", "disco"] as const;
+export const DISCO_RADIO_MIN = 5, DISCO_RADIO_MAX = 1900;
 export const CIELOS = ["atmosfera", "degradado", "color"] as const;
 /** P1: the views a person may start in. «tercera» first: it is the house's, and an enum's default is its first value. */
 export const CAMARA_INICIOS = ["tercera", "primera"] as const;
 export const CAMARA_MAX_MIN = 1, CAMARA_MAX_MAX = 20;
+/** The world's pace (entorno.json `movimiento`): walking and running speed in m/s, and the camera's field of view in degrees.
+ * The speed cap comes from the collision code: `step` tests only where a body ENDS each tick (no sweep), and a body is BODY_RADIUS = 0.35 m
+ * wide each side. A wall of ANY thickness is caught while one tick's move stays under that radius: 0.35 m x TICK_HZ 20 = 7 m/s. 6 m/s
+ * (0.3 m/tick) leaves 0.05 m for a push's impulse. At the old 20 m/s (1 m/tick) a wall thinner than 1.7 m could be skipped. */
+export const MOV_ANDAR_MIN = 0.5, MOV_ANDAR_MAX = 6, MOV_CORRER_MIN = 0.5, MOV_CORRER_MAX = 6, MOV_FOV_MIN = 30, MOV_FOV_MAX = 110;
+/** The wire's steps for the pace (see CAMPOS): `leerMovimiento` rounds to them so the sim and the page see the same number. */
+export const MOV_VEL_PASO = 0.1, MOV_FOV_PASO = 1;
 export const TONOS = ["agx", "aces", "neutro", "ninguno"] as const;
 /** The zone's only state key (M16 will bring several zones per world). */
 export const ZONA = "zona";
 
+/** Room for CAMINOS_MAX paths of "-1960.25,-1960.25,-1960.25,-1960.25;" (36 bytes): a text field holds at most 512. */
+export const CAMINOS_MAX = 14, CAMINOS_BYTES = 512;
 const COLOR = { kind: "int", min: 0, max: 0xffffff } as const;
 const FICHERO = { kind: "text", maxBytes: 72, default: "" } as const; // "<sha256>.<ext>" of a file in /a/, or ""
 /** U14: the highest map cut (m above the ground). The map's camera flies at 80 m: a cut stays well under it. */
@@ -55,6 +67,11 @@ export const CAMPOS: Fields = {
   suelo: { kind: "enum", values: SUELOS, default: "hierba" },
   sueloColor: { ...COLOR, default: 0xffffff },
   sueloEscala: { kind: "fixed", min: 0.1, max: 20, step: 0.05, default: 1 },
+  // The shape of the ground (entorno.json `suelo.forma` + `suelo.radio`), the world's file's like the camera: no panel moves it (server.ts DE_ARCHIVO).
+  // «disco»: the flat floor ends `sueloRadio` m from the origin and the simulation holds nobody past it (a fall, then the return to the spawn point).
+  // The render draws the same disc with a visible edge (packages/render/src/entorno.ts): it reads these two keys, it defines none of its own.
+  sueloForma: { kind: "enum", values: SUELO_FORMAS, default: "plano" },
+  sueloRadio: { kind: "fixed", min: 0, max: DISCO_RADIO_MAX, step: 0.5, default: 0 },
   tono: { kind: "enum", values: TONOS, default: "neutro" },
   exposicion: { kind: "fixed", min: 0.05, max: 8, step: 0.01, default: 1 },
   hitos: { kind: "bool", default: true },
@@ -68,6 +85,14 @@ export const CAMPOS: Fields = {
   camaraMax: { kind: "fixed", min: 0, max: CAMARA_MAX_MAX, step: 0.1, default: 0 },
   llegadaGira: { kind: "bool", default: false },
   llegadaGiro: { kind: "fixed", min: -180, max: 180, step: 0.1, default: 0 },
+  // The world's pace (entorno.json `movimiento`), the file's like the camera. 0 = the house's (walk 1.5 m/s, run 4 m/s, field of view 60°).
+  movAndar: { kind: "fixed", min: 0, max: MOV_ANDAR_MAX, step: 0.1, default: 0 },
+  movCorrer: { kind: "fixed", min: 0, max: MOV_CORRER_MAX, step: 0.1, default: 0 },
+  movFov: { kind: "fixed", min: 0, max: MOV_FOV_MAX, step: 1, default: 0 },
+  // Glowing paths on the floor (entorno.json `caminos`, `caminosColor`): the world's file's too. `caminos` = "x1,z1,x2,z2;x1,z1,x2,z2" (metres), the
+  // page draws one thin strip per path with a pulse of light running along it (packages/render/src/caminos.ts). Empty = none.
+  caminos: { kind: "text", maxBytes: CAMINOS_BYTES, default: "" },
+  caminosColor: { ...COLOR, default: 0x7fe8ff },
 };
 
 export const entorno = defineFeature({
@@ -76,7 +101,7 @@ export const entorno = defineFeature({
   level: "base",
   describe: "El entorno de la zona: cielo, sol, luz, niebla, viento, suelo y exposición. Llega a todos al entrar; quien tiene permiso de construir lo cambia en directo con un preset (día, atardecer, noche, niebla, tormenta…) o con valores finos.",
   state: {
-    describe: "Una sola entrada, «zona». Colores en entero 0xRRGGBB; ángulos en grados (altura del sol sobre el horizonte, rumbo desde el norte hacia el este); niebla en metros (lejos 0 = sin niebla; nieblaAuto = su color sale del horizonte del cielo); viento en m/s; sueloEscala 1 = cada textura a su tamaño (suelos.json); suelo «ninguno» = sin suelo (cielo arriba y abajo; quien pisa el vacío cae hasta sueloMinimo); imagen y hdr = «<sha256>.<ext>» de /a/ o vacío (vacío: la luz sale del propio cielo); mapaCorte = altura en metros a la que el minimapa y el mapa cortan el mundo, como el plano de un edificio (0 = sin corte: se ven los tejados).",
+    describe: "Una sola entrada, «zona». Colores en entero 0xRRGGBB; ángulos en grados (altura del sol sobre el horizonte, rumbo desde el norte hacia el este); niebla en metros (lejos 0 = sin niebla; nieblaAuto = su color sale del horizonte del cielo); viento en m/s; sueloEscala 1 = cada textura a su tamaño (suelos.json); suelo «ninguno» = sin suelo (cielo arriba y abajo; quien pisa el vacío cae hasta sueloMinimo); sueloForma «disco» = el suelo llano acaba a sueloRadio metros del origen y quien lo pasa cae y vuelve al punto de aparición (del fichero del mundo, ningún panel lo mueve); caminos = tiras de luz sobre el suelo, «x1,z1,x2,z2;…» en metros, las del archivo del mundo; imagen y hdr = «<sha256>.<ext>» de /a/ o vacío (vacío: la luz sale del propio cielo); mapaCorte = altura en metros a la que el minimapa y el mapa cortan el mundo, como el plano de un edificio (0 = sin corte: se ven los tejados).",
     fields: CAMPOS,
     persist: true,
   },

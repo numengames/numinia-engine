@@ -3,6 +3,7 @@
 //   estante  a bookcase with three tiers of books (a document): books white when on, outlines when off
 //   tableta  an upright tablet on a foot with a lamp and three lines (a skill): lamp filled + solid frame = enabled · ring + dashed frame = disabled
 //   tablero  the work board: three columns (POR HACER / EN CURSO / HECHO), the count of each, up to three white cards with a short title, drawn with a tiny 5×7 letter set
+//   proyecto a project folder (tab + body) on a foot with a tiny tree on its face (a Hermes project): active = solid frame + white tab · archived = dashed frame, outline tab
 //   guia     the guide: a plain white silhouette, taller than a profile, whose only detail is the hair band on her head
 import { B, N, Malla, marcoRaya, parte } from "./formas-planas.ts";
 import type { FormaPlana } from "./formas-planas.ts";
@@ -105,4 +106,22 @@ function guia(m: Malla, _f: FormaPlana): void {
   m.disco(Math.cos(a0) * (r - 0.05), cy + Math.sin(a0) * (r - 0.05), 0.045, 0.012, N, 12);
 }
 
-export const HACER_EXTRA: Record<string, (m: Malla, f: FormaPlana) => void> = { estante, tableta, tablero, guia };
+/** The project (C7): a folder 1.8 x 1.0 m with a tab, on a foot at 0.5 m; on its face a tiny tree (root, trunk, three branches ending in folder squares). */
+export function proyecto(m: Malla, f: FormaPlana): void {
+  const W = 0.9, y0 = 0.5, y1 = 1.5, on = f.estado === "on";
+  m.rect(-0.05, 0, 0.05, y0, 0, B); m.rect(-0.3, 0, 0.3, 0.05, 0, B); // the foot
+  m.rect(-W, y0, W, y1, 0, N); // the body hides what is behind
+  if (on) m.marco(-W, y0, W, y1, 0.06, 0.005, B); else marcoRaya(m, -W, y0, W, y1, 0.06, 0.005);
+  if (on) m.rect(-W, y1, -0.15, y1 + 0.22, 0.005, B); else m.marco(-W, y1, -0.15, y1 + 0.22, 0.05, 0.005, B); // the tab
+  const x0 = -W + 0.22, ty = y1 - 0.22; // the tree: root square, trunk down, three branches
+  m.rect(x0 - 0.09, ty - 0.09, x0 + 0.09, ty + 0.09, 0.01, B);
+  m.rect(x0 - 0.025, y0 + 0.2, x0 + 0.025, ty - 0.09, 0.01, B);
+  [0.2, 0.4, 0.6].forEach((dy, i) => {
+    const y = ty - dy * 0.95, xe = x0 + 0.5 + (i === 1 ? 0.25 : 0);
+    m.rect(x0, y - 0.025, xe, y + 0.025, 0.01, B);
+    if (on) m.rect(xe, y - 0.07, xe + 0.14, y + 0.07, 0.01, B); else m.marco(xe, y - 0.07, xe + 0.14, y + 0.07, 0.035, 0.01, B);
+  });
+  if (f.estado === "fail") { m.barra(-W, y0, W, y1, 0.07, 0.03, B); m.barra(-W, y1, W, y0, 0.07, 0.03, B); }
+}
+
+export const HACER_EXTRA: Record<string, (m: Malla, f: FormaPlana) => void> = { estante, tableta, tablero, proyecto, guia };

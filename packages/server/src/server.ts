@@ -5,7 +5,7 @@
 import { createServer } from "node:http";
 import { origenAdmitido } from "./embed-espejo.ts";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
-import { appendFileSync, existsSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { signer } from "./secret.ts";
 import { crearRecibos } from "./recibos.ts"; // N10: digital goods' ownership receipts
@@ -38,6 +38,7 @@ import { infoMotor, semverMotor } from "./version.ts";
 import type { Motor } from "./version.ts";
 import { nombreDe, today, verificar } from "../../instance/src/identidad.ts";
 import { leerFicha, leerInterfaz, leerTema, lectorAventura } from "./aventura.ts";
+import { leerMapa } from "../../client/src/mapa-interes.ts"; // Map v2: the world's declared points of interest (ficha.json `mapa`)
 import { leerLeemeIA } from "./leeme-ia.ts";
 import { crearFichaViva } from "./ficha-viva.ts"; // H7: the ficha while running (the owner edits it from the settings panel)
 import { leerCondiciones, PUERTA_POR_DEFECTO } from "./condiciones.ts";
@@ -94,6 +95,7 @@ export type ServerOptions = {
   recargarHabitantes?: () => void; // told after /habitantes writes or deletes a file (default: `systemctl restart numinia-habitantes`, best effort)
   mundo?: string | null;         // C2: the world folder (MOTOR_MUNDO): a world upload swaps datos/ aventura/ entorno/ in it
   entorno?: string | null;       // the world's entorno/ folder (entorno.json, elementos.json): travels in the world's zip
+  movimiento?: { andar?: number; correr?: number } | null;  // the world's pace in m/s (entorno.json `movimiento`, read by the composition root); none = the house's
   aparicion?: SpawnArea | null;  // where people appear (entorno.json `aparicion`, read by the composition root); none = the house square of 40 m
   temaHud?: "black-and-white" | null; // mundo-hermes: entorno.json `tema`, told in /status as `temaHud` (`tema` there is the ficha's look) so the page can dress its HUD; none = the house look, and /status has no key
   vuelo?: "nadie" | "constructores" | "todos" | null; // H2: entorno.json `vuelo` (read by the composition root); none = nobody flies
@@ -169,6 +171,8 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   for (const p of temaMal) log(`[ficha] ${p}: lo dejo fuera`);
   const { interfaz, problemas: interfazMal } = leerInterfaz(ficha?.interfaz); // which buttons it takes off the page (ocultar: ["gestos", "recoger-soltar"]); a bad name drops only itself
   for (const p of interfazMal) log(`[ficha] ${p}: lo dejo fuera`);
+  const { mapa: mapaMundo, problemas: mapaMal } = leerMapa(ficha?.mapa); // Map v2: its points of interest and decorative characters (ficha.json `mapa`); a bad entry drops only itself
+  for (const p of mapaMal) log(`[ficha] ${p}: lo dejo fuera`);
   // C1: its conditions of entry, from aventura/condiciones.json; none or broken = the house example (said in the log)
   const { condiciones, deFichero: condicionesPropias, problemas: condicionesMal } = leerCondiciones(o.aventura ?? null);
   for (const p of condicionesMal) log(`[condiciones] no se carga, uso las de la casa: ${p}`);
@@ -270,8 +274,15 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const fichaPublica = () => {
     const f = fichaViva.ficha(), [sha, ext] = f?.portada?.split(".") ?? [];
     const portada = sha && activos.buscar(sha, ext) ? `/a/${f!.portada}` : undefined;
-    return f ? { nombre: f.nombre, descripcion: f.descripcion, ...(typeof f.idioma === "string" ? { idioma: f.idioma } : {}), portada, tema: tema ?? undefined, ...(interfaz ? { interfaz } : {}), avatar: f.avatar, aforo: aforo(), ...(ficha?.audio ? { audio: ficha.audio } : {}) } : { aforo: aforo() };
+    return f ? { nombre: f.nombre, descripcion: f.descripcion, ...(typeof f.idioma === "string" ? { idioma: f.idioma } : {}), portada, tema: tema ?? undefined, ...(interfaz ? { interfaz } : {}), ...(mapaMundo ? { mapa: mapaMundo } : {}), avatar: f.avatar, aforo: aforo(), ...(ficha?.audio ? { audio: ficha.audio } : {}) } : { aforo: aforo() };
   };
+  // the world's own loading-screen picture (ficha `carga`): only when the file is in this server; a heavy one is said in the log, not refused
+  if (pagina) pagina.carga = () => {
+    const f = fichaViva.ficha(), [sha, ext] = f?.carga?.split(".") ?? [];
+    return sha && activos.buscar(sha, ext) ? { url: `/a/${f!.carga}`, credito: f!.carga_credito } : null;
+  };
+  { const [sha, ext] = ficha?.carga?.split(".") ?? [], ruta = sha ? activos.buscar(sha, ext) : null;
+    if (ficha?.carga) log(ruta ? `[ficha] pantalla de carga propia /a/${ficha.carga} (${Math.round(statSync(ruta).size / 1024)} kB${statSync(ruta).size > 150 * 1024 ? "; pesa más de 150 kB: un móvil la espera, mejor un webp ligero" : ""})` : `[ficha] su imagen de carga ${ficha.carga} no está en este servidor: queda la luna`); }
   if (pagina) pagina.portada = () => { const p = fichaPublica(); return "portada" in p ? p.portada ?? null : null; }; // MIS-265: the cover in every page's og:image, live as the owner changes it
   (o.features ?? []).find(conFicha)?.ficha.conectar({ ajustes: fichaViva.ajustes, cambiar: fichaViva.cambiar });
   if (o.suelo) log(`[mundo] suelo mínimo ${o.suelo.minimo} m: bajo él se vuelve a la última posición segura${o.suelo.vuelta ? ` (punto de vuelta ${o.suelo.vuelta.x}, ${o.suelo.vuelta.y}, ${o.suelo.vuelta.z})` : ""}`);
@@ -280,7 +291,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const recibos = crearRecibos(secret, dominios[0]?.trim() || "local");
   if (recibos) log(`[bienes] los recibos de este mundo los firma ${recibos.emisor}`); else log("[bienes] sin MOTOR_SECRET este mundo no da bienes digitales (no tiene con qué firmar sus recibos)");
   const leerActivo = (h: string, ext: string): Uint8Array | null => { const ruta = activos.buscar(h, ext); if (!ruta) return null; try { return readFileSync(ruta); } catch { return null; } }; // M6 h8: /a/<sha256>.<ext>'s own bytes, for the world's collision mesh
-  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, renovarPase: roles.renovar, activo: (h, ext) => activos.buscar(h, ext) !== null, medidas: (h, ext) => activos.medidas(h, ext), trazoPuntos: (h) => activos.trazoPuntos(h), aventura: lector, agentes, externos: { verificar: puerta.verificar }, recibos: recibos ?? undefined, sinVoz: () => !roles.voz, escenario: (e) => roles.enEscenario(inst.who(e)?.id), oye: (de, a) => roles.oye(inst.who(de), inst.who(a)), aparicion: o.aparicion ?? null, suelo: o.suelo ?? null, vuelo: o.vuelo ?? "nadie", construirMalla: construirMalla(leerActivo), condiciones: puertaCondiciones, hecho: o.libro ? (t, d) => { o.libro!.registrar(t, d); } : undefined }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz); M6 h8: malla things build the world's mesh
+  const inst = new Instance({ seed: 42, capacity: maxPlayers + 24, k: 50, snapshotEvery: 2, reference: { ...REFERENCE, hash: refHash }, features: funciones, sign: signer(secret), log, onReport: (e, r) => sesiones.informe(e, r), storage: datos ?? undefined, identitySign, random: () => randomInt(0, 32) / 32, puede, credencial: roles.credencial, renovarPase: roles.renovar, activo: (h, ext) => activos.buscar(h, ext) !== null, medidas: (h, ext) => activos.medidas(h, ext), trazoPuntos: (h) => activos.trazoPuntos(h), aventura: lector, agentes, externos: { verificar: puerta.verificar }, recibos: recibos ?? undefined, sinVoz: () => !roles.voz, escenario: (e) => roles.enEscenario(inst.who(e)?.id), oye: (de, a) => roles.oye(inst.who(de), inst.who(a)), aparicion: o.aparicion ?? null, movimiento: o.movimiento ?? null, suelo: o.suelo ?? null, vuelo: o.vuelo ?? "nadie", construirMalla: construirMalla(leerActivo), condiciones: puertaCondiciones, hecho: o.libro ? (t, d) => { o.libro!.registrar(t, d); } : undefined }); // U10: the world's voice setting (MOTOR_VOZ=no seeds it off; /voz); M6 h8: malla things build the world's mesh
   // QA LOCAL (symposium-2026, no PR): MOTOR_QA_TRAZA=<fichero.jsonl> apunta cada segundo dónde está cada persona y qué función usa
   if (process.env.MOTOR_QA_TRAZA) {
     const qa = process.env.MOTOR_QA_TRAZA, ult = new Map<number, number[]>();

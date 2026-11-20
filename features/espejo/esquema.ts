@@ -21,7 +21,7 @@ export const FICHERO = "espejo.json";
 export const FUNCIONES = [
   "salud", "cron", "sesiones", "chat", "aprobaciones", "subagentes", "perfiles", "mcp", "habilidades", "documentos",
   "opciones", "memoria", "journey", "lienzo", "kanban", "mensajeria", "plugins",
-  "metas", "archivos", "uso", "voz", "navegador", "guia",
+  "metas", "archivos", "uso", "voz", "navegador", "proyectos", "guia",
 ] as const;
 export type Funcion = (typeof FUNCIONES)[number];
 
@@ -30,7 +30,7 @@ export const TEXTO_FUNCION: Record<Funcion, string> = {
   salud: "la salud", cron: "las tareas programadas", sesiones: "las sesiones", chat: "el chat", aprobaciones: "las aprobaciones", subagentes: "los subagentes",
   perfiles: "los agentes", mcp: "las herramientas conectadas", habilidades: "las habilidades", documentos: "la documentación", opciones: "las opciones", memoria: "la memoria",
   journey: "el recorrido", lienzo: "el lienzo", kanban: "el tablero", mensajeria: "la mensajería", plugins: "los complementos", metas: "las metas",
-  archivos: "los archivos", uso: "el gasto", voz: "la voz", navegador: "el navegador", guia: "la guía",
+  archivos: "los archivos", uso: "el gasto", voz: "la voz", navegador: "el navegador", proyectos: "los proyectos", guia: "la guía",
 };
 /** The label of a function (with article), or its own name when it is not one of ours. */
 export function textoFuncion(f: string): string { return (TEXTO_FUNCION as Record<string, string | undefined>)[f] ?? f; }
@@ -49,7 +49,7 @@ export function textoIrA(zona: string): string {
 export const TIPOS = {
   salud: "salud", cron: "cron", sesion: "sesiones", mensaje: "chat", aprobacion: "aprobaciones", subagente: "subagentes", perfil: "perfiles",
   mcp: "mcp", habilidad: "habilidades", documento: "documentos", opcion: "opciones", memoria: "memoria", estrella: "journey", artefacto: "lienzo",
-  tarjeta: "kanban", tablero: "kanban", canal: "mensajeria", plugin: "plugins", meta: "metas", fichero: "archivos", uso: "uso", voz: "voz", ventana: "navegador",
+  tarjeta: "kanban", tablero: "kanban", canal: "mensajeria", plugin: "plugins", meta: "metas", fichero: "archivos", uso: "uso", voz: "voz", ventana: "navegador", proyecto: "proyectos",
 } as const satisfies Record<string, Funcion>;
 export type Tipo = keyof typeof TIPOS;
 export const TIPOS_LISTA = Object.keys(TIPOS) as Tipo[];
@@ -108,7 +108,7 @@ export type Espejo = {
 export type Objeto = { tipo: Tipo; id: string; titulo: string; subtitulo: string; estado: Estado; zona: string; x: number; z: number; luz: boolean; acciones: Verbo[];
   /** M6 `documento`: the page this thing opens in the viewer (already checked against `documentos.origenes`). */
   url: string;
-  /** M6 `habilidad`: the need or category the tablet is grouped under, and what the skill does (cut to 200 bytes; the card shows 140 characters). */
+  /** M6 `habilidad` (and C7 `proyecto`: «Active» / «Archived», folders in the description): the need or category the tablet is grouped under, and what the skill does (cut to 200 bytes; the card shows 140 characters). */
   grupo: string; descripcion: string;
   /** M6 `tablero`: the counts and the top cards of the three columns, as compact JSON text (see `leerTablero`). "" = none. */
   tablero: string };
@@ -317,8 +317,8 @@ export function leerObjeto(crudo: unknown, e: Pick<Espejo, "zonas"> & Partial<Pi
     const r = direccionPermitida(crudo.url, e.documentos?.origenes ?? [ORIGEN_DEFECTO]);
     if (r.ok) url = r.url; else push("url", `dirección no permitida: ${r.why}`);
   }
-  if (solo("grupo", ["habilidad"])) { if (typeof crudo.grupo !== "string" || !crudo.grupo.trim() || bytes(crudo.grupo) > LIMITES.grupo) push("grupo", `texto de 1 a ${LIMITES.grupo} bytes: la necesidad o categoría de la habilidad`); else grupo = limpiar(crudo.grupo, LIMITES.grupo); }
-  if (solo("descripcion", ["habilidad", "documento"])) { if (typeof crudo.descripcion !== "string" || bytes(crudo.descripcion) > LIMITES.descripcion) push("descripcion", `texto de hasta ${LIMITES.descripcion} bytes`); else descripcion = limpiar(crudo.descripcion, LIMITES.descripcion); }
+  if (solo("grupo", ["habilidad", "proyecto"])) { if (typeof crudo.grupo !== "string" || !crudo.grupo.trim() || bytes(crudo.grupo) > LIMITES.grupo) push("grupo", `texto de 1 a ${LIMITES.grupo} bytes: la necesidad o categoría de la habilidad`); else grupo = limpiar(crudo.grupo, LIMITES.grupo); }
+  if (solo("descripcion", ["habilidad", "documento", "proyecto"])) { if (typeof crudo.descripcion !== "string" || bytes(crudo.descripcion) > LIMITES.descripcion) push("descripcion", `texto de hasta ${LIMITES.descripcion} bytes`); else descripcion = limpiar(crudo.descripcion, LIMITES.descripcion); }
   if (solo("tablero", ["tablero"])) { const t = leerTablero(crudo.tablero, `${path}.tablero`); if (t.ok) { tablero = tableroATexto(t.value); if (bytes(tablero) > LIMITES.tablero) push("tablero", `pasa de ${LIMITES.tablero} bytes: ponga menos tarjetas o títulos más cortos`); } else for (const q of t.issues) issues.push(q); }
   if (issues.length) return { ok: false, issues };
   return { ok: true, value: { tipo, id: crudo.id as string, titulo: limpiar(crudo.titulo, LIMITES.titulo), subtitulo: limpiar(crudo.subtitulo ?? "", LIMITES.subtitulo), estado: (crudo.estado as Estado | undefined) ?? "desconocido", zona: zona!.id, x: (crudo.x as number | undefined) ?? zona!.x, z: (crudo.z as number | undefined) ?? zona!.z, luz: crudo.luz === true, acciones: verbos, url, grupo, descripcion, tablero } };

@@ -93,7 +93,7 @@ test("tema: the minimap palette (mapa.ts imports CSS, so it is read as source he
   assert.match(readFileSync(new URL("../apps/plaza/mapa.ts", import.meta.url), "utf8"), /export function temaMapa\(byn: boolean\)/);
   assert.match(readFileSync(new URL("../apps/plaza/main.ts", import.meta.url), "utf8"), /temaHud === "black-and-white"\) void Promise\.all\(\[import\("\.\/tema-byn\.ts"\), import\("\.\/mapa\.ts"\)\]\)/);
   const fuente = readFileSync(new URL("../apps/plaza/mapa.ts", import.meta.url), "utf8");
-  assert.match(fuente, /SUELO = byn \? "#000" : "#b7c6ab"/);
+  assert.match(fuente, /SUELO = byn \? "#000" : "#F9EBDC"/);
   assert.match(fuente, /const tinta = \(c: string\): string => \(BYN \? "#fff" : c\)/);
 });
 

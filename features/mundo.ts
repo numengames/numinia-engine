@@ -19,7 +19,8 @@ import { crearDerribado, leerDerribado } from "./derribado/server.ts";
 import { crearBurbujas, leerBurbujas } from "./burbujas/server.ts";
 import { crearDados } from "./dados/server.ts";
 import type { Torre as TorreDados } from "./dados/server.ts";
-import { leerAparicion, leerAparicionFoto, leerSuelo, leerTema, leerVuelo } from "./entorno/esquema.ts";
+import { leerAparicion, leerAparicionFoto, leerMovimiento, leerSuelo, leerTema, leerVuelo, validarEntorno } from "./entorno/esquema.ts";
+import type { MovimientoFichero } from "./entorno/esquema.ts";
 import type { TemaMundo } from "./entorno/esquema.ts";
 import type { VueloMundo } from "./entorno/esquema.ts";
 import { crearSuelo } from "./suelo/server.ts"; // D-045
@@ -210,6 +211,21 @@ export function temaDelMundo(leer: (fichero: string) => unknown, log: (l: string
   if (r.ok) return r.value;
   log(`[mundo] tema de entorno.json no se usa (aspecto de siempre): ${r.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
   return null;
+}
+
+/** The world's pace (entorno.json `movimiento`), or null: no file, no key, or a file the page would not use (logged, with its path; the house's pace stays).
+ * The page gets the pace from the environment state, built by `baseDelMundo` from the WHOLE file: if any key is wrong the whole file is dropped and
+ * the page keeps the house's pace. So the sim must run the same full validation, or one typo elsewhere makes server and prediction disagree. */
+export function movimientoDelMundo(leer: (fichero: string) => unknown, log: (l: string) => void = () => {}): MovimientoFichero | null {
+  const json = leer("entorno.json");
+  if (json === undefined || json === null) return null;
+  const v = validarEntorno(json);
+  if (!v.ok) {
+    log(`[mundo] movimiento de entorno.json no se usa (el fichero entero se rechaza, el paso de siempre): ${v.issues.map((i) => `${i.path}: ${i.message}`).join("; ")}`);
+    return null;
+  }
+  const r = leerMovimiento(json);
+  return r.ok ? r.value : null;
 }
 
 /** The world's spawn area (entorno.json `aparicion`), or null: no file, no key, or a wrong one (logged, with its path). */
