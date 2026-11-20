@@ -1,0 +1,9 @@
+{
+  "formato": "ficha@1",
+  "nombre": "Blank World",
+  "version": "1.0.0",
+  "creador": "Numen Games",
+  "dueno": "pending",
+  "descripcion": "An empty world to build from scratch: flat ground, a daytime sky and nothing else. Open Build (C or Tab), drag a piece from the library and start.",
+  "notas": "The engine's «blank-world» template (plantillas/blank-world), chosen with MOTOR_PLANTILLA=blank-world: no objects, no people, no missions, no cables. Everyone who enters may build. Change its name and description whenever you like. `version` is the semantic version of this world; `creador` and `dueno` follow the world sheet (docs/FICHA-MUNDO-BLANK-WORLD.md)."
+}

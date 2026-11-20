@@ -185,3 +185,11 @@ path = "plantillas/taller/**"
 precedence = "closest"
 SPDX-FileCopyrightText = "2026 Numen Games S.L."
 SPDX-License-Identifier = "CC0-1.0"
+
+# ── The Blank World template (decision of Pablo, 2026-11-07): its content is CC0, same rule as above ─────
+# No Numen/Numinia logo or wordmark is shipped here (TRADEMARKS.md). See plantillas/blank-world/aventura/LICENSE.md.
+[[annotations]]
+path = "plantillas/blank-world/**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Numen Games S.L."
+SPDX-License-Identifier = "CC0-1.0"

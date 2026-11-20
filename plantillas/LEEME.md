@@ -61,3 +61,13 @@ staff), `burbujas.json` (a voice bubble that only the table hears) and `dados.js
 the Spanish translation is in `aventura/idiomas/es.*`. `aventura/ficha.json` carries the name, the semantic `version` (1.0.0), the creator
 (Numen Games) and the owner (`pending`); `aventura/LICENSE.md` is the CC0 licence file (marks excluded, see `TRADEMARKS.md`); the world sheet is
 `docs/FICHA-MUNDO-TABLETOP-RPG-ROOM.md`. Tests: `test/mundo-nuevo-tabletop-rpg-room.test.ts`.
+
+## blank-world/
+
+A **world type**: the empty world («Blank World», public, CC0). Chosen with `MOTOR_PLANTILLA=blank-world` when a new world is created.
+Flat ground, a daytime sky with a flat gradient (cheaper than the atmosphere), and nothing else: no objects, people, missions or cables;
+`entorno/` holds fishing, darts, combat and ancestors files **empty** (without them the engine would put the house pond, dartboard,
+creature and Hall of the Ancestors) and the base space off (so no Khepri logo is planted). Everyone who enters may build.
+`aventura/ficha.json` carries the name, the semantic `version`, the creator (Numen Games) and the owner (`pending`); `aventura/LICENSE.md`
+is the CC0 licence file (marks excluded, see `TRADEMARKS.md`); the world sheet is `docs/FICHA-MUNDO-BLANK-WORLD.md`.
+Tests: `test/mundo-nuevo-blank-world.test.ts`.
