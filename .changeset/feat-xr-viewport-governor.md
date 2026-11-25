@@ -2,9 +2,9 @@
 "numinia-engine": minor
 ---
 
-## 2026-11-25 16:05 · render / XR · Regulador de imagen propio de las gafas: baja el tamaño con `requestViewportScale` solo cuando limitan los píxeles (escalera de calidad, E2) · hecho
+## 2026-11-25 16:30 · render / XR · Regulador de imagen propio de las gafas: baja el tamaño con `requestViewportScale` solo cuando limitan los píxeles (escalera de calidad, E2) · hecho
 - Qué: `packages/render/src/regulador-xr.ts` (puro) decide cada 2 s con dos datos que la página sí puede medir dentro de las gafas: qué parte de las imágenes llega tarde (más de 1,5 periodos) y cuánto tardó nuestro dibujo en la CPU. Imágenes tarde con dibujo corto = limita la GPU: pide a las gafas un rectángulo un 15 % menor por lado (`XRView.requestViewportScale`, el mando del estándar: no se reasigna nada y el cambio no cuesta una imagen), con suelo en 0,6. Imágenes tarde con dibujo largo = limita la CPU: no toca nada (solo emborronaría). Un paso que no reduce las imágenes tarde se deshace y no se reintenta en un minuto; con 10 s de holgura vuelve a subir. No juzga las imágenes con algo del sistema encima (menú, rejilla de la sala) ni los 5 s de después. `view.reguladorXR` lo aplica (`cuadro`, `stats`, `activo` para QA); fuera de XR no hace nada y a escala 1 no cuesta nada. El pulso lleva la escala de XR en `ratio`, así que los cambios quedan en el diario de sesión como `cambiosRes`.
 - Números: `test/regulador-xr.test.ts`, 10 pruebas (incluye el tirón medido el 2026-11-25: dibujos de 18 ms a 72 Hz no mueven la escala). Base medida en Quest 3S, Quest Browser 157, WebGL2: escala 1 → 0,5 → 0,2 baja la GPU de 4,6 a 3,3 y 2,3 ms; `recommendedViewportScale` es null y `PressureObserver` no existe allí. Límite nuevo `xr_viewport_scale_min` = 0,6 en `limits.json` y `docs/FICHA-TECNICA.md` (config: una elección, sin prueba de legibilidad en gafas). El regulador entero, sin medir en gafas.
 - Consumo: sin medir · claude-fable-5-2.
-- Cambio: minor (aditivo). Commit: rama `feat/xr-viewport-governor`, sobre `fix/xr-flat-governor-out` (#382).
+- Cambio: minor (aditivo). Commit: rama `feat/xr-viewport-governor`, sobre #382 (ya en main).
 - Siguiente: probarlo en Quest con un mundo que limite por GPU; la causa del tirón de CPU sigue abierta; E4 (tirón de entrada) y E5 (gafas tratadas como gafas desde que abren la página).
