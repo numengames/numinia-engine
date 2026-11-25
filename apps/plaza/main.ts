@@ -935,6 +935,7 @@ view.loop((now) => {
     view.draw(dt / 1000);
     cost = view.lastFrame(); cost.cpuMs = Math.round((performance.now() - t0) * 100) / 100;
     if (view.power.reportCost(cost.cpuMs, dt, view.vr.active || view.ar.state !== "off")) view.applyPixelRatio(); // E1: in XR the headset owns the image size
+    view.reguladorXR.cuadro(dt, cost.cpuMs); // E2: the image size inside the headset (does nothing outside XR)
     frames++;
     // T1: interval between draws against the target of the moment. A gap of 1 s or more is a freeze, counted apart
     // (B5), unless the page was hidden or frozen meanwhile; draw calls, triangles, programs and pixel ratio ride along
@@ -942,7 +943,7 @@ view.loop((now) => {
     const programas = view.programas(); // the pulse never carried the programs: `cost.programs` was never set (the live meter reads them from three)
     if (lastDrawAt) medidorUI.cuadro({ dtMs: now - lastDrawAt, cpuMs: cost.cpuMs, llamadas: cost.calls, triangulos: cost.triangles, programas, compilesTardios: view.compiles().tardias });
     medidorUI.pintar(now);
-    if (lastDrawAt) medidor.cuadro(now - lastDrawAt, cost.cpuMs, xr ? view.xrHz() || 72 : view.power.targetFps(active), { dc: cost.calls, tri: cost.triangles, programas, ratio: view.power.pixelRatio(), xr, compilesTardios: view.compiles().tardias });
+    if (lastDrawAt) medidor.cuadro(now - lastDrawAt, cost.cpuMs, xr ? view.xrHz() || 72 : view.power.targetFps(active), { dc: cost.calls, tri: cost.triangles, programas, ratio: xr ? view.reguladorXR.escala : view.power.pixelRatio(), xr, compilesTardios: view.compiles().tardias });
     if (lastDrawAt) view.posproceso.vigilar(now - lastDrawAt, active); // H12b: the effects' cost gate (level A only; a no-op when they are off)
     lastDrawAt = now;
     if (session.welcome && !informe.primerCuadroMs) { informe.primerCuadroMs = Math.round(performance.now()); primerCuadroDado(); }

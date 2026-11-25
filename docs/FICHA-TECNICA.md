@@ -176,6 +176,7 @@ en Quest entra en todo.
 | Descarga por zona | ≤ 60 MB | ≤ 40 MB | ≤ 30 MB | ≤ 15 MB |
 | Hasta poder jugar | ≤ 15 MB | ≤ 12 MB | ≤ 10 MB | ≤ 6 MB |
 | fps objetivo | 60 | 72 | 30 | 30 |
+| Imagen en una sesión XR: escala mínima por lado (regulador XR, `xr_viewport_scale_min`, igual en todos) | ≥ 0,6 | ≥ 0,6 | ≥ 0,6 | ≥ 0,6 |
 
 ## Ajustes (N2)
 
