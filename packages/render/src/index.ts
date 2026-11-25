@@ -20,6 +20,7 @@ export type { Contenido as ContenidoMenuVR } from "./menu-invocado.ts";
 import type { Manos, EventoMano, Llevable, ResCambio, ResSoltar } from "./manos.ts";
 export type { EventoMano, Lado, Llevable, ResCambio, ResSoltar } from "./manos.ts";
 import { createPower, readCaps, checkCost, conClase } from "./power.ts";
+import { crearReguladorXR, pedirEscala, type CuadroXRLike } from "./regulador-xr.ts"; // E2: the image size inside an XR session
 export { createPower, readCaps, checkCost, conClase } from "./power.ts";
 export { limitesGraficos } from "./capacidades.ts"; // N2: max texture size for the capabilities
 export type { FrameCost } from "./power.ts";
@@ -187,6 +188,7 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
   /** t_159e18d2: the scene's light set changed (a light made or removed: three re-keys EVERY lit material of the world). Start linking the world
    * for the new set now, off the frame (compileAsync, in parallel where the GPU can), instead of letting the next drawn frame do it. One call per tick. */
   let lucesAvisadas = 0, lucesPendiente = false;
+  const regXR = crearReguladorXR(); let regXRSesion: unknown = null, regXRPedida = 1, regXRActivo = true, regXRDesdeMs = 0; // E2
   const camaraDeCompilar = (): THREE.Camera => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera);
   /** The camera a headset frame is keyed by (an ArrayCamera of two eyes, RenderObject.getDynamicCacheKey hashes `cameras.length`): stand-in for compiling its variants before a session exists. */
   const ojosFalsos = new THREE.ArrayCamera([new THREE.PerspectiveCamera(), new THREE.PerspectiveCamera()]);
@@ -1432,6 +1434,27 @@ export async function createView(parent: HTMLElement, opts: { forceWebGL?: boole
     scene,
     /** T1: the graphics chip as the browser names it ("" when it hides it). Read once at start (B3), then remembered. */
     gpu(): Promise<string> { return gpuNombre; },
+    /**
+     * E2 (quality ladder): the image size inside an XR session. `cuadro` once per drawn XR frame; it asks the headset for a
+     * smaller viewport only when frames arrive late and the pixels are what is slow (regulador-xr.ts). Costs nothing while
+     * the scale is 1. `activo = false` holds full size (QA).
+     */
+    reguladorXR: {
+      cuadro(dtMs: number, cpuMs: number): void {
+        const ses = renderer.xr.getSession() as unknown as { frameRate?: number; visibilityState?: string } | null;
+        if (!renderer.xr.isPresenting || !ses) return;
+        if (ses !== regXRSesion) { regXRSesion = ses; regXR.reiniciar(); regXRPedida = 1; }
+        const e = regXRActivo ? regXR.cuadro(dtMs, cpuMs, ses.frameRate ?? 72, (ses.visibilityState ?? "visible") === "visible") : 1;
+        regXRDesdeMs += dtMs;
+        if (e === regXRPedida && (e === 1 || regXRDesdeMs < 2000)) return; // re-asked every 2 s while under 1: a new set of views starts at full size
+        if (pedirEscala(renderer.xr.getFrame?.() as unknown as CuadroXRLike, renderer.xr.getReferenceSpace?.(), e)) regXRPedida = e;
+        regXRDesdeMs = 0;
+      },
+      get activo() { return regXRActivo; },
+      set activo(v: boolean) { regXRActivo = v; },
+      get escala() { return renderer.xr.isPresenting ? regXRPedida : 1; },
+      get stats() { return { ...regXR.stats, pedida: regXRPedida, activo: regXRActivo }; },
+    },
     /** T1: refresh rate of the XR session (Hz); 0 outside XR or when the browser does not say. */
     xrHz(): number {
       const s = renderer.xr.getSession() as unknown as { frameRate?: number } | null;
