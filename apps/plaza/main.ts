@@ -934,7 +934,7 @@ view.loop((now) => {
     const t0 = performance.now();
     view.draw(dt / 1000);
     cost = view.lastFrame(); cost.cpuMs = Math.round((performance.now() - t0) * 100) / 100;
-    if (view.power.reportCost(cost.cpuMs, dt)) view.applyPixelRatio();
+    if (view.power.reportCost(cost.cpuMs, dt, view.vr.active || view.ar.state !== "off")) view.applyPixelRatio(); // E1: in XR the headset owns the image size
     frames++;
     // T1: interval between draws against the target of the moment. A gap of 1 s or more is a freeze, counted apart
     // (B5), unless the page was hidden or frozen meanwhile; draw calls, triangles, programs and pixel ratio ride along
