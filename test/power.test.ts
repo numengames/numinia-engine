@@ -172,3 +172,24 @@ test("quality tier: a desktop reporting 2 GB is still tier A; a phone with 2 GB 
   assert.equal(nivelDe({ mobile: false, saveData: true }), "D");
   assert.equal(nivelDe({ mobile: false, deviceMemoryGB: 2, xr: true }), "B");
 });
+
+test("E1: inside an XR session the flat-screen resolution governor does not act (the headset owns the image size)", () => {
+  const p = createPower(desk);
+  // 20 s of 18 ms draws at 72 Hz, as measured in a Quest 3S stall: on a flat screen this lowers the scale twice
+  let cambios = 0;
+  for (let t = 0; t < 20000; t += 1000 / 72) if (p.reportCost(18, 1000 / 72, true)) cambios++;
+  assert.equal(cambios, 0, "it asked for a resize while presenting");
+  assert.equal(p.scale, 1);
+  assert.equal(p.stats.cambios, 0);
+  assert.ok(p.stats.emaCostMs > 17, "the cost is still reported for the pulse");
+});
+
+test("E1: leaving XR starts a clean measure: nothing counted inside carries over, and it settles 3 s first", () => {
+  const p = createPower(desk);
+  for (let t = 0; t < 20000; t += 1000 / 72) p.reportCost(18, 1000 / 72, true);
+  // back on the flat screen with the same heavy cost: no change in the first 3 s + 4 s (settle, then two slow windows)
+  let primero = -1;
+  for (let t = 0; t < 20000 && primero < 0; t += 1000 / 60) if (p.reportCost(18, 1000 / 60)) primero = t;
+  assert.ok(primero >= 7000, `changed ${primero} ms after leaving XR`);
+  assert.ok(p.scale < 1, "the flat governor works again outside XR");
+});

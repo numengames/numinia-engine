@@ -70,6 +70,7 @@ export function createPower(caps: Caps, opts: PowerOpts = {}) {
   let lentas = 0, holgadas = 0;                 // consecutive slow / roomy windows
   let desdeCambioMs = Infinity;                 // frame time since the last scale change
   let cargando = false, asentarMs = 0;          // loading now; settle time still to wait after it ends
+  let enXR = false;                             // E1: an XR session is presenting — the headset owns the image size, nothing is decided here
   let paronPendiente = 0;                       // next N reports are stalls (shader compiled, resize): not measured
   let techo = 1;                                // highest scale allowed (lowered when one level keeps failing)
   const bajadasDesde = new Map<number, number>(); // times we had to drop FROM each scale
@@ -131,9 +132,16 @@ export function createPower(caps: Caps, opts: PowerOpts = {}) {
      * roomy ones (hysteresis: 70 % / 35 % of the budget), at least 5 s between changes, nothing measured while
      * loading or for 3 s after, frames with a compile or a resize ignored, and a level that failed twice is not
      * tried again.
+     *
+     * E1: with `xr` true (an XR session is presenting) nothing is measured and it never returns true. The canvas is
+     * not what the headset shows, so its pixel ratio buys nothing there, and resizing it mid-session costs frames
+     * (measured on a Quest 3S, 2026-11-25: two resizes inside a 14 s stall, no gain). Leaving XR starts a clean
+     * measure after `ASENTAR_MS`.
      */
-    reportCost(costMs: number, frameDtMs: number): boolean {
+    reportCost(costMs: number, frameDtMs: number, xr = false): boolean {
       emaCost = emaCost ? emaCost * 0.9 + costMs * 0.1 : costMs; // kept for stats (the pulse and the ficha read it)
+      if (xr) { if (!enXR) { enXR = true; reiniciarTodo(); } ignorados++; return false; }
+      if (enXR) { enXR = false; reiniciarTodo(); asentarMs = ASENTAR_MS; }
       desdeCambioMs += frameDtMs; desdeSubidaMs += frameDtMs;
       if (paronPendiente > 0) { paronPendiente--; ignorados++; return false; }
       if (cargando) { ignorados++; return false; }
